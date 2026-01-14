@@ -1,0 +1,84 @@
+@import "tailwindcss";
+
+:root {
+  --color-background: #f5f7fb;
+  --color-surface: #f8fafc;
+  --color-card: #ffffff;
+  --color-foreground: #0f172a;
+  --color-muted: #334155;
+  --color-border: #e2e8f0;
+  --color-accent: #0f766e;
+  --color-accent-strong: #0b4336;
+  --color-amber: #f59e0b;
+  --shadow-card: 0 24px 70px rgba(15, 23, 42, 0.08);
+  --shadow-soft: 0 30px 90px rgba(15, 118, 110, 0.12);
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-xl: 28px;
+}
+
+@theme inline {
+  --color-background: var(--color-background);
+  --color-surface: var(--color-surface);
+  --color-card: var(--color-card);
+  --color-foreground: var(--color-foreground);
+  --color-muted: var(--color-muted);
+  --color-border: var(--color-border);
+  --color-accent: var(--color-accent);
+  --color-accent-strong: var(--color-accent-strong);
+  --color-primary: var(--color-accent);
+  --color-secondary: #0ea5e9;
+  --color-amber: var(--color-amber);
+  --font-sans: var(--font-inter);
+  --shadow-card: var(--shadow-card);
+  --shadow-soft: var(--shadow-soft);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --radius-xl: var(--radius-xl);
+}
+
+body {
+  background: radial-gradient(circle at 10% 20%, #ecf8f5 0, rgba(236, 248, 245, 0) 32%),
+    radial-gradient(circle at 90% 15%, #e0f2fe 0, rgba(224, 242, 254, 0) 28%),
+    var(--color-background);
+  color: var(--color-foreground);
+  font-family: var(--font-inter), system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", sans-serif;
+  text-rendering: optimizeLegibility;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+p,
+li {
+  color: var(--color-muted);
+}
+
+.card {
+  background: var(--color-card);
+  box-shadow: var(--shadow-card);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border);
+}
+
+.pill {
+  border-radius: 9999px;
+  border: 1px solid rgba(15, 118, 110, 0.18);
+  background: rgba(15, 118, 110, 0.08);
+}
+
+.gradient-hero {
+  background: radial-gradient(circle at 10% 20%, rgba(15, 118, 110, 0.14) 0, transparent 28%),
+    radial-gradient(circle at 80% 0%, rgba(14, 165, 233, 0.12) 0, transparent 24%),
+    linear-gradient(135deg, #0b4336 0%, #0f766e 40%, #0ea5e9 100%);
+}
+
+.glass {
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(226, 232, 240, 0.7);
+  box-shadow: 0 20px 70px rgba(15, 23, 42, 0.15);
+  backdrop-filter: blur(10px);
+}
