@@ -23,73 +23,187 @@
         </div>
         <div class="brand-text">
           <h1>Gesmeco Energía</h1>
-          <p class="subtitle">Ahorro y eficiencia en tu suministro eléctrico</p>
+          <p class="subtitle">Especialistas en ahorro y eficiencia energética</p>
         </div>
+        <nav class="nav">
+          <button class="nav-toggle" aria-label="Abrir menú">
+            <span></span>
+            <span></span>
+            <span></span>
+          </button>
+          <ul class="nav-list">
+            <li><a href="#inicio">Inicio</a></li>
+            <li><a href="#servicios">Servicios</a></li>
+            <li><a href="#nosotros">Nosotros</a></li>
+            <li><a href="#contacto">Contacto</a></li>
+          </ul>
+        </nav>
       </div>
     </header>
 
     <main class="main">
-      <section class="intro">
+      <section class="hero" id="inicio">
+        <div class="hero-content">
+          <h2>Pagas de más por la luz.<br /><span>Nosotros lo solucionamos.</span></h2>
+          <p>
+            Analizamos tu consumo, negociamos las mejores condiciones y
+            diseñamos un plan de ahorro energético adaptado a tu realidad, tanto
+            si eres empresa como particular.
+          </p>
+          <div class="hero-actions">
+            <button class="btn-primary" data-scroll-to="#contacto">
+              Solicitar estudio gratuito
+            </button>
+            <button class="btn-secondary" data-scroll-to="#servicios">
+              Ver servicios
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="nosotros">
         <h2>¿Quiénes somos?</h2>
         <p>
-          En <strong>Gesmeco Energía</strong> te ayudamos a reducir el coste de
-          tu factura de la luz mediante un estudio personalizado de consumo y
-          la contratación de la tarifa que mejor se adapta a tus necesidades.
+          En <strong>Gesmeco Energía</strong> acompañamos a nuestros clientes en
+          todo el ciclo del suministro eléctrico: desde el estudio inicial hasta
+          la optimización continua de la factura. Trabajamos con total
+          transparencia, explicando cada decisión y cada concepto de la factura
+          para que tengas el control.
         </p>
       </section>
 
-      <section class="services">
-        <h2>Qué ofrecemos</h2>
+      <section class="section" id="servicios">
+        <h2>Servicios de Gesmeco Energía</h2>
         <div class="services-grid">
           <article class="service-card">
             <h3>Venta de luz</h3>
             <p>
-              Asesoramiento para la contratación de tarifas eléctricas
-              competitivas para <strong>hogares</strong> y
-              <strong>empresas</strong>.
+              Selección y contratación de tarifas eléctricas competitivas para
+              <strong>hogares</strong> y <strong>empresas</strong>, con
+              seguimiento periódico para garantizar que sigues en la mejor
+              opción disponible.
             </p>
           </article>
 
           <article class="service-card">
             <h3>Estudios de ahorro energético</h3>
             <p>
-              Analizamos tu consumo, detectamos ineficiencias y proponemos
-              medidas concretas para que pagues solo por la energía que
-              realmente necesitas.
+              Analizamos tu histórico de consumo, detectamos ineficiencias y
+              proponemos medidas concretas para reducir el coste sin renunciar a
+              confort ni productividad.
             </p>
           </article>
 
           <article class="service-card">
             <h3>Cambio y optimización de potencia</h3>
             <p>
-              Revisamos la potencia contratada y te ayudamos a ajustarla para
-              evitar pagos innecesarios en tu factura.
+              Revisamos la potencia contratada en cada punto de suministro y te
+              ayudamos a ajustarla para evitar tanto sobrecostes como
+              limitaciones de potencia.
+            </p>
+          </article>
+
+          <article class="service-card">
+            <h3>Asesoría continua</h3>
+            <p>
+              Te acompañamos en el tiempo: revisión de facturas, detección de
+              errores de facturación y avisos cuando el mercado ofrece mejores
+              alternativas.
             </p>
           </article>
         </div>
       </section>
 
-      <section class="contact">
-        <h2>Contacto</h2>
+      <section class="section contact" id="contacto">
+        <h2>Solicita tu estudio de ahorro</h2>
         <p>
-          ¿Quieres un estudio de ahorro energético sin compromiso? Ponte en
-          contacto con nosotros:
+          Rellena tus datos y te contactaremos para realizar un estudio de
+          ahorro energético <strong>sin compromiso</strong>.
         </p>
-        <ul class="contact-list">
-          <li><strong>Teléfono</strong>: ____________________</li>
-          <li><strong>Email</strong>: _______________________</li>
-          <li><strong>Localización</strong>: ________________</li>
-        </ul>
+        <form class="contact-form">
+          <div class="form-row">
+            <div class="form-field">
+              <label for="nombre">Nombre y apellidos</label>
+              <input id="nombre" type="text" placeholder="Tu nombre" />
+            </div>
+            <div class="form-field">
+              <label for="email">Email</label>
+              <input id="email" type="email" placeholder="tucorreo@ejemplo.com" />
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-field">
+              <label for="telefono">Teléfono</label>
+              <input id="telefono" type="tel" placeholder="+34 600 000 000" />
+            </div>
+            <div class="form-field">
+              <label for="tipo-cliente">Tipo de cliente</label>
+              <select id="tipo-cliente">
+                <option value="">Selecciona una opción</option>
+                <option value="hogar">Hogar</option>
+                <option value="empresa">Empresa</option>
+                <option value="comunidad">Comunidad de propietarios</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-field">
+            <label for="mensaje">Comentarios</label>
+            <textarea
+              id="mensaje"
+              rows="4"
+              placeholder="Cuéntanos brevemente tu situación actual de consumo."
+            ></textarea>
+          </div>
+          <button type="button" class="btn-primary btn-full">
+            Enviar solicitud
+          </button>
+          <p class="form-note">
+            * Este formulario es una demostración. Sustituye este texto por tus
+            datos reales de contacto (teléfono, email, dirección) cuando lo
+            desees.
+          </p>
+        </form>
       </section>
     </main>
 
     <footer class="footer">
-      <p>&copy; <span id="year"></span> Gesmeco Energía. Todos los derechos reservados.</p>
+      <p>
+        &copy; <span id="year"></span> Gesmeco Energía. Todos los derechos reservados.
+      </p>
     </footer>
 
     <script>
       // Año automático en el pie de página
       document.getElementById("year").textContent = new Date().getFullYear();
+
+      // Scroll suave a secciones
+      document.querySelectorAll("[data-scroll-to]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const target = btn.getAttribute("data-scroll-to");
+          const el = document.querySelector(target);
+          if (el) {
+            el.scrollIntoView({ behavior: "smooth", block: "start" });
+          }
+        });
+      });
+
+      // Menú responsive sencillo
+      const navToggle = document.querySelector(".nav-toggle");
+      const navList = document.querySelector(".nav-list");
+
+      if (navToggle && navList) {
+        navToggle.addEventListener("click", () => {
+          navList.classList.toggle("nav-list--open");
+          navToggle.classList.toggle("nav-toggle--open");
+        });
+
+        navList.querySelectorAll("a").forEach((link) => {
+          link.addEventListener("click", () => {
+            navList.classList.remove("nav-list--open");
+            navToggle.classList.remove("nav-toggle--open");
+          });
+        });
+      }
     </script>
   </body>
 </html>
