@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Gesmeco Energía</title>
+    <meta
+      name="description"
+      content="Gesmeco Energía - Empresa de venta de luz y estudios de ahorro energético para empresas y particulares."
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="header">
+      <div class="header-inner">
+        <div class="logo-box">
+          <!-- Pon el archivo del logo en esta carpeta con este nombre -->
+          <img
+            src="logo-gesmeco-energia.png"
+            alt="Logo Gesmeco Energía"
+            class="logo-img"
+          />
+        </div>
+        <div class="brand-text">
+          <h1>Gesmeco Energía</h1>
+          <p class="subtitle">Ahorro y eficiencia en tu suministro eléctrico</p>
+        </div>
+      </div>
+    </header>
+
+    <main class="main">
+      <section class="intro">
+        <h2>¿Quiénes somos?</h2>
+        <p>
+          En <strong>Gesmeco Energía</strong> te ayudamos a reducir el coste de
+          tu factura de la luz mediante un estudio personalizado de consumo y
+          la contratación de la tarifa que mejor se adapta a tus necesidades.
+        </p>
+      </section>
+
+      <section class="services">
+        <h2>Qué ofrecemos</h2>
+        <div class="services-grid">
+          <article class="service-card">
+            <h3>Venta de luz</h3>
+            <p>
+              Asesoramiento para la contratación de tarifas eléctricas
+              competitivas para <strong>hogares</strong> y
+              <strong>empresas</strong>.
+            </p>
+          </article>
+
+          <article class="service-card">
+            <h3>Estudios de ahorro energético</h3>
+            <p>
+              Analizamos tu consumo, detectamos ineficiencias y proponemos
+              medidas concretas para que pagues solo por la energía que
+              realmente necesitas.
+            </p>
+          </article>
+
+          <article class="service-card">
+            <h3>Cambio y optimización de potencia</h3>
+            <p>
+              Revisamos la potencia contratada y te ayudamos a ajustarla para
+              evitar pagos innecesarios en tu factura.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <section class="contact">
+        <h2>Contacto</h2>
+        <p>
+          ¿Quieres un estudio de ahorro energético sin compromiso? Ponte en
+          contacto con nosotros:
+        </p>
+        <ul class="contact-list">
+          <li><strong>Teléfono</strong>: ____________________</li>
+          <li><strong>Email</strong>: _______________________</li>
+          <li><strong>Localización</strong>: ________________</li>
+        </ul>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <p>&copy; <span id="year"></span> Gesmeco Energía. Todos los derechos reservados.</p>
+    </footer>
+
+    <script>
+      // Año automático en el pie de página
+      document.getElementById("year").textContent = new Date().getFullYear();
+    </script>
+  </body>
+</html>
+
