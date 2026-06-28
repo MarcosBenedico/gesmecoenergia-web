@@ -61,8 +61,17 @@ export default function GestorPage() {
       const precios = await obtenerPreciosComercializadoras();
       setPrecios(precios);
 
-      const { data: comercios } = await supabase.from('comercializadoras').select('*');
+      const { data: comercios } = await supabase.from('comercializadoras').select('*').order('id');
+      console.log('Comercializadoras cargadas:', comercios);
       setComercializadoras(comercios || []);
+
+      // Establecer la primera comercializadora como default
+      if (comercios && comercios.length > 0) {
+        setFormCrear((prev) => ({
+          ...prev,
+          comercializadora_id: comercios[0].id,
+        }));
+      }
     } catch (error) {
       console.error('Error al cargar datos:', error);
     } finally {
@@ -81,6 +90,11 @@ export default function GestorPage() {
     e.preventDefault();
 
     try {
+      if (!formCrear.comercializadora_id) {
+        alert('Por favor selecciona una comercializadora');
+        return;
+      }
+
       const periodos = formCrear.tarifa === '2.0' ? 3 : 6;
       const potencias = formCrear.tarifa === '2.0' ? 2 : 6;
 
@@ -111,14 +125,14 @@ export default function GestorPage() {
       // Resetear form
       setFormCrear({
         tarifa: '2.0',
-        comercializadora_id: 1,
+        comercializadora_id: comercializadoras[0]?.id || 1,
         precios: { energia: [0, 0, 0], potencia: [0, 0] },
       });
 
       alert('Tarifa creada exitosamente');
     } catch (error) {
       console.error('Error al crear tarifa:', error);
-      alert('Error al crear tarifa');
+      alert('Error al crear tarifa: ' + (error as any).message);
     }
   };
 
@@ -371,12 +385,22 @@ export default function GestorPage() {
                       }
                       className="w-full rounded-lg border border-neutral-200 px-4 py-2.5 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
                     >
-                      {comercializadoras.map((com) => (
-                        <option key={com.id} value={com.id}>
-                          {com.nombre}
-                        </option>
-                      ))}
+                      <option value="">-- Selecciona una comercializadora --</option>
+                      {comercializadoras && comercializadoras.length > 0 ? (
+                        comercializadoras.map((com) => (
+                          <option key={com.id} value={com.id}>
+                            {com.nombre}
+                          </option>
+                        ))
+                      ) : (
+                        <option disabled>No hay comercializadoras disponibles</option>
+                      )}
                     </select>
+                    {comercializadoras.length === 0 && (
+                      <p className="mt-2 text-xs text-red-600">
+                        ⚠️ No se cargaron las comercializadoras. Recarga la página.
+                      </p>
+                    )}
                   </div>
                 </div>
 
