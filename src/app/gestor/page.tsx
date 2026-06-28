@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { obtenerUsuarioActual, logoutUsuario, obtenerPreciosComercializadoras } from '@/lib/auth';
+import { obtenerUsuarioActual as obtenerUsuarioAuth, logoutUsuario as logoutAuth, obtenerPreciosComercializadoras } from '@/lib/auth';
+import { obtenerUsuarioActual, logoutUsuario, estaAutenticado } from '@/lib/auth-usuarios';
 import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/button';
 import { Container } from '@/components/container';
@@ -69,13 +70,14 @@ export default function GestorPage() {
   const [seguimientos, setSeguimientos] = useState<any[]>([]);
 
   useEffect(() => {
-    const usuario = obtenerUsuarioActual();
-    if (!usuario) {
-      router.push('/gestor/login');
+    // Verificar autenticación con nuevo sistema
+    if (!estaAutenticado()) {
+      router.push('/login');
       return;
     }
 
-    setUsuarioActual('UsuarioMaster');
+    const usuario = obtenerUsuarioActual();
+    setUsuarioActual(usuario?.nombre || usuario?.username || 'Usuario');
     cargarDatos();
     cargarClientes();
   }, [router]);
@@ -130,7 +132,7 @@ export default function GestorPage() {
 
   const handleLogout = () => {
     logoutUsuario();
-    router.push('/gestor/login');
+    router.push('/login');
   };
 
   const handleCrearTarifa = async (e: React.FormEvent) => {
