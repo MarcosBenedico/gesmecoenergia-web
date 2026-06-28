@@ -80,7 +80,7 @@ export function Calendario() {
   // Cargar lista de calendarios disponibles
   const cargarCalendarios = async () => {
     try {
-      console.log('📅 Cargando lista de calendarios...');
+      console.log('Cargando lista de calendarios...');
       const { data: googleConfig } = await supabase
         .from('google_config')
         .select('access_token')
@@ -88,7 +88,7 @@ export function Calendario() {
         .single();
 
       if (!googleConfig?.access_token) {
-        console.log('❌ Sin token');
+        console.log('Sin token de Google');
         return;
       }
 
@@ -98,29 +98,43 @@ export function Calendario() {
         },
       });
 
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Error de Google Calendar API:', response.status, errorData);
+        return;
+      }
+
       const data = await response.json();
-      let calendarList: Calendar[] = (data.items || [])
+
+      if (!data.items || data.items.length === 0) {
+        console.log('No hay calendarios disponibles');
+        setCalendars([]);
+        return;
+      }
+
+      let calendarList: Calendar[] = data.items
         .filter((item: any) => {
           const summary = item.summary.toLowerCase();
           return !CALENDARS_TO_FILTER.some(filter => summary.includes(filter));
         })
         .map((item: any, index: number) => {
-          const colorSet = CALENDAR_COLORS[index % CALENDAR_COLORS.length]; // Cicla colores si hay más de 4
+          const colorSet = CALENDAR_COLORS[index % CALENDAR_COLORS.length];
           return {
             id: item.id,
             summary: item.summary,
             email: item.id,
-            selected: item.primary || index === 0, // Por defecto, seleccionar el primero
+            selected: item.primary || index === 0,
             color: colorSet.color,
             bgColor: colorSet.bgColor,
             borderColor: colorSet.borderColor,
           };
         });
 
-      console.log('✅ Calendarios cargados:', calendarList.length);
+      console.log('Calendarios cargados:', calendarList.length);
       setCalendars(calendarList);
     } catch (err) {
       console.error('Error cargando calendarios:', err);
+      setCalendars([]);
     }
   };
 
@@ -202,11 +216,14 @@ export function Calendario() {
   useEffect(() => {
     console.log('Calendario: Inicializando...');
 
-    verificarGoogleDirecto().then((conectado) => {
+    const inicializar = async () => {
+      const conectado = await verificarGoogleDirecto();
       if (conectado) {
-        cargarCalendarios();
+        await cargarCalendarios();
       }
-    });
+    };
+
+    inicializar();
 
     const interval = setInterval(() => {
       verificarGoogleDirecto();
@@ -215,10 +232,13 @@ export function Calendario() {
     return () => clearInterval(interval);
   }, []);
 
-  // Cargar eventos cuando Google se conecta o cambio de calendario/mes
+  // Cargar eventos cuando hay calendarios seleccionados
   useEffect(() => {
     if (googleConectado && calendars.length > 0) {
-      cargarEventos();
+      const selectedCalendars = calendars.filter((c) => c.selected);
+      if (selectedCalendars.length > 0) {
+        cargarEventos();
+      }
     }
   }, [currentDate, calendars, googleConectado]);
 
