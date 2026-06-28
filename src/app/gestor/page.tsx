@@ -421,7 +421,7 @@ export default function GestorPage() {
 
               <form onSubmit={handleCrearTarifa} className="space-y-8">
                 {/* Tipo de tarifa y comercializadora */}
-                <div className="grid gap-6 md:grid-cols-2">
+                <div className="grid gap-6 grid-cols-1 md:grid-cols-2">
                   <div>
                     <label className="block text-sm font-semibold text-foreground mb-2">
                       Tipo de Tarifa
@@ -478,7 +478,7 @@ export default function GestorPage() {
                 {/* Precios de energía */}
                 <div>
                   <h3 className="mb-4 font-semibold text-foreground">Precios de Energía (€/kWh)</h3>
-                  <div className="grid gap-4 md:grid-cols-3">
+                  <div className="grid gap-4 grid-cols-1 md:grid-cols-3">
                     {Array.from({ length: periodosForm }).map((_, idx) => (
                       <div key={`energia-${idx}`}>
                         <label className="block text-xs font-semibold text-accent mb-2 uppercase">
@@ -507,7 +507,7 @@ export default function GestorPage() {
                 {/* Precios de potencia */}
                 <div>
                   <h3 className="mb-4 font-semibold text-foreground">Precios de Potencia (€/kW/día)</h3>
-                  <div className="grid gap-4 md:grid-cols-3">
+                  <div className="grid gap-4 grid-cols-1 md:grid-cols-3">
                     {Array.from({ length: potenciasForm }).map((_, idx) => (
                       <div key={`potencia-${idx}`}>
                         <label className="block text-xs font-semibold text-accent mb-2 uppercase">
@@ -713,7 +713,7 @@ function ComparativaSimulador({ clientes, comercializadoras, precios }: Comparat
       <div className="card rounded-2xl p-6 md:p-8 bg-surface/50">
         <h2 className="mb-6 text-2xl font-bold text-foreground">Comparativa Detallada</h2>
 
-        <div className="grid gap-6 md:grid-cols-3">
+        <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
           <div>
             <label className="block text-sm font-bold text-foreground mb-2 uppercase tracking-widest">
               Cliente (opcional)
@@ -815,7 +815,7 @@ function ComparativaSimulador({ clientes, comercializadoras, precios }: Comparat
       {/* Tabla de Consumos */}
       <div className="card rounded-2xl p-6 md:p-8 bg-surface/50">
         <h3 className="font-bold text-foreground text-lg mb-4">Consumos Anuales</h3>
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
           <div>
             <h4 className="font-bold text-foreground mb-3">Energía (kWh/período)</h4>
             <div className="grid grid-cols-3 gap-2">
@@ -864,7 +864,7 @@ function ComparativaSimulador({ clientes, comercializadoras, precios }: Comparat
       {/* Tabla de Precios */}
       <div className="card rounded-2xl p-6 md:p-8 bg-surface/50">
         <h3 className="font-bold text-foreground text-lg mb-4">💵 Precios por Período</h3>
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
           <div>
             <h4 className="font-bold text-foreground mb-3">Energía (€/kWh)</h4>
             <div className="grid grid-cols-3 gap-2">
@@ -914,7 +914,7 @@ function ComparativaSimulador({ clientes, comercializadoras, precios }: Comparat
       </div>
 
       {/* Desglose por Período */}
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="grid gap-6 grid-cols-1 md:grid-cols-2">
         {/* Detalles Energía */}
         <div className="card rounded-2xl p-6 md:p-8 bg-surface/50">
           <h3 className="font-bold text-foreground text-lg mb-4">Cálculo de Energía</h3>
@@ -975,7 +975,7 @@ function ComparativaSimulador({ clientes, comercializadoras, precios }: Comparat
       </div>
 
       {/* Resumen Final */}
-      <div className="grid gap-6 md:grid-cols-3">
+      <div className="grid gap-6 grid-cols-1 md:grid-cols-3">
         <div className="card rounded-2xl p-6 md:p-8 bg-card/50 border border-border">
           <div className="text-sm font-bold text-muted uppercase tracking-widest mb-3">Coste Actual</div>
           <div className="space-y-2 mb-4">
@@ -1044,7 +1044,7 @@ function ComparativaSimulador({ clientes, comercializadoras, precios }: Comparat
 
 function ViewTarifaDisplay({ precio }: { precio: Precio }) {
   return (
-    <div className="grid gap-6 md:grid-cols-2">
+    <div className="grid gap-6 grid-cols-1 md:grid-cols-2">
       <div>
         <h4 className="mb-3 font-semibold text-foreground text-sm">Precios de Energía (€/kWh)</h4>
         <div className="space-y-2">
@@ -1084,7 +1084,7 @@ function EditTarifaForm({ precio, onSave }: EditFormProps) {
     <div className="space-y-6">
       <div>
         <h4 className="mb-3 font-semibold text-foreground text-sm">Precios de Energía (€/kWh)</h4>
-        <div className="grid gap-3 md:grid-cols-3">
+        <div className="grid gap-3 grid-cols-1 md:grid-cols-3">
           {energias.map((p, idx) => (
             <div key={idx}>
               <label className="block text-xs font-semibold text-accent mb-1 uppercase">P{idx + 1}</label>
@@ -1105,7 +1105,7 @@ function EditTarifaForm({ precio, onSave }: EditFormProps) {
       </div>
       <div>
         <h4 className="mb-3 font-semibold text-foreground text-sm">Precios de Potencia (€/kW/mes)</h4>
-        <div className="grid gap-3 md:grid-cols-3">
+        <div className="grid gap-3 grid-cols-1 md:grid-cols-3">
           {potencias.map((p, idx) => (
             <div key={idx}>
               <label className="block text-xs font-semibold text-accent mb-1 uppercase">Pot{idx + 1}</label>
@@ -1284,7 +1284,7 @@ function GestionarClientes({
                   <>
                     {/* Modo lectura */}
                     <div className="space-y-6">
-                      <div className="grid gap-4 md:grid-cols-2">
+                      <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
                         <div>
                           <label className="block text-xs font-bold text-muted uppercase tracking-widest mb-2">
                             Nombre
@@ -1351,7 +1351,7 @@ function GestionarClientes({
                   <>
                     {/* Modo editar */}
                     <div className="space-y-6">
-                      <div className="grid gap-4 md:grid-cols-2">
+                      <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
                         <div>
                           <label className="block text-xs font-bold text-foreground uppercase tracking-widest mb-2">
                             Nombre
@@ -1402,7 +1402,7 @@ function GestionarClientes({
 
                       <div>
                         <h4 className="font-bold text-foreground mb-3">Precios Energía (€/kWh)</h4>
-                        <div className="grid gap-3 md:grid-cols-3">
+                        <div className="grid gap-3 grid-cols-1 md:grid-cols-3">
                           {Array.from({ length: periodos }).map((_, idx) => (
                             <input
                               key={idx}
@@ -1423,7 +1423,7 @@ function GestionarClientes({
 
                       <div>
                         <h4 className="font-bold text-foreground mb-3">Precios Potencia (€/kW/día)</h4>
-                        <div className="grid gap-3 md:grid-cols-3">
+                        <div className="grid gap-3 grid-cols-1 md:grid-cols-3">
                           {Array.from({ length: potencias }).map((_, idx) => (
                             <input
                               key={idx}
