@@ -74,8 +74,8 @@ export function Calendario() {
     { color: 'text-amber-400', bgColor: 'bg-amber-500/20', borderColor: 'border-amber-500/40' },
   ];
 
-  // Calendarios a filtrar
-  const CALENDARS_TO_FILTER = ['tareas diarias', 'festivos españa', 'holidays'];
+  // Calendarios a filtrar (exactos)
+  const CALENDARS_TO_FILTER = ['tareas diarias', 'festivos', 'holidays in'];
 
   // Cargar lista de calendarios disponibles
   const cargarCalendarios = async () => {
@@ -104,9 +104,8 @@ export function Calendario() {
           const summary = item.summary.toLowerCase();
           return !CALENDARS_TO_FILTER.some(filter => summary.includes(filter));
         })
-        .slice(0, 4) // Máximo 4 calendarios
         .map((item: any, index: number) => {
-          const colorSet = CALENDAR_COLORS[index] || CALENDAR_COLORS[0];
+          const colorSet = CALENDAR_COLORS[index % CALENDAR_COLORS.length]; // Cicla colores si hay más de 4
           return {
             id: item.id,
             summary: item.summary,
