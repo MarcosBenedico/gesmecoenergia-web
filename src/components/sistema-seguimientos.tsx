@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
+import { verificarGoogleConectado } from '@/lib/google-state';
 
 interface SeguimientosProps {
   clientes: any[];
@@ -28,16 +29,28 @@ export function SistemaSegumientos({
 
   // Verificar si está conectado a Google
   useEffect(() => {
+    console.log('📍 SistemaSegumientos: Verificando Google...');
+
+    // Verificación inicial
+    verificarGoogleConectado().then((result) => {
+      console.log('📍 Resultado inicial:', result);
+      setGoogleConnected(result.conectado);
+    });
+
+    // Verificar cada 2 segundos (para detectar cambios rápidamente)
+    const interval = setInterval(() => {
+      verificarGoogleConectado().then((result) => {
+        setGoogleConnected(result.conectado);
+      });
+    }, 2000);
+
+    // Limpiar parámetros de la URL
     const params = new URLSearchParams(window.location.search);
     if (params.get('google_connected') === 'true') {
-      setGoogleConnected(true);
-      window.history.replaceState({}, '', '/gestor?seccion=seguimientos');
+      window.history.replaceState({}, '', window.location.pathname);
     }
 
-    const googleEmail = document.cookie.split('; ').find((row) => row.startsWith('google_email='));
-    if (googleEmail) {
-      setGoogleConnected(true);
-    }
+    return () => clearInterval(interval);
   }, []);
 
   const handleAgregarSeguimiento = async (e: React.FormEvent) => {

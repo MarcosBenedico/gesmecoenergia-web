@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { verificarGoogleConectado } from '@/lib/google-state';
 
 interface CalendarEvent {
   id: string;
@@ -23,46 +24,38 @@ export function Calendario() {
 
   // Cargar eventos cuando el componente se monta o cambia la fecha
   useEffect(() => {
-    verificarGoogle();
+    console.log('📅 Calendario: Inicializando...');
 
-    // Verificar si acaba de conectarse desde el callback
+    // Verificación inicial
+    verificarGoogleConectado().then((result) => {
+      console.log('📅 Estado Google:', result);
+      setGoogleConectado(result.conectado);
+    });
+
+    // Verificar cada 1 segundo (para actualizar rápidamente)
+    const interval = setInterval(() => {
+      verificarGoogleConectado().then((result) => {
+        setGoogleConectado(result.conectado);
+      });
+    }, 1000);
+
+    // Limpiar parámetros de la URL
     const params = new URLSearchParams(window.location.search);
     if (params.get('google_connected') === 'true') {
-      setGoogleConectado(true);
-      // Limpiar la URL
-      window.history.replaceState({}, '', '/gestor?seccion=calendario');
+      window.history.replaceState({}, '', window.location.pathname + '?seccion=calendario');
     }
+
+    return () => clearInterval(interval);
   }, []);
 
+  // Cargar eventos cuando Google se conecta o cambia la fecha
   useEffect(() => {
     if (googleConectado) {
+      console.log('📅 Google conectado, cargando eventos...');
       cargarEventos();
     }
   }, [currentDate, googleConectado]);
 
-  const verificarGoogle = async () => {
-    try {
-      const { data: googleConfig, error: err } = await supabase
-        .from('google_config')
-        .select('access_token, email, id')
-        .eq('id', 1)
-        .single();
-
-      if (googleConfig?.access_token && googleConfig?.email) {
-        setGoogleConectado(true);
-        setError('');
-        console.log('✓ Google conectado:', googleConfig.email);
-      } else {
-        setGoogleConectado(false);
-        setError('Google Calendar no está conectado');
-        console.log('✗ Sin token de Google');
-      }
-    } catch (error) {
-      setGoogleConectado(false);
-      setError('Google Calendar no está conectado');
-      console.log('✗ Error al verificar Google:', error);
-    }
-  };
 
   const cargarEventos = async () => {
     setLoading(true);
@@ -346,8 +339,12 @@ export function Calendario() {
           </button>
           <button
             onClick={() => {
-              verificarGoogle();
-              cargarEventos();
+              verificarGoogleConectado().then((result) => {
+                setGoogleConectado(result.conectado);
+                if (result.conectado) {
+                  cargarEventos();
+                }
+              });
             }}
             disabled={loading}
             className="px-4 py-2 rounded-lg bg-secondary text-white font-semibold hover:bg-secondary/90 transition ml-2 disabled:opacity-50"
