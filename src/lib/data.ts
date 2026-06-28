@@ -1,198 +1,197 @@
 export const heroStats = [
   {
-    label: "Optimización de coste total",
-    value: "8-18%",
-    detail: "Ahorro medio anual en clientes industriales",
+    label: "Ahorro detectable",
+    value: "10-30%",
+    detail: "Reducción típica de gastos energéticos",
   },
   {
-    label: "Ejecución garantizada",
-    value: "24/7",
-    detail: "Monitorización y alarmas en tiempo real",
+    label: "Análisis rápido",
+    value: "< 5 min",
+    detail: "Diagnóstico completo de tu factura",
   },
   {
-    label: "Huella descarbonizada",
-    value: "-35%",
-    detail: "Reducción de emisiones en planes plurianuales",
+    label: "ROI claro",
+    value: "1-3 años",
+    detail: "Retorno de inversión en instalaciones solares",
   },
 ];
 
 export const valuePillars = [
   {
-    title: "Estrategia corporativa",
+    title: "Asesoramiento personalizado",
     description:
-      "Modelos financieros que conectan la compra de energía con tu plan industrial. Transparencia total en escenarios de precio.",
+      "Análisis detallado de tu consumo, potencia y opciones de ahorro. Recomendaciones adaptadas a tu situación.",
   },
   {
-    title: "Operación con datos",
+    title: "Auditorías energéticas",
     description:
-      "Telemedida, analítica y reporting ejecutivo. Alertas tempranas y seguimiento de KPIs para evitar desviaciones.",
+      "Evaluación completa de tu instalación, identificación de ineficiencias y propuestas de mejora técnica.",
   },
   {
-    title: "Ejecución llave en mano",
+    title: "Soluciones solares y almacenamiento",
     description:
-      "Implantamos contratos, autoconsumo, PPAs y eficiencia con gestión integral de permisos, obra y puesta en marcha.",
+      "Fotovoltaica, CAES y sistemas de almacenamiento para maximizar tu autosuficiencia y ahorros.",
   },
 ];
 
 export const services = [
   {
-    title: "Gestión energética integral",
+    title: "Análisis de facturas de luz",
     summary:
-      "Diseñamos y ejecutamos tu estrategia de compra, cobertura y optimización del coste total.",
+      "Descubre dónde se va tu dinero. Revisamos tus facturas para identificar ineficiencias.",
     items: [
-      "Análisis de riesgo y coberturas a medida",
-      "Negociación y homogeneización de contratos",
-      "Optimización de potencias, reactiva y peajes",
-      "Cuadros de mando ejecutivos y reporting mensual",
+      "Desglose detallado de consumo y potencia",
+      "Identificación de costes ocultos y sobrecargos",
+      "Comparativa con precios de mercado",
+      "Recomendaciones de ahorro inmediato",
     ],
   },
   {
-    title: "PPAs y compra a largo plazo",
+    title: "Auditorías energéticas",
     summary:
-      "Estructuramos PPAs físicos o virtuales con evaluación de riesgos y control de cumplimiento.",
+      "Análisis técnico completo de tu instalación eléctrica y sistemas de consumo.",
     items: [
-      "Modelización financiera y escenarios de precios",
-      "Estructuras baseload, peak y perfiladas",
-      "Due diligence técnica y regulatoria",
-      "Suministradores y offtakers auditados",
+      "Medición de consumos reales por circuito",
+      "Evaluación de potencias contratadas",
+      "Análisis de factor de potencia y armónicos",
+      "Propuestas de mejora priorizadas por ROI",
     ],
   },
   {
-    title: "Autoconsumo y generación distribuida",
+    title: "Instalaciones solares (Fotovoltaica)",
     summary:
-      "Proyectos solares y soluciones híbridas llave en mano con garantías de performance.",
+      "Soluciones solares diseñadas para tu caso: autoconsumo, excedentes o instalación híbrida.",
     items: [
-      "Viabilidad técnica y permisos",
-      "Ingeniería, EPC y O&M supervisados",
-      "Monitorización y alarmas en tiempo real",
-      "Integración con contratos existentes",
+      "Cálculo de producción esperada",
+      "Diseño personalizado según cubierta y consumo",
+      "Estimación de ahorro y ROI real",
+      "Gestión de trámites administrativos",
     ],
   },
   {
-    title: "Eficiencia y descarbonización",
+    title: "Sistemas de almacenamiento y CAES",
     summary:
-      "Planes de reducción de consumo y emisiones alineados con objetivos ESG y auditorías oficiales.",
+      "Baterías, almacenamiento térmico y soluciones de energía comprimida para máxima autosuficiencia.",
     items: [
-      "Auditorías energéticas ISO 50001",
-      "Planes de eficiencia por activo y proceso",
-      "Electrificación y sustitución de combustibles",
-      "Cálculo y seguimiento de huella de carbono",
+      "Evaluación de tecnologías de almacenamiento",
+      "Dimensionamiento de capacidad necesaria",
+      "Análisis de rentabilidad y amortización",
+      "Integración con paneles solares",
     ],
   },
 ];
 
 export const sectors = [
   {
-    name: "Industria y manufactura",
+    name: "Viviendas unifamiliares",
     description:
-      "Optimización de base load, gestión de PPA y reducción de picos para líneas productivas críticas.",
+      "Solar en cubierta, baterías y asesoramiento para máxima autosuficiencia. Ahorros de 50-70% en factura.",
   },
   {
-    name: "Logística y frío industrial",
+    name: "Pequeños negocios",
     description:
-      "Control térmico, eficiencia en refrigeración y autoconsumo con almacenamiento para centros logísticos.",
+      "Optimización de potencia, auditorías de eficiencia y solar adaptado a tu consumo específico.",
   },
   {
-    name: "Agroalimentario",
+    name: "Industrias medianas",
     description:
-      "Autosuficiencia parcial, contratos estables y mejora de factores de potencia en plantas agro.",
+      "Análisis de picos de carga, implementación de CAES, solar industrial y sistemas de gestión energética.",
   },
   {
-    name: "Oficinas y terciario",
+    name: "Comunidades de vecinos",
     description:
-      "Estrategia multi-sede, certificaciones ESG y consumo flexible sin comprometer confort.",
+      "Soluciones compartidas de solar y almacenamiento para reducir gastos comunes de energía.",
   },
   {
-    name: "Retail y gran consumo",
+    name: "Comercio y hostelería",
     description:
-      "Gestión unificada de puntos de suministro, monitorización central y detección temprana de desvíos.",
+      "Auditorías específicas de HVAC, iluminación y frigorífico. Solar ajustado a horarios comerciales.",
   },
   {
-    name: "Administración y obra pública",
+    name: "Agricultura y ganadería",
     description:
-      "Cumplimiento regulatorio, compras transparentes y seguimiento de objetivos de descarbonización.",
+      "Soluciones solares para bombeo, refrigeración y almacenamiento. Reducción de costes operativos.",
   },
 ];
 
 export const methodology = [
   {
-    title: "Diagnóstico y estrategia",
+    title: "Análisis inicial",
     detail:
-      "Análisis de consumos, riesgos y objetivos. Definimos la estrategia de compra y descarbonización.",
+      "Revisamos tu factura, instalación y consumos. Identificamos oportunidades de ahorro rápido.",
   },
   {
-    title: "Diseño y contrato",
+    title: "Propuesta personalizada",
     detail:
-      "Estructuramos contratos, PPAs y proyectos de autoconsumo con escenarios y métricas claras.",
+      "Diseño específico de solar, baterías o mejoras de eficiencia. Presupuesto y ROI detallado.",
   },
   {
-    title: "Ejecución y obra",
+    title: "Instalación y trámites",
     detail:
-      "Coordinamos proveedores, EPC y puesta en marcha. Supervisión técnica y seguridad reglamentaria.",
+      "Coordinamos toda la obra, permisos y conexión a red. Supervisión completa de calidad.",
   },
   {
-    title: "Operación y mejora continua",
+    title: "Monitorización y garantía",
     detail:
-      "Monitorización 24/7, reporting ejecutivo y planes de mejora para asegurar el ROI comprometido.",
+      "Seguimiento del sistema, mantenimiento y soporte. Máximo rendimiento durante toda la vida útil.",
   },
 ];
 
 export const differentiators = [
-  "Equipo senior de compras energéticas, ingeniería y regulación.",
-  "Reportes ejecutivos claros y accionables para dirección financiera y operaciones.",
-  "Gobernanza y cumplimiento: contratos auditables y sin letra pequeña.",
-  "Tecnología propia y partners certificados para monitorización en tiempo real.",
+  "Análisis técnico riguroso, sin sorpresas escondidas.",
+  "Transparencia total en costes, ahorros y plazos de amortización.",
+  "Asesoramiento independiente: no atamos a marcas específicas.",
+  "Experiencia probada en instalaciones solares, baterías y sistemas de almacenamiento.",
 ];
 
 export const highlights = [
   {
-    title: "Casos recientes",
+    title: "Casos de éxito",
     items: [
-      "Industria química: -14% coste total y cobertura a 36 meses.",
-      "Logística a temperatura controlada: -28% consumo específico.",
-      "Portfolio retail: 120+ suministros integrados en un único cuadro de mando.",
+      "Vivienda familiar: 8 kW solar + batería 10 kWh = 70% de autosuficiencia.",
+      "Pequeño comercio: auditoría + solar = factura reducida en 60% en 3 años.",
+      "Granja: sistema CAES + solar = bombeo sin coste de red, ahorro anual de €4.500.",
     ],
   },
   {
-    title: "Indicadores clave",
+    title: "Números clave",
     items: [
-      "Tiempo medio de puesta en marcha de autoconsumo: 90-120 días.",
-      "Alertas tempranas en <5 minutos ante desvíos de potencia contratada.",
-      "KPIs compartidos con dirección: coste/MWh, CO₂ evitado, payback real.",
+      "ROI típico en solar: 1-3 años según irradiación y consumo.",
+      "Aumento de precio del inmueble: +3-5% con instalación solar.",
+      "Reducción de emisiones de CO₂: hasta 20 toneladas/año por instalación residencial.",
     ],
   },
 ];
 
 export const teamValues = [
   {
-    title: "Rigor y transparencia",
-    detail: "Datos auditables, trazabilidad y decisiones justificadas.",
+    title: "Honestidad técnica",
+    detail: "No vendemos instalaciones innecesarias. Dimensionamos para tu caso real.",
   },
   {
-    title: "Orientación a resultados",
-    detail: "Nos medimos por ahorros, disponibilidad y reducción de emisiones.",
+    title: "Enfoque en ROI",
+    detail: "Todo proyecto tiene un análisis detallado de rentabilidad y plazo de amortización.",
   },
   {
-    title: "Acompañamiento ejecutivo",
-    detail:
-      "Un solo interlocutor senior para dirección financiera, operaciones y ESG.",
+    title: "Soporte continuo",
+    detail: "Acompañamos tu inversión desde el diseño hasta mantenimiento y garantías.",
   },
 ];
 
 export const contactChannels = [
   {
-    title: "Hablar con un consultor",
-    detail: "Agenda una llamada estratégica sin compromiso.",
-    action: "Concertar llamada",
+    title: "Análisis de tu factura",
+    detail: "Subes tu última factura y te mostramos dónde puedes ahorrar.",
+    action: "Analizar factura",
   },
   {
-    title: "Auditoría de contrato",
-    detail: "Revisamos tus contratos y consumos para encontrar ahorros rápidos.",
+    title: "Auditoría energética",
+    detail: "Visitamos tu instalación y te presentamos propuestas concretas.",
     action: "Solicitar auditoría",
   },
   {
-    title: "Plan de descarbonización",
-    detail: "Definimos una hoja de ruta pragmática y medible.",
-    action: "Diseñar roadmap",
+    title: "Presupuesto de solar",
+    detail: "Indicanos tu consumo y te enviamos presupuesto con ROI estimado.",
+    action: "Solicitar presupuesto",
   },
 ];

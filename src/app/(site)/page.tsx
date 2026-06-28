@@ -26,22 +26,22 @@ export default function HomePage() {
             </span>
             <div className="space-y-4">
               <h1 className="text-4xl font-semibold leading-tight text-foreground md:text-5xl">
-                Energía estratégica para empresas que no dejan nada al azar.
+                Reduce tu factura de luz. Ya.
               </h1>
               <p className="text-lg text-muted md:text-xl">
-                Integramos compras, PPAs, autoconsumo y eficiencia con reporting ejecutivo.
-                Un equipo senior que responde con datos, gobernanza y ejecución impecable.
+                Asesoramiento energético, auditorías, solar y soluciones de almacenamiento.
+                Descubre cuánto puedes ahorrar en 5 minutos.
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-3">
-              <Button href="/contacto" size="lg">
-                {siteConfig.actions.primaryCta}
+              <Button href="/analizador" size="lg">
+                Analizar mi factura
               </Button>
               <Button href="/servicios" variant="ghost" size="lg">
                 Ver servicios
               </Button>
               <span className="text-sm font-semibold text-muted">
-                Respuesta en <span className="text-foreground">24h</span>
+                Análisis <span className="text-foreground">100% gratis</span>
               </span>
             </div>
             <div className="grid gap-3 sm:grid-cols-3">
@@ -196,22 +196,22 @@ export default function HomePage() {
           <div className="relative flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
             <div className="space-y-2">
               <div className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-100">
-                Próximo paso
+                Empieza ahora
               </div>
               <h3 className="text-3xl font-semibold">
-                Recibe un diagnóstico ejecutivo en 5 días.
+                Descubre tu potencial de ahorro sin compromiso.
               </h3>
               <p className="text-base text-gray-200">
-                Compartimos las tres palancas de ahorro prioritarias, riesgos y plan de
-                descarbonización realista.
+                Análisis completo de tu factura, consumos y opciones de solar.
+                En 5 minutos tienes un diagnóstico personalizado.
               </p>
             </div>
             <div className="flex flex-wrap gap-3">
-              <Button href="/contacto" size="lg" className="bg-white text-neutral-900 hover:bg-emerald-50">
-                Agenda con un consultor
+              <Button href="/analizador" size="lg" className="bg-white text-neutral-900 hover:bg-emerald-50">
+                Analizar ahora
               </Button>
-              <Button href="/sobre-nosotros" variant="ghost" size="lg" className="border-white/30 bg-white/10 text-white hover:bg-white/20">
-                Conocer al equipo
+              <Button href="/contacto" variant="ghost" size="lg" className="border-white/30 bg-white/10 text-white hover:bg-white/20">
+                Hablar con asesor
               </Button>
             </div>
           </div>

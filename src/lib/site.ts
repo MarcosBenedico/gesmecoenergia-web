@@ -11,26 +11,26 @@ export type NavItem =
 
 export const servicesMega: MegaLink[] = [
   {
-    title: "Gestión energética integral",
-    description: "Coberturas, riesgo y reporting ejecutivo con KPIs claros.",
-    href: "/servicios",
+    title: "Análisis de facturas",
+    description: "Desglose completo de consumo, potencia y costes ocultos.",
+    href: "/analizador",
     icon: "spark",
   },
   {
-    title: "PPAs y compra a largo plazo",
-    description: "Modelos financiero-regulatorios y due diligence completa.",
+    title: "Auditorías energéticas",
+    description: "Evaluación técnica de tu instalación y propuestas de mejora.",
     href: "/servicios",
     icon: "contract",
   },
   {
-    title: "Autoconsumo y generación",
-    description: "Proyectos llave en mano con garantías de performance.",
+    title: "Instalaciones solares",
+    description: "Solar fotovoltaica diseñada para tu caso. ROI detallado.",
     href: "/servicios",
     icon: "solar",
   },
   {
-    title: "Eficiencia y descarbonización",
-    description: "Planes ESG, auditorías y reducción real de emisiones.",
+    title: "Almacenamiento y CAES",
+    description: "Baterías, almacenamiento térmico y soluciones de aire comprimido.",
     href: "/servicios",
     icon: "leaf",
   },
@@ -38,28 +38,28 @@ export const servicesMega: MegaLink[] = [
 
 export const sectorsMega: MegaLink[] = [
   {
-    title: "Industria y manufactura",
-    description: "Cobertura base load, control de picos y fiabilidad 24/7.",
+    title: "Viviendas unifamiliares",
+    description: "Solar, baterías y autosuficiencia máxima.",
+    href: "/sectores",
+    icon: "building",
+  },
+  {
+    title: "Pequeños negocios",
+    description: "Optimización de potencia, auditorías y solar.",
     href: "/sectores",
     icon: "factory",
   },
   {
-    title: "Logística y frío",
-    description: "Eficiencia térmica, almacenamiento y alarmas en tiempo real.",
+    title: "Industrias medianas",
+    description: "Análisis de picos, CAES, solar industrial y gestión energética.",
     href: "/sectores",
-    icon: "snow",
+    icon: "factory",
   },
   {
-    title: "Agroalimentario",
-    description: "Autosuficiencia parcial, mejora de reactiva y ESG.",
+    title: "Comercio, agricultura y más",
+    description: "Soluciones personalizadas por sector.",
     href: "/sectores",
     icon: "leaf",
-  },
-  {
-    title: "Oficinas y retail",
-    description: "Gestión multisede y reporting centralizado sin sorpresas.",
-    href: "/sectores",
-    icon: "building",
   },
 ];
 
@@ -67,26 +67,25 @@ export const navigation: NavItem[] = [
   { label: "Servicios", href: "/servicios", type: "mega", items: servicesMega, cta: "Ver todos" },
   { label: "Sectores", href: "/sectores", type: "mega", items: sectorsMega, cta: "Ver todos" },
   { label: "Sobre nosotros", href: "/sobre-nosotros", type: "link" },
-  { label: "Recursos", href: "/recursos", type: "link" },
 ];
 
 export const siteConfig = {
   name: "Gesmeco Energía",
   description:
-    "Consultoría y gestión energética premium para empresas que buscan eficiencia, control de costes y descarbonización sin perder fiabilidad.",
+    "Asesoramiento energético, auditorías, análisis de facturas, solar fotovoltaica, CAES y soluciones de ahorro energético.",
   contact: {
     email: "energia@gesmeco.com",
     phone: "+34 900 000 000",
     address: "Paseo de la Castellana 120, Madrid",
   },
   actions: {
-    primaryCta: "Solicitar auditoría",
-    secondaryCta: "Hablar con un experto",
+    primaryCta: "Analizar factura",
+    secondaryCta: "Solicitar auditoría",
   },
 };
 
 export const brandHighlights = {
-  headline: "Estrategia, datos y ejecución para una energía sin sobresaltos.",
+  headline: "Reduce tu factura de luz. Aquí está el cómo.",
   subheadline:
-    "Acompañamos a empresas intensivas en consumo en todo el ciclo energético: desde la compra y el diseño contractual hasta la eficiencia y la generación distribuida.",
+    "Asesoramiento energético, auditorías, análisis de facturas, solar fotovoltaica, CAES y soluciones de ahorro energético.",
 };

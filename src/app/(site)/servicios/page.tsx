@@ -4,12 +4,12 @@ import { FeatureCard } from "@/components/feature-card";
 import { SectionHeading } from "@/components/section-heading";
 import { StatCard } from "@/components/stat-card";
 import { services } from "@/lib/data";
-import { siteConfig } from "@/lib/site";
+import Link from "next/link";
 
 export const metadata = {
   title: "Servicios | Gesmeco Energía",
   description:
-    "Servicios premium de gestión energética, PPAs, autoconsumo y eficiencia con reporting ejecutivo.",
+    "Asesoramiento energético, auditorías, análisis de facturas, solar fotovoltaica, CAES y soluciones de ahorro energético.",
 };
 
 export default function ServicesPage() {
@@ -19,49 +19,22 @@ export default function ServicesPage() {
         <Container>
           <SectionHeading
             kicker="Servicios"
-            title="Todo el ciclo energético bajo control."
+            title="Reduce tu factura de luz. Aquí está el cómo."
           >
-            Estrategia, contratos, obra y operación continua. Un solo interlocutor que
-            responde ante dirección financiera, operaciones y ESG.
+            Asesoramiento, auditorías, análisis de consumos, solar y almacenamiento.
+            Soluciones adaptadas a tu situación, sin sorpresas.
           </SectionHeading>
-          <div className="mt-10 grid gap-6 md:grid-cols-[1fr_1fr_0.8fr]">
-            {services.slice(0, 3).map((service, index) => (
+          <div className="mt-10 grid gap-6 md:grid-cols-2">
+            {services.map((service, index) => (
               <FeatureCard
                 key={service.title}
                 title={service.title}
                 description={service.summary}
-                badge={`Servicio ${index + 1}`}
+                badge={`Paso ${index + 1}`}
               >
                 <BulletList items={service.items} />
               </FeatureCard>
             ))}
-          </div>
-          <div className="mt-6 grid gap-6 md:grid-cols-[1.3fr_0.9fr]">
-            <FeatureCard
-              title={services[3].title}
-              description={services[3].summary}
-              badge="Descarbonización"
-            >
-              <BulletList items={services[3].items} />
-            </FeatureCard>
-            <div className="card flex flex-col gap-4 rounded-2xl p-6">
-              <h3 className="text-xl font-semibold text-foreground">Control y gobierno</h3>
-              <p className="text-sm text-muted">
-                Marco de gobernanza, reporting ejecutivo y KPIs vinculados a objetivos de
-                negocio.
-              </p>
-              <BulletList
-                items={[
-                  "Cuadro de mando con coste total, riesgo y CO₂ evitado.",
-                  "SLA y responsables claros por fase y proveedor.",
-                  "Auditorías de contrato y cumplimiento regulatorio.",
-                ]}
-              />
-              <div className="grid grid-cols-2 gap-3">
-                <StatCard value="90-120 días" label="Puesta en marcha media" />
-                <StatCard value="<5 min" label="Respuesta a alarmas críticas" />
-              </div>
-            </div>
           </div>
         </Container>
       </section>
@@ -71,35 +44,35 @@ export default function ServicesPage() {
           <div className="grid gap-6 md:grid-cols-3">
             <div className="flex flex-col gap-2">
               <div className="text-xs font-semibold uppercase tracking-[0.14em] text-accent">
-                Ejecución llave en mano
+                Proceso transparente
               </div>
               <h3 className="text-2xl font-semibold text-foreground">
-                Contratos, obra y operación sin sorpresas.
+                Desde análisis hasta instalación, sin letra pequeña.
               </h3>
               <p className="text-sm text-muted">
-                Diseñamos contratos, coordinamos EPC y establecemos KPIs claros para cada
-                fase del proyecto.
+                Analizamos tu caso, diseñamos la solución perfecta, coordinamos la obra y
+                acompañamos el mantenimiento.
               </p>
             </div>
             <div className="space-y-3 rounded-2xl bg-emerald-50 p-5 text-sm text-foreground">
               <div className="font-semibold uppercase tracking-[0.14em] text-emerald-800">
-                Cobertura y riesgo
+                Ahorro comprobado
               </div>
               <p>
-                Modelos de cobertura adaptados a tu curva y apetito de riesgo. Escenarios y
-                alertas tempranas para decisiones rápidas.
+                Reducción típica de 10-30% en factura. ROI en 1-3 años con solar.
+                Presupuestos detallados sin compromisos.
               </p>
-              <p className="font-semibold text-accent">Base load · Peak · Perfilados · PPAs</p>
+              <p className="font-semibold text-accent">Auditoría · Solar · Almacenamiento · Eficiencia</p>
             </div>
             <div className="space-y-3 rounded-2xl border border-emerald-100 p-5 text-sm text-muted">
-              <div className="font-semibold text-foreground">Reporte ejecutivo</div>
+              <div className="font-semibold text-foreground">Empieza ahora</div>
               <p>
-                Coste/MWh, desvíos, CO₂ evitado, plazos de obra y compromisos de ROI
-                actualizados mensualmente.
+                Analiza tu factura en 5 minutos. Descubre tu potencial de ahorro sin
+                compromiso. Respuesta en 48h.
               </p>
-              <p className="font-semibold text-foreground">
-                {siteConfig.actions.primaryCta}: respuesta en 24h.
-              </p>
+              <Link href="/analizador" className="font-semibold text-accent hover:underline">
+                Herramienta gratuita →
+              </Link>
             </div>
           </div>
         </Container>
