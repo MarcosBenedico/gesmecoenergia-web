@@ -17,6 +17,9 @@ interface Calendar {
   summary: string;
   email: string;
   selected: boolean;
+  color: string;
+  bgColor: string;
+  borderColor: string;
 }
 
 type ViewType = 'mes' | 'semana' | 'dia';
@@ -63,6 +66,17 @@ export function Calendario() {
     }
   };
 
+  // Colores para cada calendario (máx 4)
+  const CALENDAR_COLORS = [
+    { color: 'text-red-400', bgColor: 'bg-red-500/20', borderColor: 'border-red-500/40' },
+    { color: 'text-cyan-400', bgColor: 'bg-cyan-500/20', borderColor: 'border-cyan-500/40' },
+    { color: 'text-purple-400', bgColor: 'bg-purple-500/20', borderColor: 'border-purple-500/40' },
+    { color: 'text-amber-400', bgColor: 'bg-amber-500/20', borderColor: 'border-amber-500/40' },
+  ];
+
+  // Calendarios a filtrar
+  const CALENDARS_TO_FILTER = ['tareas diarias', 'festivos españa', 'holidays'];
+
   // Cargar lista de calendarios disponibles
   const cargarCalendarios = async () => {
     try {
@@ -85,12 +99,24 @@ export function Calendario() {
       });
 
       const data = await response.json();
-      const calendarList: Calendar[] = (data.items || []).map((item: any) => ({
-        id: item.id,
-        summary: item.summary,
-        email: item.id,
-        selected: item.primary || false, // Por defecto, seleccionar el primario
-      }));
+      let calendarList: Calendar[] = (data.items || [])
+        .filter((item: any) => {
+          const summary = item.summary.toLowerCase();
+          return !CALENDARS_TO_FILTER.some(filter => summary.includes(filter));
+        })
+        .slice(0, 4) // Máximo 4 calendarios
+        .map((item: any, index: number) => {
+          const colorSet = CALENDAR_COLORS[index] || CALENDAR_COLORS[0];
+          return {
+            id: item.id,
+            summary: item.summary,
+            email: item.id,
+            selected: item.primary || index === 0, // Por defecto, seleccionar el primero
+            color: colorSet.color,
+            bgColor: colorSet.bgColor,
+            borderColor: colorSet.borderColor,
+          };
+        });
 
       console.log('✅ Calendarios cargados:', calendarList.length);
       setCalendars(calendarList);
@@ -222,15 +248,20 @@ export function Calendario() {
         >
           <div className="font-semibold text-foreground text-sm mb-1">{day}</div>
           <div className="space-y-0.5 overflow-y-auto max-h-16">
-            {dayEvents.map((event) => (
-              <div
-                key={event.id}
-                className="text-xs bg-accent/20 text-accent rounded px-1.5 py-0.5 truncate"
-                title={event.title}
-              >
-                {event.title}
-              </div>
-            ))}
+            {dayEvents.map((event) => {
+              const calendar = calendars.find((c) => c.id === event.calendarEmail);
+              const colorClass = calendar?.color || 'text-accent';
+              const bgClass = calendar?.bgColor || 'bg-accent/20';
+              return (
+                <div
+                  key={event.id}
+                  className={`text-xs ${bgClass} ${colorClass} rounded px-1.5 py-0.5 truncate`}
+                  title={event.title}
+                >
+                  {event.title}
+                </div>
+              );
+            })}
           </div>
         </div>
       );
@@ -269,20 +300,26 @@ export function Calendario() {
                 {date.toLocaleDateString('es', { weekday: 'short', day: 'numeric' })}
               </div>
               <div className="space-y-2">
-                {dayEvents.map((event) => (
-                  <div
-                    key={event.id}
-                    className="text-xs bg-accent/20 text-accent rounded p-1.5 border border-accent/30"
-                  >
-                    <div className="font-semibold">{event.title}</div>
-                    <div className="text-accent/70 text-xs">
-                      {new Date(event.start).toLocaleTimeString('es', {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
+                {dayEvents.map((event) => {
+                  const calendar = calendars.find((c) => c.id === event.calendarEmail);
+                  const colorClass = calendar?.color || 'text-accent';
+                  const bgClass = calendar?.bgColor || 'bg-accent/20';
+                  const borderClass = calendar?.borderColor || 'border-accent/30';
+                  return (
+                    <div
+                      key={event.id}
+                      className={`text-xs ${bgClass} ${colorClass} rounded p-1.5 border ${borderClass}`}
+                    >
+                      <div className="font-semibold">{event.title}</div>
+                      <div className={`text-xs opacity-70`}>
+                        {new Date(event.start).toLocaleTimeString('es', {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           );
@@ -309,19 +346,25 @@ export function Calendario() {
         {dayEvents.length === 0 ? (
           <div className="text-center py-12 text-muted">Sin eventos para hoy</div>
         ) : (
-          dayEvents.map((event) => (
-            <div key={event.id} className="bg-surface rounded-lg p-4 border border-accent/30">
-              <div className="font-semibold text-foreground text-lg">{event.title}</div>
-              <div className="text-sm text-muted mt-2">
-                {new Date(event.start).toLocaleTimeString('es')} -{' '}
-                {new Date(event.end).toLocaleTimeString('es')}
+          dayEvents.map((event) => {
+            const calendar = calendars.find((c) => c.id === event.calendarEmail);
+            const colorClass = calendar?.color || 'text-accent';
+            const bgClass = calendar?.bgColor || 'bg-accent/20';
+            const borderClass = calendar?.borderColor || 'border-accent/30';
+            return (
+              <div key={event.id} className={`rounded-lg p-4 border ${bgClass} ${borderClass}`}>
+                <div className={`font-semibold ${colorClass} text-lg`}>{event.title}</div>
+                <div className="text-sm text-muted mt-2">
+                  {new Date(event.start).toLocaleTimeString('es')} -{' '}
+                  {new Date(event.end).toLocaleTimeString('es')}
+                </div>
+                <div className={`text-xs ${colorClass} mt-1 font-semibold`}>{calendar?.summary || event.calendarEmail}</div>
+                {event.description && (
+                  <div className="text-sm text-muted mt-3">{event.description}</div>
+                )}
               </div>
-              <div className="text-xs text-accent mt-1">{event.calendarEmail}</div>
-              {event.description && (
-                <div className="text-sm text-muted mt-3">{event.description}</div>
-              )}
-            </div>
-          ))
+            );
+          })
         )}
       </div>
     );
@@ -360,7 +403,7 @@ export function Calendario() {
               {calendars.map((calendar) => (
                 <label
                   key={calendar.id}
-                  className="flex items-center gap-3 p-2 rounded-lg hover:bg-card/50 cursor-pointer transition"
+                  className="flex items-center gap-3 p-3 rounded-lg hover:bg-card/50 cursor-pointer transition border border-transparent hover:border-border"
                 >
                   <input
                     type="checkbox"
@@ -374,10 +417,14 @@ export function Calendario() {
                     }}
                     className="w-4 h-4 accent-accent"
                   />
+                  <div className={`w-3 h-3 rounded-full ${calendar.color.replace('text-', 'bg-')}`}></div>
                   <div className="flex-1">
                     <div className="text-sm font-semibold text-foreground">{calendar.summary}</div>
                     <div className="text-xs text-muted">{calendar.email}</div>
                   </div>
+                  {calendar.selected && (
+                    <span className="text-xs font-bold text-accent">✓</span>
+                  )}
                 </label>
               ))}
             </div>
