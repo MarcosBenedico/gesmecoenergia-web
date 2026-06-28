@@ -602,18 +602,25 @@ function ComparativaSimulador({ clientes, comercializadoras, precios }: Comparat
     potencia: [0.45, 0.35],
   });
 
-  // Detectar tarifa automáticamente cuando se selecciona cliente
+  // Cargar precios de comercializadora desde Supabase
   const cargarPreciosComercializadora = (comercioId: number, tarifaSeleccionada: '2.0' | '3.0' | '6.1') => {
+    console.log(`Buscando precios: comercio=${comercioId}, tarifa=${tarifaSeleccionada}`);
+    console.log('Precios disponibles:', precios);
+
     const precioComercio = precios.find(
       (p) => p.comercializadora_id === comercioId && p.tarifa === tarifaSeleccionada
     );
 
     if (precioComercio) {
+      console.log('Precios encontrados:', precioComercio);
       setPreciosCustom({
-        energia: precioComercio.precios_energia || [0.15, 0.16, 0.14],
-        potencia: precioComercio.precios_potencia || [0.45, 0.35],
+        energia: Array.isArray(precioComercio.precios_energia) ? precioComercio.precios_energia :
+                 (tarifaSeleccionada === '2.0' ? [0.15, 0.16, 0.14] : [0.15, 0.16, 0.14, 0.13, 0.12, 0.11]),
+        potencia: Array.isArray(precioComercio.precios_potencia) ? precioComercio.precios_potencia :
+                  (tarifaSeleccionada === '2.0' ? [0.45, 0.35] : [0.45, 0.42, 0.40, 0.38, 0.35, 0.33]),
       });
     } else {
+      console.log('No se encontraron precios, usando defaults');
       // Precios por defecto si no hay
       if (tarifaSeleccionada === '2.0') {
         setPreciosCustom({
@@ -634,7 +641,7 @@ function ComparativaSimulador({ clientes, comercializadoras, precios }: Comparat
     const tarifaCliente = cliente.tarifa as '2.0' | '3.0' | '6.1';
     setTarifa(tarifaCliente);
 
-    // Ajustar arrays según tarifa
+    // Ajustar arrays según tarifa y usar consumos del cliente si están disponibles
     if (tarifaCliente === '2.0') {
       setConsumoEnergia([1000, 1200, 800]);
       setConsumoPotencia([5, 3]);
@@ -644,16 +651,14 @@ function ComparativaSimulador({ clientes, comercializadoras, precios }: Comparat
       setConsumoPotencia([5, 4.5, 4, 3.5, 3, 2.5]);
     }
 
-    // Cargar precios de la comercializadora
-    cargarPreciosComercializadora(comercializadora, tarifaCliente);
+    // Cargar precios de la PRIMERA comercializadora por defecto
+    const comercioDefault = comercializadoras.length > 0 ? comercializadoras[0].id : 1;
+    setComercializadora(comercioDefault);
+    cargarPreciosComercializadora(comercioDefault, tarifaCliente);
   };
 
-  const preciosAUsar = clienteSeleccionado
-    ? {
-        energia: clienteSeleccionado.precios_energia || [0.15, 0.16, 0.14],
-        potencia: clienteSeleccionado.precios_potencia || [0.45, 0.35],
-      }
-    : preciosCustom;
+  // Cuando hay cliente seleccionado, cargar precios de la comercializadora, no del cliente
+  const preciosAUsar = preciosCustom;
 
   const consumosAUsar = {
     energia: consumoEnergia,
