@@ -54,23 +54,23 @@ export default function ServicesPage() {
                 acompañamos el mantenimiento.
               </p>
             </div>
-            <div className="space-y-3 rounded-2xl bg-rose-50 p-5 text-sm text-foreground">
-              <div className="font-semibold uppercase tracking-[0.14em] text-rose-800">
-                Ahorro comprobado
+            <div className="space-y-3 rounded-2xl bg-gradient-to-br from-accent/20 to-accent/10 border border-accent/30 p-5 text-sm text-foreground">
+              <div className="font-semibold uppercase tracking-[0.14em] text-accent">
+                ✨ Ahorro comprobado
               </div>
-              <p>
+              <p className="text-foreground">
                 Reducción típica de 10-30% en factura. ROI en 1-3 años con solar.
                 Presupuestos detallados sin compromisos.
               </p>
-              <p className="font-semibold text-accent">Auditoría · Solar · Almacenamiento · Eficiencia</p>
+              <p className="font-semibold text-accent-light">Auditoría · Solar · Almacenamiento · Eficiencia</p>
             </div>
-            <div className="space-y-3 rounded-2xl border border-rose-100 p-5 text-sm text-muted">
-              <div className="font-semibold text-foreground">Empieza ahora</div>
-              <p>
+            <div className="space-y-3 rounded-2xl border border-border bg-surface/50 p-5 text-sm text-foreground">
+              <div className="font-semibold uppercase tracking-widest text-secondary">🚀 Empieza ahora</div>
+              <p className="text-foreground">
                 Analiza tu factura en 5 minutos. Descubre tu potencial de ahorro sin
                 compromiso. Respuesta en 48h.
               </p>
-              <Link href="/analizador" className="font-semibold text-accent hover:underline">
+              <Link href="/analizador" className="font-semibold text-secondary hover:text-secondary/80 transition">
                 Herramienta gratuita →
               </Link>
             </div>
