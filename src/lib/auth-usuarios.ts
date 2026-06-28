@@ -1,63 +1,26 @@
-import { supabase } from './supabase';
-import crypto from 'crypto';
+// Credenciales simples
+const MASTER_USERNAME = 'Master';
+const MASTER_PASSWORD = '2134';
 
-// Hash de contraseña
-function hashPassword(password: string): string {
-  return crypto.createHash('sha256').update(password).digest('hex');
-}
-
-// Login
+// Login simple
 export async function loginUsuario(username: string, password: string) {
   try {
-    const passwordHash = hashPassword(password);
+    if (username === MASTER_USERNAME && password === MASTER_PASSWORD) {
+      const usuario = {
+        username: MASTER_USERNAME,
+        nombre: 'Administrador',
+      };
 
-    const { data, error } = await supabase
-      .from('usuarios')
-      .select('id, username, nombre, email, activo')
-      .eq('username', username)
-      .eq('password_hash', passwordHash)
-      .eq('activo', true)
-      .single();
+      // Guardar sesión en localStorage
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('usuario_actual', JSON.stringify(usuario));
+        localStorage.setItem('usuario_autenticado', 'true');
+      }
 
-    if (error || !data) {
-      return { error: 'Usuario o contraseña incorrectos' };
+      return { data: usuario, error: null };
     }
 
-    // Guardar sesión en localStorage
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('usuario_actual', JSON.stringify(data));
-      localStorage.setItem('usuario_token', btoa(`${username}:${password}`));
-    }
-
-    return { data, error: null };
-  } catch (error) {
-    return { error: String(error) };
-  }
-}
-
-// Registro
-export async function registroUsuario(
-  username: string,
-  password: string,
-  email?: string,
-  nombre?: string
-) {
-  try {
-    const passwordHash = hashPassword(password);
-
-    const { data, error } = await supabase.from('usuarios').insert({
-      username,
-      email,
-      nombre,
-      password_hash: passwordHash,
-    });
-
-    if (error) {
-      return { error: error.message };
-    }
-
-    // Auto-login después del registro
-    return loginUsuario(username, password);
+    return { error: 'Usuario o contraseña incorrectos' };
   } catch (error) {
     return { error: String(error) };
   }
@@ -75,12 +38,12 @@ export function obtenerUsuarioActual() {
 export function logoutUsuario() {
   if (typeof window !== 'undefined') {
     localStorage.removeItem('usuario_actual');
-    localStorage.removeItem('usuario_token');
+    localStorage.removeItem('usuario_autenticado');
   }
 }
 
 // Verificar si está autenticado
 export function estaAutenticado(): boolean {
   if (typeof window === 'undefined') return false;
-  return !!localStorage.getItem('usuario_actual');
+  return !!localStorage.getItem('usuario_autenticado');
 }

@@ -2,28 +2,14 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { loginUsuario, registroUsuario } from '@/lib/auth-usuarios';
-import { Container } from '@/components/container';
+import { loginUsuario } from '@/lib/auth-usuarios';
 
 export default function LoginPage() {
   const router = useRouter();
-  const [isLogin, setIsLogin] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-
-  const [formData, setFormData] = useState({
-    username: '',
-    password: '',
-    email: '',
-    nombre: '',
-  });
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    });
-  };
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -31,23 +17,11 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      let result;
-
-      if (isLogin) {
-        result = await loginUsuario(formData.username, formData.password);
-      } else {
-        result = await registroUsuario(
-          formData.username,
-          formData.password,
-          formData.email,
-          formData.nombre
-        );
-      }
+      const result = await loginUsuario(username, password);
 
       if (result.error) {
         setError(result.error);
       } else {
-        // Redirigir al panel gestor
         router.push('/gestor');
       }
     } catch (err) {
@@ -66,9 +40,7 @@ export default function LoginPage() {
             <h1 className="text-3xl sm:text-4xl font-black bg-gradient-to-r from-accent to-secondary bg-clip-text text-transparent leading-tight">
               ⚡ Gesmeco
             </h1>
-            <p className="text-sm sm:text-base text-muted">
-              {isLogin ? 'Inicia sesión' : 'Crea tu cuenta'}
-            </p>
+            <p className="text-sm sm:text-base text-muted">Panel de control</p>
           </div>
 
           {/* Formulario */}
@@ -80,48 +52,13 @@ export default function LoginPage() {
               </label>
               <input
                 type="text"
-                name="username"
-                value={formData.username}
-                onChange={handleChange}
-                placeholder="tu_usuario"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="Master"
                 required
                 className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base rounded-lg bg-surface border border-border text-foreground placeholder-muted/50 focus:border-accent focus:ring-2 focus:ring-accent/20 transition"
               />
             </div>
-
-            {/* Email (solo registro) */}
-            {!isLogin && (
-              <div>
-                <label className="block text-xs sm:text-sm font-semibold text-foreground mb-1.5 sm:mb-2">
-                  Email
-                </label>
-                <input
-                  type="email"
-                  name="email"
-                  value={formData.email}
-                  onChange={handleChange}
-                  placeholder="tu@email.com"
-                  className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base rounded-lg bg-surface border border-border text-foreground placeholder-muted/50 focus:border-accent focus:ring-2 focus:ring-accent/20 transition"
-                />
-              </div>
-            )}
-
-            {/* Nombre (solo registro) */}
-            {!isLogin && (
-              <div>
-                <label className="block text-xs sm:text-sm font-semibold text-foreground mb-1.5 sm:mb-2">
-                  Nombre
-                </label>
-                <input
-                  type="text"
-                  name="nombre"
-                  value={formData.nombre}
-                  onChange={handleChange}
-                  placeholder="Tu nombre"
-                  className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base rounded-lg bg-surface border border-border text-foreground placeholder-muted/50 focus:border-accent focus:ring-2 focus:ring-accent/20 transition"
-                />
-              </div>
-            )}
 
             {/* Password */}
             <div>
@@ -130,9 +67,8 @@ export default function LoginPage() {
               </label>
               <input
                 type="password"
-                name="password"
-                value={formData.password}
-                onChange={handleChange}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
                 required
                 className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base rounded-lg bg-surface border border-border text-foreground placeholder-muted/50 focus:border-accent focus:ring-2 focus:ring-accent/20 transition"
@@ -152,26 +88,9 @@ export default function LoginPage() {
               disabled={loading}
               className="w-full py-2.5 sm:py-3 text-sm sm:text-base rounded-lg bg-gradient-to-r from-accent to-accent-light text-white font-bold hover:shadow-glow disabled:opacity-50 transition touch-manipulation"
             >
-              {loading ? 'Cargando...' : isLogin ? 'Iniciar sesión' : 'Crear cuenta'}
+              {loading ? 'Cargando...' : 'Iniciar sesión'}
             </button>
           </form>
-
-          {/* Toggle Login/Registro */}
-          <div className="text-center">
-            <p className="text-xs sm:text-sm text-muted">
-              {isLogin ? '¿No tienes cuenta?' : '¿Ya tienes cuenta?'}{' '}
-              <button
-                onClick={() => {
-                  setIsLogin(!isLogin);
-                  setError('');
-                  setFormData({ username: '', password: '', email: '', nombre: '' });
-                }}
-                className="text-accent font-semibold hover:text-accent-light transition"
-              >
-                {isLogin ? 'Regístrate' : 'Inicia sesión'}
-              </button>
-            </p>
-          </div>
 
           {/* Info colaborativa */}
           <div className="p-3 sm:p-4 rounded-lg bg-secondary/10 border border-secondary/30">
