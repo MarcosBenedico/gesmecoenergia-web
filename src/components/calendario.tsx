@@ -24,6 +24,14 @@ export function Calendario() {
   // Cargar eventos cuando el componente se monta o cambia la fecha
   useEffect(() => {
     verificarGoogle();
+
+    // Verificar si acaba de conectarse desde el callback
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('google_connected') === 'true') {
+      setGoogleConectado(true);
+      // Limpiar la URL
+      window.history.replaceState({}, '', '/gestor?seccion=calendario');
+    }
   }, []);
 
   useEffect(() => {
@@ -36,19 +44,23 @@ export function Calendario() {
     try {
       const { data: googleConfig, error: err } = await supabase
         .from('google_config')
-        .select('access_token, email')
+        .select('access_token, email, id')
+        .eq('id', 1)
         .single();
 
-      if (googleConfig?.access_token) {
+      if (googleConfig?.access_token && googleConfig?.email) {
         setGoogleConectado(true);
         setError('');
+        console.log('✓ Google conectado:', googleConfig.email);
       } else {
         setGoogleConectado(false);
         setError('Google Calendar no está conectado');
+        console.log('✗ Sin token de Google');
       }
     } catch (error) {
       setGoogleConectado(false);
       setError('Google Calendar no está conectado');
+      console.log('✗ Error al verificar Google:', error);
     }
   };
 
@@ -56,17 +68,21 @@ export function Calendario() {
     setLoading(true);
     setError('');
     try {
-      // Obtener el token de Google
+      // Obtener el token de Google (siempre ID 1)
       const { data: googleConfig, error: err } = await supabase
         .from('google_config')
-        .select('access_token')
+        .select('access_token, email')
+        .eq('id', 1)
         .single();
 
       if (!googleConfig?.access_token) {
         setError('No hay token de Google. Por favor reconecta.');
+        setGoogleConectado(false);
         setLoading(false);
         return;
       }
+
+      console.log('📅 Cargando eventos para:', googleConfig.email);
 
       // Obtener eventos del calendario para todo el mes
       const timeMin = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);

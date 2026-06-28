@@ -67,27 +67,52 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(new URL('/gestor?error=no_email', baseUrl));
     }
 
-    // Guardar credenciales en Supabase
+    // Guardar credenciales en Supabase (siempre en ID 1)
     console.log('8. Saving to Supabase...');
-    const { error: saveError, data } = await supabase
+
+    // Primero intentar actualizar
+    const { error: updateError } = await supabase
       .from('google_config')
-      .upsert({
+      .update({
         access_token: tokens.access_token,
         refresh_token: tokens.refresh_token || null,
         email: user.email,
-      });
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', 1);
 
-    console.log('9. Save result - error:', saveError, 'data:', data);
+    console.log('9a. Update result - error:', updateError);
 
-    if (saveError) {
-      console.error('Supabase save error:', saveError);
+    // Si no existe, insertar
+    if (updateError && updateError.message.includes('0 rows')) {
+      const { error: insertError } = await supabase
+        .from('google_config')
+        .insert({
+          id: 1,
+          access_token: tokens.access_token,
+          refresh_token: tokens.refresh_token || null,
+          email: user.email,
+        });
+
+      console.log('9b. Insert result - error:', insertError);
+
+      if (insertError) {
+        console.error('Supabase insert error:', insertError);
+        return NextResponse.redirect(new URL(`/gestor?error=save_failed`, baseUrl));
+      }
+    } else if (updateError) {
+      console.error('Supabase update error:', updateError);
       return NextResponse.redirect(new URL(`/gestor?error=save_failed`, baseUrl));
     }
 
-    console.log('10. OAuth complete, redirecting...');
-    // Guardar email en cookie
-    const response = NextResponse.redirect(new URL('/gestor?google_connected=true', baseUrl));
-    response.cookies.set('google_email', user.email, { maxAge: 3600 * 24 * 365 });
+    console.log('10. OAuth complete, redirecting to calendar...');
+    // Guardar email en cookie y redirigir a calendario
+    const response = NextResponse.redirect(new URL('/gestor?seccion=calendario&google_connected=true', baseUrl));
+    response.cookies.set('google_email', user.email, {
+      maxAge: 3600 * 24 * 365,
+      path: '/',
+      sameSite: 'lax'
+    });
 
     return response;
   } catch (error) {
