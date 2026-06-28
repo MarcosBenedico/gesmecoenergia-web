@@ -1,7 +1,17 @@
-<svg width="220" height="60" viewBox="0 0 220 60" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <rect x="1" y="1" width="58" height="58" rx="14" fill="#0F766E" fill-opacity="0.12" stroke="#0F766E" stroke-width="2"/>
-  <path d="M20 30.5C20 24.1487 25.1487 19 31.5 19H38V24.5H31.5C28.4624 24.5 26 26.9624 26 30C26 33.0376 28.4624 35.5 31.5 35.5H38V41H31.5C25.1487 41 20 35.8513 20 29.5V30.5Z" fill="#0B4336"/>
-  <path d="M38 19H44.5C50.8513 19 56 24.1487 56 30.5C56 36.8513 50.8513 42 44.5 42H38V35.5H44.5C47.5376 35.5 50 33.0376 50 30C50 26.9624 47.5376 24.5 44.5 24.5H38V19Z" fill="#0EA5E9"/>
-  <text x="78" y="30" fill="#0B4336" font-family="Arial, sans-serif" font-size="22" font-weight="700" dominant-baseline="middle">Gesmeco</text>
-  <text x="78" y="46" fill="#334155" font-family="Arial, sans-serif" font-size="16" font-weight="600" dominant-baseline="middle">Energía</text>
+<svg width="200" height="60" viewBox="0 0 200 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Circle background for G -->
+  <g>
+    <!-- Red circular G shape -->
+    <path d="M 15 30 A 25 25 0 0 1 50 8 L 50 20 A 13 13 0 0 0 15 30 Z" fill="#dc2626"/>
+    <path d="M 50 8 A 25 25 0 0 1 50 52 L 38 52 A 13 13 0 0 0 50 20 Z" fill="#dc2626"/>
+    <path d="M 50 52 A 25 25 0 0 1 15 30 L 27 30 A 13 13 0 0 0 50 52 Z" fill="#dc2626"/>
+    <path d="M 27 30 A 13 13 0 0 0 50 20 L 50 32 A 1 1 0 0 1 38 32 L 38 20 L 50 20 Z" fill="#dc2626"/>
+
+    <!-- Lightning bolt inside G (white) -->
+    <path d="M 38 22 L 33 32 L 40 32 L 30 48 L 40 40 L 32 40 L 38 22 Z" fill="white"/>
+  </g>
+
+  <!-- Text -->
+  <text x="70" y="28" fill="#dc2626" font-family="Georgia, serif" font-size="20" font-weight="700" dominant-baseline="middle">Gesmeco</text>
+  <text x="70" y="45" fill="#1f2937" font-family="Georgia, serif" font-size="14" font-style="italic" font-weight="600" dominant-baseline="middle">Energía</text>
 </svg>
