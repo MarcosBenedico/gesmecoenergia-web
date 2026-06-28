@@ -613,7 +613,7 @@ function ComparativaSimulador({ clientes, comercializadoras }: ComparativaProps)
   };
 
   // Cálculos detallados
-  const detalleEnergia = preciosAUsar.energia.map((precio, idx) => {
+  const detalleEnergia = preciosAUsar.energia.map((precio: number, idx: number) => {
     const consumo = consumosAUsar.energia[idx] || 0;
     const costeActual = consumo * precio * 12;
     const costeConFee = consumo * precio * (1 + fee / 100) * 12;
@@ -627,7 +627,7 @@ function ComparativaSimulador({ clientes, comercializadoras }: ComparativaProps)
     };
   });
 
-  const detallePotencia = preciosAUsar.potencia.map((precio, idx) => {
+  const detallePotencia = preciosAUsar.potencia.map((precio: number, idx: number) => {
     const consumo = consumosAUsar.potencia[idx] || 0;
     const costeActual = consumo * precio * 365;
     const costeConFee = consumo * precio * (1 + fee / 100) * 365;
