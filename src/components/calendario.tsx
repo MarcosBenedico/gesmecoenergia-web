@@ -9,6 +9,14 @@ interface CalendarEvent {
   start: string;
   end: string;
   description: string;
+  calendarEmail: string;
+}
+
+interface Calendar {
+  id: string;
+  summary: string;
+  email: string;
+  selected: boolean;
 }
 
 type ViewType = 'mes' | 'semana' | 'dia';
@@ -20,6 +28,8 @@ export function Calendario() {
   const [loading, setLoading] = useState(false);
   const [googleConectado, setGoogleConectado] = useState(false);
   const [error, setError] = useState('');
+  const [calendars, setCalendars] = useState<Calendar[]>([]);
+  const [showCalendarSelector, setShowCalendarSelector] = useState(false);
 
   // Verificar Google directamente desde Supabase
   const verificarGoogleDirecto = async () => {
@@ -53,108 +63,139 @@ export function Calendario() {
     }
   };
 
-  // Cargar eventos cuando el componente se monta
-  useEffect(() => {
-    console.log('📅 Calendario: Inicializando...');
+  // Cargar lista de calendarios disponibles
+  const cargarCalendarios = async () => {
+    try {
+      console.log('📅 Cargando lista de calendarios...');
+      const { data: googleConfig } = await supabase
+        .from('google_config')
+        .select('access_token')
+        .eq('id', 1)
+        .single();
 
-    // Verificación inicial inmediata
-    verificarGoogleDirecto();
+      if (!googleConfig?.access_token) {
+        console.log('❌ Sin token');
+        return;
+      }
 
-    // Verificar cada 500ms (muy frecuente para detectar cambios rápido)
-    const interval = setInterval(() => {
-      verificarGoogleDirecto();
-    }, 500);
+      const response = await fetch('https://www.googleapis.com/calendar/v3/users/me/calendarList', {
+        headers: {
+          Authorization: `Bearer ${googleConfig.access_token}`,
+        },
+      });
 
-    // Limpiar parámetros de la URL
-    const params = new URLSearchParams(window.location.search);
-    if (params.get('google_connected') === 'true') {
-      window.history.replaceState({}, '', window.location.pathname + '?seccion=calendario');
+      const data = await response.json();
+      const calendarList: Calendar[] = (data.items || []).map((item: any) => ({
+        id: item.id,
+        summary: item.summary,
+        email: item.id,
+        selected: item.primary || false, // Por defecto, seleccionar el primario
+      }));
+
+      console.log('✅ Calendarios cargados:', calendarList.length);
+      setCalendars(calendarList);
+    } catch (err) {
+      console.error('Error cargando calendarios:', err);
     }
-
-    return () => clearInterval(interval);
-  }, []);
-
-  // Cargar eventos cuando Google se conecta o cambia la fecha
-  useEffect(() => {
-    if (googleConectado) {
-      console.log('📅 Google conectado, cargando eventos...');
-      cargarEventos();
-    }
-  }, [currentDate, googleConectado]);
-
+  };
 
   const cargarEventos = async () => {
     setLoading(true);
     setError('');
     try {
-      // Obtener el token de Google (siempre ID 1)
-      const { data: googleConfig, error: err } = await supabase
+      const { data: googleConfig } = await supabase
         .from('google_config')
-        .select('access_token, email')
+        .select('access_token')
         .eq('id', 1)
         .single();
 
       if (!googleConfig?.access_token) {
-        setError('No hay token de Google. Por favor reconecta.');
-        setGoogleConectado(false);
+        setError('No hay token de Google.');
         setLoading(false);
         return;
       }
 
-      console.log('📅 Cargando eventos para:', googleConfig.email);
+      const selectedCalendars = calendars.filter((c) => c.selected);
+      if (selectedCalendars.length === 0) {
+        setEvents([]);
+        setLoading(false);
+        return;
+      }
 
-      // Obtener eventos del calendario para todo el mes
       const timeMin = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
       const timeMax = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
 
-      // Ajustar a UTC
       timeMin.setHours(0, 0, 0, 0);
       timeMax.setHours(23, 59, 59, 999);
 
-      const response = await fetch(
-        `https://www.googleapis.com/calendar/v3/calendars/primary/events?` +
-        `timeMin=${timeMin.toISOString()}&` +
-        `timeMax=${timeMax.toISOString()}&` +
-        `singleEvents=true&` +
-        `orderBy=startTime&` +
-        `maxResults=250`,
-        {
-          headers: {
-            Authorization: `Bearer ${googleConfig.access_token}`,
-            Accept: 'application/json',
-          },
-        }
-      );
+      let allEvents: CalendarEvent[] = [];
 
-      if (!response.ok) {
-        if (response.status === 401) {
-          setError('Token expirado. Reconecta con Google.');
-          setGoogleConectado(false);
-        } else {
-          setError(`Error al cargar eventos (${response.status})`);
+      // Cargar eventos de cada calendario seleccionado
+      for (const calendar of selectedCalendars) {
+        try {
+          const response = await fetch(
+            `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(
+              calendar.id
+            )}/events?timeMin=${timeMin.toISOString()}&timeMax=${timeMax.toISOString()}&singleEvents=true&orderBy=startTime&maxResults=250`,
+            {
+              headers: {
+                Authorization: `Bearer ${googleConfig.access_token}`,
+              },
+            }
+          );
+
+          if (response.ok) {
+            const data = await response.json();
+            const eventos = (data.items || []).map((item: any) => ({
+              id: item.id,
+              title: item.summary || 'Sin título',
+              start: item.start.dateTime || item.start.date,
+              end: item.end.dateTime || item.end.date,
+              description: item.description || '',
+              calendarEmail: calendar.email,
+            }));
+
+            allEvents = [...allEvents, ...eventos];
+          }
+        } catch (err) {
+          console.error(`Error cargando calendario ${calendar.summary}:`, err);
         }
-        setLoading(false);
-        return;
       }
 
-      const data = await response.json();
-      const eventos = (data.items || []).map((item: any) => ({
-        id: item.id,
-        title: item.summary || 'Sin título',
-        start: item.start.dateTime || item.start.date,
-        end: item.end.dateTime || item.end.date,
-        description: item.description || '',
-      }));
-
-      setEvents(eventos);
-      setError('');
+      // Ordenar eventos por fecha
+      allEvents.sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
+      setEvents(allEvents);
     } catch (error) {
       console.error('Error al cargar eventos:', error);
-      setError('Error al cargar eventos. Verifica tu conexión.');
+      setError('Error al cargar eventos.');
     } finally {
       setLoading(false);
     }
   };
+
+  // Cargar Google state y calendarios al montar
+  useEffect(() => {
+    console.log('📅 Calendario: Inicializando...');
+
+    verificarGoogleDirecto().then((conectado) => {
+      if (conectado) {
+        cargarCalendarios();
+      }
+    });
+
+    const interval = setInterval(() => {
+      verificarGoogleDirecto();
+    }, 500);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // Cargar eventos cuando Google se conecta o cambio de calendario/mes
+  useEffect(() => {
+    if (googleConectado && calendars.length > 0) {
+      cargarEventos();
+    }
+  }, [currentDate, calendars, googleConectado]);
 
   const daysInMonth = (date: Date) => new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
   const firstDayOfMonth = (date: Date) => new Date(date.getFullYear(), date.getMonth(), 1).getDay();
@@ -164,17 +205,14 @@ export function Calendario() {
     const daysCount = daysInMonth(currentDate);
     const firstDay = firstDayOfMonth(currentDate);
 
-    // Días vacíos del mes anterior
     for (let i = 0; i < firstDay; i++) {
       days.push(<div key={`empty-${i}`} className="bg-card/30 rounded-lg p-2 h-24"></div>);
     }
 
-    // Días del mes
     for (let day = 1; day <= daysCount; day++) {
       const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
       const dayEvents = events.filter(
-        (e) =>
-          new Date(e.start).toLocaleDateString() === date.toLocaleDateString()
+        (e) => new Date(e.start).toLocaleDateString() === date.toLocaleDateString()
       );
 
       days.push(
@@ -188,6 +226,7 @@ export function Calendario() {
               <div
                 key={event.id}
                 className="text-xs bg-accent/20 text-accent rounded px-1.5 py-0.5 truncate"
+                title={event.title}
               >
                 {event.title}
               </div>
@@ -218,8 +257,7 @@ export function Calendario() {
       <div className="grid grid-cols-7 gap-2">
         {weekDays.map((date) => {
           const dayEvents = events.filter(
-            (e) =>
-              new Date(e.start).toLocaleDateString() === date.toLocaleDateString()
+            (e) => new Date(e.start).toLocaleDateString() === date.toLocaleDateString()
           );
 
           return (
@@ -255,27 +293,30 @@ export function Calendario() {
 
   const renderDay = () => {
     const dayEvents = events.filter(
-      (e) =>
-        new Date(e.start).toLocaleDateString() === currentDate.toLocaleDateString()
+      (e) => new Date(e.start).toLocaleDateString() === currentDate.toLocaleDateString()
     );
 
     return (
       <div className="space-y-3">
         <div className="text-lg font-semibold text-foreground mb-6">
-          {currentDate.toLocaleDateString('es', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+          {currentDate.toLocaleDateString('es', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+          })}
         </div>
         {dayEvents.length === 0 ? (
           <div className="text-center py-12 text-muted">Sin eventos para hoy</div>
         ) : (
           dayEvents.map((event) => (
-            <div
-              key={event.id}
-              className="bg-surface rounded-lg p-4 border border-accent/30"
-            >
+            <div key={event.id} className="bg-surface rounded-lg p-4 border border-accent/30">
               <div className="font-semibold text-foreground text-lg">{event.title}</div>
               <div className="text-sm text-muted mt-2">
-                {new Date(event.start).toLocaleTimeString('es')} - {new Date(event.end).toLocaleTimeString('es')}
+                {new Date(event.start).toLocaleTimeString('es')} -{' '}
+                {new Date(event.end).toLocaleTimeString('es')}
               </div>
+              <div className="text-xs text-accent mt-1">{event.calendarEmail}</div>
               {event.description && (
                 <div className="text-sm text-muted mt-3">{event.description}</div>
               )}
@@ -292,7 +333,7 @@ export function Calendario() {
       {!googleConectado && (
         <div className="rounded-lg p-4 bg-red-500/10 border border-red-500/30">
           <p className="text-sm text-red-400">
-            {error || 'Google Calendar no está conectado. Conecta en la sección de Seguimientos.'}
+            Google Calendar no está conectado. Conecta en la sección de Seguimientos.
           </p>
         </div>
       )}
@@ -300,6 +341,47 @@ export function Calendario() {
       {googleConectado && (
         <div className="rounded-lg p-4 bg-secondary/10 border border-secondary/30">
           <p className="text-sm text-secondary">✓ Google Calendar conectado - Mostrando tus eventos</p>
+        </div>
+      )}
+
+      {/* Selector de calendarios */}
+      {googleConectado && calendars.length > 0 && (
+        <div className="bg-surface/50 rounded-xl p-4 border border-border">
+          <button
+            onClick={() => setShowCalendarSelector(!showCalendarSelector)}
+            className="w-full flex items-center justify-between text-foreground font-bold mb-3"
+          >
+            <span>📅 Calendarios ({calendars.filter((c) => c.selected).length}/{calendars.length})</span>
+            <span className={`transition transform ${showCalendarSelector ? 'rotate-180' : ''}`}>▼</span>
+          </button>
+
+          {showCalendarSelector && (
+            <div className="space-y-2 pt-3 border-t border-border">
+              {calendars.map((calendar) => (
+                <label
+                  key={calendar.id}
+                  className="flex items-center gap-3 p-2 rounded-lg hover:bg-card/50 cursor-pointer transition"
+                >
+                  <input
+                    type="checkbox"
+                    checked={calendar.selected}
+                    onChange={(e) => {
+                      setCalendars(
+                        calendars.map((c) =>
+                          c.id === calendar.id ? { ...c, selected: e.target.checked } : c
+                        )
+                      );
+                    }}
+                    className="w-4 h-4 accent-accent"
+                  />
+                  <div className="flex-1">
+                    <div className="text-sm font-semibold text-foreground">{calendar.summary}</div>
+                    <div className="text-xs text-muted">{calendar.email}</div>
+                  </div>
+                </label>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -343,7 +425,9 @@ export function Calendario() {
 
         <div className="flex gap-2 items-center">
           <button
-            onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1))}
+            onClick={() =>
+              setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1))
+            }
             className="px-3 py-2 rounded-lg bg-card/80 text-foreground border border-border/50 hover:bg-card transition"
           >
             ←
@@ -352,7 +436,9 @@ export function Calendario() {
             {currentDate.toLocaleDateString('es', { month: 'long', year: 'numeric' })}
           </span>
           <button
-            onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1))}
+            onClick={() =>
+              setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1))
+            }
             className="px-3 py-2 rounded-lg bg-card/80 text-foreground border border-border/50 hover:bg-card transition"
           >
             →
@@ -364,13 +450,7 @@ export function Calendario() {
             Hoy
           </button>
           <button
-            onClick={() => {
-              verificarGoogleDirecto().then((conectado) => {
-                if (conectado) {
-                  cargarEventos();
-                }
-              });
-            }}
+            onClick={() => cargarEventos()}
             disabled={loading}
             className="px-4 py-2 rounded-lg bg-secondary text-white font-semibold hover:bg-secondary/90 transition ml-2 disabled:opacity-50"
           >
@@ -384,10 +464,16 @@ export function Calendario() {
         {!googleConectado ? (
           <div className="text-center py-12">
             <p className="text-muted text-lg">Conecta tu Google Calendar para ver tus eventos</p>
-            <p className="text-muted text-sm mt-2">Ve a la sección "Seguimientos" y haz clic en "Conectar Google Calendar"</p>
+            <p className="text-muted text-sm mt-2">
+              Ve a la sección "Seguimientos" y haz clic en "Conectar Google Calendar"
+            </p>
           </div>
         ) : loading ? (
           <div className="text-center py-12 text-muted">Cargando eventos...</div>
+        ) : calendars.filter((c) => c.selected).length === 0 ? (
+          <div className="text-center py-12">
+            <p className="text-muted">Selecciona al menos un calendario para ver eventos</p>
+          </div>
         ) : view === 'mes' ? (
           <div className="grid grid-cols-7 gap-2">
             {['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'].map((day) => (

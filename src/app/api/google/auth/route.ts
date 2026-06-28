@@ -4,11 +4,11 @@ export async function GET(request: NextRequest) {
   const clientId = process.env.GOOGLE_CLIENT_ID;
   const redirectUri = process.env.GOOGLE_REDIRECT_URI || 'http://localhost:3000/api/google/callback';
 
-  // Múltiples scopes: email, perfil, Y calendario
+  // Múltiples scopes: email, perfil, Y calendario (incluyendo calendarios secundarios)
   const scopes = [
     'https://www.googleapis.com/auth/userinfo.email',
     'https://www.googleapis.com/auth/userinfo.profile',
-    'https://www.googleapis.com/auth/calendar',
+    'https://www.googleapis.com/auth/calendar.readonly', // Read-only para acceder a calendarios compartidos
   ];
   const scope = scopes.join(' ');
 
