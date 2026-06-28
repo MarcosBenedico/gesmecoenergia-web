@@ -576,7 +576,7 @@ export default function GestorPage() {
 
           {/* Sección: Comparativa de Tarifas */}
           {seccion === 'margenes' && (
-            <ComparativaSimulador clientes={clientes} comercializadoras={comercializadoras} />
+            <ComparativaSimulador clientes={clientes} comercializadoras={comercializadoras} precios={precios} />
           )}
         </div>
       </Container>
@@ -587,9 +587,10 @@ export default function GestorPage() {
 interface ComparativaProps {
   clientes: any[];
   comercializadoras: any[];
+  precios: any[];
 }
 
-function ComparativaSimulador({ clientes, comercializadoras }: ComparativaProps) {
+function ComparativaSimulador({ clientes, comercializadoras, precios }: ComparativaProps) {
   const [clienteSeleccionado, setClienteSeleccionado] = useState<any | null>(null);
   const [comercializadora, setComercializadora] = useState<number>(1);
   const [fee, setFee] = useState<number>(0);
