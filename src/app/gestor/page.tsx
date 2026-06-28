@@ -7,7 +7,7 @@ import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/button';
 import { Container } from '@/components/container';
 
-type Seccion = 'view' | 'create' | 'margenes';
+type Seccion = 'view' | 'create' | 'margenes' | 'clientes';
 
 interface Precio {
   id: number;
@@ -53,6 +53,16 @@ export default function GestorPage() {
     potencia: [2, 2],
   });
 
+  // Gestión de clientes
+  const [clientes, setClientes] = useState<any[]>([]);
+  const [formCliente, setFormCliente] = useState({
+    nombre: '',
+    cups: '',
+    tarifa: '2.0',
+    precios_energia: [0, 0, 0],
+    precios_potencia: [0, 0],
+  });
+
   useEffect(() => {
     const usuario = obtenerUsuarioActual();
     if (!usuario) {
@@ -62,6 +72,7 @@ export default function GestorPage() {
 
     setUsuarioActual('UsuarioMaster');
     cargarDatos();
+    cargarClientes();
   }, [router]);
 
   const cargarDatos = async () => {
@@ -82,6 +93,18 @@ export default function GestorPage() {
       console.error('Error al cargar datos:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const cargarClientes = async () => {
+    try {
+      const { data } = await supabase
+        .from('clientes')
+        .select('*')
+        .order('created_at', { ascending: false });
+      setClientes(data || []);
+    } catch (error) {
+      console.error('Error al cargar clientes:', error);
     }
   };
 
@@ -202,7 +225,17 @@ export default function GestorPage() {
                   : 'bg-neutral-200 text-foreground hover:bg-neutral-300'
               }`}
             >
-              Simulador de Márgenes
+              Comparativa
+            </button>
+            <button
+              onClick={() => setSeccion('clientes')}
+              className={`px-4 py-2 rounded-lg font-semibold transition ${
+                seccion === 'clientes'
+                  ? 'bg-accent text-white'
+                  : 'bg-neutral-200 text-foreground hover:bg-neutral-300'
+              }`}
+            >
+              Gestionar Clientes
             </button>
           </div>
 
@@ -394,6 +427,17 @@ export default function GestorPage() {
                 </Button>
               </form>
             </div>
+          )}
+
+          {/* Sección: Gestionar Clientes */}
+          {seccion === 'clientes' && (
+            <GestionarClientes
+              clientes={clientes}
+              setClientes={setClientes}
+              cargarClientes={cargarClientes}
+              formCliente={formCliente}
+              setFormCliente={setFormCliente}
+            />
           )}
 
           {/* Sección: Comparativa de Tarifas */}
@@ -761,6 +805,290 @@ function EditTarifaForm({ precio, onSave }: EditFormProps) {
       >
         Guardar cambios
       </button>
+    </div>
+  );
+}
+
+interface GestionarClientesProps {
+  clientes: any[];
+  setClientes: (c: any[]) => void;
+  cargarClientes: () => Promise<void>;
+  formCliente: any;
+  setFormCliente: (f: any) => void;
+}
+
+function GestionarClientes({
+  clientes,
+  setClientes,
+  cargarClientes,
+  formCliente,
+  setFormCliente,
+}: GestionarClientesProps) {
+  const [loading, setLoading] = useState(false);
+
+  const handleAgregarCliente = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formCliente.nombre || !formCliente.cups) {
+      alert('Nombre y CUPS son obligatorios');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const { error } = await supabase.from('clientes').insert({
+        nombre: formCliente.nombre,
+        cups: formCliente.cups,
+        tarifa: formCliente.tarifa,
+        precios_energia: formCliente.precios_energia,
+        precios_potencia: formCliente.precios_potencia,
+      });
+
+      if (error) throw error;
+
+      alert('Cliente agregado exitosamente');
+      setFormCliente({
+        nombre: '',
+        cups: '',
+        tarifa: '2.0',
+        precios_energia: [0, 0, 0],
+        precios_potencia: [0, 0],
+      });
+      await cargarClientes();
+    } catch (error) {
+      console.error('Error:', error);
+      alert('Error al agregar cliente: ' + (error as any).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCargarExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setLoading(true);
+    try {
+      const text = await file.text();
+      const lines = text.split('\n').filter((line) => line.trim());
+
+      const clientesNuevos = lines.map((line) => {
+        const [nombre, cups, tarifa, ...precios] = line.split(',').map((v) => v.trim());
+        const numPrecios = precios.map((p) => parseFloat(p) || 0);
+
+        let precios_energia: number[] = [];
+        let precios_potencia: number[] = [];
+
+        if (tarifa === '2.0') {
+          precios_energia = numPrecios.slice(0, 3);
+          precios_potencia = numPrecios.slice(3, 5);
+        } else {
+          precios_energia = numPrecios.slice(0, 6);
+          precios_potencia = numPrecios.slice(6, 12);
+        }
+
+        return {
+          nombre,
+          cups,
+          tarifa,
+          precios_energia,
+          precios_potencia,
+        };
+      });
+
+      const { error } = await supabase.from('clientes').insert(clientesNuevos);
+      if (error) throw error;
+
+      alert(`${clientesNuevos.length} clientes cargados exitosamente`);
+      await cargarClientes();
+    } catch (error) {
+      console.error('Error:', error);
+      alert('Error al cargar Excel: ' + (error as any).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleEliminarCliente = async (id: number) => {
+    if (!confirm('¿Eliminar este cliente?')) return;
+
+    try {
+      const { error } = await supabase.from('clientes').delete().eq('id', id);
+      if (error) throw error;
+      await cargarClientes();
+    } catch (error) {
+      alert('Error al eliminar: ' + (error as any).message);
+    }
+  };
+
+  const periodos = formCliente.tarifa === '2.0' ? 3 : 6;
+  const potencias = formCliente.tarifa === '2.0' ? 2 : 6;
+
+  return (
+    <div className="space-y-6">
+      {/* Agregar cliente */}
+      <div className="card rounded-2xl p-6 md:p-8">
+        <h2 className="mb-6 text-xl font-semibold text-foreground">Agregar Cliente</h2>
+
+        <form onSubmit={handleAgregarCliente} className="space-y-6">
+          {/* Datos básicos */}
+          <div className="grid gap-4 md:grid-cols-3">
+            <div>
+              <label className="block text-sm font-semibold text-foreground mb-2">Nombre *</label>
+              <input
+                type="text"
+                value={formCliente.nombre}
+                onChange={(e) =>
+                  setFormCliente({ ...formCliente, nombre: e.target.value })
+                }
+                placeholder="Juan García"
+                className="w-full rounded-lg border border-neutral-200 px-4 py-2.5 focus:border-accent focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-foreground mb-2">CUPS *</label>
+              <input
+                type="text"
+                value={formCliente.cups}
+                onChange={(e) => setFormCliente({ ...formCliente, cups: e.target.value })}
+                placeholder="ES1234567890123456789012"
+                className="w-full rounded-lg border border-neutral-200 px-4 py-2.5 focus:border-accent focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-foreground mb-2">Tarifa</label>
+              <select
+                value={formCliente.tarifa}
+                onChange={(e) => {
+                  const tarifa = e.target.value;
+                  const newPeriodos = tarifa === '2.0' ? 3 : 6;
+                  const newPotencias = tarifa === '2.0' ? 2 : 6;
+                  setFormCliente({
+                    ...formCliente,
+                    tarifa,
+                    precios_energia: Array(newPeriodos).fill(0),
+                    precios_potencia: Array(newPotencias).fill(0),
+                  });
+                }}
+                className="w-full rounded-lg border border-neutral-200 px-4 py-2.5 focus:border-accent focus:outline-none"
+              >
+                <option value="2.0">2.0</option>
+                <option value="3.0">3.0</option>
+                <option value="6.1">6.1</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Precios energía */}
+          <div>
+            <h4 className="mb-3 font-semibold text-foreground">Precios Energía (€/kWh)</h4>
+            <div className="grid gap-3 md:grid-cols-3">
+              {Array.from({ length: periodos }).map((_, idx) => (
+                <input
+                  key={idx}
+                  type="number"
+                  step="0.001"
+                  value={formCliente.precios_energia[idx]}
+                  onChange={(e) => {
+                    const newPrecios = [...formCliente.precios_energia];
+                    newPrecios[idx] = parseFloat(e.target.value) || 0;
+                    setFormCliente({ ...formCliente, precios_energia: newPrecios });
+                  }}
+                  placeholder={`P${idx + 1}`}
+                  className="rounded-lg border border-neutral-200 px-3 py-2 text-sm focus:border-accent focus:outline-none"
+                />
+              ))}
+            </div>
+          </div>
+
+          {/* Precios potencia */}
+          <div>
+            <h4 className="mb-3 font-semibold text-foreground">Precios Potencia (€/kW/día)</h4>
+            <div className="grid gap-3 md:grid-cols-3">
+              {Array.from({ length: potencias }).map((_, idx) => (
+                <input
+                  key={idx}
+                  type="number"
+                  step="0.001"
+                  value={formCliente.precios_potencia[idx]}
+                  onChange={(e) => {
+                    const newPrecios = [...formCliente.precios_potencia];
+                    newPrecios[idx] = parseFloat(e.target.value) || 0;
+                    setFormCliente({ ...formCliente, precios_potencia: newPrecios });
+                  }}
+                  placeholder={`Pot${idx + 1}`}
+                  className="rounded-lg border border-neutral-200 px-3 py-2 text-sm focus:border-accent focus:outline-none"
+                />
+              ))}
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full rounded-lg bg-accent text-white font-semibold py-3 hover:bg-accent/90 transition"
+          >
+            {loading ? 'Agregando...' : 'Agregar Cliente'}
+          </button>
+        </form>
+      </div>
+
+      {/* Cargar Excel */}
+      <div className="card rounded-2xl p-6 md:p-8 border-2 border-accent/30 bg-accent/5">
+        <h3 className="mb-4 font-semibold text-foreground">Cargar Clientes desde CSV</h3>
+        <p className="text-sm text-muted mb-4">
+          Formato: Nombre, CUPS, Tarifa, P1, P2, P3, (P4, P5, P6), Pot1, Pot2, (Pot3-6)
+        </p>
+        <input
+          type="file"
+          accept=".csv"
+          onChange={handleCargarExcel}
+          disabled={loading}
+          className="w-full"
+        />
+      </div>
+
+      {/* Lista de clientes */}
+      <div className="card rounded-2xl p-6 md:p-8">
+        <h3 className="mb-4 font-semibold text-foreground">Clientes ({clientes.length})</h3>
+
+        {clientes.length === 0 ? (
+          <p className="text-muted text-center py-8">No hay clientes</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-neutral-200 bg-neutral-100">
+                  <th className="px-4 py-3 text-left font-semibold">Nombre</th>
+                  <th className="px-4 py-3 text-left font-semibold">CUPS</th>
+                  <th className="px-4 py-3 text-left font-semibold">Tarifa</th>
+                  <th className="px-4 py-3 text-left font-semibold">Fecha</th>
+                  <th className="px-4 py-3 text-center font-semibold">Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {clientes.map((cliente) => (
+                  <tr key={cliente.id} className="border-b border-neutral-200 hover:bg-neutral-50">
+                    <td className="px-4 py-3 font-medium">{cliente.nombre}</td>
+                    <td className="px-4 py-3 text-xs font-mono">{cliente.cups}</td>
+                    <td className="px-4 py-3">{cliente.tarifa}</td>
+                    <td className="px-4 py-3 text-xs text-muted">
+                      {new Date(cliente.created_at).toLocaleDateString()} {new Date(cliente.created_at).toLocaleTimeString()}
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <button
+                        onClick={() => handleEliminarCliente(cliente.id)}
+                        className="text-xs font-semibold text-red-600 hover:underline"
+                      >
+                        Eliminar
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
