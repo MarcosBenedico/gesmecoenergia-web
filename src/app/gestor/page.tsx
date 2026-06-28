@@ -721,7 +721,7 @@ function ComparativaSimulador({ clientes, comercializadoras }: ComparativaProps)
           <div>
             <h4 className="font-bold text-foreground mb-3">Energía (kWh/período)</h4>
             <div className="grid grid-cols-3 gap-2">
-              {consumosAUsar.energia.map((consumo, idx) => (
+              {consumosAUsar.energia.map((consumo: number, idx: number) => (
                 <div key={idx} className="bg-card/80 rounded-lg p-3 border border-border/50">
                   <div className="text-xs font-bold text-muted mb-1">P{idx + 1}</div>
                   <input
@@ -742,7 +742,7 @@ function ComparativaSimulador({ clientes, comercializadoras }: ComparativaProps)
           <div>
             <h4 className="font-bold text-foreground mb-3">Potencia (kW/grupo)</h4>
             <div className="grid grid-cols-3 gap-2">
-              {consumosAUsar.potencia.map((consumo, idx) => (
+              {consumosAUsar.potencia.map((consumo: number, idx: number) => (
                 <div key={idx} className="bg-card/80 rounded-lg p-3 border border-border/50">
                   <div className="text-xs font-bold text-muted mb-1">Pot{idx + 1}</div>
                   <input
@@ -770,7 +770,7 @@ function ComparativaSimulador({ clientes, comercializadoras }: ComparativaProps)
           <div>
             <h4 className="font-bold text-foreground mb-3">Energía (€/kWh)</h4>
             <div className="grid grid-cols-3 gap-2">
-              {preciosAUsar.energia.map((precio, idx) => (
+              {preciosAUsar.energia.map((precio: number, idx: number) => (
                 <div key={idx} className="bg-card/80 rounded-lg p-3 border border-border/50">
                   <div className="text-xs font-bold text-muted mb-1">P{idx + 1}</div>
                   <input
@@ -793,7 +793,7 @@ function ComparativaSimulador({ clientes, comercializadoras }: ComparativaProps)
           <div>
             <h4 className="font-bold text-foreground mb-3">Potencia (€/kW/día)</h4>
             <div className="grid grid-cols-3 gap-2">
-              {preciosAUsar.potencia.map((precio, idx) => (
+              {preciosAUsar.potencia.map((precio: number, idx: number) => (
                 <div key={idx} className="bg-card/80 rounded-lg p-3 border border-border/50">
                   <div className="text-xs font-bold text-muted mb-1">Pot{idx + 1}</div>
                   <input
