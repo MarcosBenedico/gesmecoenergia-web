@@ -657,55 +657,97 @@ function ComparativaSimulador({ clientes, comercializadoras, precios }: Comparat
     cargarPreciosComercializadora(comercioDefault, tarifaCliente);
   };
 
-  // Cuando hay cliente seleccionado, cargar precios de la comercializadora, no del cliente
+  // Precios: comercializadora seleccionada
   const preciosAUsar = preciosCustom;
+
+  // Precios actuales del cliente (si hay seleccionado)
+  const preciosActualesCliente = clienteSeleccionado ? {
+    energia: clienteSeleccionado.precios_energia || [0.15, 0.16, 0.14],
+    potencia: clienteSeleccionado.precios_potencia || [0.45, 0.35],
+  } : null;
 
   const consumosAUsar = {
     energia: consumoEnergia,
     potencia: consumoPotencia,
   };
 
-  // Cálculos detallados
+  // Fee correcto: cada +1 = +0.001 en precio
+  const feeIncremental = fee * 0.001;
+
+  // Cálculos detallados para COMERCIALIZADORA SELECCIONADA
   const detalleEnergia = preciosAUsar.energia.map((precio: number, idx: number) => {
     const consumo = consumosAUsar.energia[idx] || 0;
-    const costeActual = consumo * precio * 12;
-    const costeConFee = consumo * precio * (1 + fee / 100) * 12;
+    const precioBase = precio;
+    const precioConFee = precioBase + feeIncremental;
+    const costeBase = consumo * precioBase * 12;
+    const costeConFee = consumo * precioConFee * 12;
+    const comision = consumo * feeIncremental * 12; // Tu ganancia por este período
+
     return {
       periodo: idx + 1,
-      precio,
+      precio: precioBase,
+      precioConFee,
       consumo,
-      costeActual,
+      costeBase,
       costeConFee,
-      ahorro: costeActual - costeConFee,
+      comision,
     };
   });
 
   const detallePotencia = preciosAUsar.potencia.map((precio: number, idx: number) => {
     const consumo = consumosAUsar.potencia[idx] || 0;
-    const costeActual = consumo * precio * 365;
-    const costeConFee = consumo * precio * (1 + fee / 100) * 365;
+    const precioBase = precio;
+    const precioConFee = precioBase + feeIncremental;
+    const costeBase = consumo * precioBase * 365;
+    const costeConFee = consumo * precioConFee * 365;
+    const comision = consumo * feeIncremental * 365; // Tu ganancia por este período
+
     return {
       potencia: idx + 1,
-      precio,
+      precio: precioBase,
+      precioConFee,
       consumo,
-      costeActual,
+      costeBase,
       costeConFee,
-      ahorro: costeActual - costeConFee,
+      comision,
     };
   });
 
+  // Cálculos de cliente actual (si existe)
+  const detalleClienteActual = clienteSeleccionado && preciosActualesCliente ? {
+    energia: preciosActualesCliente.energia.map((precio: number, idx: number) => {
+      const consumo = consumosAUsar.energia[idx] || 0;
+      return consumo * precio * 12;
+    }),
+    potencia: preciosActualesCliente.potencia.map((precio: number, idx: number) => {
+      const consumo = consumosAUsar.potencia[idx] || 0;
+      return consumo * precio * 365;
+    }),
+  } : null;
+
+  // Totales
   const totales: any = {
-    costeEnergia: detalleEnergia.reduce((sum: number, d: any) => sum + d.costeActual, 0),
-    costePotencia: detallePotencia.reduce((sum: number, d: any) => sum + d.costeActual, 0),
+    costeEnergia: detalleEnergia.reduce((sum: number, d: any) => sum + d.costeBase, 0),
+    costePotencia: detallePotencia.reduce((sum: number, d: any) => sum + d.costeBase, 0),
     costeConFeeEnergia: detalleEnergia.reduce((sum: number, d: any) => sum + d.costeConFee, 0),
     costeConFeePotencia: detallePotencia.reduce((sum: number, d: any) => sum + d.costeConFee, 0),
+    comisionEnergia: detalleEnergia.reduce((sum: number, d: any) => sum + d.comision, 0),
+    comisionPotencia: detallePotencia.reduce((sum: number, d: any) => sum + d.comision, 0),
   };
 
   totales.costeTotal = totales.costeEnergia + totales.costePotencia;
   totales.costeConFeeTotal = totales.costeConFeeEnergia + totales.costeConFeePotencia;
+  totales.comisionTotal = totales.comisionEnergia + totales.comisionPotencia;
 
-  const ahorroTotal = totales.costeTotal - totales.costeConFeeTotal;
-  const ahorroPorc = totales.costeTotal > 0 ? (ahorroTotal / totales.costeTotal) * 100 : 0;
+  // Coste del cliente actual
+  const costeClienteActual = detalleClienteActual ?
+    detalleClienteActual.energia.reduce((a: number, b: number) => a + b, 0) +
+    detalleClienteActual.potencia.reduce((a: number, b: number) => a + b, 0)
+    : 0;
+
+  // Diferencia vs cliente actual
+  const diferencia = costeClienteActual - totales.costeConFeeTotal;
+  const diferenciaPorc = costeClienteActual > 0 ? (diferencia / costeClienteActual) * 100 : 0;
 
   return (
     <div className="space-y-6">
@@ -926,19 +968,31 @@ function ComparativaSimulador({ clientes, comercializadoras, precios }: Comparat
                   <span className="text-xs text-muted">{d.consumo} kWh × €{d.precio.toFixed(4)}</span>
                 </div>
                 <div className="flex justify-between text-xs">
-                  <span className="text-muted">Actual:</span>
-                  <span className="font-semibold text-foreground">€{d.costeActual.toFixed(2)}</span>
+                  <span className="text-muted">Base:</span>
+                  <span className="font-semibold text-foreground">€{d.costeBase.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between text-xs mt-1">
-                  <span className="text-muted">Con +{fee}%:</span>
-                  <span className={`font-semibold ${d.ahorro > 0 ? 'text-red-400' : 'text-foreground'}`}>€{d.costeConFee.toFixed(2)}</span>
+                  <span className="text-muted">Con fee:</span>
+                  <span className="font-semibold text-accent">€{d.costeConFee.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-xs mt-1">
+                  <span className="text-muted">Tu comisión:</span>
+                  <span className="font-semibold text-secondary">€{d.comision.toFixed(2)}</span>
                 </div>
               </div>
             ))}
-            <div className="border-t border-border pt-3 mt-3 font-bold">
+            <div className="border-t border-border pt-3 mt-3 font-bold space-y-2">
               <div className="flex justify-between">
-                <span>TOTAL ENERGÍA:</span>
+                <span>TOTAL ENERGÍA BASE:</span>
                 <span className="text-foreground">€{totales.costeEnergia.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>CON FEE:</span>
+                <span className="text-accent">€{totales.costeConFeeEnergia.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>COMISIÓN:</span>
+                <span className="text-secondary">€{totales.comisionEnergia.toFixed(2)}</span>
               </div>
             </div>
           </div>
@@ -955,19 +1009,31 @@ function ComparativaSimulador({ clientes, comercializadoras, precios }: Comparat
                   <span className="text-xs text-muted">{d.consumo} kW × €{d.precio.toFixed(4)} × 365</span>
                 </div>
                 <div className="flex justify-between text-xs">
-                  <span className="text-muted">Actual:</span>
-                  <span className="font-semibold text-foreground">€{d.costeActual.toFixed(2)}</span>
+                  <span className="text-muted">Base:</span>
+                  <span className="font-semibold text-foreground">€{d.costeBase.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between text-xs mt-1">
-                  <span className="text-muted">Con +{fee}%:</span>
-                  <span className={`font-semibold ${d.ahorro > 0 ? 'text-red-400' : 'text-foreground'}`}>€{d.costeConFee.toFixed(2)}</span>
+                  <span className="text-muted">Con fee:</span>
+                  <span className="font-semibold text-accent">€{d.costeConFee.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-xs mt-1">
+                  <span className="text-muted">Tu comisión:</span>
+                  <span className="font-semibold text-secondary">€{d.comision.toFixed(2)}</span>
                 </div>
               </div>
             ))}
-            <div className="border-t border-border pt-3 mt-3 font-bold">
+            <div className="border-t border-border pt-3 mt-3 font-bold space-y-2">
               <div className="flex justify-between">
-                <span>TOTAL POTENCIA:</span>
+                <span>TOTAL POTENCIA BASE:</span>
                 <span className="text-foreground">€{totales.costePotencia.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>CON FEE:</span>
+                <span className="text-accent">€{totales.costeConFeePotencia.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>COMISIÓN:</span>
+                <span className="text-secondary">€{totales.comisionPotencia.toFixed(2)}</span>
               </div>
             </div>
           </div>
@@ -975,27 +1041,25 @@ function ComparativaSimulador({ clientes, comercializadoras, precios }: Comparat
       </div>
 
       {/* Resumen Final */}
-      <div className="grid gap-6 grid-cols-1 md:grid-cols-3">
-        <div className="card rounded-2xl p-6 md:p-8 bg-card/50 border border-border">
-          <div className="text-sm font-bold text-muted uppercase tracking-widest mb-3">Coste Actual</div>
-          <div className="space-y-2 mb-4">
-            <div className="flex justify-between text-sm">
-              <span>Energía:</span>
-              <span className="font-semibold">€{totales.costeEnergia.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span>Potencia:</span>
-              <span className="font-semibold">€{totales.costePotencia.toFixed(2)}</span>
-            </div>
-            <div className="border-t border-border pt-2 flex justify-between font-bold">
-              <span>TOTAL ANUAL:</span>
-              <span className="text-xl text-foreground">€{totales.costeTotal.toFixed(2)}</span>
+      <div className={`grid gap-6 grid-cols-1 ${clienteSeleccionado ? 'md:grid-cols-4' : 'md:grid-cols-2'}`}>
+        {/* Cliente Actual */}
+        {clienteSeleccionado && (
+          <div className="card rounded-2xl p-6 md:p-8 bg-amber-500/10 border border-amber-500/30">
+            <div className="text-sm font-bold text-amber-400 uppercase tracking-widest mb-3">Cliente Actual</div>
+            <div className="space-y-2">
+              <div className="text-center">
+                <div className="text-3xl font-black text-amber-400 mb-2">
+                  €{costeClienteActual.toFixed(2)}
+                </div>
+                <div className="text-xs text-amber-400/70">anual</div>
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
+        {/* Comercializadora Seleccionada */}
         <div className="card rounded-2xl p-6 md:p-8 bg-accent/10 border border-accent/30">
-          <div className="text-sm font-bold text-accent uppercase tracking-widest mb-3">Con FEE +{fee}%</div>
+          <div className="text-sm font-bold text-accent uppercase tracking-widest mb-3">Con Comercio + Fee</div>
           <div className="space-y-2 mb-4">
             <div className="flex justify-between text-sm">
               <span>Energía:</span>
@@ -1012,27 +1076,44 @@ function ComparativaSimulador({ clientes, comercializadoras, precios }: Comparat
           </div>
         </div>
 
-        <div className={`card rounded-2xl p-6 md:p-8 border-2 ${
-          ahorroTotal > 0
-            ? 'bg-red-500/10 border-red-500/30'
-            : 'bg-green-500/10 border-green-500/30'
-        }`}>
-          <div className={`text-sm font-bold uppercase tracking-widest mb-3 ${
-            ahorroTotal > 0 ? 'text-red-400' : 'text-green-400'
+        {/* Comparación */}
+        {clienteSeleccionado && (
+          <div className={`card rounded-2xl p-6 md:p-8 border-2 ${
+            diferencia > 0
+              ? 'bg-green-500/10 border-green-500/30'
+              : 'bg-red-500/10 border-red-500/30'
           }`}>
-            {ahorroTotal > 0 ? '📈 Incremento' : '📉 Ahorro'}
+            <div className={`text-sm font-bold uppercase tracking-widest mb-3 ${
+              diferencia > 0 ? 'text-green-400' : 'text-red-400'
+            }`}>
+              {diferencia > 0 ? 'Ahorro' : 'Más Caro'}
+            </div>
+            <div className="text-center">
+              <div className={`text-3xl font-black mb-2 ${
+                diferencia > 0 ? 'text-green-400' : 'text-red-400'
+              }`}>
+                €{Math.abs(diferencia).toFixed(2)}
+              </div>
+              <div className={`text-sm font-bold ${
+                diferencia > 0 ? 'text-green-400/70' : 'text-red-400/70'
+              }`}>
+                {Math.abs(diferenciaPorc).toFixed(1)}%
+              </div>
+            </div>
           </div>
+        )}
+
+        {/* Tu Comisión */}
+        <div className="card rounded-2xl p-6 md:p-8 bg-secondary/10 border border-secondary/30">
+          <div className="text-sm font-bold text-secondary uppercase tracking-widest mb-3">Tu Comisión</div>
           <div className="space-y-2">
             <div className="text-center">
-              <div className={`text-4xl font-black mb-2 ${
-                ahorroTotal > 0 ? 'text-red-400' : 'text-green-400'
-              }`}>
-                €{Math.abs(ahorroTotal).toFixed(2)}
+              <div className="text-3xl font-black text-secondary mb-2">
+                €{totales.comisionTotal.toFixed(2)}
               </div>
-              <div className={`text-lg font-bold ${
-                ahorroTotal > 0 ? 'text-red-400/70' : 'text-green-400/70'
-              }`}>
-                {Math.abs(ahorroPorc).toFixed(1)}% anual
+              <div className="text-xs text-secondary/70">por fee de {fee}</div>
+              <div className="text-xs text-secondary/60 mt-2">
+                {feeIncremental.toFixed(4)}€ por unidad
               </div>
             </div>
           </div>
