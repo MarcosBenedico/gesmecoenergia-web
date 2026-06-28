@@ -27,30 +27,68 @@ export function SistemaSegumientos({
     fecha_proximo_seguimiento: '',
   });
 
+  // Verificar directamente a Supabase
+  const verificarGoogleDirecto = async () => {
+    try {
+      console.log('🔍 [SEGUIMIENTOS] Verificando Google en Supabase...');
+
+      const { data, error } = await supabase
+        .from('google_config')
+        .select('id, access_token, email')
+        .eq('id', 1)
+        .single();
+
+      if (error) {
+        console.log('❌ [SEGUIMIENTOS] Error en lectura:', error.code, error.message);
+        setGoogleConnected(false);
+        return false;
+      }
+
+      if (!data) {
+        console.log('⚠️ [SEGUIMIENTOS] Sin datos en google_config');
+        setGoogleConnected(false);
+        return false;
+      }
+
+      if (data.access_token && data.email) {
+        console.log('✅ [SEGUIMIENTOS] Google conectado:', data.email);
+        setGoogleConnected(true);
+        return true;
+      }
+
+      console.log('⚠️ [SEGUIMIENTOS] Token incompleto');
+      setGoogleConnected(false);
+      return false;
+    } catch (err) {
+      console.error('💥 [SEGUIMIENTOS] Error crítico:', err);
+      setGoogleConnected(false);
+      return false;
+    }
+  };
+
   // Verificar si está conectado a Google
   useEffect(() => {
-    console.log('📍 SistemaSegumientos: Verificando Google...');
+    console.log('📍 [SEGUIMIENTOS] Inicializando...');
 
     // Verificación inicial
-    verificarGoogleConectado().then((result) => {
-      console.log('📍 Resultado inicial:', result);
-      setGoogleConnected(result.conectado);
-    });
+    verificarGoogleDirecto();
 
-    // Verificar cada 2 segundos (para detectar cambios rápidamente)
+    // Verificar cada 500ms
     const interval = setInterval(() => {
-      verificarGoogleConectado().then((result) => {
-        setGoogleConnected(result.conectado);
-      });
-    }, 2000);
+      verificarGoogleDirecto();
+    }, 500);
 
     // Limpiar parámetros de la URL
     const params = new URLSearchParams(window.location.search);
     if (params.get('google_connected') === 'true') {
-      window.history.replaceState({}, '', window.location.pathname);
+      console.log('🧹 Limpiando parámetro google_connected de la URL');
+      window.history.replaceState({}, '', window.location.pathname + '?seccion=seguimientos');
     }
 
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      console.log('🧹 [SEGUIMIENTOS] Limpiando intervalos');
+    };
   }, []);
 
   const handleAgregarSeguimiento = async (e: React.FormEvent) => {
@@ -149,34 +187,42 @@ export function SistemaSegumientos({
   return (
     <div className="space-y-6">
       {/* Estado Google Calendar */}
-      {!googleConnected && (
-        <div className="card rounded-2xl p-6 md:p-8 bg-blue-50 border-2 border-blue-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="font-semibold text-blue-900 mb-1">Conectar Google Calendar</h3>
-              <p className="text-sm text-blue-700">Crear eventos automáticamente en tu calendario</p>
-            </div>
-            <button
-              onClick={() => window.location.href = '/api/google/auth'}
-              className="px-6 py-2 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700 transition whitespace-nowrap"
-            >
-              Conectar
-            </button>
+      <div className="card rounded-2xl p-6 md:p-8 border-2">
+        <div className="flex items-center justify-between">
+          <div>
+            {googleConnected ? (
+              <>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-xl">✅</span>
+                  <h3 className="font-semibold text-green-400">Google Calendar Conectado</h3>
+                </div>
+                <p className="text-sm text-muted">Los seguimientos crearán eventos automáticamente</p>
+              </>
+            ) : (
+              <>
+                <h3 className="font-semibold text-foreground mb-1">Conectar Google Calendar</h3>
+                <p className="text-sm text-muted">Crear eventos automáticamente en tu calendario</p>
+              </>
+            )}
           </div>
-        </div>
-      )}
 
-      {googleConnected && (
-        <div className="card rounded-2xl p-6 md:p-8 bg-green-50 border-2 border-green-200">
-          <div className="flex items-center gap-3">
-            <span className="text-2xl">✅</span>
-            <div>
-              <h3 className="font-semibold text-green-900">Google Calendar Conectado</h3>
-              <p className="text-sm text-green-700">Los seguimientos crearán eventos automáticamente</p>
+          {!googleConnected ? (
+            <button
+              onClick={() => {
+                console.log('🔗 [SEGUIMIENTOS] Iniciando conexión a Google...');
+                window.location.href = '/api/google/auth';
+              }}
+              className="px-6 py-2 rounded-lg bg-accent text-white font-semibold hover:bg-accent/90 transition whitespace-nowrap"
+            >
+              🔗 Conectar
+            </button>
+          ) : (
+            <div className="px-6 py-2 rounded-lg bg-card/80 border border-border text-muted font-semibold whitespace-nowrap">
+              ✅ Conectado
             </div>
-          </div>
+          )}
         </div>
-      )}
+      </div>
 
       {/* Seleccionar cliente */}
       <div className="card rounded-2xl p-6 md:p-8">

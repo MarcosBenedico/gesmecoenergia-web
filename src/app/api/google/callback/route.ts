@@ -90,11 +90,15 @@ export async function GET(request: NextRequest) {
 
     // Guardar en Supabase
     log(`\n💾 Guardando en Supabase...`);
+    log(`ID: 1`);
+    log(`Email: ${user.email}`);
+    log(`Token: ${tokens.access_token.substring(0, 20)}...`);
     log(`Intentando actualizar registro ID=1...`);
 
     const { error: updateError, data: updateData, count } = await supabase
       .from('google_config')
       .update({
+        id: 1,
         access_token: tokens.access_token,
         refresh_token: tokens.refresh_token || null,
         email: user.email,
@@ -103,8 +107,13 @@ export async function GET(request: NextRequest) {
       .eq('id', 1)
       .select();
 
-    log(`Update response - error: ${updateError ? updateError.message : 'ninguno'}`);
-    log(`Update response - count: ${count}`);
+    log(`Update error: ${updateError ? updateError.message : 'ninguno'}`);
+    log(`Update count: ${count}`);
+    log(`Update data: ${updateData ? JSON.stringify(updateData) : 'vacío'}`);
+
+    if (!updateError && count === 0) {
+      log(`⚠️ Update no afectó filas (count=0), necesito insertar...`);
+    }
 
     if (updateError) {
       log(`⚠️ Update fallió, intentando insertar...`);
