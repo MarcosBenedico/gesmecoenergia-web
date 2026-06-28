@@ -44,7 +44,7 @@ export default function LoginPage() {
                 type="text"
                 value={usuario}
                 onChange={(e) => setUsuario(e.target.value)}
-                placeholder="UsuarioMaster"
+                placeholder="Introducir Nombre"
                 required
                 className="w-full rounded-lg border border-neutral-200 px-4 py-2.5 placeholder-muted focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
               />
