@@ -84,6 +84,9 @@ export const Footer = () => {
             <Link href="/sobre-nosotros" className="hover:text-foreground">
               Empresa
             </Link>
+            <Link href="/gestor/login" className="text-neutral-300 hover:text-accent transition">
+              Gestor
+            </Link>
           </div>
         </Container>
       </div>
