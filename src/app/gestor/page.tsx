@@ -205,7 +205,7 @@ export default function GestorPage() {
   const potenciasForm = formCrear.tarifa === '2.0' ? 2 : 6;
 
   return (
-    <div className="min-h-screen bg-neutral-50 py-20">
+    <div className="min-h-screen bg-background py-20">
       <Container>
         <div className="space-y-6">
           {/* Header */}
@@ -220,13 +220,13 @@ export default function GestorPage() {
           </div>
 
           {/* Botones de sección */}
-          <div className="card rounded-2xl p-6 flex gap-3 flex-wrap">
+          <div className="rounded-2xl p-6 flex gap-3 flex-wrap bg-gradient-to-r from-surface to-card border border-border">
             <button
               onClick={() => setSeccion('view')}
               className={`px-4 py-2 rounded-lg font-semibold transition ${
                 seccion === 'view'
                   ? 'bg-accent text-white'
-                  : 'bg-neutral-200 text-foreground hover:bg-neutral-300'
+                  : 'bg-card/80 text-foreground border border-border/50 hover:bg-card'
               }`}
             >
               Ver Tarifas
@@ -236,7 +236,7 @@ export default function GestorPage() {
               className={`px-4 py-2 rounded-lg font-semibold transition ${
                 seccion === 'create'
                   ? 'bg-accent text-white'
-                  : 'bg-neutral-200 text-foreground hover:bg-neutral-300'
+                  : 'bg-card/80 text-foreground border border-border/50 hover:bg-card'
               }`}
             >
               Crear Tarifa
@@ -246,7 +246,7 @@ export default function GestorPage() {
               className={`px-4 py-2 rounded-lg font-semibold transition ${
                 seccion === 'margenes'
                   ? 'bg-accent text-white'
-                  : 'bg-neutral-200 text-foreground hover:bg-neutral-300'
+                  : 'bg-card/80 text-foreground border border-border/50 hover:bg-card'
               }`}
             >
               Comparativa
@@ -256,7 +256,7 @@ export default function GestorPage() {
               className={`px-4 py-2 rounded-lg font-semibold transition ${
                 seccion === 'clientes'
                   ? 'bg-accent text-white'
-                  : 'bg-neutral-200 text-foreground hover:bg-neutral-300'
+                  : 'bg-card/80 text-foreground border border-border/50 hover:bg-card'
               }`}
             >
               Gestionar Clientes
@@ -266,7 +266,7 @@ export default function GestorPage() {
               className={`px-4 py-2 rounded-lg font-semibold transition ${
                 seccion === 'seguimientos'
                   ? 'bg-accent text-white'
-                  : 'bg-neutral-200 text-foreground hover:bg-neutral-300'
+                  : 'bg-card/80 text-foreground border border-border/50 hover:bg-card'
               }`}
             >
               Seguimientos
@@ -277,7 +277,7 @@ export default function GestorPage() {
           {seccion === 'view' && (
             <>
               {/* Filtros */}
-              <div className="card rounded-2xl p-6">
+              <div className="card rounded-2xl p-6 bg-surface/50">
                 <h2 className="mb-4 font-semibold text-foreground">Filtrar por tarifa</h2>
                 <div className="flex gap-2">
                   {['2.0', '3.0', '6.1'].map((tarifa) => (
@@ -287,7 +287,7 @@ export default function GestorPage() {
                       className={`rounded-lg px-4 py-2 font-semibold transition ${
                         filtroTarifa === tarifa
                           ? 'bg-accent text-white'
-                          : 'bg-neutral-200 text-foreground hover:bg-neutral-300'
+                          : 'bg-card/80 text-foreground border border-border/50 hover:bg-card'
                       }`}
                     >
                       {tarifa}
@@ -299,7 +299,7 @@ export default function GestorPage() {
               {/* Cards de tarifas */}
               <div className="space-y-4">
                 {preciosFiltrados.map((precio) => (
-                  <div key={precio.id} className="card rounded-2xl p-6 border-2 border-neutral-200">
+                  <div key={precio.id} className="card rounded-2xl p-6 border-2 border-border">
                     <div className="flex items-center justify-between mb-4">
                       <div>
                         <h3 className="text-lg font-semibold text-foreground">
@@ -365,7 +365,7 @@ export default function GestorPage() {
                           },
                         });
                       }}
-                      className="w-full rounded-lg border border-neutral-200 px-4 py-2.5 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+                      className="w-full rounded-lg border border-border px-4 py-2.5 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
                     >
                       <option value="2.0">Tarifa 2.0 (3 períodos, 2 potencias)</option>
                       <option value="3.0">Tarifa 3.0 (6 períodos, 6 potencias)</option>
@@ -382,7 +382,7 @@ export default function GestorPage() {
                       onChange={(e) =>
                         setFormCrear({ ...formCrear, comercializadora_id: parseInt(e.target.value) })
                       }
-                      className="w-full rounded-lg border border-neutral-200 px-4 py-2.5 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+                      className="w-full rounded-lg border border-border px-4 py-2.5 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
                     >
                       <option value="">-- Selecciona una comercializadora --</option>
                       {comercializadoras && comercializadoras.length > 0 ? (
@@ -420,7 +420,7 @@ export default function GestorPage() {
                             });
                           }}
                           placeholder="0.00"
-                          className="w-full rounded-lg border border-neutral-200 px-3 py-2 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+                          className="w-full rounded-lg border border-border px-3 py-2 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
                         />
                       </div>
                     ))}
@@ -449,7 +449,7 @@ export default function GestorPage() {
                             });
                           }}
                           placeholder="0.00"
-                          className="w-full rounded-lg border border-neutral-200 px-3 py-2 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+                          className="w-full rounded-lg border border-border px-3 py-2 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
                         />
                       </div>
                     ))}
@@ -598,7 +598,7 @@ function ComparativaSimulador({
                   potencia: Array(newPotencias).fill(2),
                 });
               }}
-              className="w-full rounded-lg border border-neutral-200 px-4 py-2.5 focus:border-accent focus:outline-none"
+              className="w-full rounded-lg border border-border px-4 py-2.5 focus:border-accent focus:outline-none"
             >
               <option value="2.0">Tarifa 2.0</option>
               <option value="3.0">Tarifa 3.0</option>
@@ -613,7 +613,7 @@ function ComparativaSimulador({
             <select
               value={comercioComparar}
               onChange={(e) => setComerioComparar(parseInt(e.target.value))}
-              className="w-full rounded-lg border border-neutral-200 px-4 py-2.5 focus:border-accent focus:outline-none"
+              className="w-full rounded-lg border border-border px-4 py-2.5 focus:border-accent focus:outline-none"
             >
               {comercializadoras.map((com) => (
                 <option key={com.id} value={com.id}>
@@ -655,7 +655,7 @@ function ComparativaSimulador({
                         setConsumosCliente(newConsumos);
                       }}
                       placeholder="kWh"
-                      className="flex-1 rounded-lg border border-neutral-200 px-3 py-2 text-sm focus:border-accent focus:outline-none"
+                      className="flex-1 rounded-lg border border-border px-3 py-2 text-sm focus:border-accent focus:outline-none"
                     />
                     <input
                       type="number"
@@ -667,7 +667,7 @@ function ComparativaSimulador({
                       }}
                       placeholder="€/kWh"
                       step="0.001"
-                      className="flex-1 rounded-lg border border-neutral-200 px-3 py-2 text-sm focus:border-accent focus:outline-none"
+                      className="flex-1 rounded-lg border border-border px-3 py-2 text-sm focus:border-accent focus:outline-none"
                     />
                   </div>
                 </div>
@@ -695,7 +695,7 @@ function ComparativaSimulador({
                       }}
                       placeholder="kW"
                       step="0.1"
-                      className="flex-1 rounded-lg border border-neutral-200 px-3 py-2 text-sm focus:border-accent focus:outline-none"
+                      className="flex-1 rounded-lg border border-border px-3 py-2 text-sm focus:border-accent focus:outline-none"
                     />
                     <input
                       type="number"
@@ -707,7 +707,7 @@ function ComparativaSimulador({
                       }}
                       placeholder="€/día"
                       step="0.001"
-                      className="flex-1 rounded-lg border border-neutral-200 px-3 py-2 text-sm focus:border-accent focus:outline-none"
+                      className="flex-1 rounded-lg border border-border px-3 py-2 text-sm focus:border-accent focus:outline-none"
                     />
                   </div>
                 </div>
@@ -727,7 +727,7 @@ function ComparativaSimulador({
       {/* Comparativa */}
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Cliente actual */}
-        <div className="card rounded-2xl p-6 md:p-8 border-2 border-neutral-200">
+        <div className="card rounded-2xl p-6 md:p-8 border-2 border-border">
           <h3 className="mb-4 text-lg font-semibold text-foreground">Coste Actual</h3>
 
           <div className="space-y-3 text-sm mb-6">
@@ -739,7 +739,7 @@ function ComparativaSimulador({
               <span className="text-muted">Potencia:</span>
               <span className="font-semibold">€{costeClientePotencia.toFixed(2)}</span>
             </div>
-            <div className="border-t border-neutral-200 pt-3 flex justify-between text-base font-bold">
+            <div className="border-t border-border pt-3 flex justify-between text-base font-bold">
               <span>Total anual:</span>
               <span>€{costeClienteTotal.toFixed(2)}</span>
             </div>
@@ -834,7 +834,7 @@ function EditTarifaForm({ precio, onSave }: EditFormProps) {
                   newEnergias[idx] = parseFloat(e.target.value) || 0;
                   setEnergias(newEnergias);
                 }}
-                className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm focus:border-accent focus:outline-none"
+                className="w-full rounded-lg border border-border px-3 py-2 text-sm focus:border-accent focus:outline-none"
               />
             </div>
           ))}
@@ -855,7 +855,7 @@ function EditTarifaForm({ precio, onSave }: EditFormProps) {
                   newPotencias[idx] = parseFloat(e.target.value) || 0;
                   setPotencias(newPotencias);
                 }}
-                className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm focus:border-accent focus:outline-none"
+                className="w-full rounded-lg border border-border px-3 py-2 text-sm focus:border-accent focus:outline-none"
               />
             </div>
           ))}
@@ -1003,7 +1003,7 @@ function GestionarClientes({
                   setFormCliente({ ...formCliente, nombre: e.target.value })
                 }
                 placeholder="Juan García"
-                className="w-full rounded-lg border border-neutral-200 px-4 py-2.5 focus:border-accent focus:outline-none"
+                className="w-full rounded-lg border border-border px-4 py-2.5 focus:border-accent focus:outline-none"
               />
             </div>
             <div>
@@ -1013,7 +1013,7 @@ function GestionarClientes({
                 value={formCliente.cups}
                 onChange={(e) => setFormCliente({ ...formCliente, cups: e.target.value })}
                 placeholder="ES1234567890123456789012"
-                className="w-full rounded-lg border border-neutral-200 px-4 py-2.5 focus:border-accent focus:outline-none"
+                className="w-full rounded-lg border border-border px-4 py-2.5 focus:border-accent focus:outline-none"
               />
             </div>
             <div>
@@ -1031,7 +1031,7 @@ function GestionarClientes({
                     precios_potencia: Array(newPotencias).fill(0),
                   });
                 }}
-                className="w-full rounded-lg border border-neutral-200 px-4 py-2.5 focus:border-accent focus:outline-none"
+                className="w-full rounded-lg border border-border px-4 py-2.5 focus:border-accent focus:outline-none"
               >
                 <option value="2.0">2.0</option>
                 <option value="3.0">3.0</option>
@@ -1056,7 +1056,7 @@ function GestionarClientes({
                     setFormCliente({ ...formCliente, precios_energia: newPrecios });
                   }}
                   placeholder={`P${idx + 1}`}
-                  className="rounded-lg border border-neutral-200 px-3 py-2 text-sm focus:border-accent focus:outline-none"
+                  className="rounded-lg border border-border px-3 py-2 text-sm focus:border-accent focus:outline-none"
                 />
               ))}
             </div>
@@ -1078,7 +1078,7 @@ function GestionarClientes({
                     setFormCliente({ ...formCliente, precios_potencia: newPrecios });
                   }}
                   placeholder={`Pot${idx + 1}`}
-                  className="rounded-lg border border-neutral-200 px-3 py-2 text-sm focus:border-accent focus:outline-none"
+                  className="rounded-lg border border-border px-3 py-2 text-sm focus:border-accent focus:outline-none"
                 />
               ))}
             </div>
@@ -1119,7 +1119,7 @@ function GestionarClientes({
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-neutral-200 bg-neutral-100">
+                <tr className="border-b border-border bg-neutral-100">
                   <th className="px-4 py-3 text-left font-semibold">Nombre</th>
                   <th className="px-4 py-3 text-left font-semibold">CUPS</th>
                   <th className="px-4 py-3 text-left font-semibold">Tarifa</th>
@@ -1129,7 +1129,7 @@ function GestionarClientes({
               </thead>
               <tbody>
                 {clientes.map((cliente) => (
-                  <tr key={cliente.id} className="border-b border-neutral-200 hover:bg-neutral-50">
+                  <tr key={cliente.id} className="border-b border-border hover:bg-neutral-50">
                     <td className="px-4 py-3 font-medium">{cliente.nombre}</td>
                     <td className="px-4 py-3 text-xs font-mono">{cliente.cups}</td>
                     <td className="px-4 py-3">{cliente.tarifa}</td>
