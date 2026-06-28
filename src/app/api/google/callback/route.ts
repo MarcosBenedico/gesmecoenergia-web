@@ -98,7 +98,6 @@ export async function GET(request: NextRequest) {
     const { error: updateError, data: updateData, count } = await supabase
       .from('google_config')
       .update({
-        id: 1,
         access_token: tokens.access_token,
         refresh_token: tokens.refresh_token || null,
         email: user.email,
@@ -109,37 +108,34 @@ export async function GET(request: NextRequest) {
 
     log(`Update error: ${updateError ? updateError.message : 'ninguno'}`);
     log(`Update count: ${count}`);
-    log(`Update data: ${updateData ? JSON.stringify(updateData) : 'vacío'}`);
 
-    if (!updateError && count === 0) {
-      log(`⚠️ Update no afectó filas (count=0), necesito insertar...`);
-    }
-
-    if (updateError) {
-      log(`⚠️ Update fallió, intentando insertar...`);
+    if (!updateError && count && count > 0) {
+      log(`✅ Actualización exitosa`);
+    } else if (!updateError && (!count || count === 0)) {
+      log(`⚠️ Sin registros anteriores, intentando insertar...`);
 
       const { error: insertError, data: insertData } = await supabase
         .from('google_config')
         .insert({
-          id: 1,
           access_token: tokens.access_token,
           refresh_token: tokens.refresh_token || null,
           email: user.email,
         })
         .select();
 
-      log(`Insert response - error: ${insertError ? insertError.message : 'ninguno'}`);
+      log(`Insert error: ${insertError ? insertError.message : 'ninguno'}`);
       log(`Insert data: ${JSON.stringify(insertData)}`);
 
       if (insertError) {
-        log(`❌ Ambas operaciones fallaron`);
+        log(`❌ Inserción falló`);
         log(`Error: ${insertError.message}`);
         return renderResponse('ERROR', logs);
       }
 
       log(`✅ Inserción exitosa`);
-    } else {
-      log(`✅ Actualización exitosa`);
+    } else if (updateError) {
+      log(`❌ Update error: ${updateError.message}`);
+      return renderResponse('ERROR', logs);
     }
 
     // Verificar que se guardó
