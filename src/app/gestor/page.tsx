@@ -593,51 +593,74 @@ function ComparativaSimulador({ clientes, comercializadoras }: ComparativaProps)
   const [clienteSeleccionado, setClienteSeleccionado] = useState<any | null>(null);
   const [comercializadora, setComercializadora] = useState<number>(1);
   const [fee, setFee] = useState<number>(0);
+  const [consumoEnergia, setConsumoEnergia] = useState<number[]>([1000, 1200, 800]);
+  const [consumoPotencia, setConsumoPotencia] = useState<number[]>([5, 3]);
   const [preciosCustom, setPreciosCustom] = useState({
-    energia: 0.15,
-    potencia: 0.45,
+    energia: [0.15, 0.16, 0.14],
+    potencia: [0.45, 0.35],
   });
 
-  const preciosAUssar = clienteSeleccionado
+  const preciosAUsar = clienteSeleccionado
     ? {
-        energia:
-          clienteSeleccionado.precios_energia?.[0] ||
-          (preciosCustom.energia > 0 ? preciosCustom.energia : 0.15),
-        potencia:
-          clienteSeleccionado.precios_potencia?.[0] ||
-          (preciosCustom.potencia > 0 ? preciosCustom.potencia : 0.45),
+        energia: clienteSeleccionado.precios_energia || [0.15, 0.16, 0.14],
+        potencia: clienteSeleccionado.precios_potencia || [0.45, 0.35],
       }
     : preciosCustom;
 
-  // Consumos estimados (valores por defecto)
-  const consumoEnergia = 3000; // kWh/año
-  const consumoPotencia = 5; // kW
-
-  // Calcular costes
-  const costeClienteEnergia = consumoEnergia * preciosAUssar.energia;
-  const costeClientePotencia = consumoPotencia * preciosAUssar.potencia * 365;
-  const costeClienteTotal = costeClienteEnergia + costeClientePotencia;
-
-  // Costes con fee
-  const precioConFee = {
-    energia: preciosAUssar.energia * (1 + fee / 100),
-    potencia: preciosAUssar.potencia * (1 + fee / 100),
+  const consumosAUsar = {
+    energia: consumoEnergia,
+    potencia: consumoPotencia,
   };
-  const costeConFeeEnergia = consumoEnergia * precioConFee.energia;
-  const costeConFeePotencia = consumoPotencia * precioConFee.potencia * 365;
-  const costeConFeeTotal = costeConFeeEnergia + costeConFeePotencia;
 
-  const ahorroTotal = costeClienteTotal - costeConFeeTotal;
-  const ahorroPorc = costeClienteTotal > 0 ? (ahorroTotal / costeClienteTotal) * 100 : 0;
+  // Cálculos detallados
+  const detalleEnergia = preciosAUsar.energia.map((precio, idx) => {
+    const consumo = consumosAUsar.energia[idx] || 0;
+    const costeActual = consumo * precio * 12;
+    const costeConFee = consumo * precio * (1 + fee / 100) * 12;
+    return {
+      periodo: idx + 1,
+      precio,
+      consumo,
+      costeActual,
+      costeConFee,
+      ahorro: costeActual - costeConFee,
+    };
+  });
+
+  const detallePotencia = preciosAUsar.potencia.map((precio, idx) => {
+    const consumo = consumosAUsar.potencia[idx] || 0;
+    const costeActual = consumo * precio * 365;
+    const costeConFee = consumo * precio * (1 + fee / 100) * 365;
+    return {
+      potencia: idx + 1,
+      precio,
+      consumo,
+      costeActual,
+      costeConFee,
+      ahorro: costeActual - costeConFee,
+    };
+  });
+
+  const totales = {
+    costeEnergia: detalleEnergia.reduce((sum, d) => sum + d.costeActual, 0),
+    costePotencia: detallePotencia.reduce((sum, d) => sum + d.costeActual, 0),
+    costeConFeeEnergia: detalleEnergia.reduce((sum, d) => sum + d.costeConFee, 0),
+    costeConFeePotencia: detallePotencia.reduce((sum, d) => sum + d.costeConFee, 0),
+  };
+
+  totales.costeTotal = totales.costeEnergia + totales.costePotencia;
+  totales.costeConFeeTotal = totales.costeConFeeEnergia + totales.costeConFeePotencia;
+
+  const ahorroTotal = totales.costeTotal - totales.costeConFeeTotal;
+  const ahorroPorc = totales.costeTotal > 0 ? (ahorroTotal / totales.costeTotal) * 100 : 0;
 
   return (
     <div className="space-y-6">
       {/* Inputs principales */}
       <div className="card rounded-2xl p-6 md:p-8 bg-surface/50">
-        <h2 className="mb-6 text-2xl font-bold text-foreground">💰 Comparativa de Tarifas</h2>
+        <h2 className="mb-6 text-2xl font-bold text-foreground">💰 Comparativa Detallada</h2>
 
-        <div className="grid gap-6 md:grid-cols-2">
-          {/* Cliente */}
+        <div className="grid gap-6 md:grid-cols-3">
           <div>
             <label className="block text-sm font-bold text-foreground mb-2 uppercase tracking-widest">
               Cliente (opcional)
@@ -650,16 +673,15 @@ function ComparativaSimulador({ clientes, comercializadoras }: ComparativaProps)
               }}
               className="w-full rounded-lg border border-border bg-card px-4 py-3 text-foreground font-medium focus:border-accent focus:ring-2 focus:ring-accent/30 focus:outline-none"
             >
-              <option value="">-- Ingresar precios manualmente --</option>
+              <option value="">-- Manual --</option>
               {clientes.map((c) => (
                 <option key={c.id} value={c.id}>
-                  {c.nombre} ({c.cups})
+                  {c.nombre}
                 </option>
               ))}
             </select>
           </div>
 
-          {/* Comercializadora */}
           <div>
             <label className="block text-sm font-bold text-foreground mb-2 uppercase tracking-widest">
               Comercializadora
@@ -677,45 +699,9 @@ function ComparativaSimulador({ clientes, comercializadoras }: ComparativaProps)
             </select>
           </div>
 
-          {/* Precios del cliente */}
-          {!clienteSeleccionado && (
-            <>
-              <div>
-                <label className="block text-sm font-bold text-foreground mb-2 uppercase tracking-widest">
-                  Precio Energía (€/kWh)
-                </label>
-                <input
-                  type="number"
-                  value={preciosCustom.energia}
-                  onChange={(e) =>
-                    setPreciosCustom({ ...preciosCustom, energia: parseFloat(e.target.value) || 0 })
-                  }
-                  step="0.001"
-                  className="w-full rounded-lg border border-border bg-card px-4 py-3 text-foreground font-medium focus:border-accent focus:ring-2 focus:ring-accent/30 focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-bold text-foreground mb-2 uppercase tracking-widest">
-                  Precio Potencia (€/kW/día)
-                </label>
-                <input
-                  type="number"
-                  value={preciosCustom.potencia}
-                  onChange={(e) =>
-                    setPreciosCustom({ ...preciosCustom, potencia: parseFloat(e.target.value) || 0 })
-                  }
-                  step="0.001"
-                  className="w-full rounded-lg border border-border bg-card px-4 py-3 text-foreground font-medium focus:border-accent focus:ring-2 focus:ring-accent/30 focus:outline-none"
-                />
-              </div>
-            </>
-          )}
-
-          {/* Fee */}
           <div>
             <label className="block text-sm font-bold text-foreground mb-2 uppercase tracking-widest">
-              FEE / Margen (%)
+              FEE/Margen (%)
             </label>
             <input
               type="number"
@@ -728,68 +714,227 @@ function ComparativaSimulador({ clientes, comercializadoras }: ComparativaProps)
         </div>
       </div>
 
-      {/* Resultado */}
+      {/* Tabla de Consumos */}
+      <div className="card rounded-2xl p-6 md:p-8 bg-surface/50">
+        <h3 className="font-bold text-foreground text-lg mb-4">📊 Consumos Anuales</h3>
+        <div className="grid gap-4 md:grid-cols-2">
+          <div>
+            <h4 className="font-bold text-foreground mb-3">Energía (kWh/período)</h4>
+            <div className="grid grid-cols-3 gap-2">
+              {consumosAUsar.energia.map((consumo, idx) => (
+                <div key={idx} className="bg-card/80 rounded-lg p-3 border border-border/50">
+                  <div className="text-xs font-bold text-muted mb-1">P{idx + 1}</div>
+                  <input
+                    type="number"
+                    value={consumo}
+                    onChange={(e) => {
+                      const newConsumos = [...consumosAUsar.energia];
+                      newConsumos[idx] = parseFloat(e.target.value) || 0;
+                      setConsumoEnergia(newConsumos);
+                    }}
+                    className="w-full bg-card/50 rounded px-2 py-1 text-sm text-foreground border border-border/30 focus:border-accent focus:outline-none"
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <h4 className="font-bold text-foreground mb-3">Potencia (kW/grupo)</h4>
+            <div className="grid grid-cols-3 gap-2">
+              {consumosAUsar.potencia.map((consumo, idx) => (
+                <div key={idx} className="bg-card/80 rounded-lg p-3 border border-border/50">
+                  <div className="text-xs font-bold text-muted mb-1">Pot{idx + 1}</div>
+                  <input
+                    type="number"
+                    value={consumo}
+                    onChange={(e) => {
+                      const newConsumos = [...consumosAUsar.potencia];
+                      newConsumos[idx] = parseFloat(e.target.value) || 0;
+                      setConsumoPotencia(newConsumos);
+                    }}
+                    step="0.1"
+                    className="w-full bg-card/50 rounded px-2 py-1 text-sm text-foreground border border-border/30 focus:border-accent focus:outline-none"
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Tabla de Precios */}
+      <div className="card rounded-2xl p-6 md:p-8 bg-surface/50">
+        <h3 className="font-bold text-foreground text-lg mb-4">💵 Precios por Período</h3>
+        <div className="grid gap-4 md:grid-cols-2">
+          <div>
+            <h4 className="font-bold text-foreground mb-3">Energía (€/kWh)</h4>
+            <div className="grid grid-cols-3 gap-2">
+              {preciosAUsar.energia.map((precio, idx) => (
+                <div key={idx} className="bg-card/80 rounded-lg p-3 border border-border/50">
+                  <div className="text-xs font-bold text-muted mb-1">P{idx + 1}</div>
+                  <input
+                    type="number"
+                    value={precio}
+                    onChange={(e) => {
+                      const newPrecios = [...preciosAUsar.energia];
+                      newPrecios[idx] = parseFloat(e.target.value) || 0;
+                      setPreciosCustom({ ...preciosCustom, energia: newPrecios });
+                    }}
+                    step="0.001"
+                    className="w-full bg-card/50 rounded px-2 py-1 text-sm text-foreground border border-border/30 focus:border-accent focus:outline-none"
+                    disabled={clienteSeleccionado !== null}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <h4 className="font-bold text-foreground mb-3">Potencia (€/kW/día)</h4>
+            <div className="grid grid-cols-3 gap-2">
+              {preciosAUsar.potencia.map((precio, idx) => (
+                <div key={idx} className="bg-card/80 rounded-lg p-3 border border-border/50">
+                  <div className="text-xs font-bold text-muted mb-1">Pot{idx + 1}</div>
+                  <input
+                    type="number"
+                    value={precio}
+                    onChange={(e) => {
+                      const newPrecios = [...preciosAUsar.potencia];
+                      newPrecios[idx] = parseFloat(e.target.value) || 0;
+                      setPreciosCustom({ ...preciosCustom, potencia: newPrecios });
+                    }}
+                    step="0.001"
+                    className="w-full bg-card/50 rounded px-2 py-1 text-sm text-foreground border border-border/30 focus:border-accent focus:outline-none"
+                    disabled={clienteSeleccionado !== null}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Desglose por Período */}
+      <div className="grid gap-6 md:grid-cols-2">
+        {/* Detalles Energía */}
+        <div className="card rounded-2xl p-6 md:p-8 bg-surface/50">
+          <h3 className="font-bold text-foreground text-lg mb-4">⚡ Cálculo Energía</h3>
+          <div className="space-y-3 text-sm">
+            {detalleEnergia.map((d) => (
+              <div key={d.periodo} className="p-3 bg-card/80 rounded-lg border border-border/50">
+                <div className="flex justify-between mb-2">
+                  <span className="font-bold text-foreground">P{d.periodo}</span>
+                  <span className="text-xs text-muted">{d.consumo} kWh × €{d.precio.toFixed(4)}</span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-muted">Actual:</span>
+                  <span className="font-semibold text-foreground">€{d.costeActual.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-xs mt-1">
+                  <span className="text-muted">Con +{fee}%:</span>
+                  <span className={`font-semibold ${d.ahorro > 0 ? 'text-red-400' : 'text-foreground'}`}>€{d.costeConFee.toFixed(2)}</span>
+                </div>
+              </div>
+            ))}
+            <div className="border-t border-border pt-3 mt-3 font-bold">
+              <div className="flex justify-between">
+                <span>TOTAL ENERGÍA:</span>
+                <span className="text-foreground">€{totales.costeEnergia.toFixed(2)}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Detalles Potencia */}
+        <div className="card rounded-2xl p-6 md:p-8 bg-surface/50">
+          <h3 className="font-bold text-foreground text-lg mb-4">💪 Cálculo Potencia</h3>
+          <div className="space-y-3 text-sm">
+            {detallePotencia.map((d) => (
+              <div key={d.potencia} className="p-3 bg-card/80 rounded-lg border border-border/50">
+                <div className="flex justify-between mb-2">
+                  <span className="font-bold text-foreground">Pot{d.potencia}</span>
+                  <span className="text-xs text-muted">{d.consumo} kW × €{d.precio.toFixed(4)} × 365</span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-muted">Actual:</span>
+                  <span className="font-semibold text-foreground">€{d.costeActual.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-xs mt-1">
+                  <span className="text-muted">Con +{fee}%:</span>
+                  <span className={`font-semibold ${d.ahorro > 0 ? 'text-red-400' : 'text-foreground'}`}>€{d.costeConFee.toFixed(2)}</span>
+                </div>
+              </div>
+            ))}
+            <div className="border-t border-border pt-3 mt-3 font-bold">
+              <div className="flex justify-between">
+                <span>TOTAL POTENCIA:</span>
+                <span className="text-foreground">€{totales.costePotencia.toFixed(2)}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Resumen Final */}
       <div className="grid gap-6 md:grid-cols-3">
-        {/* Actual */}
         <div className="card rounded-2xl p-6 md:p-8 bg-card/50 border border-border">
-          <div className="text-sm font-bold text-muted uppercase tracking-widest mb-2">Coste Actual</div>
-          <div className="space-y-2">
+          <div className="text-sm font-bold text-muted uppercase tracking-widest mb-3">Coste Actual</div>
+          <div className="space-y-2 mb-4">
             <div className="flex justify-between text-sm">
-              <span className="text-muted">Energía:</span>
-              <span className="font-semibold text-foreground">€{costeClienteEnergia.toFixed(2)}</span>
+              <span>Energía:</span>
+              <span className="font-semibold">€{totales.costeEnergia.toFixed(2)}</span>
             </div>
             <div className="flex justify-between text-sm">
-              <span className="text-muted">Potencia:</span>
-              <span className="font-semibold text-foreground">€{costeClientePotencia.toFixed(2)}</span>
+              <span>Potencia:</span>
+              <span className="font-semibold">€{totales.costePotencia.toFixed(2)}</span>
             </div>
-            <div className="border-t border-border pt-2 flex justify-between">
-              <span className="font-bold text-foreground">TOTAL:</span>
-              <span className="font-black text-lg text-foreground">€{costeClienteTotal.toFixed(2)}</span>
+            <div className="border-t border-border pt-2 flex justify-between font-bold">
+              <span>TOTAL ANUAL:</span>
+              <span className="text-xl text-foreground">€{totales.costeTotal.toFixed(2)}</span>
             </div>
           </div>
         </div>
 
-        {/* Con fee */}
         <div className="card rounded-2xl p-6 md:p-8 bg-accent/10 border border-accent/30">
-          <div className="text-sm font-bold text-accent uppercase tracking-widest mb-2">Con {comercializadoras.find(c => c.id === comercializadora)?.nombre}</div>
-          <div className="space-y-2">
+          <div className="text-sm font-bold text-accent uppercase tracking-widest mb-3">Con FEE +{fee}%</div>
+          <div className="space-y-2 mb-4">
             <div className="flex justify-between text-sm">
-              <span className="text-muted">Energía:</span>
-              <span className="font-semibold text-accent">€{costeConFeeEnergia.toFixed(2)}</span>
+              <span>Energía:</span>
+              <span className="font-semibold text-accent">€{totales.costeConFeeEnergia.toFixed(2)}</span>
             </div>
             <div className="flex justify-between text-sm">
-              <span className="text-muted">Potencia:</span>
-              <span className="font-semibold text-accent">€{costeConFeePotencia.toFixed(2)}</span>
+              <span>Potencia:</span>
+              <span className="font-semibold text-accent">€{totales.costeConFeePotencia.toFixed(2)}</span>
             </div>
-            <div className="border-t border-accent/30 pt-2 flex justify-between">
-              <span className="font-bold text-accent">TOTAL:</span>
-              <span className="font-black text-lg text-accent">€{costeConFeeTotal.toFixed(2)}</span>
+            <div className="border-t border-accent/30 pt-2 flex justify-between font-bold">
+              <span>TOTAL ANUAL:</span>
+              <span className="text-xl text-accent">€{totales.costeConFeeTotal.toFixed(2)}</span>
             </div>
           </div>
         </div>
 
-        {/* Ahorro */}
         <div className={`card rounded-2xl p-6 md:p-8 border-2 ${
           ahorroTotal > 0
-            ? 'bg-secondary/10 border-secondary/30'
-            : 'bg-red-500/10 border-red-500/30'
+            ? 'bg-red-500/10 border-red-500/30'
+            : 'bg-green-500/10 border-green-500/30'
         }`}>
-          <div className={`text-sm font-bold uppercase tracking-widest mb-2 ${
-            ahorroTotal > 0 ? 'text-secondary' : 'text-red-400'
+          <div className={`text-sm font-bold uppercase tracking-widest mb-3 ${
+            ahorroTotal > 0 ? 'text-red-400' : 'text-green-400'
           }`}>
-            {ahorroTotal > 0 ? '✓ AHORRO' : '✗ COSTE'}
+            {ahorroTotal > 0 ? '📈 Incremento' : '📉 Ahorro'}
           </div>
           <div className="space-y-2">
             <div className="text-center">
-              <div className={`text-3xl font-black ${
-                ahorroTotal > 0 ? 'text-secondary' : 'text-red-400'
+              <div className={`text-4xl font-black mb-2 ${
+                ahorroTotal > 0 ? 'text-red-400' : 'text-green-400'
               }`}>
                 €{Math.abs(ahorroTotal).toFixed(2)}
               </div>
-              <div className={`text-sm font-bold mt-1 ${
-                ahorroTotal > 0 ? 'text-secondary/70' : 'text-red-400/70'
+              <div className={`text-lg font-bold ${
+                ahorroTotal > 0 ? 'text-red-400/70' : 'text-green-400/70'
               }`}>
-                {ahorroPorc.toFixed(1)}% anual
+                {Math.abs(ahorroPorc).toFixed(1)}% anual
               </div>
             </div>
           </div>
