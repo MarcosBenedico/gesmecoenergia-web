@@ -821,7 +821,7 @@ function ComparativaSimulador({ clientes, comercializadoras }: ComparativaProps)
         <div className="card rounded-2xl p-6 md:p-8 bg-surface/50">
           <h3 className="font-bold text-foreground text-lg mb-4">⚡ Cálculo Energía</h3>
           <div className="space-y-3 text-sm">
-            {detalleEnergia.map((d) => (
+            {detalleEnergia.map((d: any) => (
               <div key={d.periodo} className="p-3 bg-card/80 rounded-lg border border-border/50">
                 <div className="flex justify-between mb-2">
                   <span className="font-bold text-foreground">P{d.periodo}</span>
@@ -850,7 +850,7 @@ function ComparativaSimulador({ clientes, comercializadoras }: ComparativaProps)
         <div className="card rounded-2xl p-6 md:p-8 bg-surface/50">
           <h3 className="font-bold text-foreground text-lg mb-4">💪 Cálculo Potencia</h3>
           <div className="space-y-3 text-sm">
-            {detallePotencia.map((d) => (
+            {detallePotencia.map((d: any) => (
               <div key={d.potencia} className="p-3 bg-card/80 rounded-lg border border-border/50">
                 <div className="flex justify-between mb-2">
                   <span className="font-bold text-foreground">Pot{d.potencia}</span>
