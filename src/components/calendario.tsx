@@ -386,76 +386,124 @@ export function Calendario() {
       )}
 
       {/* Controles */}
-      <div className="flex items-center justify-between">
-        <div className="flex gap-2">
+      <div className="space-y-4">
+        {/* Selectores de vista */}
+        <div className="flex gap-2 flex-wrap">
           <button
             onClick={() => setView('mes')}
             disabled={!googleConectado}
-            className={`px-4 py-2 rounded-lg font-semibold transition ${
+            className={`px-5 py-2.5 rounded-lg font-bold transition ${
               view === 'mes'
-                ? 'bg-accent text-white'
-                : 'bg-card/80 text-foreground border border-border/50 hover:bg-card'
+                ? 'bg-accent text-white shadow-glow'
+                : 'bg-card/80 text-foreground border border-border/50 hover:bg-card/95'
             } ${!googleConectado ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
-            Mes
+            📅 Mes
           </button>
           <button
             onClick={() => setView('semana')}
             disabled={!googleConectado}
-            className={`px-4 py-2 rounded-lg font-semibold transition ${
+            className={`px-5 py-2.5 rounded-lg font-bold transition ${
               view === 'semana'
-                ? 'bg-accent text-white'
-                : 'bg-card/80 text-foreground border border-border/50 hover:bg-card'
+                ? 'bg-accent text-white shadow-glow'
+                : 'bg-card/80 text-foreground border border-border/50 hover:bg-card/95'
             } ${!googleConectado ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
-            Semana
+            📆 Semana
           </button>
           <button
             onClick={() => setView('dia')}
             disabled={!googleConectado}
-            className={`px-4 py-2 rounded-lg font-semibold transition ${
+            className={`px-5 py-2.5 rounded-lg font-bold transition ${
               view === 'dia'
-                ? 'bg-accent text-white'
-                : 'bg-card/80 text-foreground border border-border/50 hover:bg-card'
+                ? 'bg-accent text-white shadow-glow'
+                : 'bg-card/80 text-foreground border border-border/50 hover:bg-card/95'
             } ${!googleConectado ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
-            Día
+            📄 Día
           </button>
         </div>
 
-        <div className="flex gap-2 items-center">
-          <button
-            onClick={() =>
-              setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1))
-            }
-            className="px-3 py-2 rounded-lg bg-card/80 text-foreground border border-border/50 hover:bg-card transition"
-          >
-            ←
-          </button>
-          <span className="text-foreground font-semibold min-w-48 text-center">
-            {currentDate.toLocaleDateString('es', { month: 'long', year: 'numeric' })}
+        {/* Navegación y fecha */}
+        <div className="flex gap-3 items-center justify-between bg-surface/50 rounded-xl p-4 border border-border">
+          {/* Botones de navegación */}
+          <div className="flex gap-2 items-center">
+            <button
+              onClick={() => {
+                if (view === 'mes') {
+                  setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1));
+                } else if (view === 'semana') {
+                  const newDate = new Date(currentDate);
+                  newDate.setDate(newDate.getDate() - 7);
+                  setCurrentDate(newDate);
+                } else {
+                  const newDate = new Date(currentDate);
+                  newDate.setDate(newDate.getDate() - 1);
+                  setCurrentDate(newDate);
+                }
+              }}
+              className="px-4 py-2 rounded-lg bg-card/80 text-foreground border border-border/50 hover:bg-card transition font-semibold"
+            >
+              ← Atrás
+            </button>
+
+            <button
+              onClick={() => {
+                if (view === 'mes') {
+                  setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1));
+                } else if (view === 'semana') {
+                  const newDate = new Date(currentDate);
+                  newDate.setDate(newDate.getDate() + 7);
+                  setCurrentDate(newDate);
+                } else {
+                  const newDate = new Date(currentDate);
+                  newDate.setDate(newDate.getDate() + 1);
+                  setCurrentDate(newDate);
+                }
+              }}
+              className="px-4 py-2 rounded-lg bg-card/80 text-foreground border border-border/50 hover:bg-card transition font-semibold"
+            >
+              Adelante →
+            </button>
+          </div>
+
+          {/* Fecha actual en la vista */}
+          <span className="text-foreground font-bold text-lg min-w-56 text-center">
+            {view === 'mes' && (
+              <span>{currentDate.toLocaleDateString('es', { month: 'long', year: 'numeric' }).toUpperCase()}</span>
+            )}
+            {view === 'semana' && (() => {
+              const start = new Date(currentDate);
+              start.setDate(start.getDate() - start.getDay());
+              const end = new Date(start);
+              end.setDate(end.getDate() + 6);
+              return (
+                <span>
+                  {start.getDate()} - {end.getDate()} {end.toLocaleDateString('es', { month: 'short', year: 'numeric' })}
+                </span>
+              );
+            })()}
+            {view === 'dia' && (
+              <span>{currentDate.toLocaleDateString('es', { weekday: 'long', day: 'numeric', month: 'long' }).toUpperCase()}</span>
+            )}
           </span>
-          <button
-            onClick={() =>
-              setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1))
-            }
-            className="px-3 py-2 rounded-lg bg-card/80 text-foreground border border-border/50 hover:bg-card transition"
-          >
-            →
-          </button>
-          <button
-            onClick={() => setCurrentDate(new Date())}
-            className="px-4 py-2 rounded-lg bg-accent text-white font-semibold hover:bg-accent/90 transition ml-4"
-          >
-            Hoy
-          </button>
-          <button
-            onClick={() => cargarEventos()}
-            disabled={loading}
-            className="px-4 py-2 rounded-lg bg-secondary text-white font-semibold hover:bg-secondary/90 transition ml-2 disabled:opacity-50"
-          >
-            {loading ? '⟳' : '↻'} Refrescar
-          </button>
+
+          {/* Botones de acción */}
+          <div className="flex gap-2">
+            <button
+              onClick={() => setCurrentDate(new Date())}
+              className="px-5 py-2 rounded-lg bg-secondary text-white font-bold hover:bg-secondary/90 transition"
+            >
+              🎯 Hoy
+            </button>
+            <button
+              onClick={() => cargarEventos()}
+              disabled={loading}
+              className="px-5 py-2 rounded-lg bg-accent text-white font-bold hover:bg-accent/90 transition disabled:opacity-50"
+            >
+              {loading ? '⟳ Cargando...' : '↻ Refrescar'}
+            </button>
+          </div>
         </div>
       </div>
 
