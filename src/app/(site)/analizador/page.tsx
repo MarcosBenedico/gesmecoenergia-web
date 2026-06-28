@@ -5,50 +5,186 @@ import { Button } from '@/components/button';
 import { Container } from '@/components/container';
 import { SectionHeading } from '@/components/section-heading';
 
+type TarifaType = '2.0' | '3.0' | '6.1';
+
+interface FormDataTarifa20 {
+  tarifa: '2.0';
+  consumoP1: string;
+  consumoP2: string;
+  consumoP3: string;
+  precioP1: string;
+  precioP2: string;
+  precioP3: string;
+  potencia1: string;
+  precioPotencia1: string;
+  potencia2: string;
+  precioPotencia2: string;
+}
+
+interface FormDataTarifa30o61 {
+  tarifa: '3.0' | '6.1';
+  consumoP1: string;
+  consumoP2: string;
+  consumoP3: string;
+  consumoP4: string;
+  consumoP5: string;
+  consumoP6: string;
+  precioP1: string;
+  precioP2: string;
+  precioP3: string;
+  precioP4: string;
+  precioP5: string;
+  precioP6: string;
+  potencia1: string;
+  precioPotencia1: string;
+  potencia2: string;
+  precioPotencia2: string;
+  potencia3: string;
+  precioPotencia3: string;
+  potencia4: string;
+  precioPotencia4: string;
+  potencia5: string;
+  precioPotencia5: string;
+  potencia6: string;
+  precioPotencia6: string;
+}
+
+type FormData = FormDataTarifa20 | FormDataTarifa30o61;
+
 export default function AnalizadorPage() {
-  const [currentStep, setCurrentStep] = useState<'input' | 'results'>('input');
-  const [formData, setFormData] = useState({
-    precioKw: '',
-    precioKwh: '',
-    consumoMensual: '',
-    potenciaContratada: '',
-  });
+  const [currentStep, setCurrentStep] = useState<'select' | 'input' | 'results'>('select');
+  const [selectedTarifa, setSelectedTarifa] = useState<TarifaType | null>(null);
+  const [formData, setFormData] = useState<FormData | null>(null);
   const [results, setResults] = useState<any>(null);
+
+  const handleSelectTarifa = (tarifa: TarifaType) => {
+    setSelectedTarifa(tarifa);
+
+    if (tarifa === '2.0') {
+      setFormData({
+        tarifa: '2.0',
+        consumoP1: '', consumoP2: '', consumoP3: '',
+        precioP1: '', precioP2: '', precioP3: '',
+        potencia1: '', precioPotencia1: '',
+        potencia2: '', precioPotencia2: '',
+      } as FormDataTarifa20);
+    } else {
+      setFormData({
+        tarifa: tarifa,
+        consumoP1: '', consumoP2: '', consumoP3: '', consumoP4: '', consumoP5: '', consumoP6: '',
+        precioP1: '', precioP2: '', precioP3: '', precioP4: '', precioP5: '', precioP6: '',
+        potencia1: '', precioPotencia1: '',
+        potencia2: '', precioPotencia2: '',
+        potencia3: '', precioPotencia3: '',
+        potencia4: '', precioPotencia4: '',
+        potencia5: '', precioPotencia5: '',
+        potencia6: '', precioPotencia6: '',
+      } as FormDataTarifa30o61);
+    }
+
+    setCurrentStep('input');
+  };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
+    setFormData((prev) => prev ? { ...prev, [name]: value } : null);
   };
 
   const calculateSavings = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!formData) return;
 
-    const precioKw = parseFloat(formData.precioKw) || 0;
-    const precioKwh = parseFloat(formData.precioKwh) || 0;
-    const consumoMensual = parseFloat(formData.consumoMensual) || 0;
-    const potenciaContratada = parseFloat(formData.potenciaContratada) || 0;
+    let costeEnergiaAnual = 0;
+    let costePotenciaAnual = 0;
+    let consumoTotalAnual = 0;
 
-    // Cálculos
-    const costePotenciaMensual = precioKw * potenciaContratada * 12; // anual
-    const costeEnergiaMensual = precioKwh * consumoMensual * 12; // anual
-    const costeTotal = costePotenciaMensual + costeEnergiaMensual;
+    if (formData.tarifa === '2.0') {
+      const data = formData as FormDataTarifa20;
 
-    // Ahorros estimados
-    const ahorroReducirPotencia = (potenciaContratada * 0.15) * precioKw * 12; // 15% reducción
-    const ahorroSolarConsumo = consumoMensual * 0.50 * precioKwh * 12; // 50% consumo cubierto
-    const ahorroEficiencia = costeTotal * 0.10; // 10% mejora eficiencia
-    const ahorroAlmacenamiento = (consumoMensual * precioKwh * 12) * 0.15; // 15% con CAES/batería
+      const consumos = [
+        parseFloat(data.consumoP1) || 0,
+        parseFloat(data.consumoP2) || 0,
+        parseFloat(data.consumoP3) || 0,
+      ];
 
-    const ahorroTotal =
-      ahorroReducirPotencia + ahorroSolarConsumo + ahorroEficiencia + ahorroAlmacenamiento;
+      const precios = [
+        parseFloat(data.precioP1) || 0,
+        parseFloat(data.precioP2) || 0,
+        parseFloat(data.precioP3) || 0,
+      ];
+
+      costeEnergiaAnual = consumos.reduce((sum, consumo, idx) => sum + (consumo * precios[idx] * 12), 0);
+      consumoTotalAnual = consumos.reduce((sum, c) => sum + c, 0) * 12;
+
+      const potencias = [
+        parseFloat(data.potencia1) || 0,
+        parseFloat(data.potencia2) || 0,
+      ];
+
+      const preciosPotencia = [
+        parseFloat(data.precioPotencia1) || 0,
+        parseFloat(data.precioPotencia2) || 0,
+      ];
+
+      costePotenciaAnual = potencias.reduce((sum, potencia, idx) => sum + (potencia * preciosPotencia[idx] * 12), 0);
+    } else {
+      const data = formData as FormDataTarifa30o61;
+
+      const consumos = [
+        parseFloat(data.consumoP1) || 0,
+        parseFloat(data.consumoP2) || 0,
+        parseFloat(data.consumoP3) || 0,
+        parseFloat(data.consumoP4) || 0,
+        parseFloat(data.consumoP5) || 0,
+        parseFloat(data.consumoP6) || 0,
+      ];
+
+      const precios = [
+        parseFloat(data.precioP1) || 0,
+        parseFloat(data.precioP2) || 0,
+        parseFloat(data.precioP3) || 0,
+        parseFloat(data.precioP4) || 0,
+        parseFloat(data.precioP5) || 0,
+        parseFloat(data.precioP6) || 0,
+      ];
+
+      costeEnergiaAnual = consumos.reduce((sum, consumo, idx) => sum + (consumo * precios[idx] * 12), 0);
+      consumoTotalAnual = consumos.reduce((sum, c) => sum + c, 0) * 12;
+
+      const potencias = [
+        parseFloat(data.potencia1) || 0,
+        parseFloat(data.potencia2) || 0,
+        parseFloat(data.potencia3) || 0,
+        parseFloat(data.potencia4) || 0,
+        parseFloat(data.potencia5) || 0,
+        parseFloat(data.potencia6) || 0,
+      ];
+
+      const preciosPotencia = [
+        parseFloat(data.precioPotencia1) || 0,
+        parseFloat(data.precioPotencia2) || 0,
+        parseFloat(data.precioPotencia3) || 0,
+        parseFloat(data.precioPotencia4) || 0,
+        parseFloat(data.precioPotencia5) || 0,
+        parseFloat(data.precioPotencia6) || 0,
+      ];
+
+      costePotenciaAnual = potencias.reduce((sum, potencia, idx) => sum + (potencia * preciosPotencia[idx] * 12), 0);
+    }
+
+    const costeTotal = costeEnergiaAnual + costePotenciaAnual;
+
+    const ahorroReducirPotencia = costePotenciaAnual * 0.15;
+    const ahorroSolarConsumo = consumoTotalAnual * (parseFloat(formData.tarifa === '2.0' ? (formData as FormDataTarifa20).precioP1 : (formData as FormDataTarifa30o61).precioP1) || 0) * 0.50;
+    const ahorroEficiencia = costeTotal * 0.10;
+    const ahorroAlmacenamiento = costeEnergiaAnual * 0.15;
+
+    const ahorroTotal = ahorroReducirPotencia + ahorroSolarConsumo + ahorroEficiencia + ahorroAlmacenamiento;
 
     setResults({
       costeActual: costeTotal,
-      costePotencia: costePotenciaMensual,
-      costeEnergia: costeEnergiaMensual,
+      costePotencia: costePotenciaAnual,
+      costeEnergia: costeEnergiaAnual,
       ahorros: {
         potencia: ahorroReducirPotencia,
         solar: ahorroSolarConsumo,
@@ -56,23 +192,22 @@ export default function AnalizadorPage() {
         almacenamiento: ahorroAlmacenamiento,
         total: ahorroTotal,
       },
-      reduccionPorcentaje: ((ahorroTotal / costeTotal) * 100).toFixed(1),
-      consumoAnual: consumoMensual * 12,
+      reduccionPorcentaje: costeTotal > 0 ? ((ahorroTotal / costeTotal) * 100).toFixed(1) : '0',
+      consumoAnual: consumoTotalAnual,
     });
 
     setCurrentStep('results');
   };
 
   const handleReset = () => {
-    setFormData({
-      precioKw: '',
-      precioKwh: '',
-      consumoMensual: '',
-      potenciaContratada: '',
-    });
+    setCurrentStep('select');
+    setSelectedTarifa(null);
+    setFormData(null);
     setResults(null);
-    setCurrentStep('input');
   };
+
+  const periodos = selectedTarifa === '2.0' ? 3 : 6;
+  const potencias = selectedTarifa === '2.0' ? 2 : 6;
 
   return (
     <div className="space-y-12 pb-20">
@@ -82,90 +217,115 @@ export default function AnalizadorPage() {
             kicker="Herramienta gratis"
             title="Analiza tu factura de luz en 5 minutos"
           >
-            Descubre cuánto puedes ahorrar con asesoramiento, solar, auditorías y soluciones
-            de almacenamiento.
+            Descubre cuánto puedes ahorrar. Soporta tarifas 2.0, 3.0 y 6.1 españolas.
           </SectionHeading>
         </Container>
       </section>
 
-      {currentStep === 'input' ? (
+      {currentStep === 'select' ? (
         <section>
           <Container className="max-w-2xl">
             <div className="card rounded-3xl p-6 md:p-10">
-              <form onSubmit={calculateSavings} className="space-y-6">
-                <div className="space-y-2">
-                  <label className="block text-sm font-semibold text-foreground">
-                    Precio en potencia (€/kW/mes)
-                  </label>
-                  <input
-                    type="number"
-                    name="precioKw"
-                    value={formData.precioKw}
-                    onChange={handleInputChange}
-                    placeholder="Ej: 0.85"
-                    step="0.01"
-                    required
-                    className="w-full rounded-xl border border-neutral-200 px-4 py-3 text-foreground placeholder-muted focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
-                  />
-                  <p className="text-xs text-muted">
-                    Encuentra este valor en tu factura bajo "Potencia contratada"
-                  </p>
+              <h2 className="mb-6 text-xl font-semibold text-foreground">
+                ¿Qué tipo de tarifa tienes?
+              </h2>
+              <div className="space-y-3">
+                <button
+                  onClick={() => handleSelectTarifa('2.0')}
+                  className="w-full rounded-xl border-2 border-neutral-200 p-4 text-left transition hover:border-accent hover:bg-accent/5"
+                >
+                  <div className="font-semibold text-foreground">Tarifa 2.0</div>
+                  <div className="text-sm text-muted">3 períodos de energía, 2 potencias</div>
+                </button>
+                <button
+                  onClick={() => handleSelectTarifa('3.0')}
+                  className="w-full rounded-xl border-2 border-neutral-200 p-4 text-left transition hover:border-accent hover:bg-accent/5"
+                >
+                  <div className="font-semibold text-foreground">Tarifa 3.0</div>
+                  <div className="text-sm text-muted">6 períodos de energía, 6 potencias</div>
+                </button>
+                <button
+                  onClick={() => handleSelectTarifa('6.1')}
+                  className="w-full rounded-xl border-2 border-neutral-200 p-4 text-left transition hover:border-accent hover:bg-accent/5"
+                >
+                  <div className="font-semibold text-foreground">Tarifa 6.1</div>
+                  <div className="text-sm text-muted">6 períodos de energía, 6 potencias</div>
+                </button>
+              </div>
+            </div>
+          </Container>
+        </section>
+      ) : currentStep === 'input' && formData ? (
+        <section>
+          <Container className="max-w-3xl">
+            <div className="card rounded-3xl p-6 md:p-10">
+              <form onSubmit={calculateSavings} className="space-y-8">
+                {/* Sección de Energía */}
+                <div>
+                  <h3 className="mb-4 text-lg font-semibold text-foreground">
+                    Energía (kWh y €/kWh)
+                  </h3>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    {Array.from({ length: periodos }).map((_, idx) => (
+                      <div key={`energy-${idx}`} className="space-y-2">
+                        <label className="block text-xs font-semibold uppercase text-rose-700">
+                          Período {idx + 1}
+                        </label>
+                        <input
+                          type="number"
+                          name={`consumoP${idx + 1}`}
+                          value={(formData as any)[`consumoP${idx + 1}`]}
+                          onChange={handleInputChange}
+                          placeholder="kWh"
+                          step="0.1"
+                          className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm placeholder-muted focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+                        />
+                        <input
+                          type="number"
+                          name={`precioP${idx + 1}`}
+                          value={(formData as any)[`precioP${idx + 1}`]}
+                          onChange={handleInputChange}
+                          placeholder="€/kWh"
+                          step="0.001"
+                          className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm placeholder-muted focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+                        />
+                      </div>
+                    ))}
+                  </div>
                 </div>
 
-                <div className="space-y-2">
-                  <label className="block text-sm font-semibold text-foreground">
-                    Precio en energía (€/kWh)
-                  </label>
-                  <input
-                    type="number"
-                    name="precioKwh"
-                    value={formData.precioKwh}
-                    onChange={handleInputChange}
-                    placeholder="Ej: 0.35"
-                    step="0.001"
-                    required
-                    className="w-full rounded-xl border border-neutral-200 px-4 py-3 text-foreground placeholder-muted focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
-                  />
-                  <p className="text-xs text-muted">
-                    Busca "Término de energía" o "€/kWh" en tu factura
-                  </p>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="block text-sm font-semibold text-foreground">
-                    Consumo medio mensual (kWh)
-                  </label>
-                  <input
-                    type="number"
-                    name="consumoMensual"
-                    value={formData.consumoMensual}
-                    onChange={handleInputChange}
-                    placeholder="Ej: 450"
-                    required
-                    className="w-full rounded-xl border border-neutral-200 px-4 py-3 text-foreground placeholder-muted focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
-                  />
-                  <p className="text-xs text-muted">
-                    Suma los kWh de los últimos 3-6 meses y divide entre los meses
-                  </p>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="block text-sm font-semibold text-foreground">
-                    Potencia contratada (kW)
-                  </label>
-                  <input
-                    type="number"
-                    name="potenciaContratada"
-                    value={formData.potenciaContratada}
-                    onChange={handleInputChange}
-                    placeholder="Ej: 4.6"
-                    step="0.1"
-                    required
-                    className="w-full rounded-xl border border-neutral-200 px-4 py-3 text-foreground placeholder-muted focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
-                  />
-                  <p className="text-xs text-muted">
-                    Aparece en la primera página de tu factura
-                  </p>
+                {/* Sección de Potencia */}
+                <div>
+                  <h3 className="mb-4 text-lg font-semibold text-foreground">
+                    Potencia (kW y €/kW/mes)
+                  </h3>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    {Array.from({ length: potencias }).map((_, idx) => (
+                      <div key={`power-${idx}`} className="space-y-2">
+                        <label className="block text-xs font-semibold uppercase text-rose-700">
+                          Potencia {idx + 1}
+                        </label>
+                        <input
+                          type="number"
+                          name={`potencia${idx + 1}`}
+                          value={(formData as any)[`potencia${idx + 1}`]}
+                          onChange={handleInputChange}
+                          placeholder="kW"
+                          step="0.1"
+                          className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm placeholder-muted focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+                        />
+                        <input
+                          type="number"
+                          name={`precioPotencia${idx + 1}`}
+                          value={(formData as any)[`precioPotencia${idx + 1}`]}
+                          onChange={handleInputChange}
+                          placeholder="€/kW/mes"
+                          step="0.001"
+                          className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm placeholder-muted focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+                        />
+                      </div>
+                    ))}
+                  </div>
                 </div>
 
                 <Button type="submit" size="lg" className="w-full">
@@ -183,7 +343,6 @@ export default function AnalizadorPage() {
         <section>
           <Container className="max-w-2xl">
             <div className="space-y-6">
-              {/* Coste actual */}
               <div className="card rounded-3xl p-6 md:p-8">
                 <div className="space-y-2">
                   <div className="text-sm font-semibold uppercase tracking-[0.16em] text-muted">
@@ -205,7 +364,6 @@ export default function AnalizadorPage() {
                 </div>
               </div>
 
-              {/* Potencial de ahorro */}
               <div className="card rounded-3xl border-2 border-accent/30 bg-accent/5 p-6 md:p-8">
                 <div className="space-y-4">
                   <div>
@@ -224,31 +382,25 @@ export default function AnalizadorPage() {
 
                   <div className="space-y-3 border-t border-accent/20 pt-4">
                     <div className="flex justify-between">
-                      <span className="text-sm text-foreground">
-                        1. Reducir potencia contratada
-                      </span>
+                      <span className="text-sm text-foreground">1. Reducir potencia</span>
                       <span className="font-semibold text-accent">
                         €{results.ahorros.potencia.toFixed(2)}
                       </span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-sm text-foreground">
-                        2. Solar (50% consumo cubierto)
-                      </span>
+                      <span className="text-sm text-foreground">2. Solar (50% consumo)</span>
                       <span className="font-semibold text-accent">
                         €{results.ahorros.solar.toFixed(2)}
                       </span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-sm text-foreground">3. Mejoras de eficiencia</span>
+                      <span className="text-sm text-foreground">3. Eficiencia</span>
                       <span className="font-semibold text-accent">
                         €{results.ahorros.eficiencia.toFixed(2)}
                       </span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-sm text-foreground">
-                        4. Almacenamiento (CAES/Batería)
-                      </span>
+                      <span className="text-sm text-foreground">4. Almacenamiento</span>
                       <span className="font-semibold text-accent">
                         €{results.ahorros.almacenamiento.toFixed(2)}
                       </span>
@@ -257,82 +409,13 @@ export default function AnalizadorPage() {
                 </div>
               </div>
 
-              {/* Recomendaciones */}
-              <div className="card rounded-3xl p-6 md:p-8">
-                <h3 className="mb-4 text-lg font-semibold text-foreground">
-                  Recomendaciones personalizadas
-                </h3>
-                <ul className="space-y-3">
-                  {results.ahorros.potencia > 0 && (
-                    <li className="flex gap-3">
-                      <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-accent/20 text-sm font-semibold text-accent">
-                        1
-                      </span>
-                      <div>
-                        <p className="font-semibold text-foreground">Auditoría de potencia</p>
-                        <p className="text-sm text-muted">
-                          Muchos clientes pagan por más potencia de la que necesitan. Podemos
-                          reducirla un 15% sin afectar tu servicio.
-                        </p>
-                      </div>
-                    </li>
-                  )}
-                  {results.ahorros.solar > 0 && (
-                    <li className="flex gap-3">
-                      <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-accent/20 text-sm font-semibold text-accent">
-                        2
-                      </span>
-                      <div>
-                        <p className="font-semibold text-foreground">Instalación solar</p>
-                        <p className="text-sm text-muted">
-                          Una instalación de {(results.consumoAnual * 0.5) / 1000 > 5 ? '5-8 kW' : '3-5 kW'} cubrirá el 50% de tu consumo.
-                          ROI en 2-3 años.
-                        </p>
-                      </div>
-                    </li>
-                  )}
-                  {results.ahorros.eficiencia > 0 && (
-                    <li className="flex gap-3">
-                      <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-accent/20 text-sm font-semibold text-accent">
-                        3
-                      </span>
-                      <div>
-                        <p className="font-semibold text-foreground">Mejoras de eficiencia</p>
-                        <p className="text-sm text-muted">
-                          Iluminación LED, aislamientos, optimización de HVAC. Reduce 10% tu
-                          consumo sin perder confort.
-                        </p>
-                      </div>
-                    </li>
-                  )}
-                  {results.ahorros.almacenamiento > 0 && (
-                    <li className="flex gap-3">
-                      <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-accent/20 text-sm font-semibold text-accent">
-                        4
-                      </span>
-                      <div>
-                        <p className="font-semibold text-foreground">
-                          Almacenamiento (CAES o baterías)
-                        </p>
-                        <p className="text-sm text-muted">
-                          Acumula energía solar y úsala cuando la red es más cara. Máxima
-                          autosuficiencia y ahorro.
-                        </p>
-                      </div>
-                    </li>
-                  )}
-                </ul>
-              </div>
-
-              {/* CTA */}
               <div className="card rounded-3xl border-2 border-neutral-200 bg-gradient-to-br from-neutral-50 to-white p-6 md:p-8">
                 <div className="space-y-4">
                   <h3 className="text-lg font-semibold text-foreground">
                     ¿Listo para empezar?
                   </h3>
                   <p className="text-sm text-muted">
-                    Un asesor energético revisará tu caso y te presentará un plan personalizado
-                    en 48h.
+                    Un asesor energético revisará tu análisis y te presentará un plan personalizado.
                   </p>
                   <div className="flex flex-col gap-2 pt-2">
                     <Button href="/contacto" size="lg" className="w-full">

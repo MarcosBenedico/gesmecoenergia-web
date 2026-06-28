@@ -74,9 +74,9 @@ export const siteConfig = {
   description:
     "Asesoramiento energético, auditorías, análisis de facturas, solar fotovoltaica, CAES y soluciones de ahorro energético.",
   contact: {
-    email: "energia@gesmeco.com",
-    phone: "+34 900 000 000",
-    address: "Paseo de la Castellana 120, Madrid",
+    email: "marcos.benedico@correbin.es",
+    phone: "",
+    address: "Avenida de Aragón, 50, Bínefar, 22500",
   },
   actions: {
     primaryCta: "Analizar factura",
