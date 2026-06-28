@@ -57,6 +57,9 @@ export default function GestorPage() {
 
   // Gestión de clientes
   const [clientes, setClientes] = useState<any[]>([]);
+  const [clienteAbierto, setClienteAbierto] = useState<any | null>(null);
+  const [editandoCliente, setEditandoCliente] = useState(false);
+  const [seguimientosCliente, setSeguimientosCliente] = useState<any[]>([]);
   const [formCliente, setFormCliente] = useState({
     nombre: '',
     cups: '',
@@ -126,6 +129,69 @@ export default function GestorPage() {
       setSeguimientos(data || []);
     } catch (error) {
       console.error('Error al cargar seguimientos:', error);
+    }
+  };
+
+  const abrirCliente = async (cliente: any) => {
+    console.log('Abriendo cliente:', cliente);
+    setClienteAbierto(cliente);
+    setFormCliente({
+      nombre: cliente.nombre,
+      cups: cliente.cups,
+      tarifa: cliente.tarifa || '2.0',
+      precios_energia: cliente.precios_energia || [0, 0, 0],
+      precios_potencia: cliente.precios_potencia || [0, 0],
+    });
+    setEditandoCliente(false);
+
+    // Cargar seguimientos del cliente
+    try {
+      const { data } = await supabase
+        .from('seguimientos')
+        .select('*')
+        .eq('cliente_id', cliente.id)
+        .order('created_at', { ascending: false });
+      setSeguimientosCliente(data || []);
+    } catch (error) {
+      console.error('Error al cargar seguimientos:', error);
+    }
+  };
+
+  const guardarCambiosCliente = async () => {
+    if (!clienteAbierto) return;
+
+    try {
+      const { error } = await supabase
+        .from('clientes')
+        .update({
+          nombre: formCliente.nombre,
+          cups: formCliente.cups,
+          tarifa: formCliente.tarifa,
+          precios_energia: formCliente.precios_energia,
+          precios_potencia: formCliente.precios_potencia,
+        })
+        .eq('id', clienteAbierto.id);
+
+      if (error) throw error;
+
+      // Actualizar en la lista
+      setClientes(
+        clientes.map((c) =>
+          c.id === clienteAbierto.id
+            ? {
+                ...c,
+                ...formCliente,
+              }
+            : c
+        )
+      );
+
+      setClienteAbierto({ ...clienteAbierto, ...formCliente });
+      setEditandoCliente(false);
+      alert('✓ Cliente actualizado');
+    } catch (error) {
+      console.error('Error al guardar:', error);
+      alert('Error al guardar los cambios');
     }
   };
 
@@ -480,8 +546,15 @@ export default function GestorPage() {
               clientes={clientes}
               setClientes={setClientes}
               cargarClientes={cargarClientes}
+              clienteAbierto={clienteAbierto}
+              setClienteAbierto={setClienteAbierto}
+              editandoCliente={editandoCliente}
+              setEditandoCliente={setEditandoCliente}
               formCliente={formCliente}
               setFormCliente={setFormCliente}
+              abrirCliente={abrirCliente}
+              guardarCambiosCliente={guardarCambiosCliente}
+              seguimientosCliente={seguimientosCliente}
             />
           )}
 
@@ -822,100 +895,32 @@ interface GestionarClientesProps {
   clientes: any[];
   setClientes: (c: any[]) => void;
   cargarClientes: () => Promise<void>;
+  clienteAbierto: any;
+  setClienteAbierto: (c: any) => void;
+  editandoCliente: boolean;
+  setEditandoCliente: (e: boolean) => void;
   formCliente: any;
   setFormCliente: (f: any) => void;
+  abrirCliente: (c: any) => void;
+  guardarCambiosCliente: () => Promise<void>;
+  seguimientosCliente: any[];
 }
 
 function GestionarClientes({
   clientes,
   setClientes,
   cargarClientes,
+  clienteAbierto,
+  setClienteAbierto,
+  editandoCliente,
+  setEditandoCliente,
   formCliente,
   setFormCliente,
+  abrirCliente,
+  guardarCambiosCliente,
+  seguimientosCliente,
 }: GestionarClientesProps) {
   const [loading, setLoading] = useState(false);
-
-  const handleAgregarCliente = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formCliente.nombre || !formCliente.cups) {
-      alert('Nombre y CUPS son obligatorios');
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const { error } = await supabase.from('clientes').insert({
-        nombre: formCliente.nombre,
-        cups: formCliente.cups,
-        tarifa: formCliente.tarifa,
-        precios_energia: formCliente.precios_energia,
-        precios_potencia: formCliente.precios_potencia,
-      });
-
-      if (error) throw error;
-
-      alert('Cliente agregado exitosamente');
-      setFormCliente({
-        nombre: '',
-        cups: '',
-        tarifa: '2.0',
-        precios_energia: [0, 0, 0],
-        precios_potencia: [0, 0],
-      });
-      await cargarClientes();
-    } catch (error) {
-      console.error('Error:', error);
-      alert('Error al agregar cliente: ' + (error as any).message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleCargarExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setLoading(true);
-    try {
-      const text = await file.text();
-      const lines = text.split('\n').filter((line) => line.trim());
-
-      const clientesNuevos = lines.map((line) => {
-        const [nombre, cups, tarifa, ...precios] = line.split(',').map((v) => v.trim());
-        const numPrecios = precios.map((p) => parseFloat(p) || 0);
-
-        let precios_energia: number[] = [];
-        let precios_potencia: number[] = [];
-
-        if (tarifa === '2.0') {
-          precios_energia = numPrecios.slice(0, 3);
-          precios_potencia = numPrecios.slice(3, 5);
-        } else {
-          precios_energia = numPrecios.slice(0, 6);
-          precios_potencia = numPrecios.slice(6, 12);
-        }
-
-        return {
-          nombre,
-          cups,
-          tarifa,
-          precios_energia,
-          precios_potencia,
-        };
-      });
-
-      const { error } = await supabase.from('clientes').insert(clientesNuevos);
-      if (error) throw error;
-
-      alert(`${clientesNuevos.length} clientes cargados exitosamente`);
-      await cargarClientes();
-    } catch (error) {
-      console.error('Error:', error);
-      alert('Error al cargar Excel: ' + (error as any).message);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleEliminarCliente = async (id: number) => {
     if (!confirm('¿Eliminar este cliente?')) return;
@@ -923,6 +928,7 @@ function GestionarClientes({
     try {
       const { error } = await supabase.from('clientes').delete().eq('id', id);
       if (error) throw error;
+      setClienteAbierto(null);
       await cargarClientes();
     } catch (error) {
       alert('Error al eliminar: ' + (error as any).message);
@@ -934,170 +940,298 @@ function GestionarClientes({
 
   return (
     <div className="space-y-6">
-      {/* Agregar cliente */}
-      <div className="card rounded-2xl p-6 md:p-8">
-        <h2 className="mb-6 text-xl font-semibold text-foreground">Agregar Cliente</h2>
-
-        <form onSubmit={handleAgregarCliente} className="space-y-6">
-          {/* Datos básicos */}
-          <div className="grid gap-4 md:grid-cols-3">
-            <div>
-              <label className="block text-sm font-semibold text-foreground mb-2">Nombre *</label>
-              <input
-                type="text"
-                value={formCliente.nombre}
-                onChange={(e) =>
-                  setFormCliente({ ...formCliente, nombre: e.target.value })
-                }
-                placeholder="Juan García"
-                className="w-full rounded-lg border border-border px-4 py-2.5 focus:border-accent focus:outline-none"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-foreground mb-2">CUPS *</label>
-              <input
-                type="text"
-                value={formCliente.cups}
-                onChange={(e) => setFormCliente({ ...formCliente, cups: e.target.value })}
-                placeholder="ES1234567890123456789012"
-                className="w-full rounded-lg border border-border px-4 py-2.5 focus:border-accent focus:outline-none"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-foreground mb-2">Tarifa</label>
-              <select
-                value={formCliente.tarifa}
-                onChange={(e) => {
-                  const tarifa = e.target.value;
-                  const newPeriodos = tarifa === '2.0' ? 3 : 6;
-                  const newPotencias = tarifa === '2.0' ? 2 : 6;
-                  setFormCliente({
-                    ...formCliente,
-                    tarifa,
-                    precios_energia: Array(newPeriodos).fill(0),
-                    precios_potencia: Array(newPotencias).fill(0),
-                  });
-                }}
-                className="w-full rounded-lg border border-border px-4 py-2.5 focus:border-accent focus:outline-none"
-              >
-                <option value="2.0">2.0</option>
-                <option value="3.0">3.0</option>
-                <option value="6.1">6.1</option>
-              </select>
-            </div>
+      {/* Si hay cliente abierto, mostrar ficha */}
+      {clienteAbierto ? (
+        <div className="space-y-6">
+          {/* Header */}
+          <div className="flex items-center justify-between">
+            <button
+              onClick={() => setClienteAbierto(null)}
+              className="px-4 py-2 rounded-lg bg-card/80 text-foreground border border-border/50 hover:bg-card transition font-semibold"
+            >
+              ◀ Volver
+            </button>
+            <h2 className="text-3xl font-black text-foreground">📋 {clienteAbierto.nombre}</h2>
+            <div className="w-32"></div>
           </div>
 
-          {/* Precios energía */}
-          <div>
-            <h4 className="mb-3 font-semibold text-foreground">Precios Energía (€/kWh)</h4>
-            <div className="grid gap-3 md:grid-cols-3">
-              {Array.from({ length: periodos }).map((_, idx) => (
-                <input
-                  key={idx}
-                  type="number"
-                  step="0.001"
-                  value={formCliente.precios_energia[idx]}
-                  onChange={(e) => {
-                    const newPrecios = [...formCliente.precios_energia];
-                    newPrecios[idx] = parseFloat(e.target.value) || 0;
-                    setFormCliente({ ...formCliente, precios_energia: newPrecios });
-                  }}
-                  placeholder={`P${idx + 1}`}
-                  className="rounded-lg border border-border px-3 py-2 text-sm focus:border-accent focus:outline-none"
-                />
+          <div className="grid gap-6 lg:grid-cols-3">
+            {/* Ficha del cliente */}
+            <div className="lg:col-span-2 space-y-6">
+              <div className="card rounded-2xl p-6 md:p-8 bg-surface/50">
+                {!editandoCliente ? (
+                  <>
+                    {/* Modo lectura */}
+                    <div className="space-y-6">
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <div>
+                          <label className="block text-xs font-bold text-muted uppercase tracking-widest mb-2">
+                            Nombre
+                          </label>
+                          <p className="text-lg font-bold text-foreground">{clienteAbierto.nombre}</p>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-muted uppercase tracking-widest mb-2">
+                            CUPS
+                          </label>
+                          <p className="text-lg font-bold text-foreground font-mono">{clienteAbierto.cups}</p>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-muted uppercase tracking-widest mb-2">
+                            Tarifa
+                          </label>
+                          <p className="text-lg font-bold text-accent">{clienteAbierto.tarifa}</p>
+                        </div>
+                      </div>
+
+                      <div className="border-t border-border pt-6 space-y-4">
+                        <div>
+                          <h4 className="font-bold text-foreground mb-3">Precios Energía (€/kWh)</h4>
+                          <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
+                            {clienteAbierto.precios_energia?.map((precio: number, idx: number) => (
+                              <div key={idx} className="bg-card/80 rounded-lg p-3 text-center border border-border/50">
+                                <div className="text-xs font-bold text-muted mb-1">P{idx + 1}</div>
+                                <div className="text-lg font-black text-accent">{precio.toFixed(4)}</div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div>
+                          <h4 className="font-bold text-foreground mb-3">Precios Potencia (€/kW/día)</h4>
+                          <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
+                            {clienteAbierto.precios_potencia?.map((precio: number, idx: number) => (
+                              <div key={idx} className="bg-card/80 rounded-lg p-3 text-center border border-border/50">
+                                <div className="text-xs font-bold text-muted mb-1">Pot{idx + 1}</div>
+                                <div className="text-lg font-black text-secondary">{precio.toFixed(4)}</div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex gap-2 pt-4 border-t border-border">
+                        <button
+                          onClick={() => setEditandoCliente(true)}
+                          className="flex-1 px-4 py-3 rounded-lg bg-accent text-white font-bold hover:bg-accent/90 transition"
+                        >
+                          ✏️ Editar
+                        </button>
+                        <button
+                          onClick={() => handleEliminarCliente(clienteAbierto.id)}
+                          className="px-4 py-3 rounded-lg bg-red-500/20 text-red-400 font-bold hover:bg-red-500/30 transition border border-red-500/40"
+                        >
+                          🗑️ Eliminar
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    {/* Modo editar */}
+                    <div className="space-y-6">
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <div>
+                          <label className="block text-xs font-bold text-foreground uppercase tracking-widest mb-2">
+                            Nombre
+                          </label>
+                          <input
+                            type="text"
+                            value={formCliente.nombre}
+                            onChange={(e) => setFormCliente({ ...formCliente, nombre: e.target.value })}
+                            className="w-full rounded-lg border border-border bg-card px-4 py-3 text-foreground font-medium focus:border-accent focus:ring-2 focus:ring-accent/30 focus:outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-foreground uppercase tracking-widest mb-2">
+                            CUPS
+                          </label>
+                          <input
+                            type="text"
+                            value={formCliente.cups}
+                            onChange={(e) => setFormCliente({ ...formCliente, cups: e.target.value })}
+                            className="w-full rounded-lg border border-border bg-card px-4 py-3 text-foreground font-medium focus:border-accent focus:ring-2 focus:ring-accent/30 focus:outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-foreground uppercase tracking-widest mb-2">
+                            Tarifa
+                          </label>
+                          <select
+                            value={formCliente.tarifa}
+                            onChange={(e) => {
+                              const tarifa = e.target.value;
+                              const newPeriodos = tarifa === '2.0' ? 3 : 6;
+                              const newPotencias = tarifa === '2.0' ? 2 : 6;
+                              setFormCliente({
+                                ...formCliente,
+                                tarifa,
+                                precios_energia: Array(newPeriodos).fill(0),
+                                precios_potencia: Array(newPotencias).fill(0),
+                              });
+                            }}
+                            className="w-full rounded-lg border border-border bg-card px-4 py-3 text-foreground font-medium focus:border-accent focus:ring-2 focus:ring-accent/30 focus:outline-none"
+                          >
+                            <option value="2.0">2.0</option>
+                            <option value="3.0">3.0</option>
+                            <option value="6.1">6.1</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div>
+                        <h4 className="font-bold text-foreground mb-3">Precios Energía (€/kWh)</h4>
+                        <div className="grid gap-3 md:grid-cols-3">
+                          {Array.from({ length: periodos }).map((_, idx) => (
+                            <input
+                              key={idx}
+                              type="number"
+                              step="0.001"
+                              value={formCliente.precios_energia[idx]}
+                              onChange={(e) => {
+                                const newPrecios = [...formCliente.precios_energia];
+                                newPrecios[idx] = parseFloat(e.target.value) || 0;
+                                setFormCliente({ ...formCliente, precios_energia: newPrecios });
+                              }}
+                              placeholder={`P${idx + 1}`}
+                              className="rounded-lg border border-border bg-card px-3 py-2 text-foreground font-medium focus:border-accent focus:ring-2 focus:ring-accent/30 focus:outline-none"
+                            />
+                          ))}
+                        </div>
+                      </div>
+
+                      <div>
+                        <h4 className="font-bold text-foreground mb-3">Precios Potencia (€/kW/día)</h4>
+                        <div className="grid gap-3 md:grid-cols-3">
+                          {Array.from({ length: potencias }).map((_, idx) => (
+                            <input
+                              key={idx}
+                              type="number"
+                              step="0.001"
+                              value={formCliente.precios_potencia[idx]}
+                              onChange={(e) => {
+                                const newPrecios = [...formCliente.precios_potencia];
+                                newPrecios[idx] = parseFloat(e.target.value) || 0;
+                                setFormCliente({ ...formCliente, precios_potencia: newPrecios });
+                              }}
+                              placeholder={`Pot${idx + 1}`}
+                              className="rounded-lg border border-border bg-card px-3 py-2 text-foreground font-medium focus:border-accent focus:ring-2 focus:ring-accent/30 focus:outline-none"
+                            />
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="flex gap-2 pt-4 border-t border-border">
+                        <button
+                          onClick={() => {
+                            guardarCambiosCliente();
+                          }}
+                          className="flex-1 px-4 py-3 rounded-lg bg-secondary text-white font-bold hover:bg-secondary/90 transition"
+                        >
+                          ✓ Guardar
+                        </button>
+                        <button
+                          onClick={() => {
+                            setEditandoCliente(false);
+                            setFormCliente({
+                              nombre: clienteAbierto.nombre,
+                              cups: clienteAbierto.cups,
+                              tarifa: clienteAbierto.tarifa || '2.0',
+                              precios_energia: clienteAbierto.precios_energia || [0, 0, 0],
+                              precios_potencia: clienteAbierto.precios_potencia || [0, 0],
+                            });
+                          }}
+                          className="flex-1 px-4 py-3 rounded-lg bg-card/80 text-foreground font-bold hover:bg-card transition border border-border"
+                        >
+                          ✗ Cancelar
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* Seguimientos (solo en modo lectura) */}
+            {!editandoCliente && (
+              <div className="card rounded-2xl p-6 md:p-8 bg-surface/50 border border-border">
+                <h3 className="font-bold text-foreground text-lg mb-4">📍 Seguimientos ({seguimientosCliente.length})</h3>
+                {seguimientosCliente.length === 0 ? (
+                  <p className="text-muted text-sm text-center py-6">Sin seguimientos</p>
+                ) : (
+                  <div className="space-y-3 max-h-96 overflow-y-auto">
+                    {seguimientosCliente.map((seg) => (
+                      <div key={seg.id} className="p-3 rounded-lg bg-card/80 border border-border/50">
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className={`px-2 py-1 rounded text-xs font-bold ${
+                            seg.estado === 'Contactado'
+                              ? 'bg-blue-500/20 text-blue-300'
+                              : seg.estado === 'Interesado'
+                              ? 'bg-yellow-500/20 text-yellow-300'
+                              : seg.estado === 'Contratado'
+                              ? 'bg-green-500/20 text-green-300'
+                              : 'bg-red-500/20 text-red-300'
+                          }`}>
+                            {seg.estado}
+                          </span>
+                          <span className="text-xs text-muted/70">
+                            {new Date(seg.created_at).toLocaleDateString('es', { month: 'short', day: 'numeric' })}
+                          </span>
+                        </div>
+                        {seg.notas && (
+                          <p className="text-xs text-foreground mb-2">{seg.notas}</p>
+                        )}
+                        {seg.fecha_proximo_seguimiento && (
+                          <p className="text-xs text-secondary font-semibold">
+                            📅 {new Date(seg.fecha_proximo_seguimiento).toLocaleDateString('es')}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      ) : (
+        /* Lista de clientes */
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <h2 className="text-3xl font-black text-foreground">👥 Clientes ({clientes.length})</h2>
+          </div>
+
+          {clientes.length === 0 ? (
+            <div className="card rounded-2xl p-12 text-center bg-surface/50">
+              <p className="text-muted text-lg">No hay clientes aún</p>
+            </div>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {clientes.map((cliente) => (
+                <div
+                  key={cliente.id}
+                  onClick={() => abrirCliente(cliente)}
+                  className="card rounded-2xl p-6 bg-surface/50 border border-border hover:border-accent hover:bg-card/80 cursor-pointer transition"
+                >
+                  <div className="font-bold text-foreground text-lg mb-1">{cliente.nombre}</div>
+                  <div className="text-xs text-muted font-mono mb-4">{cliente.cups}</div>
+                  <div className="flex items-center gap-2 mb-4">
+                    <span className="px-2 py-1 rounded-lg bg-accent/20 text-accent text-xs font-bold">
+                      {cliente.tarifa}
+                    </span>
+                    <span className="text-xs text-muted/70">
+                      {new Date(cliente.created_at).toLocaleDateString('es', { month: 'short', day: 'numeric' })}
+                    </span>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-xs text-muted">Abre para editar →</div>
+                  </div>
+                </div>
               ))}
             </div>
-          </div>
-
-          {/* Precios potencia */}
-          <div>
-            <h4 className="mb-3 font-semibold text-foreground">Precios Potencia (€/kW/día)</h4>
-            <div className="grid gap-3 md:grid-cols-3">
-              {Array.from({ length: potencias }).map((_, idx) => (
-                <input
-                  key={idx}
-                  type="number"
-                  step="0.001"
-                  value={formCliente.precios_potencia[idx]}
-                  onChange={(e) => {
-                    const newPrecios = [...formCliente.precios_potencia];
-                    newPrecios[idx] = parseFloat(e.target.value) || 0;
-                    setFormCliente({ ...formCliente, precios_potencia: newPrecios });
-                  }}
-                  placeholder={`Pot${idx + 1}`}
-                  className="rounded-lg border border-border px-3 py-2 text-sm focus:border-accent focus:outline-none"
-                />
-              ))}
-            </div>
-          </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full rounded-lg bg-accent text-white font-semibold py-3 hover:bg-accent/90 transition"
-          >
-            {loading ? 'Agregando...' : 'Agregar Cliente'}
-          </button>
-        </form>
-      </div>
-
-      {/* Cargar Excel */}
-      <div className="card rounded-2xl p-6 md:p-8 border-2 border-accent/30 bg-accent/5">
-        <h3 className="mb-4 font-semibold text-foreground">Cargar Clientes desde CSV</h3>
-        <p className="text-sm text-muted mb-4">
-          Formato: Nombre, CUPS, Tarifa, P1, P2, P3, (P4, P5, P6), Pot1, Pot2, (Pot3-6)
-        </p>
-        <input
-          type="file"
-          accept=".csv"
-          onChange={handleCargarExcel}
-          disabled={loading}
-          className="w-full"
-        />
-      </div>
-
-      {/* Lista de clientes */}
-      <div className="card rounded-2xl p-6 md:p-8">
-        <h3 className="mb-4 font-semibold text-foreground">Clientes ({clientes.length})</h3>
-
-        {clientes.length === 0 ? (
-          <p className="text-muted text-center py-8">No hay clientes</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border bg-neutral-100">
-                  <th className="px-4 py-3 text-left font-semibold">Nombre</th>
-                  <th className="px-4 py-3 text-left font-semibold">CUPS</th>
-                  <th className="px-4 py-3 text-left font-semibold">Tarifa</th>
-                  <th className="px-4 py-3 text-left font-semibold">Fecha</th>
-                  <th className="px-4 py-3 text-center font-semibold">Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
-                {clientes.map((cliente) => (
-                  <tr key={cliente.id} className="border-b border-border hover:bg-neutral-50">
-                    <td className="px-4 py-3 font-medium">{cliente.nombre}</td>
-                    <td className="px-4 py-3 text-xs font-mono">{cliente.cups}</td>
-                    <td className="px-4 py-3">{cliente.tarifa}</td>
-                    <td className="px-4 py-3 text-xs text-muted">
-                      {new Date(cliente.created_at).toLocaleDateString()} {new Date(cliente.created_at).toLocaleTimeString()}
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <button
-                        onClick={() => handleEliminarCliente(cliente.id)}
-                        className="text-xs font-semibold text-red-600 hover:underline"
-                      >
-                        Eliminar
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
