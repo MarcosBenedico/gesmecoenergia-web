@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { obtenerUsuarioActual, logoutUsuario, obtenerPreciosComercializadoras, actualizarPrecio } from '@/lib/auth';
+import { obtenerUsuarioActual, logoutUsuario, obtenerPreciosComercializadoras } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/button';
 import { Container } from '@/components/container';
@@ -14,10 +14,8 @@ interface Precio {
   comercializadora_id: number;
   comercializadoras?: { nombre: string; codigo: string };
   tarifa: string;
-  periodo: number;
-  potencia: number;
-  precio_potencia: number;
-  precio_energia: number;
+  precios_energia: number[];
+  precios_potencia: number[];
 }
 
 interface FormCrearTarifa {
@@ -34,6 +32,7 @@ export default function GestorPage() {
   const [comercializadoras, setComercializadoras] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [filtroTarifa, setFiltroTarifa] = useState('2.0');
+  const [editando, setEditando] = useState<number | null>(null);
 
   // Form crear tarifa
   const [formCrear, setFormCrear] = useState<FormCrearTarifa>({
@@ -41,9 +40,6 @@ export default function GestorPage() {
     comercializadora_id: 1,
     precios: { energia: [0, 0, 0], potencia: [0, 0] },
   });
-
-  const [editando, setEditando] = useState<number | null>(null);
-  const [cambios, setCambios] = useState<Record<number, { potencia: number; energia: number }>>({});
 
   useEffect(() => {
     const usuario = obtenerUsuarioActual();
@@ -62,10 +58,8 @@ export default function GestorPage() {
       setPrecios(precios);
 
       const { data: comercios } = await supabase.from('comercializadoras').select('*').order('id');
-      console.log('Comercializadoras cargadas:', comercios);
       setComercializadoras(comercios || []);
 
-      // Establecer la primera comercializadora como default
       if (comercios && comercios.length > 0) {
         setFormCrear((prev) => ({
           ...prev,
@@ -95,26 +89,13 @@ export default function GestorPage() {
         return;
       }
 
-      const periodos = formCrear.tarifa === '2.0' ? 3 : 6;
-      const potencias = formCrear.tarifa === '2.0' ? 2 : 6;
-
-      // Insertar registros para cada período y potencia
-      const registros = [];
-
-      for (let p = 1; p <= periodos; p++) {
-        for (let pot = 1; pot <= potencias; pot++) {
-          registros.push({
-            comercializadora_id: formCrear.comercializadora_id,
-            tarifa: formCrear.tarifa,
-            periodo: p,
-            potencia: pot,
-            precio_energia: formCrear.precios.energia[p - 1] || 0,
-            precio_potencia: formCrear.precios.potencia[pot - 1] || 0,
-          });
-        }
-      }
-
-      const { error } = await supabase.from('precios_comercializadoras').insert(registros);
+      // Insertar una única fila con arrays de precios
+      const { error } = await supabase.from('precios_comercializadoras').insert({
+        comercializadora_id: formCrear.comercializadora_id,
+        tarifa: formCrear.tarifa,
+        precios_energia: formCrear.precios.energia,
+        precios_potencia: formCrear.precios.potencia,
+      });
 
       if (error) throw error;
 
@@ -136,21 +117,20 @@ export default function GestorPage() {
     }
   };
 
-  const handleGuardar = async (id: number) => {
-    const cambio = cambios[id];
-    if (!cambio) return;
-
+  const handleGuardar = async (id: number, precios_energia: number[], precios_potencia: number[]) => {
     try {
-      await actualizarPrecio(id, cambio.potencia, cambio.energia);
+      const { error } = await supabase
+        .from('precios_comercializadoras')
+        .update({ precios_energia, precios_potencia, updated_at: new Date().toISOString() })
+        .eq('id', id);
+
+      if (error) throw error;
       await cargarDatos();
       setEditando(null);
-      setCambios((prev) => {
-        const newCambios = { ...prev };
-        delete newCambios[id];
-        return newCambios;
-      });
+      alert('Tarifa actualizada exitosamente');
     } catch (error) {
       console.error('Error al guardar precio:', error);
+      alert('Error al guardar: ' + (error as any).message);
     }
   };
 
@@ -227,107 +207,37 @@ export default function GestorPage() {
                 </div>
               </div>
 
-              {/* Tabla de precios */}
-              <div className="card rounded-2xl overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-neutral-200 bg-neutral-100">
-                        <th className="px-6 py-3 text-left font-semibold">Comercializadora</th>
-                        <th className="px-6 py-3 text-left font-semibold">Período</th>
-                        <th className="px-6 py-3 text-left font-semibold">Potencia</th>
-                        <th className="px-6 py-3 text-right font-semibold">€/kW/mes</th>
-                        <th className="px-6 py-3 text-right font-semibold">€/kWh</th>
-                        <th className="px-6 py-3 text-center font-semibold">Acciones</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {preciosFiltrados.map((precio) => (
-                        <tr key={precio.id} className="border-b border-neutral-200 hover:bg-neutral-50">
-                          <td className="px-6 py-3 font-medium text-foreground">
-                            {precio.comercializadoras?.nombre}
-                          </td>
-                          <td className="px-6 py-3 text-muted">P{precio.periodo}</td>
-                          <td className="px-6 py-3 text-muted">Pot{precio.potencia}</td>
-                          <td className="px-6 py-3 text-right">
-                            {editando === precio.id ? (
-                              <input
-                                type="number"
-                                step="0.0001"
-                                value={cambios[precio.id]?.potencia || precio.precio_potencia}
-                                onChange={(e) =>
-                                  setCambios((prev) => ({
-                                    ...prev,
-                                    [precio.id]: {
-                                      ...(prev[precio.id] || { potencia: 0, energia: 0 }),
-                                      potencia: parseFloat(e.target.value),
-                                    },
-                                  }))
-                                }
-                                className="w-24 rounded border border-accent px-2 py-1 text-right"
-                              />
-                            ) : (
-                              precio.precio_potencia?.toFixed(4)
-                            )}
-                          </td>
-                          <td className="px-6 py-3 text-right">
-                            {editando === precio.id ? (
-                              <input
-                                type="number"
-                                step="0.0001"
-                                value={cambios[precio.id]?.energia || precio.precio_energia}
-                                onChange={(e) =>
-                                  setCambios((prev) => ({
-                                    ...prev,
-                                    [precio.id]: {
-                                      ...(prev[precio.id] || { potencia: 0, energia: 0 }),
-                                      energia: parseFloat(e.target.value),
-                                    },
-                                  }))
-                                }
-                                className="w-24 rounded border border-accent px-2 py-1 text-right"
-                              />
-                            ) : (
-                              precio.precio_energia?.toFixed(4)
-                            )}
-                          </td>
-                          <td className="px-6 py-3 text-center">
-                            {editando === precio.id ? (
-                              <div className="flex gap-2 justify-center">
-                                <button
-                                  onClick={() => handleGuardar(precio.id)}
-                                  className="text-xs font-semibold text-accent hover:underline"
-                                >
-                                  Guardar
-                                </button>
-                                <button
-                                  onClick={() => {
-                                    setEditando(null);
-                                    setCambios((prev) => {
-                                      const newCambios = { ...prev };
-                                      delete newCambios[precio.id];
-                                      return newCambios;
-                                    });
-                                  }}
-                                  className="text-xs font-semibold text-muted hover:underline"
-                                >
-                                  Cancelar
-                                </button>
-                              </div>
-                            ) : (
-                              <button
-                                onClick={() => setEditando(precio.id)}
-                                className="text-xs font-semibold text-accent hover:underline"
-                              >
-                                Editar
-                              </button>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+              {/* Cards de tarifas */}
+              <div className="space-y-4">
+                {preciosFiltrados.map((precio) => (
+                  <div key={precio.id} className="card rounded-2xl p-6 border-2 border-neutral-200">
+                    <div className="flex items-center justify-between mb-4">
+                      <div>
+                        <h3 className="text-lg font-semibold text-foreground">
+                          {precio.comercializadoras?.nombre} - Tarifa {precio.tarifa}
+                        </h3>
+                        <p className="text-xs text-muted">ID: {precio.id}</p>
+                      </div>
+                      <button
+                        onClick={() => setEditando(editando === precio.id ? null : precio.id)}
+                        className="px-4 py-2 rounded-lg bg-accent text-white font-semibold text-sm hover:bg-accent/90 transition"
+                      >
+                        {editando === precio.id ? 'Cancelar' : 'Editar'}
+                      </button>
+                    </div>
+
+                    {editando === precio.id ? (
+                      <EditTarifaForm
+                        precio={precio}
+                        onSave={(energias, potencias) =>
+                          handleGuardar(precio.id, energias, potencias)
+                        }
+                      />
+                    ) : (
+                      <ViewTarifaDisplay precio={precio} />
+                    )}
+                  </div>
+                ))}
               </div>
 
               {preciosFiltrados.length === 0 && (
@@ -396,11 +306,6 @@ export default function GestorPage() {
                         <option disabled>No hay comercializadoras disponibles</option>
                       )}
                     </select>
-                    {comercializadoras.length === 0 && (
-                      <p className="mt-2 text-xs text-red-600">
-                        ⚠️ No se cargaron las comercializadoras. Recarga la página.
-                      </p>
-                    )}
                   </div>
                 </div>
 
@@ -470,6 +375,98 @@ export default function GestorPage() {
           )}
         </div>
       </Container>
+    </div>
+  );
+}
+
+function ViewTarifaDisplay({ precio }: { precio: Precio }) {
+  return (
+    <div className="grid gap-6 md:grid-cols-2">
+      <div>
+        <h4 className="mb-3 font-semibold text-foreground text-sm">Precios de Energía (€/kWh)</h4>
+        <div className="space-y-2">
+          {precio.precios_energia.map((p, idx) => (
+            <div key={idx} className="flex justify-between text-sm">
+              <span className="text-muted">Período {idx + 1}:</span>
+              <span className="font-semibold text-foreground">{p.toFixed(4)}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div>
+        <h4 className="mb-3 font-semibold text-foreground text-sm">Precios de Potencia (€/kW/mes)</h4>
+        <div className="space-y-2">
+          {precio.precios_potencia.map((p, idx) => (
+            <div key={idx} className="flex justify-between text-sm">
+              <span className="text-muted">Potencia {idx + 1}:</span>
+              <span className="font-semibold text-foreground">{p.toFixed(4)}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+interface EditFormProps {
+  precio: Precio;
+  onSave: (energias: number[], potencias: number[]) => void;
+}
+
+function EditTarifaForm({ precio, onSave }: EditFormProps) {
+  const [energias, setEnergias] = useState(precio.precios_energia);
+  const [potencias, setPotencias] = useState(precio.precios_potencia);
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h4 className="mb-3 font-semibold text-foreground text-sm">Precios de Energía (€/kWh)</h4>
+        <div className="grid gap-3 md:grid-cols-3">
+          {energias.map((p, idx) => (
+            <div key={idx}>
+              <label className="block text-xs font-semibold text-accent mb-1 uppercase">P{idx + 1}</label>
+              <input
+                type="number"
+                step="0.0001"
+                value={p}
+                onChange={(e) => {
+                  const newEnergias = [...energias];
+                  newEnergias[idx] = parseFloat(e.target.value) || 0;
+                  setEnergias(newEnergias);
+                }}
+                className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm focus:border-accent focus:outline-none"
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+      <div>
+        <h4 className="mb-3 font-semibold text-foreground text-sm">Precios de Potencia (€/kW/mes)</h4>
+        <div className="grid gap-3 md:grid-cols-3">
+          {potencias.map((p, idx) => (
+            <div key={idx}>
+              <label className="block text-xs font-semibold text-accent mb-1 uppercase">Pot{idx + 1}</label>
+              <input
+                type="number"
+                step="0.0001"
+                value={p}
+                onChange={(e) => {
+                  const newPotencias = [...potencias];
+                  newPotencias[idx] = parseFloat(e.target.value) || 0;
+                  setPotencias(newPotencias);
+                }}
+                className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm focus:border-accent focus:outline-none"
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+      <button
+        onClick={() => onSave(energias, potencias)}
+        className="w-full px-4 py-2 rounded-lg bg-accent text-white font-semibold hover:bg-accent/90 transition"
+      >
+        Guardar cambios
+      </button>
     </div>
   );
 }

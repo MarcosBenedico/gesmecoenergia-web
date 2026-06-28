@@ -18,13 +18,12 @@ type FormData = {
 };
 
 interface PrecioRegistro {
+  id: number;
   comercializadora_id: number;
-  nombre: string;
+  comercializadoras?: { nombre: string };
   tarifa: string;
-  periodo: number;
-  potencia: number;
-  precio_energia: number;
-  precio_potencia: number;
+  precios_energia: number[];
+  precios_potencia: number[];
 }
 
 interface DetalleCalculo {
@@ -141,63 +140,45 @@ export default function AnalizadorPage() {
         costeTotal: costoUserEnergia + costoUserPotencia,
       };
 
-      // Calcular costes de comercializadoras (primero de cada una)
-      const comerciosUnicos = new Map<number, { nombre: string; id: number }>();
-      preciosDb.forEach((p) => {
-        if (p.tarifa === formData.tarifa && !comerciosUnicos.has(p.comercializadora_id)) {
-          comerciosUnicos.set(p.comercializadora_id, {
-            id: p.comercializadora_id,
-            nombre: p.nombre,
-          });
-        }
-      });
+      // Filtrar tarifas por tipo seleccionado
+      const tarifasSeleccionadas = preciosDb.filter((p) => p.tarifa === formData.tarifa);
 
-      const detallesComercios: DetalleCalculo[] = Array.from(comerciosUnicos.values()).map(
-        (comercio) => {
-          const preciosComercio = preciosDb.filter(
-            (p) =>
-              p.comercializadora_id === comercio.id &&
-              p.tarifa === formData.tarifa
-          );
-
-          // Cálculo de energía período por período
-          const costesEnergiaDetalle = formData.consumos.map((consumo, idx) => {
-            const precioRecord = preciosComercio.find((p) => p.periodo === idx + 1);
-            const precio = precioRecord?.precio_energia || 0;
-            return {
-              periodo: idx + 1,
-              consumo,
-              precio,
-              total: consumo * precio * 12,
-            };
-          });
-
-          const costoEnergia = costesEnergiaDetalle.reduce((sum, d) => sum + d.total, 0);
-
-          // Cálculo de potencia potencia por potencia
-          const costesPotenciaDetalle = formData.potencias.map((potencia, idx) => {
-            const precioRecord = preciosComercio.find((p) => p.potencia === idx + 1);
-            const precio = precioRecord?.precio_potencia || 0;
-            return {
-              potencia: idx + 1,
-              cantidad: potencia,
-              precio,
-              total: potencia * precio * 12,
-            };
-          });
-
-          const costoPotencia = costesPotenciaDetalle.reduce((sum, d) => sum + d.total, 0);
-
+      const detallesComercios: DetalleCalculo[] = tarifasSeleccionadas.map((tarifa) => {
+        // Cálculo de energía período por período
+        const costesEnergiaDetalle = formData.consumos.map((consumo, idx) => {
+          const precio = tarifa.precios_energia[idx] || 0;
           return {
-            comercializadora: comercio.nombre,
-            costesEnergiaDetalle,
-            costoEnergiaTotal: costoEnergia,
-            costesPotenciaDetalle,
-            costoPotenciaTotal: costoPotencia,
-            costeTotal: costoEnergia + costoPotencia,
+            periodo: idx + 1,
+            consumo,
+            precio,
+            total: consumo * precio * 12,
           };
-        }
-      );
+        });
+
+        const costoEnergia = costesEnergiaDetalle.reduce((sum, d) => sum + d.total, 0);
+
+        // Cálculo de potencia potencia por potencia
+        const costesPotenciaDetalle = formData.potencias.map((potencia, idx) => {
+          const precio = tarifa.precios_potencia[idx] || 0;
+          return {
+            potencia: idx + 1,
+            cantidad: potencia,
+            precio,
+            total: potencia * precio * 12,
+          };
+        });
+
+        const costoPotencia = costesPotenciaDetalle.reduce((sum, d) => sum + d.total, 0);
+
+        return {
+          comercializadora: tarifa.comercializadoras?.nombre || 'Opción desconocida',
+          costesEnergiaDetalle,
+          costoEnergiaTotal: costoEnergia,
+          costesPotenciaDetalle,
+          costoPotenciaTotal: costoPotencia,
+          costeTotal: costoEnergia + costoPotencia,
+        };
+      });
 
       setDetalles([detalleUsuario, ...detallesComercios]);
       setStep('results');

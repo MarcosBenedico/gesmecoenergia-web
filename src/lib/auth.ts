@@ -91,20 +91,6 @@ export async function obtenerPreciosComercializadoras() {
   return data || [];
 }
 
-export async function actualizarPrecio(
-  id: number,
-  precio_potencia: number,
-  precio_energia: number
-) {
-  const { error } = await supabase
-    .from('precios_comercializadoras')
-    .update({ precio_potencia, precio_energia, updated_at: new Date().toISOString() })
-    .eq('id', id);
-
-  if (error) throw error;
-  return true;
-}
-
 export async function obtenerComercializadoras() {
   const { data, error } = await supabase.from('comercializadoras').select('*');
   if (error) throw error;
