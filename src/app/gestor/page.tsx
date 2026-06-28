@@ -503,18 +503,7 @@ export default function GestorPage() {
 
           {/* Sección: Comparativa de Tarifas */}
           {seccion === 'margenes' && (
-            <ComparativaSimulador
-              precios={precios}
-              comercializadoras={comercializadoras}
-              tarifaSimulador={tarifaSimulador}
-              setTarifaSimulador={setTarifaSimulador}
-              comercioComparar={comercioComparar}
-              setComerioComparar={setComerioComparar}
-              preciosClienteActual={preciosClienteActual}
-              setPreciosClienteActual={setPreciosClienteActual}
-              consumosCliente={consumosCliente}
-              setConsumosCliente={setConsumosCliente}
-            />
+            <ComparativaSimulador clientes={clientes} comercializadoras={comercializadoras} />
           )}
         </div>
       </Container>
@@ -523,113 +512,89 @@ export default function GestorPage() {
 }
 
 interface ComparativaProps {
-  precios: Precio[];
+  clientes: any[];
   comercializadoras: any[];
-  tarifaSimulador: string;
-  setTarifaSimulador: (t: string) => void;
-  comercioComparar: number;
-  setComerioComparar: (c: number) => void;
-  preciosClienteActual: { energia: number[]; potencia: number[] };
-  setPreciosClienteActual: (p: { energia: number[]; potencia: number[] }) => void;
-  consumosCliente: { energia: number[]; potencia: number[] };
-  setConsumosCliente: (c: { energia: number[]; potencia: number[] }) => void;
 }
 
-function ComparativaSimulador({
-  precios,
-  comercializadoras,
-  tarifaSimulador,
-  setTarifaSimulador,
-  comercioComparar,
-  setComerioComparar,
-  preciosClienteActual,
-  setPreciosClienteActual,
-  consumosCliente,
-  setConsumosCliente,
-}: ComparativaProps) {
-  const periodos = tarifaSimulador === '2.0' ? 3 : 6;
-  const potencias = tarifaSimulador === '2.0' ? 2 : 6;
+function ComparativaSimulador({ clientes, comercializadoras }: ComparativaProps) {
+  const [clienteSeleccionado, setClienteSeleccionado] = useState<any | null>(null);
+  const [comercializadora, setComercializadora] = useState<number>(1);
+  const [fee, setFee] = useState<number>(0);
+  const [preciosCustom, setPreciosCustom] = useState({
+    energia: 0.15,
+    potencia: 0.45,
+  });
 
-  const tarifaComercio = precios.find(
-    (p) => p.tarifa === tarifaSimulador && p.comercializadora_id === comercioComparar
-  );
+  const preciosAUssar = clienteSeleccionado
+    ? {
+        energia:
+          clienteSeleccionado.precios_energia?.[0] ||
+          (preciosCustom.energia > 0 ? preciosCustom.energia : 0.15),
+        potencia:
+          clienteSeleccionado.precios_potencia?.[0] ||
+          (preciosCustom.potencia > 0 ? preciosCustom.potencia : 0.45),
+      }
+    : preciosCustom;
 
-  if (!tarifaComercio) {
-    return (
-      <div className="card rounded-2xl p-8 text-center">
-        <p className="text-muted">No hay tarifas para esta combinación. Crea una primero.</p>
-      </div>
-    );
-  }
+  // Consumos estimados (valores por defecto)
+  const consumoEnergia = 3000; // kWh/año
+  const consumoPotencia = 5; // kW
 
-  // Calcular coste actual del cliente
-  const costeClienteEnergia = consumosCliente.energia.reduce(
-    (sum, consumo, idx) => sum + consumo * preciosClienteActual.energia[idx] * 12,
-    0
-  );
-  const costeClientePotencia = consumosCliente.potencia.reduce(
-    (sum, potencia, idx) => sum + potencia * preciosClienteActual.potencia[idx] * 365,
-    0
-  );
+  // Calcular costes
+  const costeClienteEnergia = consumoEnergia * preciosAUssar.energia;
+  const costeClientePotencia = consumoPotencia * preciosAUssar.potencia * 365;
   const costeClienteTotal = costeClienteEnergia + costeClientePotencia;
 
-  // Calcular coste con comercializadora
-  const costeComercioEnergia = consumosCliente.energia.reduce(
-    (sum, consumo, idx) => sum + consumo * tarifaComercio.precios_energia[idx] * 12,
-    0
-  );
-  const costeComercioPotencia = consumosCliente.potencia.reduce(
-    (sum, potencia, idx) => sum + potencia * tarifaComercio.precios_potencia[idx] * 365,
-    0
-  );
-  const costeComercioTotal = costeComercioEnergia + costeComercioPotencia;
+  // Costes con fee
+  const precioConFee = {
+    energia: preciosAUssar.energia * (1 + fee / 100),
+    potencia: preciosAUssar.potencia * (1 + fee / 100),
+  };
+  const costeConFeeEnergia = consumoEnergia * precioConFee.energia;
+  const costeConFeePotencia = consumoPotencia * precioConFee.potencia * 365;
+  const costeConFeeTotal = costeConFeeEnergia + costeConFeePotencia;
 
-  const ahorroTotal = costeClienteTotal - costeComercioTotal;
+  const ahorroTotal = costeClienteTotal - costeConFeeTotal;
   const ahorroPorc = costeClienteTotal > 0 ? (ahorroTotal / costeClienteTotal) * 100 : 0;
-
-  const hayPreciosIngresados = preciosClienteActual.energia.some(p => p > 0);
 
   return (
     <div className="space-y-6">
-      {/* Selección */}
-      <div className="card rounded-2xl p-6 md:p-8">
-        <h2 className="mb-6 text-xl font-semibold text-foreground">Simulador de Comparativa</h2>
+      {/* Inputs principales */}
+      <div className="card rounded-2xl p-6 md:p-8 bg-surface/50">
+        <h2 className="mb-6 text-2xl font-bold text-foreground">💰 Comparativa de Tarifas</h2>
 
         <div className="grid gap-6 md:grid-cols-2">
+          {/* Cliente */}
           <div>
-            <label className="block text-sm font-semibold text-foreground mb-2">Tipo de Tarifa</label>
+            <label className="block text-sm font-bold text-foreground mb-2 uppercase tracking-widest">
+              Cliente (opcional)
+            </label>
             <select
-              value={tarifaSimulador}
+              value={clienteSeleccionado?.id || ''}
               onChange={(e) => {
-                const tarifa = e.target.value;
-                setTarifaSimulador(tarifa);
-                const newPeriodos = tarifa === '2.0' ? 3 : 6;
-                const newPotencias = tarifa === '2.0' ? 2 : 6;
-                setPreciosClienteActual({
-                  energia: Array(newPeriodos).fill(0),
-                  potencia: Array(newPotencias).fill(0),
-                });
-                setConsumosCliente({
-                  energia: Array(newPeriodos).fill(100),
-                  potencia: Array(newPotencias).fill(2),
-                });
+                const cliente = clientes.find((c) => c.id === parseInt(e.target.value));
+                setClienteSeleccionado(cliente || null);
               }}
-              className="w-full rounded-lg border border-border px-4 py-2.5 focus:border-accent focus:outline-none"
+              className="w-full rounded-lg border border-border bg-card px-4 py-3 text-foreground font-medium focus:border-accent focus:ring-2 focus:ring-accent/30 focus:outline-none"
             >
-              <option value="2.0">Tarifa 2.0</option>
-              <option value="3.0">Tarifa 3.0</option>
-              <option value="6.1">Tarifa 6.1</option>
+              <option value="">-- Ingresar precios manualmente --</option>
+              {clientes.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.nombre} ({c.cups})
+                </option>
+              ))}
             </select>
           </div>
 
+          {/* Comercializadora */}
           <div>
-            <label className="block text-sm font-semibold text-foreground mb-2">
-              Comparar con
+            <label className="block text-sm font-bold text-foreground mb-2 uppercase tracking-widest">
+              Comercializadora
             </label>
             <select
-              value={comercioComparar}
-              onChange={(e) => setComerioComparar(parseInt(e.target.value))}
-              className="w-full rounded-lg border border-border px-4 py-2.5 focus:border-accent focus:outline-none"
+              value={comercializadora}
+              onChange={(e) => setComercializadora(parseInt(e.target.value))}
+              className="w-full rounded-lg border border-border bg-card px-4 py-3 text-foreground font-medium focus:border-accent focus:ring-2 focus:ring-accent/30 focus:outline-none"
             >
               {comercializadoras.map((com) => (
                 <option key={com.id} value={com.id}>
@@ -638,159 +603,125 @@ function ComparativaSimulador({
               ))}
             </select>
           </div>
-        </div>
-      </div>
 
-      {/* Datos del cliente */}
-      <div className="card rounded-2xl p-6 md:p-8">
-        <h3 className="mb-6 text-lg font-semibold text-foreground">Tarifa Actual del Cliente (Obligatorio)</h3>
+          {/* Precios del cliente */}
+          {!clienteSeleccionado && (
+            <>
+              <div>
+                <label className="block text-sm font-bold text-foreground mb-2 uppercase tracking-widest">
+                  Precio Energía (€/kWh)
+                </label>
+                <input
+                  type="number"
+                  value={preciosCustom.energia}
+                  onChange={(e) =>
+                    setPreciosCustom({ ...preciosCustom, energia: parseFloat(e.target.value) || 0 })
+                  }
+                  step="0.001"
+                  className="w-full rounded-lg border border-border bg-card px-4 py-3 text-foreground font-medium focus:border-accent focus:ring-2 focus:ring-accent/30 focus:outline-none"
+                />
+              </div>
 
-        {!hayPreciosIngresados && (
-          <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-            <p className="text-sm text-yellow-700 font-semibold">⚠️ Ingresa los precios del cliente para calcular</p>
-          </div>
-        )}
+              <div>
+                <label className="block text-sm font-bold text-foreground mb-2 uppercase tracking-widest">
+                  Precio Potencia (€/kW/día)
+                </label>
+                <input
+                  type="number"
+                  value={preciosCustom.potencia}
+                  onChange={(e) =>
+                    setPreciosCustom({ ...preciosCustom, potencia: parseFloat(e.target.value) || 0 })
+                  }
+                  step="0.001"
+                  className="w-full rounded-lg border border-border bg-card px-4 py-3 text-foreground font-medium focus:border-accent focus:ring-2 focus:ring-accent/30 focus:outline-none"
+                />
+              </div>
+            </>
+          )}
 
-        <div className="space-y-6">
-          {/* Energía */}
+          {/* Fee */}
           <div>
-            <h4 className="mb-3 font-semibold text-foreground">Precios Energía (€/kWh)</h4>
-            <div className="grid gap-4 md:grid-cols-3">
-              {Array.from({ length: periodos }).map((_, idx) => (
-                <div key={`energy-${idx}`}>
-                  <label className="block text-xs font-semibold text-accent mb-1 uppercase">
-                    P{idx + 1} - Consumo (kWh)
-                  </label>
-                  <div className="flex gap-2">
-                    <input
-                      type="number"
-                      value={consumosCliente.energia[idx]}
-                      onChange={(e) => {
-                        const newConsumos = { ...consumosCliente };
-                        newConsumos.energia[idx] = parseFloat(e.target.value) || 0;
-                        setConsumosCliente(newConsumos);
-                      }}
-                      placeholder="kWh"
-                      className="flex-1 rounded-lg border border-border px-3 py-2 text-sm focus:border-accent focus:outline-none"
-                    />
-                    <input
-                      type="number"
-                      value={preciosClienteActual.energia[idx]}
-                      onChange={(e) => {
-                        const newPrecios = { ...preciosClienteActual };
-                        newPrecios.energia[idx] = parseFloat(e.target.value) || 0;
-                        setPreciosClienteActual(newPrecios);
-                      }}
-                      placeholder="€/kWh"
-                      step="0.001"
-                      className="flex-1 rounded-lg border border-border px-3 py-2 text-sm focus:border-accent focus:outline-none"
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Potencia */}
-          <div>
-            <h4 className="mb-3 font-semibold text-foreground">Precios Potencia (€/kW/día)</h4>
-            <div className="grid gap-4 md:grid-cols-3">
-              {Array.from({ length: potencias }).map((_, idx) => (
-                <div key={`potencia-${idx}`}>
-                  <label className="block text-xs font-semibold text-accent mb-1 uppercase">
-                    Pot{idx + 1} - kW
-                  </label>
-                  <div className="flex gap-2">
-                    <input
-                      type="number"
-                      value={consumosCliente.potencia[idx]}
-                      onChange={(e) => {
-                        const newConsumos = { ...consumosCliente };
-                        newConsumos.potencia[idx] = parseFloat(e.target.value) || 0;
-                        setConsumosCliente(newConsumos);
-                      }}
-                      placeholder="kW"
-                      step="0.1"
-                      className="flex-1 rounded-lg border border-border px-3 py-2 text-sm focus:border-accent focus:outline-none"
-                    />
-                    <input
-                      type="number"
-                      value={preciosClienteActual.potencia[idx]}
-                      onChange={(e) => {
-                        const newPrecios = { ...preciosClienteActual };
-                        newPrecios.potencia[idx] = parseFloat(e.target.value) || 0;
-                        setPreciosClienteActual(newPrecios);
-                      }}
-                      placeholder="€/día"
-                      step="0.001"
-                      className="flex-1 rounded-lg border border-border px-3 py-2 text-sm focus:border-accent focus:outline-none"
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
+            <label className="block text-sm font-bold text-foreground mb-2 uppercase tracking-widest">
+              FEE / Margen (%)
+            </label>
+            <input
+              type="number"
+              value={fee}
+              onChange={(e) => setFee(parseFloat(e.target.value) || 0)}
+              step="0.1"
+              className="w-full rounded-lg border border-border bg-card px-4 py-3 text-foreground font-medium focus:border-accent focus:ring-2 focus:ring-accent/30 focus:outline-none"
+            />
           </div>
         </div>
       </div>
 
       {/* Resultado */}
-      {!hayPreciosIngresados ? (
-        <div className="card rounded-2xl p-8 text-center bg-neutral-50">
-          <p className="text-muted text-lg">Ingresa precios en la sección "Tarifa Actual del Cliente" para ver la comparativa</p>
-        </div>
-      ) : (
-        <>
-      {/* Comparativa */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        {/* Cliente actual */}
-        <div className="card rounded-2xl p-6 md:p-8 border-2 border-border">
-          <h3 className="mb-4 text-lg font-semibold text-foreground">Coste Actual</h3>
-
-          <div className="space-y-3 text-sm mb-6">
-            <div className="flex justify-between">
+      <div className="grid gap-6 md:grid-cols-3">
+        {/* Actual */}
+        <div className="card rounded-2xl p-6 md:p-8 bg-card/50 border border-border">
+          <div className="text-sm font-bold text-muted uppercase tracking-widest mb-2">Coste Actual</div>
+          <div className="space-y-2">
+            <div className="flex justify-between text-sm">
               <span className="text-muted">Energía:</span>
-              <span className="font-semibold">€{costeClienteEnergia.toFixed(2)}</span>
+              <span className="font-semibold text-foreground">€{costeClienteEnergia.toFixed(2)}</span>
             </div>
-            <div className="flex justify-between">
+            <div className="flex justify-between text-sm">
               <span className="text-muted">Potencia:</span>
-              <span className="font-semibold">€{costeClientePotencia.toFixed(2)}</span>
+              <span className="font-semibold text-foreground">€{costeClientePotencia.toFixed(2)}</span>
             </div>
-            <div className="border-t border-border pt-3 flex justify-between text-base font-bold">
-              <span>Total anual:</span>
-              <span>€{costeClienteTotal.toFixed(2)}</span>
+            <div className="border-t border-border pt-2 flex justify-between">
+              <span className="font-bold text-foreground">TOTAL:</span>
+              <span className="font-black text-lg text-foreground">€{costeClienteTotal.toFixed(2)}</span>
             </div>
           </div>
         </div>
 
-        {/* Con comercializadora */}
-        <div className="card rounded-2xl p-6 md:p-8 border-2 border-accent/30 bg-accent/5">
-          <h3 className="mb-4 text-lg font-semibold text-accent">Con {comercializadoras.find(c => c.id === comercioComparar)?.nombre}</h3>
-
-          <div className="space-y-3 text-sm mb-6">
-            <div className="flex justify-between">
+        {/* Con fee */}
+        <div className="card rounded-2xl p-6 md:p-8 bg-accent/10 border border-accent/30">
+          <div className="text-sm font-bold text-accent uppercase tracking-widest mb-2">Con {comercializadoras.find(c => c.id === comercializadora)?.nombre}</div>
+          <div className="space-y-2">
+            <div className="flex justify-between text-sm">
               <span className="text-muted">Energía:</span>
-              <span className="font-semibold text-accent">€{costeComercioEnergia.toFixed(2)}</span>
+              <span className="font-semibold text-accent">€{costeConFeeEnergia.toFixed(2)}</span>
             </div>
-            <div className="flex justify-between">
+            <div className="flex justify-between text-sm">
               <span className="text-muted">Potencia:</span>
-              <span className="font-semibold text-accent">€{costeComercioPotencia.toFixed(2)}</span>
+              <span className="font-semibold text-accent">€{costeConFeePotencia.toFixed(2)}</span>
             </div>
-            <div className="border-t border-accent/20 pt-3 flex justify-between text-base font-bold">
-              <span>Total anual:</span>
-              <span className="text-accent">€{costeComercioTotal.toFixed(2)}</span>
+            <div className="border-t border-accent/30 pt-2 flex justify-between">
+              <span className="font-bold text-accent">TOTAL:</span>
+              <span className="font-black text-lg text-accent">€{costeConFeeTotal.toFixed(2)}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Ahorro */}
+        <div className={`card rounded-2xl p-6 md:p-8 border-2 ${
+          ahorroTotal > 0
+            ? 'bg-secondary/10 border-secondary/30'
+            : 'bg-red-500/10 border-red-500/30'
+        }`}>
+          <div className={`text-sm font-bold uppercase tracking-widest mb-2 ${
+            ahorroTotal > 0 ? 'text-secondary' : 'text-red-400'
+          }`}>
+            {ahorroTotal > 0 ? '✓ AHORRO' : '✗ COSTE'}
+          </div>
+          <div className="space-y-2">
+            <div className="text-center">
+              <div className={`text-3xl font-black ${
+                ahorroTotal > 0 ? 'text-secondary' : 'text-red-400'
+              }`}>
+                €{Math.abs(ahorroTotal).toFixed(2)}
+              </div>
+              <div className={`text-sm font-bold mt-1 ${
+                ahorroTotal > 0 ? 'text-secondary/70' : 'text-red-400/70'
+              }`}>
+                {ahorroPorc.toFixed(1)}% anual
+              </div>
             </div>
           </div>
         </div>
       </div>
-
-      {/* Resultado */}
-      <div className="card rounded-2xl p-8 bg-gradient-to-br from-accent/10 to-accent/5 border-2 border-accent/30 text-center">
-        <p className="text-sm text-muted mb-2">Ahorro anual</p>
-        <p className="text-5xl font-bold text-accent mb-2">€{ahorroTotal.toFixed(2)}</p>
-        <p className="text-lg text-accent font-semibold">{ahorroPorc.toFixed(1)}% de reducción</p>
-      </div>
-        </>
-      )}
     </div>
   );
 }
