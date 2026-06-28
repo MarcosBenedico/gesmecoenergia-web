@@ -200,7 +200,7 @@ export function Calendario() {
 
   // Cargar Google state y calendarios al montar
   useEffect(() => {
-    console.log('📅 Calendario: Inicializando...');
+    console.log('Calendario: Inicializando...');
 
     verificarGoogleDirecto().then((conectado) => {
       if (conectado) {
@@ -374,7 +374,7 @@ export function Calendario() {
       {/* Header */}
       <div className="bg-surface/80 backdrop-blur-xl border-b border-border px-6 py-4 flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-black text-foreground">📅 Calendario</h1>
+          <h1 className="text-3xl font-black text-foreground">Calendario</h1>
           <p className="text-sm text-muted mt-1">Actividad de tu equipo en tiempo real</p>
         </div>
         {googleConectado && (
@@ -430,7 +430,7 @@ export function Calendario() {
                 onClick={() => setShowCalendarSelector(!showCalendarSelector)}
                 className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-card/80 text-foreground border border-border/50 hover:bg-card transition font-semibold text-sm"
               >
-                <span>📋 Calendarios ({calendars.filter((c) => c.selected).length})</span>
+                <span>Calendarios ({calendars.filter((c) => c.selected).length})</span>
                 <span className={`transition transform ${showCalendarSelector ? 'rotate-180' : ''}`}>▼</span>
               </button>
             </div>
@@ -545,7 +545,7 @@ export function Calendario() {
             onClick={() => setShowCalendarSelector(!showCalendarSelector)}
             className="px-5 py-2 rounded-lg bg-card/80 border border-border text-foreground font-bold hover:bg-card transition text-sm"
           >
-            📅 Calendarios ({calendars.filter((c) => c.selected).length})
+            Calendarios ({calendars.filter((c) => c.selected).length})
           </button>
         </div>
 
@@ -592,7 +592,7 @@ export function Calendario() {
           <div className="h-full flex flex-col items-center justify-center">
             <div className="text-center space-y-4">
               <div className="text-6xl">📅</div>
-              <p className="text-muted text-xl">Conecta tu Google Calendar para ver tus eventos</p>
+              <p className="text-muted text-lg">Conecta tu Google Calendar para ver tus eventos</p>
               <p className="text-muted text-sm">Ve a "Seguimientos" y autoriza el acceso</p>
             </div>
           </div>

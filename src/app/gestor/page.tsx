@@ -684,7 +684,7 @@ function ComparativaSimulador({ clientes, comercializadoras }: ComparativaProps)
     <div className="space-y-6">
       {/* Inputs principales */}
       <div className="card rounded-2xl p-6 md:p-8 bg-surface/50">
-        <h2 className="mb-6 text-2xl font-bold text-foreground">💰 Comparativa Detallada</h2>
+        <h2 className="mb-6 text-2xl font-bold text-foreground">Comparativa Detallada</h2>
 
         <div className="grid gap-6 md:grid-cols-3">
           <div>
@@ -753,7 +753,7 @@ function ComparativaSimulador({ clientes, comercializadoras }: ComparativaProps)
 
       {/* Tabla de Consumos */}
       <div className="card rounded-2xl p-6 md:p-8 bg-surface/50">
-        <h3 className="font-bold text-foreground text-lg mb-4">📊 Consumos Anuales</h3>
+        <h3 className="font-bold text-foreground text-lg mb-4">Consumos Anuales</h3>
         <div className="grid gap-4 md:grid-cols-2">
           <div>
             <h4 className="font-bold text-foreground mb-3">Energía (kWh/período)</h4>
@@ -856,7 +856,7 @@ function ComparativaSimulador({ clientes, comercializadoras }: ComparativaProps)
       <div className="grid gap-6 md:grid-cols-2">
         {/* Detalles Energía */}
         <div className="card rounded-2xl p-6 md:p-8 bg-surface/50">
-          <h3 className="font-bold text-foreground text-lg mb-4">⚡ Cálculo Energía</h3>
+          <h3 className="font-bold text-foreground text-lg mb-4">Cálculo de Energía</h3>
           <div className="space-y-3 text-sm">
             {detalleEnergia.map((d: any) => (
               <div key={d.periodo} className="p-3 bg-card/80 rounded-lg border border-border/50">
@@ -885,7 +885,7 @@ function ComparativaSimulador({ clientes, comercializadoras }: ComparativaProps)
 
         {/* Detalles Potencia */}
         <div className="card rounded-2xl p-6 md:p-8 bg-surface/50">
-          <h3 className="font-bold text-foreground text-lg mb-4">💪 Cálculo Potencia</h3>
+          <h3 className="font-bold text-foreground text-lg mb-4">Cálculo de Potencia</h3>
           <div className="space-y-3 text-sm">
             {detallePotencia.map((d: any) => (
               <div key={d.potencia} className="p-3 bg-card/80 rounded-lg border border-border/50">
@@ -1458,12 +1458,12 @@ function GestionarClientes({
         /* Lista de clientes */
         <div className="space-y-6">
           <div className="flex items-center justify-between">
-            <h2 className="text-3xl font-black text-foreground">👥 Clientes ({clientes.length})</h2>
+            <h2 className="text-3xl font-black text-foreground">Clientes ({clientes.length})</h2>
           </div>
 
           {/* Importar Excel */}
           <div className="card rounded-2xl p-6 md:p-8 border-2 border-accent/30 bg-accent/5">
-            <h3 className="mb-4 font-bold text-foreground text-lg">📥 Importar Clientes desde CSV</h3>
+            <h3 className="mb-4 font-bold text-foreground text-lg">Importar Clientes desde CSV</h3>
             <div className="space-y-3">
               <p className="text-sm text-muted">
                 📋 <strong>Formato esperado:</strong> Nombre, CUPS, Tarifa, P1, P2, P3, (P4, P5, P6), Pot1, Pot2, (Pot3-6)
