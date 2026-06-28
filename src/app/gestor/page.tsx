@@ -7,8 +7,9 @@ import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/button';
 import { Container } from '@/components/container';
 import { SistemaSegumientos } from '@/components/sistema-seguimientos';
+import { Calendario } from '@/components/calendario';
 
-type Seccion = 'view' | 'create' | 'margenes' | 'clientes' | 'seguimientos';
+type Seccion = 'view' | 'create' | 'margenes' | 'clientes' | 'seguimientos' | 'calendario';
 
 interface Precio {
   id: number;
@@ -271,6 +272,16 @@ export default function GestorPage() {
             >
               Seguimientos
             </button>
+            <button
+              onClick={() => setSeccion('calendario')}
+              className={`px-4 py-2 rounded-lg font-semibold transition ${
+                seccion === 'calendario'
+                  ? 'bg-accent text-white'
+                  : 'bg-card/80 text-foreground border border-border/50 hover:bg-card'
+              }`}
+            >
+              Calendario
+            </button>
           </div>
 
           {/* Sección: Ver Tarifas */}
@@ -483,6 +494,11 @@ export default function GestorPage() {
               seguimientos={seguimientos}
               cargarSeguimientos={cargarSeguimientos}
             />
+          )}
+
+          {/* Sección: Calendario */}
+          {seccion === 'calendario' && (
+            <Calendario />
           )}
 
           {/* Sección: Comparativa de Tarifas */}
