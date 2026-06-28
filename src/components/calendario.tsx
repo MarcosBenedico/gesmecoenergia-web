@@ -18,51 +18,104 @@ export function Calendario() {
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [loading, setLoading] = useState(false);
+  const [googleConectado, setGoogleConectado] = useState(false);
+  const [error, setError] = useState('');
+
+  // Cargar eventos cuando el componente se monta o cambia la fecha
+  useEffect(() => {
+    verificarGoogle();
+  }, []);
 
   useEffect(() => {
-    cargarEventos();
-  }, [currentDate]);
+    if (googleConectado) {
+      cargarEventos();
+    }
+  }, [currentDate, googleConectado]);
+
+  const verificarGoogle = async () => {
+    try {
+      const { data: googleConfig, error: err } = await supabase
+        .from('google_config')
+        .select('access_token, email')
+        .single();
+
+      if (googleConfig?.access_token) {
+        setGoogleConectado(true);
+        setError('');
+      } else {
+        setGoogleConectado(false);
+        setError('Google Calendar no está conectado');
+      }
+    } catch (error) {
+      setGoogleConectado(false);
+      setError('Google Calendar no está conectado');
+    }
+  };
 
   const cargarEventos = async () => {
     setLoading(true);
+    setError('');
     try {
       // Obtener el token de Google
-      const { data: googleConfig } = await supabase
+      const { data: googleConfig, error: err } = await supabase
         .from('google_config')
         .select('access_token')
         .single();
 
       if (!googleConfig?.access_token) {
-        console.error('No hay token de Google');
+        setError('No hay token de Google. Por favor reconecta.');
         setLoading(false);
         return;
       }
 
-      // Obtener eventos del calendario
-      const timeMin = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).toISOString();
-      const timeMax = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).toISOString();
+      // Obtener eventos del calendario para todo el mes
+      const timeMin = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+      const timeMax = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
+
+      // Ajustar a UTC
+      timeMin.setHours(0, 0, 0, 0);
+      timeMax.setHours(23, 59, 59, 999);
 
       const response = await fetch(
-        `https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${timeMin}&timeMax=${timeMax}&singleEvents=true&orderBy=startTime`,
+        `https://www.googleapis.com/calendar/v3/calendars/primary/events?` +
+        `timeMin=${timeMin.toISOString()}&` +
+        `timeMax=${timeMax.toISOString()}&` +
+        `singleEvents=true&` +
+        `orderBy=startTime&` +
+        `maxResults=250`,
         {
           headers: {
             Authorization: `Bearer ${googleConfig.access_token}`,
+            Accept: 'application/json',
           },
         }
       );
 
+      if (!response.ok) {
+        if (response.status === 401) {
+          setError('Token expirado. Reconecta con Google.');
+          setGoogleConectado(false);
+        } else {
+          setError(`Error al cargar eventos (${response.status})`);
+        }
+        setLoading(false);
+        return;
+      }
+
       const data = await response.json();
       const eventos = (data.items || []).map((item: any) => ({
         id: item.id,
-        title: item.summary,
+        title: item.summary || 'Sin título',
         start: item.start.dateTime || item.start.date,
         end: item.end.dateTime || item.end.date,
         description: item.description || '',
       }));
 
       setEvents(eventos);
+      setError('');
     } catch (error) {
       console.error('Error al cargar eventos:', error);
+      setError('Error al cargar eventos. Verifica tu conexión.');
     } finally {
       setLoading(false);
     }
@@ -200,36 +253,54 @@ export function Calendario() {
 
   return (
     <div className="space-y-6">
+      {/* Estado de conexión */}
+      {!googleConectado && (
+        <div className="rounded-lg p-4 bg-red-500/10 border border-red-500/30">
+          <p className="text-sm text-red-400">
+            {error || 'Google Calendar no está conectado. Conecta en la sección de Seguimientos.'}
+          </p>
+        </div>
+      )}
+
+      {googleConectado && (
+        <div className="rounded-lg p-4 bg-secondary/10 border border-secondary/30">
+          <p className="text-sm text-secondary">✓ Google Calendar conectado - Mostrando tus eventos</p>
+        </div>
+      )}
+
       {/* Controles */}
       <div className="flex items-center justify-between">
         <div className="flex gap-2">
           <button
             onClick={() => setView('mes')}
+            disabled={!googleConectado}
             className={`px-4 py-2 rounded-lg font-semibold transition ${
               view === 'mes'
                 ? 'bg-accent text-white'
                 : 'bg-card/80 text-foreground border border-border/50 hover:bg-card'
-            }`}
+            } ${!googleConectado ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
             Mes
           </button>
           <button
             onClick={() => setView('semana')}
+            disabled={!googleConectado}
             className={`px-4 py-2 rounded-lg font-semibold transition ${
               view === 'semana'
                 ? 'bg-accent text-white'
                 : 'bg-card/80 text-foreground border border-border/50 hover:bg-card'
-            }`}
+            } ${!googleConectado ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
             Semana
           </button>
           <button
             onClick={() => setView('dia')}
+            disabled={!googleConectado}
             className={`px-4 py-2 rounded-lg font-semibold transition ${
               view === 'dia'
                 ? 'bg-accent text-white'
                 : 'bg-card/80 text-foreground border border-border/50 hover:bg-card'
-            }`}
+            } ${!googleConectado ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
             Día
           </button>
@@ -257,12 +328,27 @@ export function Calendario() {
           >
             Hoy
           </button>
+          <button
+            onClick={() => {
+              verificarGoogle();
+              cargarEventos();
+            }}
+            disabled={loading}
+            className="px-4 py-2 rounded-lg bg-secondary text-white font-semibold hover:bg-secondary/90 transition ml-2 disabled:opacity-50"
+          >
+            {loading ? '⟳' : '↻'} Refrescar
+          </button>
         </div>
       </div>
 
       {/* Calendario */}
       <div className="bg-surface/50 rounded-2xl p-6">
-        {loading ? (
+        {!googleConectado ? (
+          <div className="text-center py-12">
+            <p className="text-muted text-lg">Conecta tu Google Calendar para ver tus eventos</p>
+            <p className="text-muted text-sm mt-2">Ve a la sección "Seguimientos" y haz clic en "Conectar Google Calendar"</p>
+          </div>
+        ) : loading ? (
           <div className="text-center py-12 text-muted">Cargando eventos...</div>
         ) : view === 'mes' ? (
           <div className="grid grid-cols-7 gap-2">
