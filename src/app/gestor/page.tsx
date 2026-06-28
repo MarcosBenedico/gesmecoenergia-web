@@ -642,10 +642,10 @@ function ComparativaSimulador({ clientes, comercializadoras }: ComparativaProps)
   });
 
   const totales = {
-    costeEnergia: detalleEnergia.reduce((sum, d) => sum + d.costeActual, 0),
-    costePotencia: detallePotencia.reduce((sum, d) => sum + d.costeActual, 0),
-    costeConFeeEnergia: detalleEnergia.reduce((sum, d) => sum + d.costeConFee, 0),
-    costeConFeePotencia: detallePotencia.reduce((sum, d) => sum + d.costeConFee, 0),
+    costeEnergia: detalleEnergia.reduce((sum: number, d: any) => sum + d.costeActual, 0),
+    costePotencia: detallePotencia.reduce((sum: number, d: any) => sum + d.costeActual, 0),
+    costeConFeeEnergia: detalleEnergia.reduce((sum: number, d: any) => sum + d.costeConFee, 0),
+    costeConFeePotencia: detallePotencia.reduce((sum: number, d: any) => sum + d.costeConFee, 0),
   };
 
   totales.costeTotal = totales.costeEnergia + totales.costePotencia;
