@@ -593,12 +593,38 @@ function ComparativaSimulador({ clientes, comercializadoras }: ComparativaProps)
   const [clienteSeleccionado, setClienteSeleccionado] = useState<any | null>(null);
   const [comercializadora, setComercializadora] = useState<number>(1);
   const [fee, setFee] = useState<number>(0);
+  const [tarifa, setTarifa] = useState<'2.0' | '3.0' | '6.1'>('2.0');
   const [consumoEnergia, setConsumoEnergia] = useState<number[]>([1000, 1200, 800]);
   const [consumoPotencia, setConsumoPotencia] = useState<number[]>([5, 3]);
   const [preciosCustom, setPreciosCustom] = useState({
     energia: [0.15, 0.16, 0.14],
     potencia: [0.45, 0.35],
   });
+
+  // Detectar tarifa automáticamente cuando se selecciona cliente
+  const handleSelectCliente = (cliente: any) => {
+    setClienteSeleccionado(cliente);
+    const tarifaCliente = cliente.tarifa as '2.0' | '3.0' | '6.1';
+    setTarifa(tarifaCliente);
+
+    // Ajustar arrays según tarifa
+    if (tarifaCliente === '2.0') {
+      setConsumoEnergia([1000, 1200, 800]);
+      setConsumoPotencia([5, 3]);
+      setPreciosCustom({
+        energia: [0.15, 0.16, 0.14],
+        potencia: [0.45, 0.35],
+      });
+    } else {
+      // 3.0 o 6.1
+      setConsumoEnergia([1000, 1200, 800, 900, 1100, 950]);
+      setConsumoPotencia([5, 4.5, 4, 3.5, 3, 2.5]);
+      setPreciosCustom({
+        energia: [0.15, 0.16, 0.14, 0.13, 0.12, 0.11],
+        potencia: [0.45, 0.42, 0.40, 0.38, 0.35, 0.33],
+      });
+    }
+  };
 
   const preciosAUsar = clienteSeleccionado
     ? {
@@ -669,14 +695,25 @@ function ComparativaSimulador({ clientes, comercializadoras }: ComparativaProps)
               value={clienteSeleccionado?.id || ''}
               onChange={(e) => {
                 const cliente = clientes.find((c) => c.id === parseInt(e.target.value));
-                setClienteSeleccionado(cliente || null);
+                if (cliente) {
+                  handleSelectCliente(cliente);
+                } else {
+                  setClienteSeleccionado(null);
+                  setTarifa('2.0');
+                  setConsumoEnergia([1000, 1200, 800]);
+                  setConsumoPotencia([5, 3]);
+                  setPreciosCustom({
+                    energia: [0.15, 0.16, 0.14],
+                    potencia: [0.45, 0.35],
+                  });
+                }
               }}
               className="w-full rounded-lg border border-border bg-card px-4 py-3 text-foreground font-medium focus:border-accent focus:ring-2 focus:ring-accent/30 focus:outline-none"
             >
-              <option value="">-- Manual --</option>
+              <option value="">-- Manual (Tarifa 2.0) --</option>
               {clientes.map((c) => (
                 <option key={c.id} value={c.id}>
-                  {c.nombre}
+                  {c.nombre} ({c.tarifa})
                 </option>
               ))}
             </select>
