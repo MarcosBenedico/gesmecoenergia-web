@@ -225,8 +225,8 @@ export function SistemaSegumientos({
       </div>
 
       {/* Seleccionar cliente */}
-      <div className="card rounded-2xl p-6 md:p-8">
-        <h2 className="mb-4 text-xl font-semibold text-foreground">Seleccionar Cliente</h2>
+      <div className="card rounded-2xl p-6 md:p-8 bg-surface/50">
+        <h2 className="mb-4 text-xl font-bold text-foreground">👥 Seleccionar Cliente</h2>
 
         <div className="grid gap-4 md:grid-cols-2">
           <select
@@ -238,7 +238,7 @@ export function SistemaSegumientos({
                 cargarSeguimientos(cliente.id);
               }
             }}
-            className="rounded-lg border border-neutral-200 px-4 py-2.5 focus:border-accent focus:outline-none"
+            className="rounded-lg border border-border bg-card px-4 py-3 text-foreground font-medium focus:border-accent focus:ring-2 focus:ring-accent/30 focus:outline-none"
           >
             <option value="">-- Selecciona un cliente --</option>
             {clientes.map((c) => (
@@ -249,10 +249,10 @@ export function SistemaSegumientos({
           </select>
 
           {clienteSeleccionado && (
-            <div className="rounded-lg bg-accent/10 p-4 border border-accent/20">
-              <p className="text-sm text-muted">Cliente seleccionado</p>
-              <p className="font-semibold text-foreground">{clienteSeleccionado.nombre}</p>
-              <p className="text-xs text-muted">{clienteSeleccionado.tarifa} - {clienteSeleccionado.cups}</p>
+            <div className="rounded-lg bg-gradient-to-r from-accent/20 to-accent/10 p-4 border border-accent/40">
+              <p className="text-xs uppercase tracking-widest text-accent font-bold mb-1">Cliente seleccionado</p>
+              <p className="font-bold text-foreground text-lg">{clienteSeleccionado.nombre}</p>
+              <p className="text-sm text-muted mt-1">{clienteSeleccionado.tarifa} • {clienteSeleccionado.cups}</p>
             </div>
           )}
         </div>
@@ -261,13 +261,13 @@ export function SistemaSegumientos({
       {clienteSeleccionado && (
         <>
           {/* Agregar seguimiento */}
-          <div className="card rounded-2xl p-6 md:p-8">
-            <h3 className="mb-6 text-lg font-semibold text-foreground">Nuevo Seguimiento</h3>
+          <div className="card rounded-2xl p-6 md:p-8 bg-surface/50">
+            <h3 className="mb-6 text-lg font-bold text-foreground">📝 Nuevo Seguimiento</h3>
 
-            <form onSubmit={handleAgregarSeguimiento} className="space-y-4">
-              <div className="grid gap-4 md:grid-cols-2">
+            <form onSubmit={handleAgregarSeguimiento} className="space-y-5">
+              <div className="grid gap-5 md:grid-cols-2">
                 <div>
-                  <label className="block text-sm font-semibold text-foreground mb-2">
+                  <label className="block text-sm font-bold text-foreground mb-2 uppercase tracking-widest">
                     Estado
                   </label>
                   <select
@@ -275,17 +275,17 @@ export function SistemaSegumientos({
                     onChange={(e) =>
                       setFormSeguimiento({ ...formSeguimiento, estado: e.target.value })
                     }
-                    className="w-full rounded-lg border border-neutral-200 px-4 py-2.5 focus:border-accent focus:outline-none"
+                    className="w-full rounded-lg border border-border bg-card px-4 py-3 text-foreground font-medium focus:border-accent focus:ring-2 focus:ring-accent/30 focus:outline-none"
                   >
-                    <option>Contactado</option>
-                    <option>Interesado</option>
-                    <option>Contratado</option>
-                    <option>Cancelado</option>
+                    <option value="Contactado">🔵 Contactado</option>
+                    <option value="Interesado">🟡 Interesado</option>
+                    <option value="Contratado">🟢 Contratado</option>
+                    <option value="Cancelado">🔴 Cancelado</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-foreground mb-2">
+                  <label className="block text-sm font-bold text-foreground mb-2 uppercase tracking-widest">
                     Próximo Seguimiento
                   </label>
                   <input
@@ -297,13 +297,13 @@ export function SistemaSegumientos({
                         fecha_proximo_seguimiento: e.target.value,
                       })
                     }
-                    className="w-full rounded-lg border border-neutral-200 px-4 py-2.5 focus:border-accent focus:outline-none"
+                    className="w-full rounded-lg border border-border bg-card px-4 py-3 text-foreground font-medium focus:border-accent focus:ring-2 focus:ring-accent/30 focus:outline-none"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-foreground mb-2">
+                <label className="block text-sm font-bold text-foreground mb-2 uppercase tracking-widest">
                   Notas
                 </label>
                 <textarea
@@ -311,74 +311,83 @@ export function SistemaSegumientos({
                   onChange={(e) =>
                     setFormSeguimiento({ ...formSeguimiento, notas: e.target.value })
                   }
-                  placeholder="Agregar notas del seguimiento..."
+                  placeholder="Escribe las notas del seguimiento..."
                   rows={3}
-                  className="w-full rounded-lg border border-neutral-200 px-4 py-2.5 focus:border-accent focus:outline-none"
+                  className="w-full rounded-lg border border-border bg-card px-4 py-3 text-foreground placeholder-muted/50 font-medium focus:border-accent focus:ring-2 focus:ring-accent/30 focus:outline-none"
                 />
               </div>
 
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full rounded-lg bg-accent text-white font-semibold py-3 hover:bg-accent/90 transition"
+                className="w-full rounded-lg bg-gradient-to-r from-accent to-accent-light text-white font-bold py-3 hover:shadow-glow transition disabled:opacity-50"
               >
-                {loading ? 'Guardando...' : '+ Agregar Seguimiento'}
+                {loading ? '⏳ Guardando...' : '➕ Agregar Seguimiento'}
               </button>
             </form>
           </div>
 
           {/* Historial de seguimientos */}
-          <div className="card rounded-2xl p-6 md:p-8">
-            <h3 className="mb-4 font-semibold text-foreground">
-              Historial ({seguimientos.length})
+          <div className="card rounded-2xl p-6 md:p-8 bg-surface/50">
+            <h3 className="mb-6 font-bold text-foreground text-lg">
+              📋 Historial ({seguimientos.length})
             </h3>
 
             {seguimientos.length === 0 ? (
-              <p className="text-muted text-center py-8">Sin seguimientos aún</p>
+              <div className="text-center py-12 rounded-xl bg-card/30 border border-border">
+                <p className="text-muted">Sin seguimientos aún</p>
+                <p className="text-xs text-muted/50 mt-2">Agrega el primer seguimiento arriba</p>
+              </div>
             ) : (
               <div className="space-y-3">
                 {seguimientos.map((seg) => (
                   <div
                     key={seg.id}
-                    className="border border-neutral-200 rounded-lg p-4 hover:bg-neutral-50"
+                    className="border border-border rounded-lg p-4 bg-card/50 hover:bg-card hover:border-accent/50 transition"
                   >
-                    <div className="flex items-start justify-between mb-2">
-                      <div className="flex items-center gap-3">
-                        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex items-center gap-3 flex-wrap">
+                        <span className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-widest border ${
                           seg.estado === 'Contactado'
-                            ? 'bg-blue-100 text-blue-700'
+                            ? 'bg-blue-500/20 text-blue-300 border-blue-500/40'
                             : seg.estado === 'Interesado'
-                            ? 'bg-yellow-100 text-yellow-700'
+                            ? 'bg-yellow-500/20 text-yellow-300 border-yellow-500/40'
                             : seg.estado === 'Contratado'
-                            ? 'bg-green-100 text-green-700'
-                            : 'bg-red-100 text-red-700'
+                            ? 'bg-green-500/20 text-green-300 border-green-500/40'
+                            : 'bg-red-500/20 text-red-300 border-red-500/40'
                         }`}>
-                          {seg.estado}
+                          {seg.estado === 'Contactado' && '🔵'}
+                          {seg.estado === 'Interesado' && '🟡'}
+                          {seg.estado === 'Contratado' && '🟢'}
+                          {seg.estado === 'Cancelado' && '🔴'}
+                          {' '}{seg.estado}
                         </span>
-                        <span className="text-xs text-muted">
-                          {new Date(seg.created_at).toLocaleDateString()} {new Date(seg.created_at).toLocaleTimeString()}
+                        <span className="text-xs text-muted/70 font-medium">
+                          {new Date(seg.created_at).toLocaleDateString('es', { month: 'short', day: 'numeric' })}
                         </span>
                       </div>
                       <button
                         onClick={() => handleEliminarSeguimiento(seg.id)}
-                        className="text-xs font-semibold text-red-600 hover:underline"
+                        className="px-3 py-1 rounded-lg text-xs font-bold text-red-400 hover:bg-red-500/20 hover:text-red-300 border border-red-500/30 transition"
                       >
-                        Eliminar
+                        🗑️
                       </button>
                     </div>
 
                     {seg.notas && (
-                      <p className="text-sm text-foreground mb-2">{seg.notas}</p>
+                      <div className="p-3 rounded-lg bg-card/80 border border-border mb-3">
+                        <p className="text-sm text-foreground leading-relaxed">{seg.notas}</p>
+                      </div>
                     )}
 
                     {seg.fecha_proximo_seguimiento && (
-                      <div className="flex items-center justify-between">
-                        <p className="text-xs text-accent font-semibold">
-                          📅 {new Date(seg.fecha_proximo_seguimiento).toLocaleDateString()} {new Date(seg.fecha_proximo_seguimiento).toLocaleTimeString()}
+                      <div className="flex items-center justify-between p-3 rounded-lg bg-accent/10 border border-accent/20">
+                        <p className="text-xs text-accent font-bold uppercase tracking-widest">
+                          📅 {new Date(seg.fecha_proximo_seguimiento).toLocaleDateString('es')}
                         </p>
                         <button
                           onClick={() => handleCrearEventoGoogle(seg)}
-                          className="text-xs font-semibold text-accent hover:underline"
+                          className="px-3 py-1 rounded-lg text-xs font-bold bg-accent/20 text-accent hover:bg-accent/30 border border-accent/40 transition"
                         >
                           📆 Google Calendar
                         </button>
