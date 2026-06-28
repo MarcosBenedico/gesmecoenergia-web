@@ -58,24 +58,24 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center py-12 px-4">
-      <Container className="w-full max-w-md">
-        <div className="card glass rounded-2xl p-8 space-y-8">
+    <div className="min-h-screen w-screen flex flex-col items-center justify-center py-8 px-4 sm:py-12 sm:px-6">
+      <div className="w-full max-w-sm sm:max-w-md">
+        <div className="card glass rounded-2xl p-6 sm:p-8 space-y-6 sm:space-y-8">
           {/* Logo y título */}
-          <div className="text-center space-y-3">
-            <h1 className="text-4xl font-black bg-gradient-to-r from-accent to-secondary bg-clip-text text-transparent">
+          <div className="text-center space-y-2 sm:space-y-3">
+            <h1 className="text-3xl sm:text-4xl font-black bg-gradient-to-r from-accent to-secondary bg-clip-text text-transparent leading-tight">
               ⚡ Gesmeco
             </h1>
-            <p className="text-muted">
+            <p className="text-sm sm:text-base text-muted">
               {isLogin ? 'Inicia sesión' : 'Crea tu cuenta'}
             </p>
           </div>
 
           {/* Formulario */}
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5">
             {/* Username */}
             <div>
-              <label className="block text-sm font-semibold text-foreground mb-2">
+              <label className="block text-xs sm:text-sm font-semibold text-foreground mb-1.5 sm:mb-2">
                 Usuario
               </label>
               <input
@@ -85,14 +85,14 @@ export default function LoginPage() {
                 onChange={handleChange}
                 placeholder="tu_usuario"
                 required
-                className="w-full px-4 py-3 rounded-lg bg-surface border border-border text-foreground focus:border-accent focus:ring-2 focus:ring-accent/20"
+                className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base rounded-lg bg-surface border border-border text-foreground placeholder-muted/50 focus:border-accent focus:ring-2 focus:ring-accent/20 transition"
               />
             </div>
 
             {/* Email (solo registro) */}
             {!isLogin && (
               <div>
-                <label className="block text-sm font-semibold text-foreground mb-2">
+                <label className="block text-xs sm:text-sm font-semibold text-foreground mb-1.5 sm:mb-2">
                   Email
                 </label>
                 <input
@@ -101,7 +101,7 @@ export default function LoginPage() {
                   value={formData.email}
                   onChange={handleChange}
                   placeholder="tu@email.com"
-                  className="w-full px-4 py-3 rounded-lg bg-surface border border-border text-foreground focus:border-accent focus:ring-2 focus:ring-accent/20"
+                  className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base rounded-lg bg-surface border border-border text-foreground placeholder-muted/50 focus:border-accent focus:ring-2 focus:ring-accent/20 transition"
                 />
               </div>
             )}
@@ -109,7 +109,7 @@ export default function LoginPage() {
             {/* Nombre (solo registro) */}
             {!isLogin && (
               <div>
-                <label className="block text-sm font-semibold text-foreground mb-2">
+                <label className="block text-xs sm:text-sm font-semibold text-foreground mb-1.5 sm:mb-2">
                   Nombre
                 </label>
                 <input
@@ -118,14 +118,14 @@ export default function LoginPage() {
                   value={formData.nombre}
                   onChange={handleChange}
                   placeholder="Tu nombre"
-                  className="w-full px-4 py-3 rounded-lg bg-surface border border-border text-foreground focus:border-accent focus:ring-2 focus:ring-accent/20"
+                  className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base rounded-lg bg-surface border border-border text-foreground placeholder-muted/50 focus:border-accent focus:ring-2 focus:ring-accent/20 transition"
                 />
               </div>
             )}
 
             {/* Password */}
             <div>
-              <label className="block text-sm font-semibold text-foreground mb-2">
+              <label className="block text-xs sm:text-sm font-semibold text-foreground mb-1.5 sm:mb-2">
                 Contraseña
               </label>
               <input
@@ -135,13 +135,13 @@ export default function LoginPage() {
                 onChange={handleChange}
                 placeholder="••••••••"
                 required
-                className="w-full px-4 py-3 rounded-lg bg-surface border border-border text-foreground focus:border-accent focus:ring-2 focus:ring-accent/20"
+                className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base rounded-lg bg-surface border border-border text-foreground placeholder-muted/50 focus:border-accent focus:ring-2 focus:ring-accent/20 transition"
               />
             </div>
 
             {/* Error */}
             {error && (
-              <div className="p-3 rounded-lg bg-red-500/20 border border-red-500/40 text-red-400 text-sm">
+              <div className="p-3 rounded-lg bg-red-500/20 border border-red-500/40 text-red-400 text-xs sm:text-sm">
                 {error}
               </div>
             )}
@@ -150,7 +150,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 rounded-lg bg-gradient-to-r from-accent to-accent-light text-white font-bold hover:shadow-glow disabled:opacity-50 transition"
+              className="w-full py-2.5 sm:py-3 text-sm sm:text-base rounded-lg bg-gradient-to-r from-accent to-accent-light text-white font-bold hover:shadow-glow disabled:opacity-50 transition touch-manipulation"
             >
               {loading ? 'Cargando...' : isLogin ? 'Iniciar sesión' : 'Crear cuenta'}
             </button>
@@ -158,7 +158,7 @@ export default function LoginPage() {
 
           {/* Toggle Login/Registro */}
           <div className="text-center">
-            <p className="text-muted text-sm">
+            <p className="text-xs sm:text-sm text-muted">
               {isLogin ? '¿No tienes cuenta?' : '¿Ya tienes cuenta?'}{' '}
               <button
                 onClick={() => {
@@ -174,13 +174,13 @@ export default function LoginPage() {
           </div>
 
           {/* Info colaborativa */}
-          <div className="p-4 rounded-lg bg-secondary/10 border border-secondary/30">
-            <p className="text-xs text-muted text-center">
+          <div className="p-3 sm:p-4 rounded-lg bg-secondary/10 border border-secondary/30">
+            <p className="text-xs text-muted text-center leading-relaxed">
               💡 <strong>Modo colaborativo:</strong> Todos ven la misma información
             </p>
           </div>
         </div>
-      </Container>
+      </div>
     </div>
   );
 }
