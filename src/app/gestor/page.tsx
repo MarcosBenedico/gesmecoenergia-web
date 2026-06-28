@@ -340,7 +340,7 @@ export default function GestorPage() {
 
                 {/* Precios de potencia */}
                 <div>
-                  <h3 className="mb-4 font-semibold text-foreground">Precios de Potencia (€/kW/mes)</h3>
+                  <h3 className="mb-4 font-semibold text-foreground">Precios de Potencia (€/kW/día)</h3>
                   <div className="grid gap-4 md:grid-cols-3">
                     {Array.from({ length: potenciasForm }).map((_, idx) => (
                       <div key={`potencia-${idx}`}>
@@ -394,7 +394,7 @@ function ViewTarifaDisplay({ precio }: { precio: Precio }) {
         </div>
       </div>
       <div>
-        <h4 className="mb-3 font-semibold text-foreground text-sm">Precios de Potencia (€/kW/mes)</h4>
+        <h4 className="mb-3 font-semibold text-foreground text-sm">Precios de Potencia (€/kW/día)</h4>
         <div className="space-y-2">
           {precio.precios_potencia.map((p, idx) => (
             <div key={idx} className="flex justify-between text-sm">

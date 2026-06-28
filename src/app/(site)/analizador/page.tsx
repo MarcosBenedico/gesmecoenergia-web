@@ -126,7 +126,7 @@ export default function AnalizadorPage() {
         potencia: idx + 1,
         cantidad: potencia,
         precio: formData.preciosPotencia[idx],
-        total: potencia * formData.preciosPotencia[idx] * 12,
+        total: potencia * formData.preciosPotencia[idx] * 365,
       }));
 
       const costoUserPotencia = costesUserPotenciaDetalle.reduce((sum, d) => sum + d.total, 0);
@@ -164,7 +164,7 @@ export default function AnalizadorPage() {
             potencia: idx + 1,
             cantidad: potencia,
             precio,
-            total: potencia * precio * 12,
+            total: potencia * precio * 365,
           };
         });
 
@@ -318,7 +318,7 @@ export default function AnalizadorPage() {
 
                 <div>
                   <h3 className="mb-3 text-base font-semibold text-foreground md:mb-4 md:text-lg">
-                    Potencia (kW y €/kW/mes)
+                    Potencia (kW y €/kW/día)
                   </h3>
                   <div className="grid gap-3 md:grid-cols-2 md:gap-4">
                     {Array.from({ length: potencias }).map((_, idx) => (
@@ -340,7 +340,7 @@ export default function AnalizadorPage() {
                           name={`precioPotencia${idx + 1}`}
                           value={formData.preciosPotencia[idx]}
                           onChange={handleInputChange}
-                          placeholder="€/mes"
+                          placeholder="€/día"
                           step="0.001"
                           className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm placeholder-muted focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30 md:py-2.5"
                         />
@@ -419,7 +419,7 @@ export default function AnalizadorPage() {
                           <tr className="border-b border-neutral-200">
                             <th className="px-3 py-2 text-left font-semibold">Potencia</th>
                             <th className="px-3 py-2 text-right font-semibold">kW</th>
-                            <th className="px-3 py-2 text-right font-semibold">Precio (€/kW/mes)</th>
+                            <th className="px-3 py-2 text-right font-semibold">Precio (€/kW/día)</th>
                             <th className="px-3 py-2 text-right font-semibold">Total anual</th>
                           </tr>
                         </thead>
