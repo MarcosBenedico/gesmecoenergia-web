@@ -4,11 +4,14 @@ import { useState } from 'react';
 import { Button } from '@/components/button';
 import { Container } from '@/components/container';
 import { SectionHeading } from '@/components/section-heading';
+import { guardarAnalisis } from '@/lib/supabase';
 
 type TarifaType = '2.0' | '3.0' | '6.1';
 
 interface FormDataTarifa20 {
   tarifa: '2.0';
+  nombre: string;
+  telefono: string;
   consumoP1: string;
   consumoP2: string;
   consumoP3: string;
@@ -23,6 +26,8 @@ interface FormDataTarifa20 {
 
 interface FormDataTarifa30o61 {
   tarifa: '3.0' | '6.1';
+  nombre: string;
+  telefono: string;
   consumoP1: string;
   consumoP2: string;
   consumoP3: string;
@@ -56,6 +61,7 @@ export default function AnalizadorPage() {
   const [selectedTarifa, setSelectedTarifa] = useState<TarifaType | null>(null);
   const [formData, setFormData] = useState<FormData | null>(null);
   const [results, setResults] = useState<any>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   const handleSelectTarifa = (tarifa: TarifaType) => {
     setSelectedTarifa(tarifa);
@@ -63,6 +69,8 @@ export default function AnalizadorPage() {
     if (tarifa === '2.0') {
       setFormData({
         tarifa: '2.0',
+        nombre: '',
+        telefono: '',
         consumoP1: '', consumoP2: '', consumoP3: '',
         precioP1: '', precioP2: '', precioP3: '',
         potencia1: '', precioPotencia1: '',
@@ -71,6 +79,8 @@ export default function AnalizadorPage() {
     } else {
       setFormData({
         tarifa: tarifa,
+        nombre: '',
+        telefono: '',
         consumoP1: '', consumoP2: '', consumoP3: '', consumoP4: '', consumoP5: '', consumoP6: '',
         precioP1: '', precioP2: '', precioP3: '', precioP4: '', precioP5: '', precioP6: '',
         potencia1: '', precioPotencia1: '',
@@ -90,9 +100,15 @@ export default function AnalizadorPage() {
     setFormData((prev) => prev ? { ...prev, [name]: value } : null);
   };
 
-  const calculateSavings = (e: React.FormEvent) => {
+  const calculateSavings = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData) return;
+
+    const nombre = (formData as any).nombre?.trim();
+    if (!nombre) {
+      alert('Por favor ingresa tu nombre');
+      return;
+    }
 
     let costeEnergiaAnual = 0;
     let costePotenciaAnual = 0;
@@ -181,7 +197,7 @@ export default function AnalizadorPage() {
 
     const ahorroTotal = ahorroReducirPotencia + ahorroSolarConsumo + ahorroEficiencia + ahorroAlmacenamiento;
 
-    setResults({
+    const resultados = {
       costeActual: costeTotal,
       costePotencia: costePotenciaAnual,
       costeEnergia: costeEnergiaAnual,
@@ -194,7 +210,29 @@ export default function AnalizadorPage() {
       },
       reduccionPorcentaje: costeTotal > 0 ? ((ahorroTotal / costeTotal) * 100).toFixed(1) : '0',
       consumoAnual: consumoTotalAnual,
-    });
+    };
+
+    setResults(resultados);
+
+    // Guardar en Supabase
+    setIsSaving(true);
+    try {
+      await guardarAnalisis({
+        nombre: nombre,
+        telefono: (formData as any).telefono || undefined,
+        tarifa: formData.tarifa,
+        costeActual: resultados.costeActual,
+        costePotencia: resultados.costePotencia,
+        costeEnergia: resultados.costeEnergia,
+        ahorroTotal: resultados.ahorros.total,
+        reduccionPorcentaje: resultados.reduccionPorcentaje,
+        consumoAnual: resultados.consumoAnual,
+        datos: formData,
+      });
+    } catch (error) {
+      console.error('Error al guardar:', error);
+    }
+    setIsSaving(false);
 
     setCurrentStep('results');
   };
@@ -260,6 +298,42 @@ export default function AnalizadorPage() {
           <Container className="max-w-3xl">
             <div className="card rounded-3xl p-6 md:p-10">
               <form onSubmit={calculateSavings} className="space-y-8">
+                {/* Sección de Datos Personales */}
+                <div>
+                  <h3 className="mb-4 text-lg font-semibold text-foreground">
+                    Tus datos
+                  </h3>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <label className="block text-sm font-semibold text-foreground">
+                        Nombre *
+                      </label>
+                      <input
+                        type="text"
+                        name="nombre"
+                        value={(formData as any).nombre}
+                        onChange={handleInputChange}
+                        placeholder="Tu nombre completo"
+                        required
+                        className="w-full rounded-lg border border-neutral-200 px-4 py-2 placeholder-muted focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="block text-sm font-semibold text-foreground">
+                        Teléfono (opcional)
+                      </label>
+                      <input
+                        type="tel"
+                        name="telefono"
+                        value={(formData as any).telefono}
+                        onChange={handleInputChange}
+                        placeholder="Tu número de teléfono"
+                        className="w-full rounded-lg border border-neutral-200 px-4 py-2 placeholder-muted focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+                      />
+                    </div>
+                  </div>
+                </div>
+
                 {/* Sección de Energía */}
                 <div>
                   <h3 className="mb-4 text-lg font-semibold text-foreground">
