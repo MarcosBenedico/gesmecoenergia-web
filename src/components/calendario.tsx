@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { verificarGoogleConectado } from '@/lib/google-state';
 
 interface CalendarEvent {
   id: string;
@@ -22,22 +21,49 @@ export function Calendario() {
   const [googleConectado, setGoogleConectado] = useState(false);
   const [error, setError] = useState('');
 
-  // Cargar eventos cuando el componente se monta o cambia la fecha
+  // Verificar Google directamente desde Supabase
+  const verificarGoogleDirecto = async () => {
+    try {
+      console.log('🔍 Verificando Google en Supabase...');
+      const { data, error } = await supabase
+        .from('google_config')
+        .select('access_token, email')
+        .eq('id', 1)
+        .single();
+
+      if (error) {
+        console.log('❌ Error en lectura:', error.message);
+        setGoogleConectado(false);
+        return false;
+      }
+
+      if (data?.access_token && data?.email) {
+        console.log('✅ Google conectado:', data.email);
+        setGoogleConectado(true);
+        return true;
+      }
+
+      console.log('⚠️ Sin datos de Google');
+      setGoogleConectado(false);
+      return false;
+    } catch (err) {
+      console.error('💥 Error al verificar:', err);
+      setGoogleConectado(false);
+      return false;
+    }
+  };
+
+  // Cargar eventos cuando el componente se monta
   useEffect(() => {
     console.log('📅 Calendario: Inicializando...');
 
-    // Verificación inicial
-    verificarGoogleConectado().then((result) => {
-      console.log('📅 Estado Google:', result);
-      setGoogleConectado(result.conectado);
-    });
+    // Verificación inicial inmediata
+    verificarGoogleDirecto();
 
-    // Verificar cada 1 segundo (para actualizar rápidamente)
+    // Verificar cada 500ms (muy frecuente para detectar cambios rápido)
     const interval = setInterval(() => {
-      verificarGoogleConectado().then((result) => {
-        setGoogleConectado(result.conectado);
-      });
-    }, 1000);
+      verificarGoogleDirecto();
+    }, 500);
 
     // Limpiar parámetros de la URL
     const params = new URLSearchParams(window.location.search);
@@ -339,9 +365,8 @@ export function Calendario() {
           </button>
           <button
             onClick={() => {
-              verificarGoogleConectado().then((result) => {
-                setGoogleConectado(result.conectado);
-                if (result.conectado) {
+              verificarGoogleDirecto().then((conectado) => {
+                if (conectado) {
                   cargarEventos();
                 }
               });
