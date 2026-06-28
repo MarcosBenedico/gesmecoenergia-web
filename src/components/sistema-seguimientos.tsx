@@ -68,26 +68,32 @@ export function SistemaSegumientos({
 
   // Verificar si está conectado a Google
   useEffect(() => {
-    console.log('📍 [SEGUIMIENTOS] Inicializando...');
+    console.log('[SEGUIMIENTOS] Inicializando...');
+    setGoogleConnected(false); // Iniciar como desconectado
 
     // Verificación inicial
-    verificarGoogleDirecto();
+    const checkConnection = async () => {
+      const connected = await verificarGoogleDirecto();
+      console.log('[SEGUIMIENTOS] Resultado verificación:', connected);
+    };
 
-    // Verificar cada 500ms
+    checkConnection();
+
+    // Verificar cada 1 segundo (no 500ms, para no saturar)
     const interval = setInterval(() => {
       verificarGoogleDirecto();
-    }, 500);
+    }, 1000);
 
     // Limpiar parámetros de la URL
     const params = new URLSearchParams(window.location.search);
     if (params.get('google_connected') === 'true') {
-      console.log('🧹 Limpiando parámetro google_connected de la URL');
+      console.log('Limpiando parámetro google_connected de la URL');
       window.history.replaceState({}, '', window.location.pathname + '?seccion=seguimientos');
     }
 
     return () => {
       clearInterval(interval);
-      console.log('🧹 [SEGUIMIENTOS] Limpiando intervalos');
+      console.log('[SEGUIMIENTOS] Limpiando intervalos');
     };
   }, []);
 
