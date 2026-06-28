@@ -370,77 +370,31 @@ export function Calendario() {
   };
 
   return (
-    <div className="space-y-6">
-      {/* Estado de conexión */}
-      {!googleConectado && (
-        <div className="rounded-lg p-4 bg-red-500/10 border border-red-500/30">
-          <p className="text-sm text-red-400">
-            Google Calendar no está conectado. Conecta en la sección de Seguimientos.
-          </p>
+    <div className="h-screen flex flex-col bg-background overflow-hidden">
+      {/* Header */}
+      <div className="bg-surface/80 backdrop-blur-xl border-b border-border px-6 py-4 flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-black text-foreground">📅 Calendario</h1>
+          <p className="text-sm text-muted mt-1">Actividad de tu equipo en tiempo real</p>
         </div>
-      )}
+        {googleConectado && (
+          <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-secondary/10 border border-secondary/30">
+            <span className="w-2 h-2 bg-secondary rounded-full animate-pulse"></span>
+            <span className="text-sm font-semibold text-secondary">Conectado</span>
+          </div>
+        )}
+      </div>
 
-      {googleConectado && (
-        <div className="rounded-lg p-4 bg-secondary/10 border border-secondary/30">
-          <p className="text-sm text-secondary">✓ Google Calendar conectado - Mostrando tus eventos</p>
-        </div>
-      )}
-
-      {/* Selector de calendarios */}
-      {googleConectado && calendars.length > 0 && (
-        <div className="bg-surface/50 rounded-xl p-4 border border-border">
-          <button
-            onClick={() => setShowCalendarSelector(!showCalendarSelector)}
-            className="w-full flex items-center justify-between text-foreground font-bold mb-3"
-          >
-            <span>📅 Calendarios ({calendars.filter((c) => c.selected).length}/{calendars.length})</span>
-            <span className={`transition transform ${showCalendarSelector ? 'rotate-180' : ''}`}>▼</span>
-          </button>
-
-          {showCalendarSelector && (
-            <div className="space-y-2 pt-3 border-t border-border">
-              {calendars.map((calendar) => (
-                <label
-                  key={calendar.id}
-                  className="flex items-center gap-3 p-3 rounded-lg hover:bg-card/50 cursor-pointer transition border border-transparent hover:border-border"
-                >
-                  <input
-                    type="checkbox"
-                    checked={calendar.selected}
-                    onChange={(e) => {
-                      setCalendars(
-                        calendars.map((c) =>
-                          c.id === calendar.id ? { ...c, selected: e.target.checked } : c
-                        )
-                      );
-                    }}
-                    className="w-4 h-4 accent-accent"
-                  />
-                  <div className={`w-3 h-3 rounded-full ${calendar.color.replace('text-', 'bg-')}`}></div>
-                  <div className="flex-1">
-                    <div className="text-sm font-semibold text-foreground">{calendar.summary}</div>
-                    <div className="text-xs text-muted">{calendar.email}</div>
-                  </div>
-                  {calendar.selected && (
-                    <span className="text-xs font-bold text-accent">✓</span>
-                  )}
-                </label>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Controles */}
-      <div className="space-y-4">
-        {/* Selectores de vista */}
-        <div className="flex gap-2 flex-wrap">
+      {/* Controles principales */}
+      <div className="bg-surface/50 border-b border-border px-6 py-4 space-y-3">
+        {/* Selector de vista */}
+        <div className="flex gap-2">
           <button
             onClick={() => setView('mes')}
             disabled={!googleConectado}
-            className={`px-5 py-2.5 rounded-lg font-bold transition ${
+            className={`px-6 py-2.5 rounded-lg font-bold transition text-sm ${
               view === 'mes'
-                ? 'bg-accent text-white shadow-glow'
+                ? 'bg-accent text-white shadow-glow scale-105'
                 : 'bg-card/80 text-foreground border border-border/50 hover:bg-card/95'
             } ${!googleConectado ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
@@ -449,9 +403,9 @@ export function Calendario() {
           <button
             onClick={() => setView('semana')}
             disabled={!googleConectado}
-            className={`px-5 py-2.5 rounded-lg font-bold transition ${
+            className={`px-6 py-2.5 rounded-lg font-bold transition text-sm ${
               view === 'semana'
-                ? 'bg-accent text-white shadow-glow'
+                ? 'bg-accent text-white shadow-glow scale-105'
                 : 'bg-card/80 text-foreground border border-border/50 hover:bg-card/95'
             } ${!googleConectado ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
@@ -460,127 +414,178 @@ export function Calendario() {
           <button
             onClick={() => setView('dia')}
             disabled={!googleConectado}
-            className={`px-5 py-2.5 rounded-lg font-bold transition ${
+            className={`px-6 py-2.5 rounded-lg font-bold transition text-sm ${
               view === 'dia'
-                ? 'bg-accent text-white shadow-glow'
+                ? 'bg-accent text-white shadow-glow scale-105'
                 : 'bg-card/80 text-foreground border border-border/50 hover:bg-card/95'
             } ${!googleConectado ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
             📄 Día
           </button>
+
+          {/* Selector de calendarios */}
+          {googleConectado && calendars.length > 0 && (
+            <div className="ml-auto">
+              <button
+                onClick={() => setShowCalendarSelector(!showCalendarSelector)}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-card/80 text-foreground border border-border/50 hover:bg-card transition font-semibold text-sm"
+              >
+                <span>📋 Calendarios ({calendars.filter((c) => c.selected).length})</span>
+                <span className={`transition transform ${showCalendarSelector ? 'rotate-180' : ''}`}>▼</span>
+              </button>
+            </div>
+          )}
         </div>
 
-        {/* Navegación y fecha */}
-        <div className="flex gap-3 items-center justify-between bg-surface/50 rounded-xl p-4 border border-border">
-          {/* Botones de navegación */}
-          <div className="flex gap-2 items-center">
-            <button
-              onClick={() => {
-                if (view === 'mes') {
-                  setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1));
-                } else if (view === 'semana') {
-                  const newDate = new Date(currentDate);
-                  newDate.setDate(newDate.getDate() - 7);
-                  setCurrentDate(newDate);
-                } else {
-                  const newDate = new Date(currentDate);
-                  newDate.setDate(newDate.getDate() - 1);
-                  setCurrentDate(newDate);
-                }
-              }}
-              className="px-4 py-2 rounded-lg bg-card/80 text-foreground border border-border/50 hover:bg-card transition font-semibold"
-            >
-              ← Atrás
-            </button>
+        {/* Selector expandible */}
+        {showCalendarSelector && googleConectado && calendars.length > 0 && (
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 pt-3 border-t border-border">
+            {calendars.map((calendar) => (
+              <label
+                key={calendar.id}
+                className="flex items-center gap-2 p-2.5 rounded-lg bg-card/80 border border-border/50 hover:border-accent/50 hover:bg-card cursor-pointer transition group"
+              >
+                <input
+                  type="checkbox"
+                  checked={calendar.selected}
+                  onChange={(e) => {
+                    setCalendars(
+                      calendars.map((c) =>
+                        c.id === calendar.id ? { ...c, selected: e.target.checked } : c
+                      )
+                    );
+                  }}
+                  className="w-4 h-4 accent-accent"
+                />
+                <div className={`w-2.5 h-2.5 rounded-full ${calendar.color.replace('text-', 'bg-')} group-hover:scale-125 transition`}></div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs font-semibold text-foreground truncate">{calendar.summary}</div>
+                </div>
+              </label>
+            ))}
+          </div>
+        )}
 
-            <button
-              onClick={() => {
-                if (view === 'mes') {
-                  setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1));
-                } else if (view === 'semana') {
-                  const newDate = new Date(currentDate);
-                  newDate.setDate(newDate.getDate() + 7);
-                  setCurrentDate(newDate);
-                } else {
-                  const newDate = new Date(currentDate);
-                  newDate.setDate(newDate.getDate() + 1);
-                  setCurrentDate(newDate);
-                }
-              }}
-              className="px-4 py-2 rounded-lg bg-card/80 text-foreground border border-border/50 hover:bg-card transition font-semibold"
-            >
-              Adelante →
-            </button>
+        {/* Navegación de fechas */}
+        <div className="flex items-center gap-3 bg-gradient-to-r from-card/50 to-card/30 rounded-xl p-3 border border-border/50">
+          <button
+            onClick={() => {
+              if (view === 'mes') {
+                setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1));
+              } else if (view === 'semana') {
+                const newDate = new Date(currentDate);
+                newDate.setDate(newDate.getDate() - 7);
+                setCurrentDate(newDate);
+              } else {
+                const newDate = new Date(currentDate);
+                newDate.setDate(newDate.getDate() - 1);
+                setCurrentDate(newDate);
+              }
+            }}
+            className="px-4 py-2 rounded-lg bg-card/80 text-foreground border border-border/50 hover:bg-card transition font-bold text-sm hover:scale-105"
+          >
+            ◀ Atrás
+          </button>
+
+          <div className="flex-1 text-center">
+            <p className="text-foreground font-black text-xl tracking-wide">
+              {view === 'mes' && (
+                <span>{currentDate.toLocaleDateString('es', { month: 'long', year: 'numeric' }).toUpperCase()}</span>
+              )}
+              {view === 'semana' && (() => {
+                const start = new Date(currentDate);
+                start.setDate(start.getDate() - start.getDay());
+                const end = new Date(start);
+                end.setDate(end.getDate() + 6);
+                return (
+                  <span>
+                    {start.getDate()} - {end.getDate()} {end.toLocaleDateString('es', { month: 'short', year: 'numeric' }).toUpperCase()}
+                  </span>
+                );
+              })()}
+              {view === 'dia' && (
+                <span>{currentDate.toLocaleDateString('es', { weekday: 'long', day: 'numeric', month: 'long' }).toUpperCase()}</span>
+              )}
+            </p>
           </div>
 
-          {/* Fecha actual en la vista */}
-          <span className="text-foreground font-bold text-lg min-w-56 text-center">
-            {view === 'mes' && (
-              <span>{currentDate.toLocaleDateString('es', { month: 'long', year: 'numeric' }).toUpperCase()}</span>
-            )}
-            {view === 'semana' && (() => {
-              const start = new Date(currentDate);
-              start.setDate(start.getDate() - start.getDay());
-              const end = new Date(start);
-              end.setDate(end.getDate() + 6);
-              return (
-                <span>
-                  {start.getDate()} - {end.getDate()} {end.toLocaleDateString('es', { month: 'short', year: 'numeric' })}
-                </span>
-              );
-            })()}
-            {view === 'dia' && (
-              <span>{currentDate.toLocaleDateString('es', { weekday: 'long', day: 'numeric', month: 'long' }).toUpperCase()}</span>
-            )}
-          </span>
+          <button
+            onClick={() => {
+              if (view === 'mes') {
+                setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1));
+              } else if (view === 'semana') {
+                const newDate = new Date(currentDate);
+                newDate.setDate(newDate.getDate() + 7);
+                setCurrentDate(newDate);
+              } else {
+                const newDate = new Date(currentDate);
+                newDate.setDate(newDate.getDate() + 1);
+                setCurrentDate(newDate);
+              }
+            }}
+            className="px-4 py-2 rounded-lg bg-card/80 text-foreground border border-border/50 hover:bg-card transition font-bold text-sm hover:scale-105"
+          >
+            Adelante ▶
+          </button>
 
-          {/* Botones de acción */}
-          <div className="flex gap-2">
-            <button
-              onClick={() => setCurrentDate(new Date())}
-              className="px-5 py-2 rounded-lg bg-secondary text-white font-bold hover:bg-secondary/90 transition"
-            >
-              🎯 Hoy
-            </button>
-            <button
-              onClick={() => cargarEventos()}
-              disabled={loading}
-              className="px-5 py-2 rounded-lg bg-accent text-white font-bold hover:bg-accent/90 transition disabled:opacity-50"
-            >
-              {loading ? '⟳ Cargando...' : '↻ Refrescar'}
-            </button>
-          </div>
+          <button
+            onClick={() => setCurrentDate(new Date())}
+            className="px-5 py-2 rounded-lg bg-secondary text-white font-bold hover:bg-secondary/90 hover:scale-105 transition text-sm"
+          >
+            🎯 Hoy
+          </button>
+          <button
+            onClick={() => cargarEventos()}
+            disabled={loading}
+            className="px-5 py-2 rounded-lg bg-accent text-white font-bold hover:bg-accent/90 hover:scale-105 transition disabled:opacity-50 text-sm"
+          >
+            {loading ? '⟳' : '↻'}
+          </button>
         </div>
       </div>
 
-      {/* Calendario */}
-      <div className="bg-surface/50 rounded-2xl p-6">
+      {/* Calendario - Contenedor principal */}
+      <div className="flex-1 overflow-auto px-6 py-6">
         {!googleConectado ? (
-          <div className="text-center py-12">
-            <p className="text-muted text-lg">Conecta tu Google Calendar para ver tus eventos</p>
-            <p className="text-muted text-sm mt-2">
-              Ve a la sección "Seguimientos" y haz clic en "Conectar Google Calendar"
-            </p>
+          <div className="h-full flex flex-col items-center justify-center">
+            <div className="text-center space-y-4">
+              <div className="text-6xl">📅</div>
+              <p className="text-muted text-xl">Conecta tu Google Calendar para ver tus eventos</p>
+              <p className="text-muted text-sm">Ve a "Seguimientos" y autoriza el acceso</p>
+            </div>
           </div>
         ) : loading ? (
-          <div className="text-center py-12 text-muted">Cargando eventos...</div>
+          <div className="h-full flex items-center justify-center">
+            <div className="text-center space-y-3">
+              <div className="inline-block animate-spin text-4xl">⟳</div>
+              <p className="text-muted">Cargando eventos...</p>
+            </div>
+          </div>
         ) : calendars.filter((c) => c.selected).length === 0 ? (
-          <div className="text-center py-12">
-            <p className="text-muted">Selecciona al menos un calendario para ver eventos</p>
+          <div className="h-full flex items-center justify-center">
+            <p className="text-muted text-lg">Selecciona al menos un calendario</p>
           </div>
         ) : view === 'mes' ? (
-          <div className="grid grid-cols-7 gap-2">
-            {['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'].map((day) => (
-              <div key={day} className="text-center font-semibold text-muted text-sm py-2">
-                {day}
+          <div className="bg-surface/50 rounded-2xl p-6 border border-border h-full overflow-hidden flex flex-col">
+            <div className="grid grid-cols-7 gap-3 flex-1 overflow-hidden">
+              {['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'].map((day) => (
+                <div key={day} className="text-center font-bold text-accent text-sm py-2">
+                  {day}
+                </div>
+              ))}
+              <div className="grid grid-cols-7 gap-3 col-span-7 overflow-y-auto">
+                {renderMonth()}
               </div>
-            ))}
-            {renderMonth()}
+            </div>
           </div>
         ) : view === 'semana' ? (
-          renderWeek()
+          <div className="bg-surface/50 rounded-2xl p-6 border border-border h-full overflow-hidden">
+            {renderWeek()}
+          </div>
         ) : (
-          renderDay()
+          <div className="bg-surface/50 rounded-2xl p-6 border border-border h-full overflow-auto">
+            {renderDay()}
+          </div>
         )}
       </div>
     </div>
