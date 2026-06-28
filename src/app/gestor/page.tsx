@@ -602,6 +602,32 @@ function ComparativaSimulador({ clientes, comercializadoras }: ComparativaProps)
   });
 
   // Detectar tarifa automáticamente cuando se selecciona cliente
+  const cargarPreciosComercializadora = (comercioId: number, tarifaSeleccionada: '2.0' | '3.0' | '6.1') => {
+    const precioComercio = precios.find(
+      (p) => p.comercializadora_id === comercioId && p.tarifa === tarifaSeleccionada
+    );
+
+    if (precioComercio) {
+      setPreciosCustom({
+        energia: precioComercio.precios_energia || [0.15, 0.16, 0.14],
+        potencia: precioComercio.precios_potencia || [0.45, 0.35],
+      });
+    } else {
+      // Precios por defecto si no hay
+      if (tarifaSeleccionada === '2.0') {
+        setPreciosCustom({
+          energia: [0.15, 0.16, 0.14],
+          potencia: [0.45, 0.35],
+        });
+      } else {
+        setPreciosCustom({
+          energia: [0.15, 0.16, 0.14, 0.13, 0.12, 0.11],
+          potencia: [0.45, 0.42, 0.40, 0.38, 0.35, 0.33],
+        });
+      }
+    }
+  };
+
   const handleSelectCliente = (cliente: any) => {
     setClienteSeleccionado(cliente);
     const tarifaCliente = cliente.tarifa as '2.0' | '3.0' | '6.1';
@@ -611,19 +637,14 @@ function ComparativaSimulador({ clientes, comercializadoras }: ComparativaProps)
     if (tarifaCliente === '2.0') {
       setConsumoEnergia([1000, 1200, 800]);
       setConsumoPotencia([5, 3]);
-      setPreciosCustom({
-        energia: [0.15, 0.16, 0.14],
-        potencia: [0.45, 0.35],
-      });
     } else {
       // 3.0 o 6.1
       setConsumoEnergia([1000, 1200, 800, 900, 1100, 950]);
       setConsumoPotencia([5, 4.5, 4, 3.5, 3, 2.5]);
-      setPreciosCustom({
-        energia: [0.15, 0.16, 0.14, 0.13, 0.12, 0.11],
-        potencia: [0.45, 0.42, 0.40, 0.38, 0.35, 0.33],
-      });
     }
+
+    // Cargar precios de la comercializadora
+    cargarPreciosComercializadora(comercializadora, tarifaCliente);
   };
 
   const preciosAUsar = clienteSeleccionado
@@ -719,13 +740,47 @@ function ComparativaSimulador({ clientes, comercializadoras }: ComparativaProps)
             </select>
           </div>
 
+          {!clienteSeleccionado && (
+            <div>
+              <label className="block text-sm font-bold text-foreground mb-2 uppercase tracking-widest">
+                Tarifa
+              </label>
+              <select
+                value={tarifa}
+                onChange={(e) => {
+                  const tarifaNew = e.target.value as '2.0' | '3.0' | '6.1';
+                  setTarifa(tarifaNew);
+
+                  if (tarifaNew === '2.0') {
+                    setConsumoEnergia([1000, 1200, 800]);
+                    setConsumoPotencia([5, 3]);
+                  } else {
+                    setConsumoEnergia([1000, 1200, 800, 900, 1100, 950]);
+                    setConsumoPotencia([5, 4.5, 4, 3.5, 3, 2.5]);
+                  }
+
+                  cargarPreciosComercializadora(comercializadora, tarifaNew);
+                }}
+                className="w-full rounded-lg border border-border bg-card px-4 py-3 text-foreground font-medium focus:border-accent focus:ring-2 focus:ring-accent/30 focus:outline-none"
+              >
+                <option value="2.0">Tarifa 2.0</option>
+                <option value="3.0">Tarifa 3.0</option>
+                <option value="6.1">Tarifa 6.1</option>
+              </select>
+            </div>
+          )}
+
           <div>
             <label className="block text-sm font-bold text-foreground mb-2 uppercase tracking-widest">
               Comercializadora
             </label>
             <select
               value={comercializadora}
-              onChange={(e) => setComercializadora(parseInt(e.target.value))}
+              onChange={(e) => {
+                const comercioId = parseInt(e.target.value);
+                setComercializadora(comercioId);
+                cargarPreciosComercializadora(comercioId, tarifa);
+              }}
               className="w-full rounded-lg border border-border bg-card px-4 py-3 text-foreground font-medium focus:border-accent focus:ring-2 focus:ring-accent/30 focus:outline-none"
             >
               {comercializadoras.map((com) => (
