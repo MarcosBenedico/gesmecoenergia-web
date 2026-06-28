@@ -563,7 +563,9 @@ function ComparativaSimulador({
   const costeComercioTotal = costeComercioEnergia + costeComercioPotencia;
 
   const ahorroTotal = costeClienteTotal - costeComercioTotal;
-  const ahorroPorc = (ahorroTotal / costeClienteTotal) * 100;
+  const ahorroPorc = costeClienteTotal > 0 ? (ahorroTotal / costeClienteTotal) * 100 : 0;
+
+  const hayPreciosIngresados = preciosClienteActual.energia.some(p => p > 0);
 
   return (
     <div className="space-y-6">
@@ -619,7 +621,13 @@ function ComparativaSimulador({
 
       {/* Datos del cliente */}
       <div className="card rounded-2xl p-6 md:p-8">
-        <h3 className="mb-6 text-lg font-semibold text-foreground">Tarifa Actual del Cliente</h3>
+        <h3 className="mb-6 text-lg font-semibold text-foreground">Tarifa Actual del Cliente (Obligatorio)</h3>
+
+        {!hayPreciosIngresados && (
+          <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <p className="text-sm text-yellow-700 font-semibold">⚠️ Ingresa los precios del cliente para calcular</p>
+          </div>
+        )}
 
         <div className="space-y-6">
           {/* Energía */}
@@ -703,6 +711,13 @@ function ComparativaSimulador({
         </div>
       </div>
 
+      {/* Resultado */}
+      {!hayPreciosIngresados ? (
+        <div className="card rounded-2xl p-8 text-center bg-neutral-50">
+          <p className="text-muted text-lg">Ingresa precios en la sección "Tarifa Actual del Cliente" para ver la comparativa</p>
+        </div>
+      ) : (
+        <>
       {/* Comparativa */}
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Cliente actual */}
@@ -752,6 +767,8 @@ function ComparativaSimulador({
         <p className="text-5xl font-bold text-accent mb-2">€{ahorroTotal.toFixed(2)}</p>
         <p className="text-lg text-accent font-semibold">{ahorroPorc.toFixed(1)}% de reducción</p>
       </div>
+        </>
+      )}
     </div>
   );
 }

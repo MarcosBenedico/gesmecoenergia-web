@@ -5,8 +5,15 @@ export async function GET(request: NextRequest) {
   const redirectUri = process.env.GOOGLE_REDIRECT_URI || 'http://localhost:3000/api/google/callback';
   const scope = 'https://www.googleapis.com/auth/calendar';
 
+  if (!clientId) {
+    return NextResponse.json(
+      { error: 'GOOGLE_CLIENT_ID not configured' },
+      { status: 500 }
+    );
+  }
+
   const params = new URLSearchParams({
-    client_id: clientId || '',
+    client_id: clientId,
     redirect_uri: redirectUri,
     response_type: 'code',
     scope: scope,

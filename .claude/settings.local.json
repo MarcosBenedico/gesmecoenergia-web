@@ -27,7 +27,9 @@
       "Bash(grep -n \"^function\\\\|^}$\")",
       "Bash(git checkout *)",
       "Bash(git commit -m 'Feat: Add follow-up system with Google Calendar integration *)",
-      "Bash(git commit -m 'Feat: Complete Google Calendar OAuth integration for auto-event creation *)"
+      "Bash(git commit -m 'Feat: Complete Google Calendar OAuth integration for auto-event creation *)",
+      "Bash(git commit -m 'Fix: Google OAuth and Comparativa simulator bugs *)",
+      "Bash(git reset *)"
     ]
   }
 }
