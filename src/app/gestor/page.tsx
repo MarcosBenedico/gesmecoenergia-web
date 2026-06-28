@@ -1083,6 +1083,84 @@ function GestionarClientes({
   const periodos = formCliente.tarifa === '2.0' ? 3 : 6;
   const potencias = formCliente.tarifa === '2.0' ? 2 : 6;
 
+  const handleCargarExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setLoading(true);
+    try {
+      const text = await file.text();
+      const lines = text.split('\n').filter((line: string) => line.trim());
+
+      const clientesNuevos = lines.map((line: string) => {
+        const partes = line.split(',').map((v: string) => v.trim().replace(/"/g, ''));
+        const nombre = partes[0];
+        const cups = partes[1];
+        let tarifa = partes[2];
+
+        // Detectar tarifa automáticamente según el número de precios
+        const preciosCount = partes.length - 3;
+        if (preciosCount === 5) tarifa = '2.0'; // 3 energía + 2 potencia
+        else if (preciosCount === 12) tarifa = '6.1'; // 6 energía + 6 potencia
+        else if (preciosCount === 12) tarifa = '3.0'; // 6 energía + 6 potencia
+
+        let precios_energia: number[] = [];
+        let precios_potencia: number[] = [];
+
+        if (tarifa === '2.0') {
+          // 3 energía + 2 potencia
+          precios_energia = [
+            parseFloat(partes[3].replace(',', '.')) || 0,
+            parseFloat(partes[4].replace(',', '.')) || 0,
+            parseFloat(partes[5].replace(',', '.')) || 0,
+          ];
+          precios_potencia = [
+            parseFloat(partes[6].replace(',', '.')) || 0,
+            parseFloat(partes[7].replace(',', '.')) || 0,
+          ];
+        } else {
+          // 6 energía + 6 potencia (para 3.0 y 6.1)
+          precios_energia = [
+            parseFloat(partes[3].replace(',', '.')) || 0,
+            parseFloat(partes[4].replace(',', '.')) || 0,
+            parseFloat(partes[5].replace(',', '.')) || 0,
+            parseFloat(partes[6].replace(',', '.')) || 0,
+            parseFloat(partes[7].replace(',', '.')) || 0,
+            parseFloat(partes[8].replace(',', '.')) || 0,
+          ];
+          precios_potencia = [
+            parseFloat(partes[9].replace(',', '.')) || 0,
+            parseFloat(partes[10].replace(',', '.')) || 0,
+            parseFloat(partes[11].replace(',', '.')) || 0,
+            parseFloat(partes[12].replace(',', '.')) || 0,
+            parseFloat(partes[13].replace(',', '.')) || 0,
+            parseFloat(partes[14].replace(',', '.')) || 0,
+          ];
+        }
+
+        return {
+          nombre,
+          cups,
+          tarifa,
+          precios_energia,
+          precios_potencia,
+        };
+      });
+
+      const { error } = await supabase.from('clientes').insert(clientesNuevos);
+      if (error) throw error;
+
+      alert(`✅ ${clientesNuevos.length} cliente(s) importado(s) correctamente`);
+      await cargarClientes();
+      e.target.value = '';
+    } catch (error) {
+      console.error('Error:', error);
+      alert('❌ Error al importar: ' + (error as any).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Si hay cliente abierto, mostrar ficha */}
@@ -1344,6 +1422,30 @@ function GestionarClientes({
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             <h2 className="text-3xl font-black text-foreground">👥 Clientes ({clientes.length})</h2>
+          </div>
+
+          {/* Importar Excel */}
+          <div className="card rounded-2xl p-6 md:p-8 border-2 border-accent/30 bg-accent/5">
+            <h3 className="mb-4 font-bold text-foreground text-lg">📥 Importar Clientes desde CSV</h3>
+            <div className="space-y-3">
+              <p className="text-sm text-muted">
+                📋 <strong>Formato esperado:</strong> Nombre, CUPS, Tarifa, P1, P2, P3, (P4, P5, P6), Pot1, Pot2, (Pot3-6)
+              </p>
+              <p className="text-xs text-muted/70">
+                ℹ️ La tarifa se detecta automáticamente según el número de precios (5 = 2.0, 12 = 3.0/6.1)
+              </p>
+              <p className="text-xs text-muted/70">
+                💡 Usa comas (,) como separador de decimales. Ejemplo: 0,171445
+              </p>
+              <input
+                type="file"
+                accept=".csv"
+                onChange={handleCargarExcel}
+                disabled={loading}
+                className="w-full px-4 py-3 rounded-lg border-2 border-dashed border-accent/30 bg-card/50 text-foreground font-medium cursor-pointer hover:border-accent/60 transition"
+              />
+              {loading && <p className="text-sm text-accent">⏳ Importando...</p>}
+            </div>
           </div>
 
           {clientes.length === 0 ? (
