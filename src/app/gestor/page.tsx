@@ -41,13 +41,17 @@ export default function GestorPage() {
     precios: { energia: [0, 0, 0], potencia: [0, 0] },
   });
 
-  // Simulador de márgenes
-  const [tarifaMargen, setTarifaMargen] = useState('2.0');
-  const [comercioMargen, setComerioMargen] = useState(1);
-  const [tipoMargen, setTipoMargen] = useState<'porcentaje' | 'fijo'>('porcentaje');
-  const [margenValor, setMargenValor] = useState(5);
-  const [consumoEjemplo, setConsumoEjemplo] = useState(1000);
-  const [potenciaEjemplo, setPotenciaEjemplo] = useState(2);
+  // Simulador de comparativa
+  const [tarifaSimulador, setTarifaSimulador] = useState('2.0');
+  const [comercioComparar, setComerioComparar] = useState(1);
+  const [preciosClienteActual, setPreciosClienteActual] = useState({
+    energia: [0, 0, 0],
+    potencia: [0, 0],
+  });
+  const [consumosCliente, setConsumosCliente] = useState({
+    energia: [100, 100, 100],
+    potencia: [2, 2],
+  });
 
   useEffect(() => {
     const usuario = obtenerUsuarioActual();
@@ -392,23 +396,19 @@ export default function GestorPage() {
             </div>
           )}
 
-          {/* Sección: Simulador de Márgenes */}
+          {/* Sección: Comparativa de Tarifas */}
           {seccion === 'margenes' && (
-            <SimuladorMargenes
+            <ComparativaSimulador
               precios={precios}
               comercializadoras={comercializadoras}
-              tarifaMargen={tarifaMargen}
-              setTarifaMargen={setTarifaMargen}
-              comercioMargen={comercioMargen}
-              setComerioMargen={setComerioMargen}
-              tipoMargen={tipoMargen}
-              setTipoMargen={setTipoMargen}
-              margenValor={margenValor}
-              setMargenValor={setMargenValor}
-              consumoEjemplo={consumoEjemplo}
-              setConsumoEjemplo={setConsumoEjemplo}
-              potenciaEjemplo={potenciaEjemplo}
-              setPotenciaEjemplo={setPotenciaEjemplo}
+              tarifaSimulador={tarifaSimulador}
+              setTarifaSimulador={setTarifaSimulador}
+              comercioComparar={comercioComparar}
+              setComerioComparar={setComerioComparar}
+              preciosClienteActual={preciosClienteActual}
+              setPreciosClienteActual={setPreciosClienteActual}
+              consumosCliente={consumosCliente}
+              setConsumosCliente={setConsumosCliente}
             />
           )}
         </div>
@@ -417,109 +417,111 @@ export default function GestorPage() {
   );
 }
 
-interface SimuladorProps {
+interface ComparativaProps {
   precios: Precio[];
   comercializadoras: any[];
-  tarifaMargen: string;
-  setTarifaMargen: (t: string) => void;
-  comercioMargen: number;
-  setComerioMargen: (c: number) => void;
-  tipoMargen: 'porcentaje' | 'fijo';
-  setTipoMargen: (t: 'porcentaje' | 'fijo') => void;
-  margenValor: number;
-  setMargenValor: (v: number) => void;
-  consumoEjemplo: number;
-  setConsumoEjemplo: (v: number) => void;
-  potenciaEjemplo: number;
-  setPotenciaEjemplo: (v: number) => void;
+  tarifaSimulador: string;
+  setTarifaSimulador: (t: string) => void;
+  comercioComparar: number;
+  setComerioComparar: (c: number) => void;
+  preciosClienteActual: { energia: number[]; potencia: number[] };
+  setPreciosClienteActual: (p: { energia: number[]; potencia: number[] }) => void;
+  consumosCliente: { energia: number[]; potencia: number[] };
+  setConsumosCliente: (c: { energia: number[]; potencia: number[] }) => void;
 }
 
-function SimuladorMargenes({
+function ComparativaSimulador({
   precios,
   comercializadoras,
-  tarifaMargen,
-  setTarifaMargen,
-  comercioMargen,
-  setComerioMargen,
-  tipoMargen,
-  setTipoMargen,
-  margenValor,
-  setMargenValor,
-  consumoEjemplo,
-  setConsumoEjemplo,
-  potenciaEjemplo,
-  setPotenciaEjemplo,
-}: SimuladorProps) {
-  const precioSeleccionado = precios.find(
-    (p) => p.tarifa === tarifaMargen && p.comercializadora_id === comercioMargen
+  tarifaSimulador,
+  setTarifaSimulador,
+  comercioComparar,
+  setComerioComparar,
+  preciosClienteActual,
+  setPreciosClienteActual,
+  consumosCliente,
+  setConsumosCliente,
+}: ComparativaProps) {
+  const periodos = tarifaSimulador === '2.0' ? 3 : 6;
+  const potencias = tarifaSimulador === '2.0' ? 2 : 6;
+
+  const tarifaComercio = precios.find(
+    (p) => p.tarifa === tarifaSimulador && p.comercializadora_id === comercioComparar
   );
 
-  if (!precioSeleccionado) {
+  if (!tarifaComercio) {
     return (
       <div className="card rounded-2xl p-8 text-center">
-        <p className="text-muted">
-          No hay tarifas para esta combinación. Crea una primero.
-        </p>
+        <p className="text-muted">No hay tarifas para esta combinación. Crea una primero.</p>
       </div>
     );
   }
 
-  // Calcular precios con margen
-  const calcularPrecioConMargen = (precioOriginal: number): number => {
-    if (tipoMargen === 'porcentaje') {
-      return precioOriginal * (1 + margenValor / 100);
-    } else {
-      return precioOriginal + margenValor;
-    }
-  };
+  // Calcular coste actual del cliente
+  const costeClienteEnergia = consumosCliente.energia.reduce(
+    (sum, consumo, idx) => sum + consumo * preciosClienteActual.energia[idx] * 12,
+    0
+  );
+  const costeClientePotencia = consumosCliente.potencia.reduce(
+    (sum, potencia, idx) => sum + potencia * preciosClienteActual.potencia[idx] * 365,
+    0
+  );
+  const costeClienteTotal = costeClienteEnergia + costeClientePotencia;
 
-  const preciosConMargen = {
-    energia: precioSeleccionado.precios_energia.map(calcularPrecioConMargen),
-    potencia: precioSeleccionado.precios_potencia.map(calcularPrecioConMargen),
-  };
+  // Calcular coste con comercializadora
+  const costeComercioEnergia = consumosCliente.energia.reduce(
+    (sum, consumo, idx) => sum + consumo * tarifaComercio.precios_energia[idx] * 12,
+    0
+  );
+  const costeComercioPotencia = consumosCliente.potencia.reduce(
+    (sum, potencia, idx) => sum + potencia * tarifaComercio.precios_potencia[idx] * 365,
+    0
+  );
+  const costeComercioTotal = costeComercioEnergia + costeComercioPotencia;
 
-  // Calcular costes
-  const costeOriginalAnual =
-    consumoEjemplo * precioSeleccionado.precios_energia[0] * 12 +
-    potenciaEjemplo * precioSeleccionado.precios_potencia[0] * 365;
-
-  const costeConMargenAnual =
-    consumoEjemplo * preciosConMargen.energia[0] * 12 +
-    potenciaEjemplo * preciosConMargen.potencia[0] * 365;
-
-  const gananciaAnual = costeConMargenAnual - costeOriginalAnual;
+  const ahorroTotal = costeClienteTotal - costeComercioTotal;
+  const ahorroPorc = (ahorroTotal / costeClienteTotal) * 100;
 
   return (
     <div className="space-y-6">
-      {/* Configuración */}
+      {/* Selección */}
       <div className="card rounded-2xl p-6 md:p-8">
-        <h2 className="mb-6 text-xl font-semibold text-foreground">Configurar Margen</h2>
+        <h2 className="mb-6 text-xl font-semibold text-foreground">Simulador de Comparativa</h2>
 
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4 mb-8">
-          {/* Tarifa */}
+        <div className="grid gap-6 md:grid-cols-2">
           <div>
-            <label className="block text-sm font-semibold text-foreground mb-2">
-              Tarifa
-            </label>
+            <label className="block text-sm font-semibold text-foreground mb-2">Tipo de Tarifa</label>
             <select
-              value={tarifaMargen}
-              onChange={(e) => setTarifaMargen(e.target.value)}
+              value={tarifaSimulador}
+              onChange={(e) => {
+                const tarifa = e.target.value;
+                setTarifaSimulador(tarifa);
+                const newPeriodos = tarifa === '2.0' ? 3 : 6;
+                const newPotencias = tarifa === '2.0' ? 2 : 6;
+                setPreciosClienteActual({
+                  energia: Array(newPeriodos).fill(0),
+                  potencia: Array(newPotencias).fill(0),
+                });
+                setConsumosCliente({
+                  energia: Array(newPeriodos).fill(100),
+                  potencia: Array(newPotencias).fill(2),
+                });
+              }}
               className="w-full rounded-lg border border-neutral-200 px-4 py-2.5 focus:border-accent focus:outline-none"
             >
-              <option value="2.0">2.0</option>
-              <option value="3.0">3.0</option>
-              <option value="6.1">6.1</option>
+              <option value="2.0">Tarifa 2.0</option>
+              <option value="3.0">Tarifa 3.0</option>
+              <option value="6.1">Tarifa 6.1</option>
             </select>
           </div>
 
-          {/* Comercializadora */}
           <div>
             <label className="block text-sm font-semibold text-foreground mb-2">
-              Comercializadora
+              Comparar con
             </label>
             <select
-              value={comercioMargen}
-              onChange={(e) => setComerioMargen(parseInt(e.target.value))}
+              value={comercioComparar}
+              onChange={(e) => setComerioComparar(parseInt(e.target.value))}
               className="w-full rounded-lg border border-neutral-200 px-4 py-2.5 focus:border-accent focus:outline-none"
             >
               {comercializadoras.map((com) => (
@@ -529,167 +531,143 @@ function SimuladorMargenes({
               ))}
             </select>
           </div>
-
-          {/* Tipo de margen */}
-          <div>
-            <label className="block text-sm font-semibold text-foreground mb-2">
-              Tipo de Margen
-            </label>
-            <select
-              value={tipoMargen}
-              onChange={(e) => setTipoMargen(e.target.value as 'porcentaje' | 'fijo')}
-              className="w-full rounded-lg border border-neutral-200 px-4 py-2.5 focus:border-accent focus:outline-none"
-            >
-              <option value="porcentaje">Porcentaje (%)</option>
-              <option value="fijo">Cantidad Fija (€)</option>
-            </select>
-          </div>
-
-          {/* Valor del margen */}
-          <div>
-            <label className="block text-sm font-semibold text-foreground mb-2">
-              Margen {tipoMargen === 'porcentaje' ? '(%)' : '(€)'}
-            </label>
-            <input
-              type="number"
-              value={margenValor}
-              onChange={(e) => setMargenValor(parseFloat(e.target.value) || 0)}
-              step={tipoMargen === 'porcentaje' ? '0.5' : '0.01'}
-              className="w-full rounded-lg border border-neutral-200 px-4 py-2.5 focus:border-accent focus:outline-none"
-            />
-          </div>
         </div>
+      </div>
 
-        {/* Datos de ejemplo */}
-        <div className="border-t border-neutral-200 pt-6">
-          <h3 className="mb-4 font-semibold text-foreground">Datos de Ejemplo</h3>
-          <div className="grid gap-4 md:grid-cols-2">
-            <div>
-              <label className="block text-sm font-semibold text-foreground mb-2">
-                Consumo Mensual (kWh)
-              </label>
-              <input
-                type="number"
-                value={consumoEjemplo}
-                onChange={(e) => setConsumoEjemplo(parseFloat(e.target.value) || 0)}
-                step="10"
-                className="w-full rounded-lg border border-neutral-200 px-4 py-2.5 focus:border-accent focus:outline-none"
-              />
+      {/* Datos del cliente */}
+      <div className="card rounded-2xl p-6 md:p-8">
+        <h3 className="mb-6 text-lg font-semibold text-foreground">Tarifa Actual del Cliente</h3>
+
+        <div className="space-y-6">
+          {/* Energía */}
+          <div>
+            <h4 className="mb-3 font-semibold text-foreground">Precios Energía (€/kWh)</h4>
+            <div className="grid gap-4 md:grid-cols-3">
+              {Array.from({ length: periodos }).map((_, idx) => (
+                <div key={`energy-${idx}`}>
+                  <label className="block text-xs font-semibold text-accent mb-1 uppercase">
+                    P{idx + 1} - Consumo (kWh)
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="number"
+                      value={consumosCliente.energia[idx]}
+                      onChange={(e) => {
+                        const newConsumos = { ...consumosCliente };
+                        newConsumos.energia[idx] = parseFloat(e.target.value) || 0;
+                        setConsumosCliente(newConsumos);
+                      }}
+                      placeholder="kWh"
+                      className="flex-1 rounded-lg border border-neutral-200 px-3 py-2 text-sm focus:border-accent focus:outline-none"
+                    />
+                    <input
+                      type="number"
+                      value={preciosClienteActual.energia[idx]}
+                      onChange={(e) => {
+                        const newPrecios = { ...preciosClienteActual };
+                        newPrecios.energia[idx] = parseFloat(e.target.value) || 0;
+                        setPreciosClienteActual(newPrecios);
+                      }}
+                      placeholder="€/kWh"
+                      step="0.001"
+                      className="flex-1 rounded-lg border border-neutral-200 px-3 py-2 text-sm focus:border-accent focus:outline-none"
+                    />
+                  </div>
+                </div>
+              ))}
             </div>
-            <div>
-              <label className="block text-sm font-semibold text-foreground mb-2">
-                Potencia Contratada (kW)
-              </label>
-              <input
-                type="number"
-                value={potenciaEjemplo}
-                onChange={(e) => setPotenciaEjemplo(parseFloat(e.target.value) || 0)}
-                step="0.1"
-                className="w-full rounded-lg border border-neutral-200 px-4 py-2.5 focus:border-accent focus:outline-none"
-              />
+          </div>
+
+          {/* Potencia */}
+          <div>
+            <h4 className="mb-3 font-semibold text-foreground">Precios Potencia (€/kW/día)</h4>
+            <div className="grid gap-4 md:grid-cols-3">
+              {Array.from({ length: potencias }).map((_, idx) => (
+                <div key={`potencia-${idx}`}>
+                  <label className="block text-xs font-semibold text-accent mb-1 uppercase">
+                    Pot{idx + 1} - kW
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="number"
+                      value={consumosCliente.potencia[idx]}
+                      onChange={(e) => {
+                        const newConsumos = { ...consumosCliente };
+                        newConsumos.potencia[idx] = parseFloat(e.target.value) || 0;
+                        setConsumosCliente(newConsumos);
+                      }}
+                      placeholder="kW"
+                      step="0.1"
+                      className="flex-1 rounded-lg border border-neutral-200 px-3 py-2 text-sm focus:border-accent focus:outline-none"
+                    />
+                    <input
+                      type="number"
+                      value={preciosClienteActual.potencia[idx]}
+                      onChange={(e) => {
+                        const newPrecios = { ...preciosClienteActual };
+                        newPrecios.potencia[idx] = parseFloat(e.target.value) || 0;
+                        setPreciosClienteActual(newPrecios);
+                      }}
+                      placeholder="€/día"
+                      step="0.001"
+                      className="flex-1 rounded-lg border border-neutral-200 px-3 py-2 text-sm focus:border-accent focus:outline-none"
+                    />
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </div>
       </div>
 
-      {/* Comparativa de precios */}
+      {/* Comparativa */}
       <div className="grid gap-6 lg:grid-cols-2">
-        {/* Precios originales */}
-        <div className="card rounded-2xl p-6 md:p-8">
-          <h3 className="mb-4 text-lg font-semibold text-foreground">Precio Original</h3>
+        {/* Cliente actual */}
+        <div className="card rounded-2xl p-6 md:p-8 border-2 border-neutral-200">
+          <h3 className="mb-4 text-lg font-semibold text-foreground">Coste Actual</h3>
 
-          <div className="space-y-4">
-            <div>
-              <p className="text-sm text-muted mb-2">Energía (€/kWh)</p>
-              <div className="grid gap-2">
-                {precioSeleccionado.precios_energia.map((p, idx) => (
-                  <div key={idx} className="flex justify-between text-sm">
-                    <span className="text-muted">P{idx + 1}:</span>
-                    <span className="font-semibold">{p.toFixed(4)}</span>
-                  </div>
-                ))}
-              </div>
+          <div className="space-y-3 text-sm mb-6">
+            <div className="flex justify-between">
+              <span className="text-muted">Energía:</span>
+              <span className="font-semibold">€{costeClienteEnergia.toFixed(2)}</span>
             </div>
-
-            <div className="border-t border-neutral-200 pt-4">
-              <p className="text-sm text-muted mb-2">Potencia (€/kW/día)</p>
-              <div className="grid gap-2">
-                {precioSeleccionado.precios_potencia.map((p, idx) => (
-                  <div key={idx} className="flex justify-between text-sm">
-                    <span className="text-muted">Pot{idx + 1}:</span>
-                    <span className="font-semibold">{p.toFixed(4)}</span>
-                  </div>
-                ))}
-              </div>
+            <div className="flex justify-between">
+              <span className="text-muted">Potencia:</span>
+              <span className="font-semibold">€{costeClientePotencia.toFixed(2)}</span>
             </div>
-
-            <div className="border-t border-neutral-200 pt-4 mt-4">
-              <p className="text-sm text-muted">Coste anual (ejemplo)</p>
-              <p className="text-2xl font-bold text-foreground">€{costeOriginalAnual.toFixed(2)}</p>
+            <div className="border-t border-neutral-200 pt-3 flex justify-between text-base font-bold">
+              <span>Total anual:</span>
+              <span>€{costeClienteTotal.toFixed(2)}</span>
             </div>
           </div>
         </div>
 
-        {/* Precios con margen */}
+        {/* Con comercializadora */}
         <div className="card rounded-2xl p-6 md:p-8 border-2 border-accent/30 bg-accent/5">
-          <h3 className="mb-4 text-lg font-semibold text-foreground">Con Tu Margen</h3>
+          <h3 className="mb-4 text-lg font-semibold text-accent">Con {comercializadoras.find(c => c.id === comercioComparar)?.nombre}</h3>
 
-          <div className="space-y-4">
-            <div>
-              <p className="text-sm text-muted mb-2">Energía (€/kWh)</p>
-              <div className="grid gap-2">
-                {preciosConMargen.energia.map((p, idx) => (
-                  <div key={idx} className="flex justify-between text-sm">
-                    <span className="text-muted">P{idx + 1}:</span>
-                    <span className="font-semibold text-accent">{p.toFixed(4)}</span>
-                  </div>
-                ))}
-              </div>
+          <div className="space-y-3 text-sm mb-6">
+            <div className="flex justify-between">
+              <span className="text-muted">Energía:</span>
+              <span className="font-semibold text-accent">€{costeComercioEnergia.toFixed(2)}</span>
             </div>
-
-            <div className="border-t border-neutral-200 pt-4">
-              <p className="text-sm text-muted mb-2">Potencia (€/kW/día)</p>
-              <div className="grid gap-2">
-                {preciosConMargen.potencia.map((p, idx) => (
-                  <div key={idx} className="flex justify-between text-sm">
-                    <span className="text-muted">Pot{idx + 1}:</span>
-                    <span className="font-semibold text-accent">{p.toFixed(4)}</span>
-                  </div>
-                ))}
-              </div>
+            <div className="flex justify-between">
+              <span className="text-muted">Potencia:</span>
+              <span className="font-semibold text-accent">€{costeComercioPotencia.toFixed(2)}</span>
             </div>
-
-            <div className="border-t border-neutral-200 pt-4 mt-4">
-              <p className="text-sm text-muted mb-2">Coste anual (ejemplo)</p>
-              <p className="text-2xl font-bold text-accent">€{costeConMargenAnual.toFixed(2)}</p>
-              <p className="text-sm text-accent mt-1">
-                +€{gananciaAnual.toFixed(2)} de ganancia
-              </p>
+            <div className="border-t border-accent/20 pt-3 flex justify-between text-base font-bold">
+              <span>Total anual:</span>
+              <span className="text-accent">€{costeComercioTotal.toFixed(2)}</span>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Resumen de ganancias */}
-      <div className="card rounded-2xl p-6 md:p-8 bg-gradient-to-br from-accent/10 to-accent/5 border-2 border-accent/30">
-        <h3 className="mb-4 text-lg font-semibold text-foreground">Estimación de Ganancias</h3>
-
-        <div className="grid gap-6 md:grid-cols-3 text-center">
-          <div>
-            <p className="text-sm text-muted mb-1">Margen por Cliente (anual)</p>
-            <p className="text-3xl font-bold text-accent">€{gananciaAnual.toFixed(2)}</p>
-          </div>
-          <div>
-            <p className="text-sm text-muted mb-1">Margen Porcentual</p>
-            <p className="text-3xl font-bold text-accent">
-              {((gananciaAnual / costeOriginalAnual) * 100).toFixed(1)}%
-            </p>
-          </div>
-          <div>
-            <p className="text-sm text-muted mb-1">Si contratas 10 clientes/año</p>
-            <p className="text-3xl font-bold text-accent">€{(gananciaAnual * 10).toFixed(2)}</p>
-          </div>
-        </div>
+      {/* Resultado */}
+      <div className="card rounded-2xl p-8 bg-gradient-to-br from-accent/10 to-accent/5 border-2 border-accent/30 text-center">
+        <p className="text-sm text-muted mb-2">Ahorro anual</p>
+        <p className="text-5xl font-bold text-accent mb-2">€{ahorroTotal.toFixed(2)}</p>
+        <p className="text-lg text-accent font-semibold">{ahorroPorc.toFixed(1)}% de reducción</p>
       </div>
     </div>
   );
