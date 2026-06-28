@@ -126,7 +126,7 @@ h3 { font-size: 1.5rem; }
 
 /* Cards mejoradas */
 .card {
-  background: linear-gradient(135deg, rgba(22, 33, 62, 0.8) 0%, rgba(32, 43, 72, 0.6) 100%);
+  background: linear-gradient(135deg, rgba(22, 33, 62, 0.95) 0%, rgba(32, 43, 72, 0.85) 100%);
   backdrop-filter: blur(20px);
   box-shadow: var(--shadow-card);
   border-radius: var(--radius-lg);
@@ -134,6 +134,7 @@ h3 { font-size: 1.5rem; }
   position: relative;
   overflow: hidden;
   transition: var(--transition);
+  color: var(--color-foreground);
 }
 
 .card::before {
@@ -187,18 +188,23 @@ button:active {
 
 /* Inputs mejorados */
 input, textarea, select {
-  background: rgba(22, 33, 62, 0.5);
+  background: rgba(22, 33, 62, 0.7);
   border: 1px solid var(--color-border);
   color: var(--color-foreground);
   border-radius: var(--radius-md);
   transition: var(--transition);
   font-family: inherit;
+  font-size: 1rem;
+}
+
+input::placeholder, textarea::placeholder {
+  color: rgba(176, 176, 192, 0.6);
 }
 
 input:focus, textarea:focus, select:focus {
-  background: rgba(22, 33, 62, 0.8);
+  background: rgba(22, 33, 62, 0.9);
   border-color: var(--color-accent);
-  box-shadow: 0 0 20px rgba(255, 51, 51, 0.2);
+  box-shadow: 0 0 20px rgba(255, 51, 51, 0.3);
   outline: none;
 }
 
@@ -238,16 +244,17 @@ input:focus, textarea:focus, select:focus {
 
 /* Glass morphism */
 .glass {
-  background: rgba(22, 33, 62, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(22, 33, 62, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.15);
   box-shadow: 0 20px 70px rgba(15, 23, 42, 0.3);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
+  color: var(--color-foreground);
 }
 
 .glass:hover {
-  background: rgba(22, 33, 62, 0.8);
-  border-color: rgba(255, 255, 255, 0.2);
+  background: rgba(22, 33, 62, 0.95);
+  border-color: rgba(255, 255, 255, 0.25);
 }
 
 /* Efecto glow */

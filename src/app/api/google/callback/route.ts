@@ -5,12 +5,21 @@ export async function GET(request: NextRequest) {
   const code = request.nextUrl.searchParams.get('code');
   const error = request.nextUrl.searchParams.get('error');
 
+  const getBaseUrl = () => {
+    if (process.env.VERCEL_URL) {
+      return `https://${process.env.VERCEL_URL}`;
+    }
+    return 'http://localhost:3000';
+  };
+
+  const baseUrl = getBaseUrl();
+
   if (error) {
-    return NextResponse.redirect(`/gestor?error=${error}`);
+    return NextResponse.redirect(new URL(`/gestor?error=${error}`, baseUrl));
   }
 
   if (!code) {
-    return NextResponse.redirect('/gestor?error=no_code');
+    return NextResponse.redirect(new URL('/gestor?error=no_code', baseUrl));
   }
 
   try {
@@ -38,7 +47,7 @@ export async function GET(request: NextRequest) {
 
     if (!tokenResponse.ok) {
       console.error('Token exchange failed:', tokens);
-      return NextResponse.redirect(`/gestor?error=token_exchange_failed`);
+      return NextResponse.redirect(new URL('/gestor?error=token_exchange_failed', baseUrl));
     }
 
     // Obtener info de usuario
@@ -55,7 +64,7 @@ export async function GET(request: NextRequest) {
 
     if (!user.email) {
       console.error('No email in user response');
-      return NextResponse.redirect(`/gestor?error=no_email`);
+      return NextResponse.redirect(new URL('/gestor?error=no_email', baseUrl));
     }
 
     // Guardar credenciales en Supabase
@@ -72,12 +81,12 @@ export async function GET(request: NextRequest) {
 
     if (saveError) {
       console.error('Supabase save error:', saveError);
-      return NextResponse.redirect(`/gestor?error=save_failed&details=${saveError.message}`);
+      return NextResponse.redirect(new URL(`/gestor?error=save_failed`, baseUrl));
     }
 
     console.log('10. OAuth complete, redirecting...');
     // Guardar email en cookie
-    const response = NextResponse.redirect('/gestor?google_connected=true');
+    const response = NextResponse.redirect(new URL('/gestor?google_connected=true', baseUrl));
     response.cookies.set('google_email', user.email, { maxAge: 3600 * 24 * 365 });
 
     return response;
