@@ -3,7 +3,14 @@ import { NextRequest, NextResponse } from 'next/server';
 export async function GET(request: NextRequest) {
   const clientId = process.env.GOOGLE_CLIENT_ID;
   const redirectUri = process.env.GOOGLE_REDIRECT_URI || 'http://localhost:3000/api/google/callback';
-  const scope = 'https://www.googleapis.com/auth/calendar';
+
+  // Múltiples scopes: email, perfil, Y calendario
+  const scopes = [
+    'https://www.googleapis.com/auth/userinfo.email',
+    'https://www.googleapis.com/auth/userinfo.profile',
+    'https://www.googleapis.com/auth/calendar',
+  ];
+  const scope = scopes.join(' ');
 
   if (!clientId) {
     return NextResponse.json(
