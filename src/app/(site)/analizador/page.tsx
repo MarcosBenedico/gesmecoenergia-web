@@ -17,56 +17,46 @@ type FormData = {
   preciosPotencia: number[];
 };
 
-interface Comercializadora {
-  id: number;
+interface PrecioRegistro {
+  comercializadora_id: number;
   nombre: string;
-  precios: {
-    energia: number[];
-    potencia: number[];
-  };
+  tarifa: string;
+  periodo: number;
+  potencia: number;
+  precio_energia: number;
+  precio_potencia: number;
 }
 
-interface ResultadoComparativa {
+interface DetalleCalculo {
   comercializadora: string;
-  costeAnual: number;
-  ahorroAnual: number;
-  ahorroProducto: string;
+  costesEnergiaDetalle: { periodo: number; consumo: number; precio: number; total: number }[];
+  costoEnergiaTotal: number;
+  costesPotenciaDetalle: { potencia: number; cantidad: number; precio: number; total: number }[];
+  costoPotenciaTotal: number;
+  costeTotal: number;
 }
 
 export default function AnalizadorPage() {
-  const [step, setStep] = useState<'select' | 'input' | 'opciones' | 'results'>('select');
+  const [step, setStep] = useState<'select' | 'input' | 'results'>('select');
   const [selectedTarifa, setSelectedTarifa] = useState<TarifaType | null>(null);
   const [formData, setFormData] = useState<FormData | null>(null);
-  const [comercializadoras, setComercializadoras] = useState<Comercializadora[]>([]);
-  const [comparativas, setComparativas] = useState<ResultadoComparativa[]>([]);
-  const [seleccionadas, setSeleccionadas] = useState<number[]>([]);
+  const [preciosDb, setPreciosDb] = useState<PrecioRegistro[]>([]);
+  const [detalles, setDetalles] = useState<DetalleCalculo[]>([]);
   const [loading, setLoading] = useState(false);
 
   const periodos = selectedTarifa === '2.0' ? 3 : 6;
   const potencias = selectedTarifa === '2.0' ? 2 : 6;
 
   useEffect(() => {
-    cargarComercializadoras();
+    cargarPreciosDb();
   }, []);
 
-  const cargarComercializadoras = async () => {
+  const cargarPreciosDb = async () => {
     try {
       const precios = await obtenerPreciosComercializadoras();
-      const agrupadas: Record<number, Comercializadora> = {};
-
-      precios.forEach((p: any) => {
-        if (!agrupadas[p.comercializadora_id]) {
-          agrupadas[p.comercializadora_id] = {
-            id: p.comercializadora_id,
-            nombre: p.comercializadoras?.nombre || `Comercializadora ${p.comercializadora_id}`,
-            precios: { energia: [], potencia: [] },
-          };
-        }
-      });
-
-      setComercializadoras(Object.values(agrupadas));
+      setPreciosDb(precios as PrecioRegistro[]);
     } catch (error) {
-      console.error('Error cargando comercializadoras:', error);
+      console.error('Error cargando precios:', error);
     }
   };
 
@@ -113,7 +103,7 @@ export default function AnalizadorPage() {
     }
   };
 
-  const calcularComparativas = async (e: React.FormEvent) => {
+  const calcularDetalles = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData || !formData.nombre) {
       alert('Por favor ingresa tu nombre');
@@ -122,49 +112,100 @@ export default function AnalizadorPage() {
 
     setLoading(true);
 
-    // Calcular coste actual del cliente
-    const costeEnergia = formData.consumos.reduce((sum, consumo, idx) => sum + (consumo * formData.precios[idx] * 12), 0);
-    const costePotencia = formData.potencias.reduce((sum, pot, idx) => sum + (pot * formData.preciosPotencia[idx] * 12), 0);
-    const costeActual = costeEnergia + costePotencia;
+    try {
+      // Calcular coste del usuario (su tarifa actual)
+      const costesUserEnergiaDetalle = formData.consumos.map((consumo, idx) => ({
+        periodo: idx + 1,
+        consumo,
+        precio: formData.precios[idx],
+        total: consumo * formData.precios[idx] * 12,
+      }));
 
-    // Calcular comparativas (simuladas con precios al azar por ahora)
-    const nuevasComparativas: ResultadoComparativa[] = comercializadoras.slice(0, 3).map((com) => {
-      const precioEnergia = (Math.random() * 0.2 + 0.2).toFixed(4); // 0.2-0.4 €/kWh
-      const precioPotencia = (Math.random() * 0.5 + 0.4).toFixed(4); // 0.4-0.9 €/kW/mes
+      const costoUserEnergia = costesUserEnergiaDetalle.reduce((sum, d) => sum + d.total, 0);
 
-      const costeComercializadora =
-        formData.consumos.reduce((sum, consumo) => sum + consumo * parseFloat(precioEnergia) * 12, 0) +
-        formData.potencias.reduce((sum, pot) => sum + pot * parseFloat(precioPotencia) * 12, 0);
+      const costesUserPotenciaDetalle = formData.potencias.map((potencia, idx) => ({
+        potencia: idx + 1,
+        cantidad: potencia,
+        precio: formData.preciosPotencia[idx],
+        total: potencia * formData.preciosPotencia[idx] * 12,
+      }));
 
-      const ahorroAnual = costeActual - costeComercializadora;
-      const ahorroProducto = ahorroAnual > 0 ? ahorroAnual.toFixed(2) : '0.00';
+      const costoUserPotencia = costesUserPotenciaDetalle.reduce((sum, d) => sum + d.total, 0);
 
-      return {
-        comercializadora: com.nombre,
-        costeAnual: costeComercializadora,
-        ahorroAnual: parseFloat(ahorroProducto),
-        ahorroProducto,
+      const detalleUsuario: DetalleCalculo = {
+        comercializadora: 'Tu tarifa actual',
+        costesEnergiaDetalle: costesUserEnergiaDetalle,
+        costoEnergiaTotal: costoUserEnergia,
+        costesPotenciaDetalle: costesUserPotenciaDetalle,
+        costoPotenciaTotal: costoUserPotencia,
+        costeTotal: costoUserEnergia + costoUserPotencia,
       };
-    });
 
-    setComparativas(nuevasComparativas.sort((a, b) => b.ahorroAnual - a.ahorroAnual));
-    setStep('opciones');
-    setLoading(false);
-  };
+      // Calcular costes de comercializadoras (primero de cada una)
+      const comerciosUnicos = new Map<number, { nombre: string; id: number }>();
+      preciosDb.forEach((p) => {
+        if (p.tarifa === formData.tarifa && !comerciosUnicos.has(p.comercializadora_id)) {
+          comerciosUnicos.set(p.comercializadora_id, {
+            id: p.comercializadora_id,
+            nombre: p.nombre,
+          });
+        }
+      });
 
-  const handleSeleccionarOpciones = () => {
-    if (seleccionadas.length === 0) {
-      alert('Selecciona al menos una opción');
-      return;
-    }
-    setStep('results');
-  };
+      const detallesComercios: DetalleCalculo[] = Array.from(comerciosUnicos.values()).map(
+        (comercio) => {
+          const preciosComercio = preciosDb.filter(
+            (p) =>
+              p.comercializadora_id === comercio.id &&
+              p.tarifa === formData.tarifa
+          );
 
-  const handleToggleOpcion = (idx: number) => {
-    if (seleccionadas.includes(idx)) {
-      setSeleccionadas(seleccionadas.filter((i) => i !== idx));
-    } else if (seleccionadas.length < 3) {
-      setSeleccionadas([...seleccionadas, idx]);
+          // Cálculo de energía período por período
+          const costesEnergiaDetalle = formData.consumos.map((consumo, idx) => {
+            const precioRecord = preciosComercio.find((p) => p.periodo === idx + 1);
+            const precio = precioRecord?.precio_energia || 0;
+            return {
+              periodo: idx + 1,
+              consumo,
+              precio,
+              total: consumo * precio * 12,
+            };
+          });
+
+          const costoEnergia = costesEnergiaDetalle.reduce((sum, d) => sum + d.total, 0);
+
+          // Cálculo de potencia potencia por potencia
+          const costesPotenciaDetalle = formData.potencias.map((potencia, idx) => {
+            const precioRecord = preciosComercio.find((p) => p.potencia === idx + 1);
+            const precio = precioRecord?.precio_potencia || 0;
+            return {
+              potencia: idx + 1,
+              cantidad: potencia,
+              precio,
+              total: potencia * precio * 12,
+            };
+          });
+
+          const costoPotencia = costesPotenciaDetalle.reduce((sum, d) => sum + d.total, 0);
+
+          return {
+            comercializadora: comercio.nombre,
+            costesEnergiaDetalle,
+            costoEnergiaTotal: costoEnergia,
+            costesPotenciaDetalle,
+            costoPotenciaTotal: costoPotencia,
+            costeTotal: costoEnergia + costoPotencia,
+          };
+        }
+      );
+
+      setDetalles([detalleUsuario, ...detallesComercios]);
+      setStep('results');
+    } catch (error) {
+      console.error('Error al calcular:', error);
+      alert('Error al calcular. Verifica los datos e intenta de nuevo.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -172,8 +213,7 @@ export default function AnalizadorPage() {
     setStep('select');
     setSelectedTarifa(null);
     setFormData(null);
-    setComparativas([]);
-    setSeleccionadas([]);
+    setDetalles([]);
   };
 
   return (
@@ -188,7 +228,7 @@ export default function AnalizadorPage() {
               Descubre cuánto puedes ahorrar
             </h1>
             <p className="text-sm text-muted md:text-base">
-              Compara tus precios con nuestras mejores opciones. Tarifas 2.0, 3.0 y 6.1.
+              Análisis detallado de tu coste actual vs opciones disponibles
             </p>
           </div>
         </Container>
@@ -226,7 +266,7 @@ export default function AnalizadorPage() {
         <section className="px-4 md:py-8">
           <Container className="max-w-2xl">
             <div className="card rounded-2xl p-4 md:rounded-3xl md:p-8">
-              <form onSubmit={calcularComparativas} className="space-y-6 md:space-y-8">
+              <form onSubmit={calcularDetalles} className="space-y-6 md:space-y-8">
                 <div>
                   <h3 className="mb-3 text-base font-semibold text-foreground md:mb-4 md:text-lg">
                     Tus datos
@@ -329,7 +369,7 @@ export default function AnalizadorPage() {
                 </div>
 
                 <Button type="submit" size="lg" className="w-full text-base" disabled={loading}>
-                  {loading ? 'Calculando...' : 'Ver comparativas'}
+                  {loading ? 'Calculando...' : 'Ver análisis detallado'}
                 </Button>
               </form>
             </div>
@@ -337,114 +377,135 @@ export default function AnalizadorPage() {
         </section>
       )}
 
-      {step === 'opciones' && (
+      {step === 'results' && detalles.length > 0 && (
         <section className="px-4 md:py-8">
-          <Container className="max-w-2xl">
-            <div className="card rounded-2xl p-4 md:rounded-3xl md:p-8">
-              <h2 className="mb-4 text-lg font-semibold text-foreground md:mb-6 md:text-xl">
-                Elige hasta 3 opciones para comparar
-              </h2>
-              <div className="space-y-3">
-                {comparativas.map((comp, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => handleToggleOpcion(idx)}
-                    className={`rounded-lg border-2 p-4 text-left transition ${
-                      seleccionadas.includes(idx)
-                        ? 'border-accent bg-accent/10'
-                        : 'border-neutral-200 hover:border-accent/50'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="font-semibold text-foreground">
-                          Opción {idx + 1} - Ahorro €{comp.ahorroProducto}/año
-                        </div>
-                        <div className="text-sm text-muted">
-                          Coste: €{comp.costeAnual.toFixed(2)}/año
-                        </div>
-                      </div>
-                      <input
-                        type="checkbox"
-                        checked={seleccionadas.includes(idx)}
-                        onChange={() => {}}
-                        className="h-5 w-5 cursor-pointer accent-accent"
-                      />
+          <Container className="max-w-4xl">
+            <div className="space-y-8">
+              {detalles.map((detalle, idx) => (
+                <div
+                  key={idx}
+                  className={`card rounded-2xl p-4 md:rounded-3xl md:p-8 ${
+                    idx === 0 ? 'border-2 border-neutral-300 bg-neutral-50' : 'border-2 border-accent/30 bg-accent/5'
+                  }`}
+                >
+                  <h2 className="mb-6 text-xl font-bold text-foreground md:text-2xl">
+                    {detalle.comercializadora}
+                  </h2>
+
+                  {/* Desglose de Energía */}
+                  <div className="mb-8">
+                    <h3 className="mb-4 text-lg font-semibold text-foreground">Coste de Energía (anual)</h3>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-neutral-200">
+                            <th className="px-3 py-2 text-left font-semibold">Período</th>
+                            <th className="px-3 py-2 text-right font-semibold">Consumo (kWh)</th>
+                            <th className="px-3 py-2 text-right font-semibold">Precio (€/kWh)</th>
+                            <th className="px-3 py-2 text-right font-semibold">Total anual</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {detalle.costesEnergiaDetalle.map((d) => (
+                            <tr key={d.periodo} className="border-b border-neutral-100">
+                              <td className="px-3 py-2">P{d.periodo}</td>
+                              <td className="px-3 py-2 text-right">{(d.consumo * 12).toFixed(2)}</td>
+                              <td className="px-3 py-2 text-right">{d.precio.toFixed(4)}</td>
+                              <td className="px-3 py-2 text-right font-semibold text-accent">
+                                €{d.total.toFixed(2)}
+                              </td>
+                            </tr>
+                          ))}
+                          <tr className="bg-neutral-100 font-semibold">
+                            <td colSpan={3} className="px-3 py-2 text-right">
+                              Total Energía:
+                            </td>
+                            <td className="px-3 py-2 text-right text-accent">
+                              €{detalle.costoEnergiaTotal.toFixed(2)}
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
                     </div>
-                  </button>
-                ))}
-              </div>
-              <div className="mt-6 flex flex-col gap-2">
-                <Button onClick={handleSeleccionarOpciones} size="lg" className="w-full">
-                  Ver comparativa completa
+                  </div>
+
+                  {/* Desglose de Potencia */}
+                  <div className="mb-8">
+                    <h3 className="mb-4 text-lg font-semibold text-foreground">Coste de Potencia (anual)</h3>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-neutral-200">
+                            <th className="px-3 py-2 text-left font-semibold">Potencia</th>
+                            <th className="px-3 py-2 text-right font-semibold">kW</th>
+                            <th className="px-3 py-2 text-right font-semibold">Precio (€/kW/mes)</th>
+                            <th className="px-3 py-2 text-right font-semibold">Total anual</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {detalle.costesPotenciaDetalle.map((d) => (
+                            <tr key={d.potencia} className="border-b border-neutral-100">
+                              <td className="px-3 py-2">Pot{d.potencia}</td>
+                              <td className="px-3 py-2 text-right">{d.cantidad.toFixed(2)}</td>
+                              <td className="px-3 py-2 text-right">{d.precio.toFixed(4)}</td>
+                              <td className="px-3 py-2 text-right font-semibold text-accent">
+                                €{d.total.toFixed(2)}
+                              </td>
+                            </tr>
+                          ))}
+                          <tr className="bg-neutral-100 font-semibold">
+                            <td colSpan={3} className="px-3 py-2 text-right">
+                              Total Potencia:
+                            </td>
+                            <td className="px-3 py-2 text-right text-accent">
+                              €{detalle.costoPotenciaTotal.toFixed(2)}
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* Resumen */}
+                  <div className={`rounded-lg p-6 ${idx === 0 ? 'bg-white border border-neutral-200' : 'bg-accent/10'}`}>
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div>
+                        <p className="text-sm text-muted">Coste de Energía (anual)</p>
+                        <p className="text-2xl font-bold text-foreground">€{detalle.costoEnergiaTotal.toFixed(2)}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted">Coste de Potencia (anual)</p>
+                        <p className="text-2xl font-bold text-foreground">€{detalle.costoPotenciaTotal.toFixed(2)}</p>
+                      </div>
+                    </div>
+                    <div className="mt-4 border-t border-neutral-200 pt-4">
+                      <p className="text-sm font-semibold text-muted">Coste Total Anual</p>
+                      <p className="text-4xl font-bold text-accent">€{detalle.costeTotal.toFixed(2)}</p>
+                    </div>
+                  </div>
+
+                  {/* Ahorro (solo para comercializadoras, no para usuario) */}
+                  {idx > 0 && (
+                    <div className="mt-6 border-t border-accent/20 pt-6">
+                      <p className="text-center text-sm font-semibold text-muted">Ahorro anual vs tu tarifa actual</p>
+                      <p className="text-center text-3xl font-bold text-accent">
+                        €{(detalles[0].costeTotal - detalle.costeTotal).toFixed(2)}
+                      </p>
+                      <p className="text-center text-sm text-muted">
+                        Reducción: {(((detalles[0].costeTotal - detalle.costeTotal) / detalles[0].costeTotal) * 100).toFixed(1)}%
+                      </p>
+                    </div>
+                  )}
+                </div>
+              ))}
+
+              <div className="flex flex-col gap-3 md:gap-4">
+                <Button href="/contacto" size="lg" className="w-full">
+                  Quiero cambiar de tarifa
                 </Button>
                 <Button onClick={handleReset} variant="ghost" size="lg" className="w-full">
-                  Volver atrás
+                  Hacer otro análisis
                 </Button>
-              </div>
-            </div>
-          </Container>
-        </section>
-      )}
-
-      {step === 'results' && (
-        <section className="px-4 md:py-8">
-          <Container className="max-w-3xl">
-            <div className="space-y-4 md:space-y-6">
-              {seleccionadas.map((idx) => {
-                const comp = comparativas[idx];
-                return (
-                  <div key={idx} className="card rounded-2xl border-2 border-accent/30 bg-accent/5 p-4 md:rounded-3xl md:p-8">
-                    <div className="space-y-3 md:space-y-4">
-                      <div>
-                        <div className="text-sm font-semibold uppercase tracking-[0.16em] text-accent md:text-base">
-                          Opción {idx + 1}
-                        </div>
-                        <div className="mt-2 flex items-baseline gap-3">
-                          <div className="text-3xl font-bold text-accent md:text-4xl">
-                            €{comp.ahorroProducto}
-                          </div>
-                          <div className="text-sm text-muted">de ahorro anual</div>
-                        </div>
-                      </div>
-                      <div className="border-t border-accent/20 pt-3 text-sm text-foreground md:pt-4">
-                        <div>
-                          <span className="font-semibold">Tu coste actual:</span> €
-                          {(formData
-                            ? formData.consumos.reduce((sum, c, i) => sum + c * formData.precios[i] * 12, 0) +
-                              formData.potencias.reduce((sum, p, i) => sum + p * formData.preciosPotencia[i] * 12, 0)
-                            : 0
-                          ).toFixed(2)}
-                          /año
-                        </div>
-                        <div>
-                          <span className="font-semibold">Coste con {comp.comercializadora}:</span> €
-                          {comp.costeAnual.toFixed(2)}/año
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-
-              <div className="card rounded-2xl border-2 border-neutral-200 bg-gradient-to-br from-neutral-50 to-white p-4 md:rounded-3xl md:p-8">
-                <div className="space-y-3 md:space-y-4">
-                  <h3 className="text-base font-semibold text-foreground md:text-lg">
-                    ¿Quieres más información?
-                  </h3>
-                  <p className="text-xs text-muted md:text-sm">
-                    Un asesor energético se pondrá en contacto contigo para explicar todas las opciones y
-                    el proceso de cambio.
-                  </p>
-                  <div className="flex flex-col gap-2 pt-2 md:gap-3">
-                    <Button href="/contacto" size="lg" className="w-full text-sm md:text-base">
-                      Contactar asesor
-                    </Button>
-                    <Button onClick={handleReset} variant="ghost" size="lg" className="w-full text-sm md:text-base">
-                      Hacer otro análisis
-                    </Button>
-                  </div>
-                </div>
               </div>
             </div>
           </Container>

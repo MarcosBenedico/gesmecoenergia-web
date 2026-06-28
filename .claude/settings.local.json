@@ -17,7 +17,8 @@
       "Bash(git commit -m 'Refactor: Complete analyzer redesign with commercial comparisons *)",
       "Bash(git commit -m 'Update: Simplify admin login to master credentials *)",
       "Bash(git commit -m 'Feat: Add tariff creation system to admin panel *)",
-      "Bash(git commit -m 'Fix: Load comercializadoras correctly in tariff creation form *)"
+      "Bash(git commit -m 'Fix: Load comercializadoras correctly in tariff creation form *)",
+      "Bash(git commit -m 'Refactor: Complete analyzer redesign with detailed calculations *)"
     ]
   }
 }
