@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git clone *)",
+      "Bash(cp -r temp_clone/* .)",
+      "Bash(cp -r temp_clone/.git* .)",
+      "Bash(git add *)",
+      "Bash(git commit -m 'Refactor: Focus site on energy advisory, audits, and solar solutions *)",
+      "Bash(npm install *)",
+      "Bash(npm run *)",
+      "Bash(git push *)"
+    ]
+  }
+}

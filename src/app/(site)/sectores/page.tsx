@@ -58,7 +58,7 @@ export default function SectorsPage() {
                 key={sector.name}
                 className="card rounded-2xl p-5 transition duration-200 hover:-translate-y-1 hover:shadow-soft"
               >
-                <div className="text-sm uppercase tracking-[0.14em] text-emerald-700">
+                <div className="text-sm uppercase tracking-[0.14em] text-rose-700">
                   {sector.name}
                 </div>
                 <p className="mt-2 text-sm text-muted">{sector.description}</p>

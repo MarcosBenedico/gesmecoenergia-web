@@ -54,8 +54,8 @@ export default function ServicesPage() {
                 acompañamos el mantenimiento.
               </p>
             </div>
-            <div className="space-y-3 rounded-2xl bg-emerald-50 p-5 text-sm text-foreground">
-              <div className="font-semibold uppercase tracking-[0.14em] text-emerald-800">
+            <div className="space-y-3 rounded-2xl bg-rose-50 p-5 text-sm text-foreground">
+              <div className="font-semibold uppercase tracking-[0.14em] text-rose-800">
                 Ahorro comprobado
               </div>
               <p>
@@ -64,7 +64,7 @@ export default function ServicesPage() {
               </p>
               <p className="font-semibold text-accent">Auditoría · Solar · Almacenamiento · Eficiencia</p>
             </div>
-            <div className="space-y-3 rounded-2xl border border-emerald-100 p-5 text-sm text-muted">
+            <div className="space-y-3 rounded-2xl border border-rose-100 p-5 text-sm text-muted">
               <div className="font-semibold text-foreground">Empieza ahora</div>
               <p>
                 Analiza tu factura en 5 minutos. Descubre tu potencial de ahorro sin

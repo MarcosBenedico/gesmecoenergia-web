@@ -23,7 +23,7 @@ export default function ContactPage() {
             <div className="grid gap-4 md:grid-cols-2">
               {contactChannels.map((channel) => (
                 <div key={channel.title} className="card rounded-2xl p-5">
-                  <div className="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-700">
+                  <div className="text-xs font-semibold uppercase tracking-[0.14em] text-rose-700">
                     {channel.title}
                   </div>
                   <p className="mt-2 text-sm text-muted">{channel.detail}</p>
@@ -31,8 +31,8 @@ export default function ContactPage() {
                 </div>
               ))}
             </div>
-            <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-5 text-sm text-foreground">
-              <div className="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-800">
+            <div className="rounded-2xl border border-rose-100 bg-rose-50/70 p-5 text-sm text-foreground">
+              <div className="text-xs font-semibold uppercase tracking-[0.14em] text-rose-800">
                 Datos directos
               </div>
               <p className="mt-1">{siteConfig.contact.email}</p>
@@ -47,7 +47,7 @@ export default function ContactPage() {
                 <div>
                   <label className="text-sm font-semibold text-foreground">Nombre y apellidos</label>
                   <input
-                    className="mt-2 w-full rounded-xl border border-emerald-100 bg-white px-3 py-2 text-sm outline-none transition focus:border-accent focus:shadow-soft"
+                    className="mt-2 w-full rounded-xl border border-rose-100 bg-white px-3 py-2 text-sm outline-none transition focus:border-accent focus:shadow-soft"
                     name="name"
                     placeholder="Nombre"
                   />
@@ -55,7 +55,7 @@ export default function ContactPage() {
                 <div>
                   <label className="text-sm font-semibold text-foreground">Empresa</label>
                   <input
-                    className="mt-2 w-full rounded-xl border border-emerald-100 bg-white px-3 py-2 text-sm outline-none transition focus:border-accent focus:shadow-soft"
+                    className="mt-2 w-full rounded-xl border border-rose-100 bg-white px-3 py-2 text-sm outline-none transition focus:border-accent focus:shadow-soft"
                     name="company"
                     placeholder="Empresa"
                   />
@@ -66,7 +66,7 @@ export default function ContactPage() {
                 <div>
                   <label className="text-sm font-semibold text-foreground">Email</label>
                   <input
-                    className="mt-2 w-full rounded-xl border border-emerald-100 bg-white px-3 py-2 text-sm outline-none transition focus:border-accent focus:shadow-soft"
+                    className="mt-2 w-full rounded-xl border border-rose-100 bg-white px-3 py-2 text-sm outline-none transition focus:border-accent focus:shadow-soft"
                     type="email"
                     name="email"
                     placeholder="email@empresa.com"
@@ -75,7 +75,7 @@ export default function ContactPage() {
                 <div>
                   <label className="text-sm font-semibold text-foreground">Teléfono</label>
                   <input
-                    className="mt-2 w-full rounded-xl border border-emerald-100 bg-white px-3 py-2 text-sm outline-none transition focus:border-accent focus:shadow-soft"
+                    className="mt-2 w-full rounded-xl border border-rose-100 bg-white px-3 py-2 text-sm outline-none transition focus:border-accent focus:shadow-soft"
                     name="phone"
                     placeholder="+34 600 000 000"
                   />
@@ -85,7 +85,7 @@ export default function ContactPage() {
               <div>
                 <label className="text-sm font-semibold text-foreground">Prioridad principal</label>
                 <select
-                  className="mt-2 w-full rounded-xl border border-emerald-100 bg-white px-3 py-2 text-sm outline-none transition focus:border-accent focus:shadow-soft"
+                  className="mt-2 w-full rounded-xl border border-rose-100 bg-white px-3 py-2 text-sm outline-none transition focus:border-accent focus:shadow-soft"
                   name="priority"
                   defaultValue=""
                 >
@@ -103,7 +103,7 @@ export default function ContactPage() {
               <div>
                 <label className="text-sm font-semibold text-foreground">Contexto</label>
                 <textarea
-                  className="mt-2 h-28 w-full rounded-xl border border-emerald-100 bg-white px-3 py-2 text-sm outline-none transition focus:border-accent focus:shadow-soft"
+                  className="mt-2 h-28 w-full rounded-xl border border-rose-100 bg-white px-3 py-2 text-sm outline-none transition focus:border-accent focus:shadow-soft"
                   name="message"
                   placeholder="Cuéntanos consumo anual, contratos vigentes, retos y objetivos."
                 />

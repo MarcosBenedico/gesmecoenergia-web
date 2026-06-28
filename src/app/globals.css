@@ -7,11 +7,11 @@
   --color-foreground: #0f172a;
   --color-muted: #334155;
   --color-border: #e2e8f0;
-  --color-accent: #0f766e;
-  --color-accent-strong: #0b4336;
+  --color-accent: #dc2626;
+  --color-accent-strong: #991b1b;
   --color-amber: #f59e0b;
   --shadow-card: 0 24px 70px rgba(15, 23, 42, 0.08);
-  --shadow-soft: 0 30px 90px rgba(15, 118, 110, 0.12);
+  --shadow-soft: 0 30px 90px rgba(220, 38, 38, 0.12);
   --radius-md: 14px;
   --radius-lg: 20px;
   --radius-xl: 28px;
@@ -38,7 +38,7 @@
 }
 
 body {
-  background: radial-gradient(circle at 10% 20%, #ecf8f5 0, rgba(236, 248, 245, 0) 32%),
+  background: radial-gradient(circle at 10% 20%, #fee2e2 0, rgba(254, 226, 226, 0) 32%),
     radial-gradient(circle at 90% 15%, #e0f2fe 0, rgba(224, 242, 254, 0) 28%),
     var(--color-background);
   color: var(--color-foreground);
@@ -66,14 +66,14 @@ li {
 
 .pill {
   border-radius: 9999px;
-  border: 1px solid rgba(15, 118, 110, 0.18);
-  background: rgba(15, 118, 110, 0.08);
+  border: 1px solid rgba(220, 38, 38, 0.18);
+  background: rgba(220, 38, 38, 0.08);
 }
 
 .gradient-hero {
-  background: radial-gradient(circle at 10% 20%, rgba(15, 118, 110, 0.14) 0, transparent 28%),
+  background: radial-gradient(circle at 10% 20%, rgba(220, 38, 38, 0.14) 0, transparent 28%),
     radial-gradient(circle at 80% 0%, rgba(14, 165, 233, 0.12) 0, transparent 24%),
-    linear-gradient(135deg, #0b4336 0%, #0f766e 40%, #0ea5e9 100%);
+    linear-gradient(135deg, #991b1b 0%, #dc2626 40%, #0ea5e9 100%);
 }
 
 .glass {

@@ -15,7 +15,7 @@ export const StatCard = ({ value, label, detail, className }: StatCardProps) => 
         className
       )}
     >
-      <div className="text-sm font-semibold uppercase tracking-[0.16em] text-emerald-700">
+      <div className="text-sm font-semibold uppercase tracking-[0.16em] text-rose-700">
         {label}
       </div>
       <div className="text-4xl font-semibold text-foreground">{value}</div>

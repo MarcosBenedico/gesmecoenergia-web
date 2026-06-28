@@ -57,10 +57,10 @@ export default function HomePage() {
           </div>
 
           <div className="card glass relative overflow-hidden rounded-3xl p-8">
-            <div className="absolute inset-0 bg-gradient-to-br from-emerald-50 via-white to-white/40" />
+            <div className="absolute inset-0 bg-gradient-to-br from-rose-50 via-white to-white/40" />
             <div className="relative space-y-6">
               <div>
-                <div className="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-700">
+                <div className="text-xs font-semibold uppercase tracking-[0.14em] text-rose-700">
                   Panel de control
                 </div>
                 <h3 className="text-2xl font-semibold text-foreground">
@@ -69,24 +69,24 @@ export default function HomePage() {
               </div>
               <BulletList items={differentiators} />
               <div className="grid gap-3 sm:grid-cols-2">
-                <div className="rounded-2xl bg-emerald-50 px-4 py-3 text-sm font-semibold text-accent">
-                  <div className="text-xs uppercase tracking-[0.18em] text-emerald-800">
+                <div className="rounded-2xl bg-rose-50 px-4 py-3 text-sm font-semibold text-accent">
+                  <div className="text-xs uppercase tracking-[0.18em] text-rose-800">
                     Indicadores vivos
                   </div>
                   Coste/MWh · CO₂ evitado · ROI real
                 </div>
-                <div className="rounded-2xl border border-emerald-100 px-4 py-3 text-sm text-muted">
+                <div className="rounded-2xl border border-rose-100 px-4 py-3 text-sm text-muted">
                   Alertas tempranas de desvío de potencia, consumo y calidad de energía.
                 </div>
               </div>
               <div className="flex items-center justify-between rounded-2xl bg-neutral-900 px-4 py-3 text-sm text-white">
                 <div>
-                  <div className="text-xs uppercase tracking-[0.14em] text-emerald-100">
+                  <div className="text-xs uppercase tracking-[0.14em] text-rose-100">
                     SLA
                   </div>
                   Respuesta operativa en <strong>&lt; 5 min</strong> ante alarmas críticas
                 </div>
-                <div className="rounded-full bg-emerald-500/90 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-white">
+                <div className="rounded-full bg-rose-500/90 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-white">
                   24/7
                 </div>
               </div>
@@ -150,7 +150,7 @@ export default function HomePage() {
                 key={sector.name}
                 className="card rounded-2xl p-5 transition duration-200 hover:-translate-y-1 hover:shadow-soft"
               >
-                <div className="text-sm uppercase tracking-[0.16em] text-emerald-700">
+                <div className="text-sm uppercase tracking-[0.16em] text-rose-700">
                   {sector.name}
                 </div>
                 <p className="mt-2 text-sm text-muted">{sector.description}</p>
@@ -175,10 +175,10 @@ export default function HomePage() {
                 className="card relative flex flex-col gap-3 rounded-2xl p-5"
               >
                 <div className="flex items-center justify-between">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-50 text-sm font-semibold text-accent">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-rose-50 text-sm font-semibold text-accent">
                     {index + 1}
                   </div>
-                  <span className="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-800">
+                  <span className="text-xs font-semibold uppercase tracking-[0.14em] text-rose-800">
                     Fase {index + 1}
                   </span>
                 </div>
@@ -192,10 +192,10 @@ export default function HomePage() {
 
       <section>
         <Container className="relative overflow-hidden rounded-3xl bg-neutral-900 px-8 py-12 text-white shadow-soft">
-          <div className="absolute inset-0 bg-gradient-to-br from-emerald-600/50 via-neutral-900 to-neutral-900" />
+          <div className="absolute inset-0 bg-gradient-to-br from-rose-600/50 via-neutral-900 to-neutral-900" />
           <div className="relative flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
             <div className="space-y-2">
-              <div className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-100">
+              <div className="text-xs font-semibold uppercase tracking-[0.16em] text-rose-100">
                 Empieza ahora
               </div>
               <h3 className="text-3xl font-semibold">
@@ -207,7 +207,7 @@ export default function HomePage() {
               </p>
             </div>
             <div className="flex flex-wrap gap-3">
-              <Button href="/analizador" size="lg" className="bg-white text-neutral-900 hover:bg-emerald-50">
+              <Button href="/analizador" size="lg" className="bg-white text-neutral-900 hover:bg-rose-50">
                 Analizar ahora
               </Button>
               <Button href="/contacto" variant="ghost" size="lg" className="border-white/30 bg-white/10 text-white hover:bg-white/20">

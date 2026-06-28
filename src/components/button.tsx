@@ -26,7 +26,7 @@ export const Button = ({
       : "px-4 py-2.5 text-sm md:text-base";
   const variants =
     variant === "ghost"
-      ? "border border-emerald-100 bg-white/80 text-foreground hover:-translate-y-0.5 hover:border-emerald-200 hover:bg-white shadow-sm"
+      ? "border border-rose-100 bg-white/80 text-foreground hover:-translate-y-0.5 hover:border-rose-200 hover:bg-white shadow-sm"
       : "bg-accent text-white hover:-translate-y-0.5 hover:bg-accent-strong shadow-soft";
 
   const styles = cn(base, sizes, variants, className);

@@ -41,7 +41,7 @@ export default function ResourcesPage() {
                 key={res.title}
                 className="card flex flex-col gap-3 rounded-2xl p-5 transition hover:-translate-y-1 hover:shadow-soft"
               >
-                <div className="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-700">
+                <div className="text-xs font-semibold uppercase tracking-[0.14em] text-rose-700">
                   Recurso
                 </div>
                 <div className="text-lg font-semibold text-foreground">{res.title}</div>
@@ -53,7 +53,7 @@ export default function ResourcesPage() {
           <div className="rounded-3xl bg-neutral-900 px-6 py-8 text-white shadow-soft">
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
               <div>
-                <div className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-100">
+                <div className="text-xs font-semibold uppercase tracking-[0.16em] text-rose-100">
                   Acceso prioritario
                 </div>
                 <h3 className="text-2xl font-semibold">Pide las guías y un breve diagnóstico.</h3>
@@ -62,7 +62,7 @@ export default function ResourcesPage() {
                 </p>
               </div>
               <div className="flex gap-3">
-                <Button href="/contacto" size="lg" className="bg-white text-neutral-900 hover:bg-emerald-50">
+                <Button href="/contacto" size="lg" className="bg-white text-neutral-900 hover:bg-rose-50">
                   Solicitar recursos
                 </Button>
                 <Button

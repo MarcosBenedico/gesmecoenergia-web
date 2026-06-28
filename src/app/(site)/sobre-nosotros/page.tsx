@@ -53,8 +53,8 @@ export default function AboutPage() {
                 <span>KPI compartidos: coste total, disponibilidad y CO₂ evitado.</span>
               </div>
             </div>
-            <div className="mt-6 rounded-2xl bg-emerald-50 p-5 text-sm text-foreground">
-              <div className="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-800">
+            <div className="mt-6 rounded-2xl bg-rose-50 p-5 text-sm text-foreground">
+              <div className="text-xs font-semibold uppercase tracking-[0.14em] text-rose-800">
                 Propósito
               </div>
               Energía más competitiva, fiable y sostenible para nuestros clientes.
@@ -100,7 +100,7 @@ export default function AboutPage() {
         <Container className="rounded-3xl bg-neutral-900 px-8 py-10 text-white shadow-soft">
           <div className="grid gap-6 md:grid-cols-[1.1fr_0.9fr] md:items-center">
             <div>
-              <div className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-100">
+              <div className="text-xs font-semibold uppercase tracking-[0.16em] text-rose-100">
                 Compromiso
               </div>
               <h3 className="mt-2 text-3xl font-semibold">
@@ -112,7 +112,7 @@ export default function AboutPage() {
               </p>
             </div>
             <div className="rounded-2xl border border-white/20 bg-white/5 p-5 text-sm text-gray-200">
-              <div className="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-100">
+              <div className="text-xs font-semibold uppercase tracking-[0.14em] text-rose-100">
                 Contacto directo
               </div>
               <p className="mt-2">

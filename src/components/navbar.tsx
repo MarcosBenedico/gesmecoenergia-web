@@ -114,9 +114,9 @@ export const Navbar = () => {
               <Link
                 key={item.title}
                 href={item.href}
-                className="group flex gap-3 rounded-2xl p-3 transition hover:-translate-y-1 hover:bg-emerald-50"
+                className="group flex gap-3 rounded-2xl p-3 transition hover:-translate-y-1 hover:bg-rose-50"
               >
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-accent">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-50 text-accent">
                   {icons[item.icon as keyof typeof icons]}
                 </div>
                 <div className="space-y-1">
@@ -126,7 +126,7 @@ export const Navbar = () => {
               </Link>
             ))}
           </div>
-          <div className="mt-4 flex items-center justify-between rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-foreground">
+          <div className="mt-4 flex items-center justify-between rounded-2xl bg-rose-50 px-4 py-3 text-sm text-foreground">
             <span className="font-semibold">
               {menu === "Servicios"
                 ? "Explora el detalle de todos nuestros servicios."
@@ -154,7 +154,7 @@ export const Navbar = () => {
               <button
                 className={cn(
                   "flex items-center gap-2 rounded-full px-3 py-2 transition hover:text-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-                  active && "bg-emerald-50 text-accent-strong"
+                  active && "bg-rose-50 text-accent-strong"
                 )}
                 aria-haspopup="true"
                 aria-expanded={isOpen}
@@ -183,7 +183,7 @@ export const Navbar = () => {
             href={item.href}
             className={cn(
               "rounded-full px-3 py-2 transition hover:text-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-              active && "bg-emerald-50 text-accent-strong"
+              active && "bg-rose-50 text-accent-strong"
             )}
           >
             {item.label}
@@ -200,14 +200,14 @@ export const Navbar = () => {
         mobileOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"
       )}
     >
-      <div className="mt-3 rounded-2xl border border-emerald-100 bg-white/95 p-4 shadow-xl backdrop-blur transition">
+      <div className="mt-3 rounded-2xl border border-rose-100 bg-white/95 p-4 shadow-xl backdrop-blur transition">
         <div className="space-y-3">
           {navigation.map((item) => {
             if (item.type === "mega") {
               const list = item.label === "Servicios" ? servicesMega : sectorsMega;
               return (
                 <div key={item.label} className="space-y-2">
-                  <div className="text-xs font-semibold uppercase tracking-[0.12em] text-emerald-700">
+                  <div className="text-xs font-semibold uppercase tracking-[0.12em] text-rose-700">
                     {item.label}
                   </div>
                   <div className="space-y-2">
@@ -215,7 +215,7 @@ export const Navbar = () => {
                       <Link
                         key={link.title}
                         href={link.href}
-                        className="flex items-start gap-2 rounded-xl bg-emerald-50/60 px-3 py-2 text-sm text-foreground transition hover:bg-emerald-50"
+                        className="flex items-start gap-2 rounded-xl bg-rose-50/60 px-3 py-2 text-sm text-foreground transition hover:bg-rose-50"
                         onClick={() => setMobileOpen(false)}
                       >
                         <div className="mt-0.5">{icons[link.icon as keyof typeof icons]}</div>
@@ -240,7 +240,7 @@ export const Navbar = () => {
               <Link
                 key={item.label}
                 href={item.href}
-                className="flex items-center justify-between rounded-xl px-3 py-2 text-sm font-semibold text-foreground transition hover:bg-emerald-50"
+                className="flex items-center justify-between rounded-xl px-3 py-2 text-sm font-semibold text-foreground transition hover:bg-rose-50"
                 onClick={() => setMobileOpen(false)}
               >
                 {item.label}
@@ -274,7 +274,7 @@ export const Navbar = () => {
         {desktopNav}
 
         <div className="hidden items-center gap-2 md:flex">
-          <Button href="/contacto" variant="ghost" size="md" className="border border-emerald-100">
+          <Button href="/contacto" variant="ghost" size="md" className="border border-rose-100">
             Contacto
           </Button>
           <Button href="/contacto" variant="primary" size="md">
@@ -283,7 +283,7 @@ export const Navbar = () => {
         </div>
 
         <button
-          className="flex h-11 w-11 items-center justify-center rounded-full border border-emerald-100 bg-white text-foreground transition hover:border-accent md:hidden"
+          className="flex h-11 w-11 items-center justify-center rounded-full border border-rose-100 bg-white text-foreground transition hover:border-accent md:hidden"
           aria-label="Abrir menú"
           aria-expanded={mobileOpen}
           onClick={() => setMobileOpen((v) => !v)}
