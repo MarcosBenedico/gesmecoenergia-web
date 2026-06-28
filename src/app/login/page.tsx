@@ -32,7 +32,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen w-screen flex flex-col items-center justify-center py-8 px-4 sm:py-12 sm:px-6">
+    <div className="min-h-screen w-full flex flex-col items-center justify-center py-12 px-4 sm:py-16 sm:px-6 pt-20 sm:pt-0">
       <div className="w-full max-w-sm sm:max-w-md">
         <div className="card glass rounded-2xl p-6 sm:p-8 space-y-6 sm:space-y-8">
           {/* Logo y título */}

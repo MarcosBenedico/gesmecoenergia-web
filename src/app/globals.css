@@ -87,6 +87,9 @@ body {
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   overflow-x: hidden;
+  margin: 0;
+  padding: 0;
+  width: 100%;
 }
 
 /* Efecto de fondo animado */
