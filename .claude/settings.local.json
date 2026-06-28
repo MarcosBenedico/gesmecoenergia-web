@@ -23,7 +23,10 @@
       "Bash(git commit -m 'Fix: Correct power price calculation from daily to annual *)",
       "Bash(git commit -m 'Feat: Add margin simulator to admin panel *)",
       "Bash(git commit -m 'Refactor: Complete simulator redesign - Comparativa simple and intuitive *)",
-      "Bash(git commit -m 'Feat: Add client management system to admin panel *)"
+      "Bash(git commit -m 'Feat: Add client management system to admin panel *)",
+      "Bash(grep -n \"^function\\\\|^}$\")",
+      "Bash(git checkout *)",
+      "Bash(git commit -m 'Feat: Add follow-up system with Google Calendar integration *)"
     ]
   }
 }

@@ -6,8 +6,9 @@ import { obtenerUsuarioActual, logoutUsuario, obtenerPreciosComercializadoras } 
 import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/button';
 import { Container } from '@/components/container';
+import { SistemaSegumientos } from '@/components/sistema-seguimientos';
 
-type Seccion = 'view' | 'create' | 'margenes' | 'clientes';
+type Seccion = 'view' | 'create' | 'margenes' | 'clientes' | 'seguimientos';
 
 interface Precio {
   id: number;
@@ -63,6 +64,10 @@ export default function GestorPage() {
     precios_potencia: [0, 0],
   });
 
+  // Seguimientos
+  const [clienteSeleccionado, setClienteSeleccionado] = useState<any | null>(null);
+  const [seguimientos, setSeguimientos] = useState<any[]>([]);
+
   useEffect(() => {
     const usuario = obtenerUsuarioActual();
     if (!usuario) {
@@ -105,6 +110,19 @@ export default function GestorPage() {
       setClientes(data || []);
     } catch (error) {
       console.error('Error al cargar clientes:', error);
+    }
+  };
+
+  const cargarSeguimientos = async (clienteId: number) => {
+    try {
+      const { data } = await supabase
+        .from('seguimientos')
+        .select('*')
+        .eq('cliente_id', clienteId)
+        .order('created_at', { ascending: false });
+      setSeguimientos(data || []);
+    } catch (error) {
+      console.error('Error al cargar seguimientos:', error);
     }
   };
 
@@ -236,6 +254,16 @@ export default function GestorPage() {
               }`}
             >
               Gestionar Clientes
+            </button>
+            <button
+              onClick={() => setSeccion('seguimientos')}
+              className={`px-4 py-2 rounded-lg font-semibold transition ${
+                seccion === 'seguimientos'
+                  ? 'bg-accent text-white'
+                  : 'bg-neutral-200 text-foreground hover:bg-neutral-300'
+              }`}
+            >
+              Seguimientos
             </button>
           </div>
 
@@ -437,6 +465,17 @@ export default function GestorPage() {
               cargarClientes={cargarClientes}
               formCliente={formCliente}
               setFormCliente={setFormCliente}
+            />
+          )}
+
+          {/* Sección: Seguimientos */}
+          {seccion === 'seguimientos' && (
+            <SistemaSegumientos
+              clientes={clientes}
+              clienteSeleccionado={clienteSeleccionado}
+              setClienteSeleccionado={setClienteSeleccionado}
+              seguimientos={seguimientos}
+              cargarSeguimientos={cargarSeguimientos}
             />
           )}
 
