@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 
 interface SeguimientosProps {
@@ -19,11 +19,26 @@ export function SistemaSegumientos({
   cargarSeguimientos,
 }: SeguimientosProps) {
   const [loading, setLoading] = useState(false);
+  const [googleConnected, setGoogleConnected] = useState(false);
   const [formSeguimiento, setFormSeguimiento] = useState({
     estado: 'Contactado',
     notas: '',
     fecha_proximo_seguimiento: '',
   });
+
+  // Verificar si está conectado a Google
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('google_connected') === 'true') {
+      setGoogleConnected(true);
+      window.history.replaceState({}, '', '/gestor?seccion=seguimientos');
+    }
+
+    const googleEmail = document.cookie.split('; ').find((row) => row.startsWith('google_email='));
+    if (googleEmail) {
+      setGoogleConnected(true);
+    }
+  }, []);
 
   const handleAgregarSeguimiento = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -43,7 +58,33 @@ export function SistemaSegumientos({
 
       if (error) throw error;
 
-      alert('Seguimiento agregado. ¡Crea un evento en Google Calendar si lo deseas!');
+      // Si está conectado a Google, crear evento automáticamente
+      if (googleConnected && formSeguimiento.fecha_proximo_seguimiento) {
+        try {
+          const response = await fetch('/api/google/create-event', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              clienteName: clienteSeleccionado.nombre,
+              cups: clienteSeleccionado.cups,
+              estado: formSeguimiento.estado,
+              notas: formSeguimiento.notas,
+              fecha: formSeguimiento.fecha_proximo_seguimiento,
+            }),
+          });
+
+          if (response.ok) {
+            alert('✅ Seguimiento agregado y evento creado en Google Calendar');
+          } else {
+            alert('✅ Seguimiento agregado (Google Calendar: fallo)');
+          }
+        } catch (calError) {
+          alert('✅ Seguimiento agregado (Google Calendar: error)');
+        }
+      } else {
+        alert('Seguimiento agregado' + (googleConnected ? '' : '. Conecta Google Calendar para crear eventos automáticamente'));
+      }
+
       setFormSeguimiento({
         estado: 'Contactado',
         notas: '',
@@ -94,6 +135,36 @@ export function SistemaSegumientos({
 
   return (
     <div className="space-y-6">
+      {/* Estado Google Calendar */}
+      {!googleConnected && (
+        <div className="card rounded-2xl p-6 md:p-8 bg-blue-50 border-2 border-blue-200">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-semibold text-blue-900 mb-1">Conectar Google Calendar</h3>
+              <p className="text-sm text-blue-700">Crear eventos automáticamente en tu calendario</p>
+            </div>
+            <button
+              onClick={() => window.location.href = '/api/google/auth'}
+              className="px-6 py-2 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700 transition whitespace-nowrap"
+            >
+              Conectar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {googleConnected && (
+        <div className="card rounded-2xl p-6 md:p-8 bg-green-50 border-2 border-green-200">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">✅</span>
+            <div>
+              <h3 className="font-semibold text-green-900">Google Calendar Conectado</h3>
+              <p className="text-sm text-green-700">Los seguimientos crearán eventos automáticamente</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Seleccionar cliente */}
       <div className="card rounded-2xl p-6 md:p-8">
         <h2 className="mb-4 text-xl font-semibold text-foreground">Seleccionar Cliente</h2>
