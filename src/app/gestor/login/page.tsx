@@ -2,13 +2,13 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { loginUsuario } from '@/lib/auth';
+import { loginGestor } from '@/lib/auth';
 import { Button } from '@/components/button';
 import { Container } from '@/components/container';
 
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState('');
+  const [usuario, setUsuario] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -19,10 +19,10 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      await loginUsuario(email, password);
+      await loginGestor(usuario, password);
       router.push('/gestor');
     } catch (err: any) {
-      setError(err.message || 'Error al iniciar sesión');
+      setError(err.message || 'Usuario o contraseña incorrectos');
     } finally {
       setLoading(false);
     }
@@ -32,19 +32,19 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center px-4 py-20">
       <Container className="max-w-md">
         <div className="card rounded-3xl p-8">
-          <h1 className="mb-2 text-2xl font-bold text-foreground">Gestor</h1>
-          <p className="mb-6 text-sm text-muted">Acceso para administradores</p>
+          <h1 className="mb-2 text-2xl font-bold text-foreground">Panel Gestor</h1>
+          <p className="mb-6 text-sm text-muted">Acceso administrador</p>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-sm font-semibold text-foreground mb-2">
-                Email
+                Usuario
               </label>
               <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="tu@email.com"
+                type="text"
+                value={usuario}
+                onChange={(e) => setUsuario(e.target.value)}
+                placeholder="UsuarioMaster"
                 required
                 className="w-full rounded-lg border border-neutral-200 px-4 py-2.5 placeholder-muted focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
               />
@@ -76,7 +76,7 @@ export default function LoginPage() {
               className="w-full"
               disabled={loading}
             >
-              {loading ? 'Iniciando...' : 'Iniciar sesión'}
+              {loading ? 'Verificando...' : 'Acceder'}
             </Button>
           </form>
         </div>

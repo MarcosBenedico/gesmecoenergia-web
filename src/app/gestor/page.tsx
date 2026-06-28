@@ -33,7 +33,7 @@ export default function GestorPage() {
       return;
     }
 
-    setUsuarioActual(obtenerEmailActual());
+    setUsuarioActual('UsuarioMaster');
     cargarPrecios();
   }, [router]);
 

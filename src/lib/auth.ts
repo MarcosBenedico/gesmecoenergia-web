@@ -1,5 +1,30 @@
 import { supabase } from './supabase';
 
+// Credenciales maestras (simplificadas para panel admin)
+const MASTER_USER = 'UsuarioMaster';
+const MASTER_PASSWORD = '12345678';
+
+export async function loginGestor(usuario: string, password: string) {
+  try {
+    // Verificar credenciales maestras
+    if (usuario !== MASTER_USER || password !== MASTER_PASSWORD) {
+      throw new Error('Usuario o contraseña incorrectos');
+    }
+
+    // Guardar sesión en localStorage
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('admin_token', 'master_' + Date.now());
+      localStorage.setItem('admin_user', usuario);
+    }
+
+    return { usuario, authenticated: true };
+  } catch (error) {
+    console.error('Error en login:', error);
+    throw error;
+  }
+}
+
+// Mantener para compatibilidad con código antiguo
 export async function loginUsuario(email: string, password: string) {
   try {
     // Obtener usuario

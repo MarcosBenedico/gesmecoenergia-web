@@ -14,7 +14,8 @@
       "Bash(git commit -m 'Fix: Complete mobile responsive design for analyzer *)",
       "Bash(git commit -m 'Feat: Add secret admin panel for price management *)",
       "Bash(git commit -m 'UX: Add discrete '\\\\''Gestor'\\\\'' link in footer *)",
-      "Bash(git commit -m 'Refactor: Complete analyzer redesign with commercial comparisons *)"
+      "Bash(git commit -m 'Refactor: Complete analyzer redesign with commercial comparisons *)",
+      "Bash(git commit -m 'Update: Simplify admin login to master credentials *)"
     ]
   }
 }
