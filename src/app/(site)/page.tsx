@@ -18,76 +18,103 @@ import { siteConfig } from "@/lib/site";
 export default function HomePage() {
   return (
     <div className="space-y-20 pb-20">
-      <section className="pt-14">
-        <Container className="grid items-center gap-10 lg:grid-cols-[1.05fr_0.95fr]">
-          <div className="space-y-7">
-            <span className="pill inline-flex w-fit items-center gap-2 px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-white gradient-hero shadow-soft">
-              Gesmeco Energía
-            </span>
-            <div className="space-y-4">
-              <h1 className="text-4xl font-semibold leading-tight text-foreground md:text-5xl">
-                Reduce tu factura de luz. Ya.
-              </h1>
-              <p className="text-lg text-muted md:text-xl">
-                Asesoramiento energético, auditorías, solar y soluciones de almacenamiento.
-                Descubre cuánto puedes ahorrar en 5 minutos.
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-3">
-              <Button href="/analizador" size="lg">
-                Analizar mi factura
-              </Button>
-              <Button href="/servicios" variant="ghost" size="lg">
-                Ver servicios
-              </Button>
-              <span className="text-sm font-semibold text-muted">
-                Análisis <span className="text-foreground">100% gratis</span>
+      <section className="relative pt-20 overflow-hidden">
+        {/* Glow effects */}
+        <div className="absolute top-0 left-0 w-96 h-96 bg-red-500/10 rounded-full blur-3xl -z-10" />
+        <div className="absolute bottom-0 right-0 w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl -z-10" />
+
+        <Container className="grid items-center gap-16 lg:grid-cols-[1.1fr_0.9fr]">
+          <div className="space-y-8 animate-slideDown">
+            <div className="inline-flex items-center gap-2">
+              <span className="h-2 w-2 rounded-full bg-accent animate-pulse" />
+              <span className="text-sm font-bold uppercase tracking-widest text-accent">
+                Energía inteligente
               </span>
             </div>
-            <div className="grid gap-3 sm:grid-cols-3">
-              {heroStats.map((stat) => (
-                <StatCard
-                  key={stat.label}
-                  label={stat.label}
-                  value={stat.value}
-                  detail={stat.detail}
-                />
+
+            <div className="space-y-5">
+              <h1 className="text-5xl md:text-6xl lg:text-7xl font-black leading-tight">
+                <span className="bg-gradient-to-r from-accent via-accent-light to-secondary bg-clip-text text-transparent">
+                  Reduce tu factura
+                </span>
+                <br />
+                <span className="text-foreground">de luz. Ya.</span>
+              </h1>
+              <p className="text-lg md:text-xl text-muted leading-relaxed max-w-lg">
+                Asesoramiento energético, auditorías, solar y soluciones de almacenamiento. Descubre cuánto puedes ahorrar en 5 minutos.
+              </p>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 flex-wrap">
+              <Button href="/analizador" size="lg" className="bg-gradient-to-r from-accent to-accent-light text-white font-bold text-base px-8 py-4 rounded-xl shadow-glow hover:shadow-glow">
+                🚀 Analizar mi factura
+              </Button>
+              <Button href="/servicios" variant="ghost" size="lg" className="border-2 border-muted text-foreground hover:border-accent hover:text-accent">
+                Ver servicios →
+              </Button>
+              <div className="text-sm font-semibold text-muted">
+                <span className="text-accent">✓ 100% gratis</span> · Sin compromiso
+              </div>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-3 pt-6">
+              {heroStats.map((stat, idx) => (
+                <div key={stat.label} className="group" style={{animationDelay: `${idx * 0.1}s`}}>
+                  <StatCard
+                    label={stat.label}
+                    value={stat.value}
+                    detail={stat.detail}
+                  />
+                </div>
               ))}
             </div>
           </div>
 
-          <div className="card glass relative overflow-hidden rounded-3xl p-8">
-            <div className="absolute inset-0 bg-gradient-to-br from-rose-50 via-white to-white/40" />
-            <div className="relative space-y-6">
-              <div>
-                <div className="text-xs font-semibold uppercase tracking-[0.14em] text-rose-700">
-                  Panel de control
-                </div>
-                <h3 className="text-2xl font-semibold text-foreground">
-                  Coste total, riesgo y sostenibilidad en una sola vista.
-                </h3>
-              </div>
-              <BulletList items={differentiators} />
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="rounded-2xl bg-rose-50 px-4 py-3 text-sm font-semibold text-accent">
-                  <div className="text-xs uppercase tracking-[0.18em] text-rose-800">
-                    Indicadores vivos
-                  </div>
-                  Coste/MWh · CO₂ evitado · ROI real
-                </div>
-                <div className="rounded-2xl border border-rose-100 px-4 py-3 text-sm text-muted">
-                  Alertas tempranas de desvío de potencia, consumo y calidad de energía.
-                </div>
-              </div>
-              <div className="flex items-center justify-between rounded-2xl bg-neutral-900 px-4 py-3 text-sm text-white">
+          <div className="relative animate-float">
+            {/* Glow background */}
+            <div className="absolute inset-0 bg-gradient-to-r from-accent/20 to-secondary/20 rounded-3xl blur-2xl" />
+
+            <div className="card glass relative overflow-hidden rounded-3xl p-8 md:p-10 border-accent/30">
+              {/* Animated gradient border */}
+              <div className="absolute inset-0 rounded-3xl p-[1px] bg-gradient-to-r from-accent via-secondary to-accent opacity-30" />
+
+              <div className="relative space-y-8">
                 <div>
-                  <div className="text-xs uppercase tracking-[0.14em] text-rose-100">
-                    SLA
+                  <div className="text-xs font-bold uppercase tracking-widest text-accent mb-2">
+                    ⚡ Panel de control
                   </div>
-                  Respuesta operativa en <strong>&lt; 5 min</strong> ante alarmas críticas
+                  <h3 className="text-2xl md:text-3xl font-black text-foreground">
+                    Coste total, riesgo y sostenibilidad en una sola vista.
+                  </h3>
                 </div>
-                <div className="rounded-full bg-rose-500/90 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-white">
-                  24/7
+
+                <BulletList items={differentiators} />
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-xl bg-gradient-to-br from-accent/20 to-accent/10 border border-accent/30 px-4 py-4 text-sm font-bold text-accent hover:border-accent/60 group cursor-pointer">
+                    <div className="text-xs uppercase tracking-widest text-accent/70 mb-1">
+                      📊 Indicadores vivos
+                    </div>
+                    Coste/MWh · CO₂ evitado · ROI real
+                  </div>
+                  <div className="rounded-xl bg-gradient-to-br from-secondary/20 to-secondary/10 border border-secondary/30 px-4 py-4 text-sm text-muted hover:border-secondary/60 group cursor-pointer">
+                    <div className="text-xs uppercase tracking-widest text-secondary/70 mb-1">
+                      🚨 Alertas inteligentes
+                    </div>
+                    Desvío de potencia y consumo en tiempo real
+                  </div>
+                </div>
+
+                <div className="rounded-xl bg-gradient-to-r from-accent/10 to-secondary/10 border border-accent/30 px-6 py-4 flex items-center justify-between hover:border-accent/60 group">
+                  <div>
+                    <div className="text-xs uppercase tracking-widest text-accent font-bold mb-1">
+                      ⏱️ SLA garantizado
+                    </div>
+                    <span className="text-foreground font-semibold">Respuesta en &lt; 5 min ante alarmas críticas</span>
+                  </div>
+                  <div className="rounded-full bg-gradient-to-r from-accent to-accent-light px-3 py-2 text-xs font-bold uppercase text-white whitespace-nowrap ml-4">
+                    24/7
+                  </div>
                 </div>
               </div>
             </div>
