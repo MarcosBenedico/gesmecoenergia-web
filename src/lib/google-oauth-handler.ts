@@ -1,83 +1,30 @@
 /**
- * Manejo robusto de tokens OAuth de Google
- * Refresca automáticamente cuando expiran
+ * Manejo robusto de tokens OAuth de Google (lado cliente)
+ * Refresca automáticamente cuando expiran usando API route
  */
 
-import { supabase } from './supabase';
-
-export async function obtenerTokenValido(): Promise<string | null> {
-  try {
-    const { data } = await supabase
-      .from('google_config')
-      .select('access_token, refresh_token, expires_at')
-      .eq('id', 1)
-      .single();
-
-    if (!data?.access_token) {
-      console.log('❌ No hay token guardado');
-      return null;
-    }
-
-    // Si hay expires_at y expiró, refrescar
-    if (data.expires_at) {
-      const ahora = Date.now() / 1000;
-      if (ahora > data.expires_at) {
-        console.log('⏰ Token expirado, refrescando...');
-        const nuevoToken = await refrescarToken(data.refresh_token);
-        if (nuevoToken) return nuevoToken;
-      }
-    }
-
-    return data.access_token;
-  } catch (err) {
-    console.error('❌ Error obteniendo token:', err);
-    return null;
-  }
+interface TokenResponse {
+  access_token: string;
+  expires_at?: number;
+  error?: string;
 }
 
-async function refrescarToken(refreshToken: string | null): Promise<string | null> {
-  if (!refreshToken) {
-    console.log('❌ No hay refresh token disponible');
-    return null;
-  }
-
+async function obtenerTokenValido(): Promise<string | null> {
   try {
-    console.log('🔄 Refrescando token con refresh_token...');
+    console.log('🔐 [Cliente] Obteniendo token válido...');
 
-    const response = await fetch('https://oauth2.googleapis.com/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        client_id: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '',
-        client_secret: process.env.GOOGLE_CLIENT_SECRET || '',
-        refresh_token: refreshToken,
-        grant_type: 'refresh_token',
-      }).toString(),
-    });
+    const response = await fetch('/api/google/token');
+    const data: TokenResponse = await response.json();
 
     if (!response.ok) {
-      console.error('❌ Error refrescando token:', response.status);
-      return null;
+      console.log('❌ [Cliente] Error:', data.error);
+      throw new Error(data.error || 'Error obteniendo token');
     }
 
-    const tokens = await response.json();
-    console.log('✅ Token refrescado exitosamente');
-
-    // Guardar nuevo access_token y expires_at
-    const expiresIn = tokens.expires_in || 3600; // 1 hora por defecto
-    const expiresAt = Math.floor(Date.now() / 1000) + expiresIn;
-
-    await supabase
-      .from('google_config')
-      .update({
-        access_token: tokens.access_token,
-        expires_at: expiresAt,
-      })
-      .eq('id', 1);
-
-    return tokens.access_token;
+    console.log('✅ [Cliente] Token obtenido');
+    return data.access_token;
   } catch (err) {
-    console.error('💥 Error refrescando token:', err);
+    console.error('❌ [Cliente] Error obteniendo token:', err);
     return null;
   }
 }
@@ -106,25 +53,18 @@ export async function llamarCalendarAPI(
 
   // Si falla por autenticación inválida, intentar refrescar
   if (response.status === 401) {
-    console.log('🔄 Token probablemente expirado, intentando refrescar...');
-    const { data } = await supabase
-      .from('google_config')
-      .select('refresh_token')
-      .eq('id', 1)
-      .single();
+    console.log('🔄 [Cliente] Token expirado, refrescando...');
+    token = await obtenerTokenValido();
 
-    if (data?.refresh_token) {
-      token = await refrescarToken(data.refresh_token);
-      if (token) {
-        // Reintentar con nuevo token
-        response = await fetch(url, {
-          ...options,
-          headers: {
-            ...options.headers,
-            Authorization: `Bearer ${token}`,
-          },
-        });
-      }
+    if (token) {
+      // Reintentar con nuevo token
+      response = await fetch(url, {
+        ...options,
+        headers: {
+          ...options.headers,
+          Authorization: `Bearer ${token}`,
+        },
+      });
     }
   }
 

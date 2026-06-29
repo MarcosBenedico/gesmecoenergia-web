@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { llamarCalendarAPI, obtenerTokenValido } from '@/lib/google-oauth-handler';
+import { llamarCalendarAPI } from '@/lib/google-oauth-handler';
 
 interface CalendarEvent {
   id: string;
