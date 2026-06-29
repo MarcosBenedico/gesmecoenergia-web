@@ -89,16 +89,16 @@ function Particle({ style }: { style: React.CSSProperties }) {
 }
 
 const BARS = [
-  { label: 'Ahorro detectado', value: 35, colorClass: 'bg-secondary shadow-[0_0_8px_rgba(0,212,255,0.6)]' },
-  { label: 'Rendimiento solar', value: 78, colorClass: 'bg-accent shadow-[0_0_8px_rgba(255,51,51,0.6)]' },
-  { label: 'Optimización tarifa', value: 91, colorClass: 'bg-purple-400 shadow-[0_0_8px_rgba(192,132,252,0.6)]' },
+  { label: 'Potencia contratada optimizable', value: 35, colorClass: 'bg-secondary shadow-[0_0_8px_rgba(0,212,255,0.6)]' },
+  { label: 'Ahorro en tarifa actual', value: 22, colorClass: 'bg-accent shadow-[0_0_8px_rgba(255,51,51,0.6)]' },
+  { label: 'Cambio a mejor comercializadora', value: 18, colorClass: 'bg-purple-400 shadow-[0_0_8px_rgba(192,132,252,0.6)]' },
 ];
 
 const METRICS = [
-  { label: 'kWh analizados', value: '2.4 GWh', icon: '⚡', border: 'border-secondary/30', bg: 'bg-secondary/5', text: 'text-secondary' },
-  { label: 'CO₂ evitado', value: '380 t', icon: '🌱', border: 'border-green-500/30', bg: 'bg-green-500/5', text: 'text-green-400' },
-  { label: 'Clientes activos', value: '120+', icon: '👥', border: 'border-accent/30', bg: 'bg-accent/5', text: 'text-accent' },
-  { label: 'Proyectos FV', value: '15+', icon: '☀️', border: 'border-amber-400/30', bg: 'bg-amber-400/5', text: 'text-amber-400' },
+  { label: 'Facturas analizadas', value: '2.400+', icon: '⚡', border: 'border-secondary/30', bg: 'bg-secondary/5', text: 'text-secondary' },
+  { label: 'Ahorro medio detectado', value: '€2.500', icon: '💰', border: 'border-accent/30', bg: 'bg-accent/5', text: 'text-accent' },
+  { label: 'Clientes satisfechos', value: '120+', icon: '✓', border: 'border-amber-400/30', bg: 'bg-amber-400/5', text: 'text-amber-400' },
+  { label: 'Instalaciones realizadas', value: '15+', icon: '☀️', border: 'border-purple-400/30', bg: 'bg-purple-400/5', text: 'text-purple-400' },
 ];
 
 const PARTICLES = [
