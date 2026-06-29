@@ -8,8 +8,9 @@ import { Button } from '@/components/button';
 import { Container } from '@/components/container';
 import { SistemaSegumientos } from '@/components/sistema-seguimientos';
 import { Calendario } from '@/components/calendario';
+import { GeneradorFotovoltaico } from '@/components/generador-fotovoltaico';
 
-type Seccion = 'view' | 'create' | 'margenes' | 'clientes' | 'seguimientos' | 'calendario';
+type Seccion = 'view' | 'create' | 'margenes' | 'clientes' | 'seguimientos' | 'calendario' | 'fotovoltaico';
 
 interface Precio {
   id: number;
@@ -348,6 +349,16 @@ export default function GestorPage() {
             >
               Calendario
             </button>
+            <button
+              onClick={() => setSeccion('fotovoltaico')}
+              className={`px-4 py-2 rounded-lg font-semibold transition ${
+                seccion === 'fotovoltaico'
+                  ? 'bg-secondary text-white'
+                  : 'bg-card/80 text-foreground border border-border/50 hover:bg-card'
+              }`}
+            >
+              Generador Fotovoltaico
+            </button>
           </div>
 
           {/* Sección: Ver Tarifas */}
@@ -572,6 +583,11 @@ export default function GestorPage() {
           {/* Sección: Calendario */}
           {seccion === 'calendario' && (
             <Calendario />
+          )}
+
+          {/* Sección: Generador Fotovoltaico */}
+          {seccion === 'fotovoltaico' && (
+            <GeneradorFotovoltaico />
           )}
 
           {/* Sección: Comparativa de Tarifas */}

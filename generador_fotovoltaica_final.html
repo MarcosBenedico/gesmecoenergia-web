@@ -1,0 +1,1708 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generador Especificaciones Fotovoltaicas - GESMECO ENERGAI</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg:        #0f0f1e;
+            --surface:   #1a1a2e;
+            --card:      #16213e;
+            --card2:     #202b48;
+            --fg:        #ffffff;
+            --muted:     #b0b0c0;
+            --border:    #2d2d44;
+            --accent:    #ff3333;
+            --accent-l:  #ff6b6b;
+            --accent-s:  #cc0000;
+            --cyan:      #00d4ff;
+            --orange:    #ff9500;
+            --radius:    14px;
+            --radius-lg: 20px;
+            --transition: all .25s cubic-bezier(.4,0,.2,1);
+        }
+        * { margin:0; padding:0; box-sizing:border-box; }
+        html { scroll-behavior: smooth; }
+        body {
+            font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+            background: linear-gradient(135deg, #0f0f1e 0%, #1a1a2e 50%, #16213e 100%) fixed;
+            min-height: 100vh;
+            color: var(--fg);
+            padding: 24px 16px;
+            -webkit-font-smoothing: antialiased;
+        }
+        /* ── LAYOUT ── */
+        .container { max-width: 1160px; margin: 0 auto; }
+
+        /* ── HEADER ── */
+        .page-header {
+            display: flex; align-items: center; gap: 16px;
+            margin-bottom: 32px; padding-bottom: 24px;
+            border-bottom: 1px solid var(--border);
+        }
+        .page-header .logo-text { font-size: 1.6rem; font-weight: 800; letter-spacing: -0.5px; }
+        .page-header .logo-text span { color: var(--accent); }
+        .page-header .subtitle { color: var(--muted); font-size: 0.85rem; margin-top: 2px; }
+        .badge {
+            display: inline-block; background: rgba(255,51,51,0.12);
+            border: 1px solid rgba(255,51,51,0.3); color: var(--accent-l);
+            font-size: 0.75rem; font-weight: 700; padding: 4px 12px;
+            border-radius: 999px; letter-spacing: 0.05em; text-transform: uppercase;
+        }
+
+        /* ── CARDS ── */
+        .card {
+            background: linear-gradient(135deg, rgba(22,33,62,.95) 0%, rgba(32,43,72,.85) 100%);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 24px;
+            margin-bottom: 20px;
+            backdrop-filter: blur(20px);
+            position: relative; overflow: hidden;
+            transition: var(--transition);
+        }
+        .card::before {
+            content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,.15), transparent);
+        }
+
+        /* ── SECTION TITLES ── */
+        h1 { font-size: 1.5rem; font-weight: 800; color: var(--fg); }
+        h2 {
+            font-size: 0.8rem; font-weight: 700; text-transform: uppercase;
+            letter-spacing: 0.12em; color: var(--accent); margin: 24px 0 14px;
+            display: flex; align-items: center; gap: 8px;
+        }
+        h2::after {
+            content: ''; flex: 1; height: 1px;
+            background: linear-gradient(90deg, var(--border), transparent);
+        }
+        h3 { font-size: 0.75rem; font-weight: 700; text-transform: uppercase;
+             letter-spacing: 0.1em; color: var(--cyan); margin: 20px 0 10px; }
+
+        /* ── FORM ── */
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 12px; }
+        .form-row.full { grid-template-columns: 1fr; }
+        label { display: block; font-size: 0.8rem; font-weight: 600; color: var(--muted);
+                margin-bottom: 6px; letter-spacing: 0.02em; }
+        input, select, textarea {
+            width: 100%; padding: 10px 14px;
+            background: rgba(22,33,62,.7);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            color: var(--fg); font-family: inherit; font-size: 0.9rem;
+            transition: var(--transition);
+            appearance: none; -webkit-appearance: none;
+        }
+        input::placeholder, textarea::placeholder { color: rgba(176,176,192,.5); }
+        input:focus, select:focus, textarea:focus {
+            outline: none; border-color: var(--accent);
+            background: rgba(22,33,62,.9);
+            box-shadow: 0 0 0 3px rgba(255,51,51,.15);
+        }
+        select option { background: var(--card); color: var(--fg); }
+        textarea { resize: vertical; }
+
+        /* ── INFO BOX ── */
+        .info-box {
+            background: rgba(0,212,255,.08); border-left: 3px solid var(--cyan);
+            padding: 10px 14px; border-radius: 0 var(--radius) var(--radius) 0;
+            font-size: 0.82rem; color: var(--muted); margin: 12px 0;
+        }
+
+        /* ── PLANTILLAS ── */
+        .plantillas-box {
+            background: rgba(255,51,51,.06); border: 1px solid rgba(255,51,51,.2);
+            border-radius: var(--radius-lg); padding: 20px; margin-bottom: 20px;
+        }
+        .plantillas-title { font-size: 0.8rem; font-weight: 700; text-transform: uppercase;
+                            letter-spacing: 0.1em; color: var(--accent); margin-bottom: 6px; }
+        .plantillas-sub { font-size: 0.8rem; color: var(--muted); margin-bottom: 14px; }
+        .plantillas-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px; }
+        .btn-plantilla {
+            padding: 9px 14px; font-size: 0.82rem; font-weight: 700;
+            border: 1px solid; border-radius: var(--radius); cursor: pointer;
+            transition: var(--transition); text-align: center;
+            background: rgba(255,255,255,.04);
+            position: relative; overflow: hidden;
+        }
+        .btn-plantilla::before {
+            content: ''; position: absolute; inset: 0;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,.08), transparent);
+            transform: translateX(-100%); transition: transform .4s;
+        }
+        .btn-plantilla:hover::before { transform: translateX(100%); }
+        .btn-p1 { color: #6ee7b7; border-color: rgba(110,231,183,.3); }
+        .btn-p1:hover { background: rgba(110,231,183,.12); box-shadow: 0 0 20px rgba(110,231,183,.15); }
+        .btn-p2 { color: #34d399; border-color: rgba(52,211,153,.3); }
+        .btn-p2:hover { background: rgba(52,211,153,.12); box-shadow: 0 0 20px rgba(52,211,153,.15); }
+        .btn-p3 { color: var(--cyan); border-color: rgba(0,212,255,.3); }
+        .btn-p3:hover { background: rgba(0,212,255,.1); box-shadow: 0 0 20px rgba(0,212,255,.15); }
+        .btn-p4 { color: #60a5fa; border-color: rgba(96,165,250,.3); }
+        .btn-p4:hover { background: rgba(96,165,250,.1); box-shadow: 0 0 20px rgba(96,165,250,.15); }
+        .btn-p5 { color: var(--orange); border-color: rgba(255,149,0,.3); }
+        .btn-p5:hover { background: rgba(255,149,0,.1); box-shadow: 0 0 20px rgba(255,149,0,.15); }
+        .btn-p6 { color: #f59e0b; border-color: rgba(245,158,11,.3); }
+        .btn-p6:hover { background: rgba(245,158,11,.1); box-shadow: 0 0 20px rgba(245,158,11,.15); }
+
+        /* ── CHECKBOXES ── */
+        .check-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+        .check-label {
+            font-size: 0.82rem; font-weight: 500; color: var(--muted);
+            display: flex; align-items: center; gap: 8px; cursor: pointer;
+            padding: 8px 12px; border-radius: 10px; border: 1px solid var(--border);
+            background: rgba(255,255,255,.02); transition: var(--transition);
+        }
+        .check-label:hover { border-color: rgba(255,51,51,.3); background: rgba(255,51,51,.04); }
+        .check-label input[type=checkbox] {
+            width: 16px; height: 16px; padding: 0; border-radius: 4px;
+            accent-color: var(--accent); cursor: pointer;
+        }
+
+        /* ── BUTTONS ── */
+        .button-group { display: flex; gap: 10px; margin: 24px 0; }
+        .btn {
+            flex: 1; padding: 13px; font-size: 0.9rem; font-weight: 700;
+            border: none; border-radius: var(--radius); cursor: pointer;
+            transition: var(--transition); letter-spacing: 0.03em;
+            position: relative; overflow: hidden; font-family: inherit;
+        }
+        .btn::before {
+            content: ''; position: absolute; inset: 0;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,.12), transparent);
+            transform: translateX(-100%); transition: transform .5s;
+        }
+        .btn:hover::before { transform: translateX(100%); }
+        .btn:hover { transform: translateY(-2px); }
+        .btn:active { transform: translateY(0); }
+        .btn-calcular {
+            background: linear-gradient(135deg, var(--accent) 0%, var(--accent-s) 100%);
+            color: #fff; box-shadow: 0 4px 20px rgba(255,51,51,.3);
+        }
+        .btn-calcular:hover { box-shadow: 0 8px 30px rgba(255,51,51,.5); }
+        .btn-excel {
+            background: linear-gradient(135deg, #1565c0 0%, #0d47a1 100%);
+            color: #fff; box-shadow: 0 4px 20px rgba(21,101,192,.3);
+        }
+        .btn-excel:hover { box-shadow: 0 8px 30px rgba(21,101,192,.5); }
+        .btn-limpiar {
+            background: rgba(255,255,255,.06); color: var(--muted);
+            border: 1px solid var(--border); flex: 0 0 auto; padding: 13px 20px;
+        }
+        .btn-limpiar:hover { background: rgba(255,255,255,.1); color: var(--fg); }
+
+        /* ── RESULTS ── */
+        .results { display: none; margin-top: 24px; }
+        .results.active { display: block; }
+        .results-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 24px; }
+        .result-box {
+            background: linear-gradient(135deg, rgba(22,33,62,.95) 0%, rgba(32,43,72,.8) 100%);
+            border: 1px solid var(--border); border-radius: var(--radius);
+            padding: 16px; text-align: center;
+            transition: var(--transition);
+        }
+        .result-box:hover { border-color: rgba(255,51,51,.4); transform: translateY(-3px); }
+        .result-label { font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
+                        letter-spacing: 0.1em; color: var(--muted); margin-bottom: 8px; }
+        .result-value { font-size: 1.3rem; color: var(--accent); font-weight: 800; }
+
+        /* ── TABLES ── */
+        table { width: 100%; border-collapse: collapse; margin: 16px 0; }
+        th {
+            background: rgba(255,51,51,.1); padding: 10px 14px;
+            text-align: left; font-weight: 700; font-size: 0.8rem;
+            text-transform: uppercase; letter-spacing: 0.06em; color: var(--accent-l);
+            border-bottom: 1px solid rgba(255,51,51,.2);
+        }
+        td { padding: 9px 14px; border-bottom: 1px solid var(--border); font-size: 0.88rem; color: var(--fg); }
+        tr:hover td { background: rgba(255,255,255,.03); }
+        .total-row td {
+            background: rgba(255,51,51,.1) !important; font-weight: 800;
+            color: var(--accent-l); font-size: 0.95rem;
+            border-top: 1px solid rgba(255,51,51,.3);
+        }
+        .cost-input {
+            width: 100%; padding: 6px 10px;
+            background: rgba(22,33,62,.8); border: 1px solid var(--border);
+            border-radius: 8px; color: var(--fg); font-family: inherit;
+            font-size: 0.85rem; transition: var(--transition);
+        }
+        .cost-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px rgba(255,51,51,.15); }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="page-header">
+            <div>
+                <div class="logo-text">⚡ GESMECO <span>ENERGAI</span></div>
+                <div class="subtitle">Comarca Litera · Aragón · Asesoramiento Energético</div>
+            </div>
+            <div style="margin-left:auto;"><span class="badge">Especificaciones Técnicas</span></div>
+        </div>
+
+        <form id="formulario">
+            <div class="plantillas-box">
+                <div class="plantillas-title">⚡ Plantillas Rápidas</div>
+                <div class="plantillas-sub">Selecciona una plantilla para cargar la configuración automáticamente</div>
+                <div class="plantillas-grid">
+                    <button type="button" class="btn-plantilla btn-p1" onclick="cargarPlantilla('residencial_facil')">🏠 Residencial Fácil</button>
+                    <button type="button" class="btn-plantilla btn-p2" onclick="cargarPlantilla('residencial_dificil')">🏠 Residencial Difícil</button>
+                    <button type="button" class="btn-plantilla btn-p3" onclick="cargarPlantilla('ganaderia_facil')">🐄 Ganadería Fácil</button>
+                    <button type="button" class="btn-plantilla btn-p4" onclick="cargarPlantilla('ganaderia_dificil')">🐄 Ganadería Difícil</button>
+                    <button type="button" class="btn-plantilla btn-p5" onclick="cargarPlantilla('empresa_facil')">🏢 Empresa Fácil</button>
+                    <button type="button" class="btn-plantilla btn-p6" onclick="cargarPlantilla('empresa_dificil')">🏢 Empresa Difícil</button>
+                </div>
+            </div>
+
+            <div class="card">
+            <h2>👤 Datos del Cliente</h2>
+            <div class="form-row">
+                <div><label for="nombre">Nombre del Cliente *</label><input type="text" id="nombre" required></div>
+                <div><label for="email">Email</label><input type="email" id="email"></div>
+            </div>
+            <div class="form-row">
+                <div><label for="telefono">Teléfono</label><input type="tel" id="telefono"></div>
+                <div><label for="ubicacion">Ubicación/Localidad *</label><input type="text" id="ubicacion" placeholder="ej: Binéfar" required></div>
+            </div>
+            <div class="form-row full">
+                <div><label for="direccion">Dirección Completa</label><input type="text" id="direccion"></div>
+            </div>
+            <div class="form-row full">
+                <div><label for="ubicacion-gps">Ubicación Exacta (Google Maps Link)</label><input type="text" id="ubicacion-gps" placeholder="https://maps.app.goo.gl/..."></div>
+            </div>
+            <div class="form-row full">
+                <div><label for="descripcion">Descripción de la Instalación</label><textarea id="descripcion" rows="3" placeholder="Detalles técnicos, acceso, obstáculos..."></textarea></div>
+            </div>
+
+            </div><!-- /card datos cliente -->
+
+            <div class="card">
+            <h2>📐 Especificaciones Técnicas</h2>
+            <div class="info-box">📍 Comarca Litera: Irradiancia 1.280 kWh/m²/año · Inclinación óptima 37°</div>
+            <div class="form-row">
+                <div><label for="consumo">Consumo Anual (kWh/año) *</label><input type="number" id="consumo" min="100" step="100" placeholder="ej: 4000" required></div>
+                <div><label for="potencia">Potencia Deseada (kW) *</label><input type="number" id="potencia" min="1" max="30" step="0.5" placeholder="ej: 5" required></div>
+            </div>
+            <div class="form-row">
+                <div><label for="fase">Sistema Eléctrico *</label>
+                    <select id="fase" required>
+                        <option value="">-- Selecciona --</option>
+                        <option value="mono">Monofásico (220V)</option>
+                        <option value="tri">Trifásico (400V)</option>
+                    </select>
+                </div>
+                <div><label for="tejado">Tipo de Tejado *</label>
+                    <select id="tejado" required>
+                        <option value="">-- Selecciona --</option>
+                        <option value="teja">Teja (cerámica)</option>
+                        <option value="pizarra">Pizarra</option>
+                        <option value="chapa">Chapa metálica</option>
+                        <option value="plano">Plano/Hormigón</option>
+                        <option value="fibrocemento">Fibrocemento</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-row">
+                <div><label for="espacio">Espacio Disponible (m²) *</label><input type="number" id="espacio" min="1" step="0.5" placeholder="ej: 30" required></div>
+                <div><label for="presupuesto">Presupuesto Máximo (€)</label><input type="number" id="presupuesto" min="0" step="100" placeholder="ej: 8000"></div>
+            </div>
+
+            </div><!-- /card specs -->
+
+            <div class="card">
+            <h2>🔍 Análisis Técnico Detallado</h2>
+            <div class="info-box">ℹ️ Esta información permite al instalador identificar costes adicionales y dificultades específicas</div>
+
+            <h3>🏠 Accesibilidad y Logística</h3>
+            <div class="form-row">
+                <div>
+                    <label for="acceso-tejado">Tipo de acceso al tejado</label>
+                    <select id="acceso-tejado">
+                        <option value="">-- Selecciona --</option>
+                        <option value="escalera_interior">Escalera interior (fácil)</option>
+                        <option value="escalera_exterior">Escalera exterior fija</option>
+                        <option value="escala_port">Escala portátil</option>
+                        <option value="altura_dificil">Acceso difícil (altura, complicado)</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="distancia-cuadro">Distancia cuadro eléctrico a tejado</label>
+                    <select id="distancia-cuadro">
+                        <option value="">-- Selecciona --</option>
+                        <option value="0_10">0-10 metros</option>
+                        <option value="10_25">10-25 metros</option>
+                        <option value="25_50">25-50 metros</option>
+                        <option value="50_mas">Más de 50 metros</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div>
+                    <label for="espacio-almacenamiento">¿Hay espacio para almacenar materiales?</label>
+                    <select id="espacio-almacenamiento">
+                        <option value="">-- Selecciona --</option>
+                        <option value="si_cubierto">Sí, cubierto (fácil)</option>
+                        <option value="si_descubierto">Sí, al aire libre</option>
+                        <option value="no_cercano">No, hay que traer diario</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="andamiaje-necesario">¿Será necesario andamiaje?</label>
+                    <select id="andamiaje-necesario">
+                        <option value="">-- Selecciona --</option>
+                        <option value="no">No (estructura suficiente)</option>
+                        <option value="minimo">Mínimo (apoyo puntual)</option>
+                        <option value="completo">Sí, andamiaje completo</option>
+                    </select>
+                </div>
+            </div>
+
+            <h3>🏔️ Condiciones del Tejado</h3>
+            <div class="form-row">
+                <div>
+                    <label for="orientacion-actual">Orientación del tejado actual</label>
+                    <select id="orientacion-actual">
+                        <option value="">-- Selecciona --</option>
+                        <option value="norte">Norte (no ideal)</option>
+                        <option value="noreste">Noreste</option>
+                        <option value="este">Este (bueno)</option>
+                        <option value="sureste">Sureste (muy bueno)</option>
+                        <option value="sur">Sur (óptimo)</option>
+                        <option value="suroeste">Suroeste (muy bueno)</option>
+                        <option value="oeste">Oeste (bueno)</option>
+                        <option value="noroeste">Noroeste</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="inclinacion-tejado">Inclinación aproximada</label>
+                    <select id="inclinacion-tejado">
+                        <option value="">-- Selecciona --</option>
+                        <option value="plano">Plano (0-10°)</option>
+                        <option value="bajo">Bajo (10-20°)</option>
+                        <option value="medio">Medio (20-35°, óptimo)</option>
+                        <option value="alto">Alto (35-50°)</option>
+                        <option value="muy_alto">Muy alto (>50°)</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div>
+                    <label for="sombreado">¿Hay sombreado? (árboles, edificios, etc.)</label>
+                    <select id="sombreado">
+                        <option value="">-- Selecciona --</option>
+                        <option value="no">No, zona completamente despejada</option>
+                        <option value="parcial_mañana">Sombra parcial (mañana)</option>
+                        <option value="parcial_tarde">Sombra parcial (tarde)</option>
+                        <option value="significativo">Sombreado significativo</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="estado-tejado">¿Necesita reparación el tejado?</label>
+                    <select id="estado-tejado">
+                        <option value="">-- Selecciona --</option>
+                        <option value="bueno">Bueno (menos de 10 años)</option>
+                        <option value="regular">Regular (necesita revisión)</option>
+                        <option value="reparaciones_menores">Necesita reparaciones menores</option>
+                        <option value="reparacion_importante">Necesita reparación importante</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div>
+                    <label for="carga-tejado">¿Cuál es la carga máxima permitida?</label>
+                    <input type="number" id="carga-tejado" placeholder="ej: 100 kg/m² (opcional)">
+                </div>
+                <div>
+                    <label for="amianto-presencia">¿Hay presencia de amianto?</label>
+                    <select id="amianto-presencia">
+                        <option value="">-- Selecciona --</option>
+                        <option value="no_conocido">No (comprobado)</option>
+                        <option value="si_probable">Sí (probablemente, tejado antiguo)</option>
+                        <option value="desconocido">Desconocido (necesita análisis)</option>
+                    </select>
+                </div>
+            </div>
+
+            <h3>⚡ Instalación Eléctrica</h3>
+            <div class="form-row">
+                <div>
+                    <label for="cuadro-accesible">¿Cuadro general accesible?</label>
+                    <select id="cuadro-accesible">
+                        <option value="">-- Selecciona --</option>
+                        <option value="si_facil">Sí, fácil acceso</option>
+                        <option value="si_dificil">Sí, pero difícil acceso</option>
+                        <option value="no">No (necesita reubicación)</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="tierra-adecuada">¿Tiene tierra adecuada?</label>
+                    <select id="tierra-adecuada">
+                        <option value="">-- Selecciona --</option>
+                        <option value="si">Sí, tierra correcta</option>
+                        <option value="parcial">Parcial, necesita mejora</option>
+                        <option value="no">No, hay que instalar</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div>
+                    <label for="acometida-cambio">¿Necesita cambio de acometida?</label>
+                    <select id="acometida-cambio">
+                        <option value="">-- Selecciona --</option>
+                        <option value="no">No, es suficiente</option>
+                        <option value="posible">Posible pero sin cambio</option>
+                        <option value="si">Sí, necesita cambio</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="distancia-cable">Distancia cuadro a tejado</label>
+                    <select id="distancia-cable">
+                        <option value="">-- Selecciona --</option>
+                        <option value="menos_20">Menos de 20 metros</option>
+                        <option value="20_50">20-50 metros</option>
+                        <option value="mas_50">Más de 50 metros (cableado importante)</option>
+                    </select>
+                </div>
+            </div>
+
+            <h3>⚠️ Dificultades y Particularidades</h3>
+            <div class="form-row full">
+                <div>
+                    <label>Condiciones climáticas especiales</label>
+                    <div class="check-grid">
+                        <label class="check-label"><input type="checkbox" id="clima-viento"> 💨 Zona de mucho viento</label>
+                        <label class="check-label"><input type="checkbox" id="clima-nieve"> ❄️ Nieve frecuente</label>
+                        <label class="check-label"><input type="checkbox" id="clima-salinidad"> 🌊 Zona salina (costa)</label>
+                        <label class="check-label"><input type="checkbox" id="clima-polvo"> 🌫️ Polvo/contaminación</label>
+                    </div>
+                </div>
+            </div>
+            <div class="form-row full" style="margin-top:12px;">
+                <div>
+                    <label for="dificultades-especiales">Otras dificultades especiales</label>
+                    <textarea id="dificultades-especiales" rows="2" placeholder="ej: ganado agresivo, obra en progreso, acceso solo ciertos días..."></textarea>
+                </div>
+            </div>
+
+            <h3>🎯 Necesidades Especiales</h3>
+            <div class="form-row">
+                <div>
+                    <label for="consumo-critico">¿Hay consumo crítico?</label>
+                    <select id="consumo-critico">
+                        <option value="">-- Selecciona --</option>
+                        <option value="no">No, puede haber cortes</option>
+                        <option value="parcial">Parcial (algunas cargas críticas)</option>
+                        <option value="si">Sí (ganadería, invernadero, frío)</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="independencia-prioridad">Prioridad de independencia energética</label>
+                    <select id="independencia-prioridad">
+                        <option value="">-- Selecciona --</option>
+                        <option value="reducir">Reducir factura (conexión a red)</option>
+                        <option value="parcial">Parcial (con almacenamiento)</option>
+                        <option value="maxima">Máxima (autosuficiencia)</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-row">
+                <div>
+                    <label for="ampliacion-futura">¿Previsión de ampliación futura?</label>
+                    <select id="ampliacion-futura">
+                        <option value="">-- Selecciona --</option>
+                        <option value="no">No, instalación definitiva</option>
+                        <option value="posible">Posible en el futuro</option>
+                        <option value="si">Sí, se ampliará (dimensionar)</option>
+                    </select>
+                </div>
+            </div>
+            </div><!-- /card análisis técnico -->
+
+            <div class="card">
+            <h2>🔋 Almacenamiento — Baterías</h2>
+            <div class="form-row">
+                <div>
+                    <label for="incluir-bateria">¿Incluir Baterías?</label>
+                    <select id="incluir-bateria" onchange="mostrarBaterias()">
+                        <option value="no">No (conexión a red)</option>
+                        <option value="si">Sí (con almacenamiento)</option>
+                    </select>
+                </div>
+                <div id="div-potencia-bateria" style="display:none;">
+                    <label for="potencia-bateria">Capacidad (kWh)</label>
+                    <input type="number" id="potencia-bateria" min="5" step="5" value="10" placeholder="ej: 10">
+                </div>
+            </div>
+            </div><!-- /card baterías -->
+
+            <div class="button-group">
+                <button type="button" class="btn btn-calcular" onclick="calcular()">⚡ CALCULAR ESPECIFICACIÓN</button>
+                <button type="button" class="btn btn-limpiar" onclick="limpiar()">🗑️ Limpiar</button>
+            </div>
+        </form>
+
+        <!-- RESULTADOS -->
+        <div class="results" id="resultados">
+            <div class="card">
+            <h2>📊 Especificación Calculada</h2>
+            <div class="results-grid">
+                <div class="result-box"><div class="result-label">Paneles (450W)</div><div class="result-value" id="res-paneles">-</div></div>
+                <div class="result-box"><div class="result-label">Potencia Real</div><div class="result-value" id="res-potencia">-</div></div>
+                <div class="result-box"><div class="result-label">Espacio Requerido</div><div class="result-value" id="res-espacio">-</div></div>
+                <div class="result-box"><div class="result-label">Producción Anual</div><div class="result-value" id="res-produccion">-</div></div>
+                <div class="result-box"><div class="result-label">Inversor</div><div class="result-value" id="res-inversor" style="font-size:1em;">-</div></div>
+            </div>
+            </div>
+
+            <div class="card">
+            <h2>Fase 1 — Sistema Fotovoltaico</h2>
+            <table>
+                <thead><tr><th>Concepto</th><th style="text-align:center;">Cantidad</th><th style="text-align:right;">Unitario (€)</th><th style="text-align:right;">Subtotal (€)</th></tr></thead>
+                <tbody id="tabla-costos"></tbody>
+            </table>
+            </div>
+
+            <div id="div-baterias" style="display:none;" class="card">
+                <h2>Fase 2 — Almacenamiento (Baterías)</h2>
+                <table>
+                    <thead><tr><th>Concepto</th><th style="text-align:center;">Cantidad</th><th style="text-align:right;">Unitario (€)</th><th style="text-align:right;">Subtotal (€)</th></tr></thead>
+                    <tbody id="tabla-baterias"></tbody>
+                </table>
+            </div>
+
+            <div class="card">
+            <table>
+                <tfoot><tr class="total-row"><td colspan="3" style="text-align:right; font-size:1rem;">TOTAL ESTIMADO:</td><td style="text-align:right;"><span id="total-final">0,00</span> €</td></tr></tfoot>
+            </table>
+            </div>
+
+            <div class="button-group">
+                <button type="button" class="btn btn-excel" onclick="descargarExcel()">📊 DESCARGAR ESPECIFICACIÓN (EXCEL)</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script>
+        // MAPEO DE VALORES A DESCRIPCIONES COMPLETAS
+        const mapeos = {
+            acceso_tejado: {
+                'escalera_interior': 'Escalera interior (fácil)',
+                'escalera_exterior': 'Escalera exterior fija',
+                'escala_port': 'Escala portátil',
+                'altura_dificil': 'Acceso difícil (altura, complicado)'
+            },
+            distancia_cuadro: {
+                '0_10': '0-10 metros',
+                '10_25': '10-25 metros',
+                '25_50': '25-50 metros',
+                '50_mas': 'Más de 50 metros'
+            },
+            espacio_almacenamiento: {
+                'si_cubierto': 'Sí, cubierto (fácil)',
+                'si_descubierto': 'Sí, al aire libre',
+                'no_cercano': 'No, hay que traer diario'
+            },
+            andamiaje: {
+                'no': 'No (estructura suficiente)',
+                'minimo': 'Mínimo (apoyo puntual)',
+                'completo': 'Sí, andamiaje completo'
+            },
+            orientacion: {
+                'norte': 'Norte (no ideal)',
+                'noreste': 'Noreste',
+                'este': 'Este (bueno)',
+                'sureste': 'Sureste (muy bueno)',
+                'sur': 'Sur (óptimo)',
+                'suroeste': 'Suroeste (muy bueno)',
+                'oeste': 'Oeste (bueno)',
+                'noroeste': 'Noroeste'
+            },
+            inclinacion: {
+                'plano': 'Plano (0-10°)',
+                'bajo': 'Bajo (10-20°)',
+                'medio': 'Medio (20-35°, óptimo)',
+                'alto': 'Alto (35-50°)',
+                'muy_alto': 'Muy alto (>50°)'
+            },
+            sombreado: {
+                'no': 'No, zona completamente despejada',
+                'parcial_mañana': 'Sombra parcial (mañana)',
+                'parcial_tarde': 'Sombra parcial (tarde)',
+                'significativo': 'Sombreado significativo'
+            },
+            estado_tejado: {
+                'bueno': 'Bueno (menos de 10 años)',
+                'regular': 'Regular (necesita revisión)',
+                'reparaciones_menores': 'Necesita reparaciones menores',
+                'reparacion_importante': 'Necesita reparación importante'
+            },
+            amianto: {
+                'no_conocido': 'No (comprobado)',
+                'si_probable': 'Sí (probablemente, tejado antiguo)',
+                'desconocido': 'Desconocido (necesita análisis)'
+            },
+            cuadro_accesible: {
+                'si_facil': 'Sí, fácil acceso',
+                'si_dificil': 'Sí, pero difícil acceso',
+                'no': 'No (necesita reubicación)'
+            },
+            tierra_adecuada: {
+                'si': 'Sí, tierra correcta',
+                'parcial': 'Parcial, necesita mejora',
+                'no': 'No, hay que instalar'
+            },
+            acometida_cambio: {
+                'no': 'No, es suficiente',
+                'posible': 'Posible pero sin cambio',
+                'si': 'Sí, necesita cambio'
+            },
+            distancia_cable: {
+                'menos_20': 'Menos de 20 metros',
+                '20_50': '20-50 metros',
+                'mas_50': 'Más de 50 metros (cableado importante)'
+            },
+            consumo_critico: {
+                'no': 'No, puede haber cortes',
+                'parcial': 'Parcial (algunas cargas críticas)',
+                'si': 'Sí (ganadería, invernadero, frío)'
+            },
+            independencia: {
+                'reducir': 'Reducir factura (conexión a red)',
+                'parcial': 'Parcial (con almacenamiento)',
+                'maxima': 'Máxima (autosuficiencia)'
+            },
+            ampliacion: {
+                'no': 'No, instalación definitiva',
+                'posible': 'Posible en el futuro',
+                'si': 'Sí, se ampliará (dimensionar)'
+            }
+        };
+
+        function traducir(tipo, valor) {
+            if (!valor) return 'No especificado';
+            return mapeos[tipo][valor] || valor;
+        }
+
+        // PLANTILLAS PREDEFINIDAS (6 opciones)
+        const plantillas = {
+            residencial_facil: {
+                nombre: 'Residencial Fácil',
+                cliente: { nombre: '', email: '', telefono: '', ubicacion: '', direccion: '', ubicacionGPS: '', descripcion: 'Instalación residencial en vivienda unifamiliar con acceso y condiciones favorables' },
+                especificaciones: { consumo: 4500, potencia: 4.5, fase: 'mono', tejado: 'teja', espacio: 30, presupuesto: '' },
+                tecnico: { acceso: 'escalera_interior', distCuadro: '0_10', espacioAlmac: 'si_cubierto', andamiaje: 'no', orientacion: 'sur', inclinacion: 'medio', sombreado: 'no', estadoTejado: 'bueno', cargaTejado: '', amianto: 'no_conocido', cuadroAccesible: 'si_facil', tierraAdecuada: 'si', acometidaCambio: 'no', distanciaCable: 'menos_20', climaViento: false, climaNieve: false, climaSalinidad: false, climaPolvo: false, dificultadesEspeciales: '', consumoCritico: 'no', independenciaPrioridad: 'reducir', ampliacionFutura: 'no' },
+                baterias: false, potenciaBateria: 0
+            },
+            residencial_dificil: {
+                nombre: 'Residencial Difícil',
+                cliente: { nombre: '', email: '', telefono: '', ubicacion: '', direccion: '', ubicacionGPS: '', descripcion: 'Instalación residencial con dificultades: acceso complicado, tejado antiguo, reparaciones necesarias' },
+                especificaciones: { consumo: 4500, potencia: 4.5, fase: 'mono', tejado: 'pizarra', espacio: 25, presupuesto: '' },
+                tecnico: { acceso: 'altura_dificil', distCuadro: '25_50', espacioAlmac: 'no_cercano', andamiaje: 'minimo', orientacion: 'sureste', inclinacion: 'alto', sombreado: 'parcial_tarde', estadoTejado: 'regular', cargaTejado: '30', amianto: 'si_probable', cuadroAccesible: 'si_dificil', tierraAdecuada: 'parcial', acometidaCambio: 'posible', distanciaCable: '20_50', climaViento: true, climaNieve: false, climaSalinidad: true, climaPolvo: false, dificultadesEspeciales: 'Tejado antiguo con posible amianto, acceso complicado, reparaciones previas necesarias', consumoCritico: 'no', independenciaPrioridad: 'reducir', ampliacionFutura: 'no' },
+                baterias: false, potenciaBateria: 0
+            },
+            ganaderia_facil: {
+                nombre: 'Ganadería Fácil',
+                cliente: { nombre: '', email: '', telefono: '', ubicacion: '', direccion: '', ubicacionGPS: '', descripcion: 'Instalación ganadera en explotación moderna con acceso y estructura adecuada. Consumo crítico (ordeño, refrigeración)' },
+                especificaciones: { consumo: 40000, potencia: 18, fase: 'tri', tejado: 'chapa', espacio: 150, presupuesto: '' },
+                tecnico: { acceso: 'escalera_exterior', distCuadro: '10_25', espacioAlmac: 'si_cubierto', andamiaje: 'no', orientacion: 'sur', inclinacion: 'medio', sombreado: 'no', estadoTejado: 'bueno', cargaTejado: '100', amianto: 'no_conocido', cuadroAccesible: 'si_facil', tierraAdecuada: 'si', acometidaCambio: 'no', distanciaCable: '20_50', climaViento: true, climaNieve: false, climaSalinidad: false, climaPolvo: true, dificultadesEspeciales: '', consumoCritico: 'si', independenciaPrioridad: 'parcial', ampliacionFutura: 'posible' },
+                baterias: true, potenciaBateria: 12
+            },
+            ganaderia_dificil: {
+                nombre: 'Ganadería Difícil',
+                cliente: { nombre: '', email: '', telefono: '', ubicacion: '', direccion: '', ubicacionGPS: '', descripcion: 'Instalación ganadera en explotación antigua. Acceso difícil, obra civil necesaria, máxima independencia energética' },
+                especificaciones: { consumo: 40000, potencia: 18, fase: 'tri', tejado: 'pizarra', espacio: 200, presupuesto: '' },
+                tecnico: { acceso: 'altura_dificil', distCuadro: '50_mas', espacioAlmac: 'si_descubierto', andamiaje: 'completo', orientacion: 'sur', inclinacion: 'bajo', sombreado: 'significativo', estadoTejado: 'reparacion_importante', cargaTejado: '50', amianto: 'si_probable', cuadroAccesible: 'si_dificil', tierraAdecuada: 'no', acometidaCambio: 'si', distanciaCable: 'mas_50', climaViento: true, climaNieve: true, climaSalinidad: false, climaPolvo: true, dificultadesEspeciales: 'Acceso muy limitado, obra civil importante, amianto probable, terreno irregular, animales en zona', consumoCritico: 'si', independenciaPrioridad: 'maxima', ampliacionFutura: 'si' },
+                baterias: true, potenciaBateria: 15
+            },
+            empresa_facil: {
+                nombre: 'Empresa Fácil',
+                cliente: { nombre: '', email: '', telefono: '', ubicacion: '', direccion: '', ubicacionGPS: '', descripcion: 'Instalación comercial/hotelera moderna. Tejado plano, acceso fácil, consumo crítico para climatización e iluminación' },
+                especificaciones: { consumo: 20000, potencia: 10, fase: 'tri', tejado: 'plano', espacio: 80, presupuesto: '' },
+                tecnico: { acceso: 'escalera_interior', distCuadro: '0_10', espacioAlmac: 'si_cubierto', andamiaje: 'no', orientacion: 'sur', inclinacion: 'bajo', sombreado: 'no', estadoTejado: 'bueno', cargaTejado: '200', amianto: 'no_conocido', cuadroAccesible: 'si_facil', tierraAdecuada: 'si', acometidaCambio: 'no', distanciaCable: 'menos_20', climaViento: false, climaNieve: false, climaSalinidad: false, climaPolvo: false, dificultadesEspeciales: '', consumoCritico: 'parcial', independenciaPrioridad: 'parcial', ampliacionFutura: 'posible' },
+                baterias: true, potenciaBateria: 8
+            },
+            empresa_dificil: {
+                nombre: 'Empresa Difícil',
+                cliente: { nombre: '', email: '', telefono: '', ubicacion: '', direccion: '', ubicacionGPS: '', descripcion: 'Instalación comercial/hotelera antigua. Tejado complicado, acceso limitado, obra civil necesaria' },
+                especificaciones: { consumo: 20000, potencia: 10, fase: 'tri', tejado: 'teja', espacio: 60, presupuesto: '' },
+                tecnico: { acceso: 'altura_dificil', distCuadro: '25_50', espacioAlmac: 'no_cercano', andamiaje: 'minimo', orientacion: 'sureste', inclinacion: 'alto', sombreado: 'parcial_mañana', estadoTejado: 'reparaciones_menores', cargaTejado: '60', amianto: 'desconocido', cuadroAccesible: 'si_dificil', tierraAdecuada: 'parcial', acometidaCambio: 'si', distanciaCable: '20_50', climaViento: false, climaNieve: true, climaSalinidad: false, climaPolvo: false, dificultadesEspeciales: 'Acceso complicado, tejado histórico con restricciones, reforma interior en progreso', consumoCritico: 'parcial', independenciaPrioridad: 'parcial', ampliacionFutura: 'no' },
+                baterias: true, potenciaBateria: 10
+            }
+        };
+
+        function cargarPlantilla(tipo) {
+            const p = plantillas[tipo];
+            if (!p) return;
+
+            // Cargar datos del cliente
+            document.getElementById('nombre').value = p.cliente.nombre;
+            document.getElementById('email').value = p.cliente.email;
+            document.getElementById('telefono').value = p.cliente.telefono;
+            document.getElementById('ubicacion').value = p.cliente.ubicacion;
+            document.getElementById('direccion').value = p.cliente.direccion;
+            document.getElementById('ubicacion-gps').value = p.cliente.ubicacionGPS;
+            document.getElementById('descripcion').value = p.cliente.descripcion;
+
+            // Cargar especificaciones
+            document.getElementById('consumo').value = p.especificaciones.consumo;
+            document.getElementById('potencia').value = p.especificaciones.potencia;
+            document.getElementById('fase').value = p.especificaciones.fase;
+            document.getElementById('tejado').value = p.especificaciones.tejado;
+            document.getElementById('espacio').value = p.especificaciones.espacio;
+            document.getElementById('presupuesto').value = p.especificaciones.presupuesto;
+
+            // Cargar análisis técnico
+            const t = p.tecnico;
+            document.getElementById('acceso-tejado').value = t.acceso;
+            document.getElementById('distancia-cuadro').value = t.distCuadro;
+            document.getElementById('espacio-almacenamiento').value = t.espacioAlmac;
+            document.getElementById('andamiaje-necesario').value = t.andamiaje;
+            document.getElementById('orientacion-actual').value = t.orientacion;
+            document.getElementById('inclinacion-tejado').value = t.inclinacion;
+            document.getElementById('sombreado').value = t.sombreado;
+            document.getElementById('estado-tejado').value = t.estadoTejado;
+            document.getElementById('carga-tejado').value = t.cargaTejado;
+            document.getElementById('amianto-presencia').value = t.amianto;
+            document.getElementById('cuadro-accesible').value = t.cuadroAccesible;
+            document.getElementById('tierra-adecuada').value = t.tierraAdecuada;
+            document.getElementById('acometida-cambio').value = t.acometidaCambio;
+            document.getElementById('distancia-cable').value = t.distanciaCable;
+            document.getElementById('clima-viento').checked = t.climaViento;
+            document.getElementById('clima-nieve').checked = t.climaNieve;
+            document.getElementById('clima-salinidad').checked = t.climaSalinidad;
+            document.getElementById('clima-polvo').checked = t.climaPolvo;
+            document.getElementById('dificultades-especiales').value = t.dificultadesEspeciales;
+            document.getElementById('consumo-critico').value = t.consumoCritico;
+            document.getElementById('independencia-prioridad').value = t.independenciaPrioridad;
+            document.getElementById('ampliacion-futura').value = t.ampliacionFutura;
+
+            // Cargar baterías
+            document.getElementById('incluir-bateria').value = p.baterias ? 'si' : 'no';
+            if (p.baterias) {
+                document.getElementById('potencia-bateria').value = p.potenciaBateria || 10;
+            }
+            mostrarBaterias();
+
+            // Scroll al inicio del formulario
+            document.getElementById('formulario').scrollIntoView({ behavior: 'smooth' });
+            alert(`✅ Plantilla "${p.nombre}" cargada. Edita los datos según sea necesario.`);
+        }
+
+        const IRRADIANCIA = 1280;
+        const FACTOR_PERDIDAS = 0.77;
+        const POTENCIA_PANEL = 450;
+        const AREA_PANEL = 2.2;
+
+        const INVERSORES = {
+            mono: [
+                { potencia: 3.7, marca: 'Fronius', modelo: 'Symo 3.7', precio: 1200 },
+                { potencia: 5, marca: 'Growatt', modelo: 'MIC 3000TL-X', precio: 950 },
+                { potencia: 5, marca: 'Fronius', modelo: 'Symo 5.0', precio: 1450 },
+                { potencia: 8.2, marca: 'Fronius', modelo: 'Symo 8.2', precio: 1800 },
+                { potencia: 10, marca: 'Growatt', modelo: 'MIC 8000TL-X', precio: 1400 }
+            ],
+            tri: [
+                { potencia: 10, marca: 'Fronius', modelo: 'Symo 10.0-3-M', precio: 2200 },
+                { potencia: 12, marca: 'Growatt', modelo: 'TL3-10', precio: 1600 },
+                { potencia: 15, marca: 'Fronius', modelo: 'Symo 15.0-3-M', precio: 2800 },
+                { potencia: 20, marca: 'Growatt', modelo: 'TL3-20', precio: 2200 }
+            ]
+        };
+
+        function mostrarBaterias() {
+            const incluir = document.getElementById('incluir-bateria').value === 'si';
+            document.getElementById('div-potencia-bateria').style.display = incluir ? 'block' : 'none';
+        }
+
+        function calcular() {
+            const nombre = document.getElementById('nombre').value.trim();
+            const email = document.getElementById('email').value.trim();
+            const telefono = document.getElementById('telefono').value.trim();
+            const ubicacion = document.getElementById('ubicacion').value.trim();
+            const direccion = document.getElementById('direccion').value.trim();
+            const ubicacionGPS = document.getElementById('ubicacion-gps').value.trim();
+            const descripcion = document.getElementById('descripcion').value.trim();
+            const consumo = parseFloat(document.getElementById('consumo').value);
+            const potencia = parseFloat(document.getElementById('potencia').value);
+            const fase = document.getElementById('fase').value;
+            const tejado = document.getElementById('tejado').value;
+            const espacio = parseFloat(document.getElementById('espacio').value);
+            const presupuesto = document.getElementById('presupuesto').value.trim();
+
+            // ANÁLISIS TÉCNICO
+            const acceso = document.getElementById('acceso-tejado').value;
+            const distCuadro = document.getElementById('distancia-cuadro').value;
+            const espacioAlmac = document.getElementById('espacio-almacenamiento').value;
+            const andamiaje = document.getElementById('andamiaje-necesario').value;
+            const orientacion = document.getElementById('orientacion-actual').value;
+            const inclinacion = document.getElementById('inclinacion-tejado').value;
+            const sombreado = document.getElementById('sombreado').value;
+            const estadoTejado = document.getElementById('estado-tejado').value;
+            const cargaTejado = document.getElementById('carga-tejado').value;
+            const amianto = document.getElementById('amianto-presencia').value;
+            const cuadroAccesible = document.getElementById('cuadro-accesible').value;
+            const tierraAdecuada = document.getElementById('tierra-adecuada').value;
+            const acometidaCambio = document.getElementById('acometida-cambio').value;
+            const distanciaCable = document.getElementById('distancia-cable').value;
+            const climaViento = document.getElementById('clima-viento').checked;
+            const climaNieve = document.getElementById('clima-nieve').checked;
+            const climaSalinidad = document.getElementById('clima-salinidad').checked;
+            const climaPolvo = document.getElementById('clima-polvo').checked;
+            const dificultadesEspeciales = document.getElementById('dificultades-especiales').value.trim();
+            const consumoCritico = document.getElementById('consumo-critico').value;
+            const independenciaPrioridad = document.getElementById('independencia-prioridad').value;
+            const ampliacionFutura = document.getElementById('ampliacion-futura').value;
+
+            if (!nombre) { alert('Falta nombre'); return; }
+            if (isNaN(consumo) || consumo <= 0) { alert('Consumo inválido'); return; }
+            if (isNaN(potencia) || potencia <= 0) { alert('Potencia inválida'); return; }
+            if (!fase) { alert('Selecciona fase'); return; }
+            if (!tejado) { alert('Selecciona tejado'); return; }
+            if (isNaN(espacio) || espacio <= 0) { alert('Espacio inválido'); return; }
+
+            // CÁLCULOS
+            const numPaneles = Math.ceil((potencia * 1000) / POTENCIA_PANEL);
+            const potenciaReal = (numPaneles * POTENCIA_PANEL) / 1000;
+            const espacioRequerido = numPaneles * AREA_PANEL;
+            const produccionAnual = Math.round(espacioRequerido * IRRADIANCIA * FACTOR_PERDIDAS);
+
+            const inversoresDisp = INVERSORES[fase];
+            let inv = inversoresDisp.filter(i => i.potencia >= potenciaReal).sort((a, b) => a.potencia - b.potencia);
+            if (inv.length === 0) inv = inversoresDisp.sort((a, b) => b.potencia - a.potencia);
+            const inversor = inv[0];
+
+            const costoEstructura = tejado === 'plano' ? 200 : 150;
+            const costeCableadoTotal = potenciaReal * 250;
+            const costeProteccionesTotal = potenciaReal * 300;
+            const costeManoObraTotal = potenciaReal * 800;
+
+            const costes = [
+                { concepto: 'Paneles Solares (450W)', cantidad: numPaneles, unitario: POTENCIA_PANEL * 0.18 },
+                { concepto: 'Inversor', cantidad: 1, unitario: inversor.precio },
+                { concepto: 'Estructura de Montaje', cantidad: numPaneles, unitario: costoEstructura },
+                { concepto: 'Cableado y Conectores', cantidad: 1, unitario: costeCableadoTotal },
+                { concepto: 'Protecciones (DC/AC)', cantidad: 1, unitario: costeProteccionesTotal },
+                { concepto: 'Mano de Obra Instalación', cantidad: 1, unitario: costeManoObraTotal },
+                { concepto: 'Trámites y Gestión', cantidad: 1, unitario: 500 }
+            ];
+
+            // Variables calculadas antes de validar
+            const incluyeBat = document.getElementById('incluir-bateria').value === 'si';
+
+            // VALIDACIÓN INTELIGENTE
+            let alertas = [];
+
+            if (espacioRequerido > espacio) {
+                alertas.push(`⚠️ ESPACIO INSUFICIENTE: Necesitas ${espacioRequerido.toFixed(1)} m² pero solo tienes ${espacio} m². Falta ${(espacioRequerido - espacio).toFixed(1)} m²`);
+            }
+
+            if (cargaTejado && parseFloat(cargaTejado) < 50) {
+                alertas.push(`⚠️ CARGA BAJA: El tejado soporta solo ${cargaTejado} kg/m². Necesita refuerzo estructural importante`);
+            }
+
+            if (consumoCritico === 'si' && !incluyeBat) {
+                alertas.push(`⚠️ CONSUMO CRÍTICO SIN BATERÍAS: Hay consumo crítico pero sin almacenamiento. ¿Seguro que no necesitas baterías?`);
+            }
+
+            if (sombreado === 'significativo' && numPaneles < 30) {
+                alertas.push(`⚠️ SOMBREADO SIGNIFICATIVO: Considera optimizadores de potencia o microinversores`);
+            }
+
+            if (estadoTejado === 'reparacion_importante') {
+                alertas.push(`⚠️ REPARACIÓN IMPORTANTE: El tejado necesita reparación ANTES de instalar paneles. Presupuestar obra previa`);
+            }
+
+            if (amianto === 'si_probable') {
+                alertas.push(`⚠️ AMIANTO PROBABLE: Tejado antiguo con posible amianto. Requiere análisis previo y eliminación especializada`);
+            }
+
+            if (distanciaCable === 'mas_50' && !incluyeBat) {
+                alertas.push(`⚠️ DISTANCIA CUADRO GRANDE: Más de 50 metros. Cableado importante, considerar baterías cercanas`);
+            }
+
+            if (acometidaCambio === 'si') {
+                alertas.push(`ℹ️ CAMBIO DE ACOMETIDA: Necesita cambio de acometida eléctrica. Coordinar con distribuidora`);
+            }
+
+            if ((climaViento || climaSalinidad) && numPaneles > 30) {
+                alertas.push(`⚠️ CLIMA ADVERSO: Zona con viento o salinidad. Estructuras reforzadas y mantenimiento especial`);
+            }
+
+            // Mostrar alertas (limpiar anteriores primero)
+            const resultadosDiv = document.getElementById('resultados');
+            const alertasAntiguas = resultadosDiv.querySelector('[data-alertas="true"]');
+            if (alertasAntiguas) alertasAntiguas.remove();
+
+            if (alertas.length > 0) {
+                let alertasHtml = '<div data-alertas="true" style="background: #fff3e0; border-left: 4px solid #ff9800; padding: 15px; margin-bottom: 20px; border-radius: 4px;"><strong>🔔 VALIDACIONES TÉCNICAS:</strong><br>';
+                alertas.forEach(a => alertasHtml += a + '<br>');
+                alertasHtml += '</div>';
+                resultadosDiv.insertAdjacentHTML('afterbegin', alertasHtml);
+            }
+
+            // MOSTRAR RESULTADOS
+            document.getElementById('res-paneles').textContent = numPaneles;
+            document.getElementById('res-potencia').textContent = potenciaReal.toFixed(2) + ' kW';
+            document.getElementById('res-espacio').textContent = espacioRequerido.toFixed(1) + ' m²';
+            document.getElementById('res-produccion').textContent = produccionAnual.toLocaleString() + ' kWh';
+            document.getElementById('res-inversor').textContent = inversor.marca + ' ' + inversor.modelo;
+
+            // TABLA COSTES
+            let html = '';
+            costes.forEach((c, i) => {
+                const isDecimal = !c.concepto.includes('Panel') && !c.concepto.includes('Estructura') && !c.concepto.includes('Trámites');
+                html += `<tr>
+                    <td><strong>${c.concepto}</strong></td>
+                    <td style="text-align:center;"><input class="cost-input cant-input" type="number" value="${c.cantidad.toFixed(isDecimal ? 2 : 0)}" data-idx="${i}" onchange="recalcular()" min="0" step="${isDecimal ? '0.1' : '1'}"></td>
+                    <td style="text-align:right;"><input class="cost-input price-input" type="number" value="${c.unitario.toFixed(2)}" data-idx="${i}" onchange="recalcular()" min="0" step="0.01"></td>
+                    <td style="text-align:right;"><strong id="sub-${i}">${(c.cantidad * c.unitario).toFixed(2)}</strong></td>
+                </tr>`;
+            });
+            document.getElementById('tabla-costos').innerHTML = html;
+
+            // BATERÍAS
+            document.getElementById('div-baterias').style.display = incluyeBat ? 'block' : 'none';
+
+            let bateriasCostes = [];
+            if (incluyeBat) {
+                const potBat = parseFloat(document.getElementById('potencia-bateria').value) || 10;
+                const precioPorKwh = 600; // €/kWh
+                const costeBateriaTotal = potBat * precioPorKwh; // Costo total de batería de X kWh
+
+                bateriasCostes = [
+                    { concepto: `Batería LiFePO4 (${potBat} kWh)`, cantidad: 1, unitario: costeBateriaTotal },
+                    { concepto: 'Sistema BMS', cantidad: 1, unitario: 400 },
+                    { concepto: 'Cableado DC', cantidad: 1, unitario: 200 },
+                    { concepto: 'Sistema Seguridad', cantidad: 1, unitario: 300 }
+                ];
+
+                let htmlBat = '';
+                bateriasCostes.forEach((c, i) => {
+                    const subtotal = c.cantidad * c.unitario;
+                    htmlBat += `<tr>
+                        <td><strong>${c.concepto}</strong></td>
+                        <td style="text-align:center;"><input class="cost-input cant-bat" type="number" value="${c.cantidad.toFixed(0)}" data-idx="${i}" onchange="recalcular()" min="1" step="1"></td>
+                        <td style="text-align:right;"><input class="cost-input price-bat" type="number" value="${c.unitario.toFixed(2)}" data-idx="${i}" onchange="recalcular()" min="0" step="0.01"></td>
+                        <td style="text-align:right;"><strong id="sub-bat-${i}">${subtotal.toFixed(2)}</strong></td>
+                    </tr>`;
+                });
+                document.getElementById('tabla-baterias').innerHTML = htmlBat;
+            }
+
+            // GUARDAR DATOS
+            window.datosCalculo = {
+                cliente: { nombre, email, telefono, ubicacion, direccion, ubicacionGPS, descripcion },
+                especificaciones: { consumo, potencia, fase, tejado, espacio, presupuesto },
+                calculos: { numPaneles, potenciaReal, espacioRequerido, produccionAnual, inversor },
+                costes: costes,
+                bateriasCostes: bateriasCostes,
+                incluyeBaterias: incluyeBat,
+                analisisTecnico: {
+                    acceso, distCuadro, espacioAlmac, andamiaje,
+                    orientacion, inclinacion, sombreado, estadoTejado, cargaTejado, amianto,
+                    cuadroAccesible, tierraAdecuada, acometidaCambio, distanciaCable,
+                    climaViento, climaNieve, climaSalinidad, climaPolvo, dificultadesEspeciales,
+                    consumoCritico, independenciaPrioridad, ampliacionFutura
+                }
+            };
+
+            document.getElementById('resultados').classList.add('active');
+            recalcular();
+        }
+
+        function recalcular() {
+            let total = 0;
+
+            // Costes principales
+            document.querySelectorAll('.cant-input').forEach((input, i) => {
+                const cant = parseFloat(input.value) || 0;
+                const price = parseFloat(document.querySelector(`.price-input[data-idx="${i}"]`).value) || 0;
+                const sub = cant * price;
+                document.getElementById(`sub-${i}`).textContent = sub.toFixed(2);
+                total += sub;
+            });
+
+            // Baterías
+            if (document.getElementById('incluir-bateria').value === 'si') {
+                document.querySelectorAll('.cant-bat').forEach((input, i) => {
+                    const cant = parseFloat(input.value) || 0;
+                    const price = parseFloat(document.querySelector(`.price-bat[data-idx="${i}"]`).value) || 0;
+                    const sub = cant * price;
+                    document.getElementById(`sub-bat-${i}`).textContent = sub.toFixed(2);
+                    total += sub;
+                });
+            }
+
+            document.getElementById('total-final').textContent = total.toFixed(2).replace('.', ',');
+        }
+
+        function descargarExcel() {
+            if (!window.datosCalculo) {
+                alert('Primero calcula');
+                return;
+            }
+
+            const d = window.datosCalculo;
+            const fecha = new Date().toLocaleDateString('es-ES');
+
+            // CREAR WORKBOOK
+            const wb = XLSX.utils.book_new();
+            const wsData = [];
+
+            // ESTILOS Y CONFIGURACIÓN
+            const style_titulo = { font: { bold: true, size: 18, color: { rgb: 'FF4CAF50' } } };
+            const style_subtitulo = { font: { bold: true, size: 14, color: { rgb: 'FF1976D2' } } };
+            const style_header = { fill: { fgColor: { rgb: 'FF4CAF50' } }, font: { bold: true, color: { rgb: 'FFFFFFFF' } }, alignment: { horizontal: 'center', vertical: 'center' } };
+            const style_header_alt = { fill: { fgColor: { rgb: 'FF1976D2' } }, font: { bold: true, color: { rgb: 'FFFFFFFF' } }, alignment: { horizontal: 'center', vertical: 'center' } };
+            const style_total = { fill: { fgColor: { rgb: 'FFE8F5E9' } }, font: { bold: true, size: 12 }, border: { top: { style: 'double' }, bottom: { style: 'double' } } };
+            const style_border = { border: { top: { style: 'thin' }, bottom: { style: 'thin' }, left: { style: 'thin' }, right: { style: 'thin' } } };
+
+            const at = d.analisisTecnico;
+
+            // ══════════════════════════════════════════
+            // ENCABEZADO
+            // ══════════════════════════════════════════
+            wsData.push(['GESMECO ENERGAI — ESPECIFICACIÓN TÉCNICA PARA INSTALADOR']);
+            wsData.push(['Comarca Litera · Aragón · Asesoramiento Energético']);
+            wsData.push(['Fecha:', fecha, '', 'Ref:', `GE-${d.cliente.nombre.replace(/\s/g,'').toUpperCase().slice(0,4)}-${Date.now().toString().slice(-5)}`]);
+            wsData.push(['']);
+            wsData.push(['⚠️  ESTE DOCUMENTO ES UNA ESPECIFICACIÓN TÉCNICA. LOS PRECIOS SON ORIENTATIVOS.']);
+            wsData.push(['    El instalador debe elaborar su propio presupuesto basándose en esta información.']);
+            wsData.push(['']);
+
+            // ══════════════════════════════════════════
+            // 1. DATOS DEL CLIENTE Y UBICACIÓN
+            // ══════════════════════════════════════════
+            wsData.push(['━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━']);
+            wsData.push(['1. DATOS DEL CLIENTE Y UBICACIÓN']);
+            wsData.push(['━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━']);
+            wsData.push(['Nombre del cliente:', d.cliente.nombre]);
+            wsData.push(['Teléfono:', d.cliente.telefono || 'No indicado']);
+            wsData.push(['Email:', d.cliente.email || 'No indicado']);
+            wsData.push(['Localidad:', d.cliente.ubicacion || 'No indicado']);
+            wsData.push(['Dirección:', d.cliente.direccion || 'No indicado']);
+            if (d.cliente.ubicacionGPS) {
+                wsData.push(['Ubicación GPS / Google Maps:', d.cliente.ubicacionGPS]);
+            }
+            if (d.cliente.descripcion) {
+                wsData.push(['']);
+                wsData.push(['Descripción de la instalación:']);
+                wsData.push([d.cliente.descripcion]);
+            }
+            wsData.push(['']);
+
+            // ══════════════════════════════════════════
+            // 2. ALERTAS Y PUNTOS CRÍTICOS (primero lo más importante)
+            // ══════════════════════════════════════════
+            const alertasExcel = [];
+            if (d.calculos.espacioRequerido > d.especificaciones.espacio)
+                alertasExcel.push(`⚠️  ESPACIO INSUFICIENTE: Necesita ${d.calculos.espacioRequerido.toFixed(1)} m² — disponible ${d.especificaciones.espacio} m²`);
+            if (at.estadoTejado === 'reparacion_importante')
+                alertasExcel.push('⚠️  TEJADO: Necesita REPARACIÓN IMPORTANTE antes de instalar. Presupuestar obra previa.');
+            if (at.amianto === 'si_probable')
+                alertasExcel.push('⚠️  AMIANTO PROBABLE: Requiere análisis previo y empresa especializada en retirada.');
+            if (at.amianto === 'desconocido')
+                alertasExcel.push('⚠️  AMIANTO: Estado desconocido. Requiere análisis antes de actuar.');
+            if (at.acometidaCambio === 'si')
+                alertasExcel.push('⚠️  CAMBIO DE ACOMETIDA ELÉCTRICA necesario. Coordinar con distribuidora.');
+            if (at.consumoCritico === 'si' && !d.incluyeBaterias)
+                alertasExcel.push('⚠️  CONSUMO CRÍTICO sin almacenamiento. Revisar si se necesitan baterías.');
+            if (at.cargaTejado && parseFloat(at.cargaTejado) < 50)
+                alertasExcel.push(`⚠️  CARGA TEJADO BAJA (${at.cargaTejado} kg/m²). Puede necesitar refuerzo estructural.`);
+            if (at.andamiaje === 'completo')
+                alertasExcel.push('⚠️  ANDAMIAJE COMPLETO necesario. Incluir en presupuesto.');
+            if (at.tierraAdecuada === 'no')
+                alertasExcel.push('⚠️  SIN TOMA DE TIERRA. Hay que instalar desde cero.');
+            if (at.climaViento && at.climaSalinidad)
+                alertasExcel.push('⚠️  ZONA VIENTO + SALINIDAD: Estructuras reforzadas, materiales anticorrosión.');
+            if (at.dificultadesEspeciales)
+                alertasExcel.push(`⚠️  OTRAS DIFICULTADES: ${at.dificultadesEspeciales}`);
+
+            wsData.push(['━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━']);
+            if (alertasExcel.length > 0) {
+                wsData.push(['2. ⚠️  ALERTAS Y PUNTOS CRÍTICOS PARA PRESUPUESTAR']);
+                wsData.push(['━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━']);
+                alertasExcel.forEach(a => wsData.push([a]));
+            } else {
+                wsData.push(['2. ALERTAS: Sin incidencias críticas detectadas.']);
+                wsData.push(['━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━']);
+            }
+            wsData.push(['']);
+
+            // ══════════════════════════════════════════
+            // 3. ESPECIFICACIONES DEL SISTEMA
+            // ══════════════════════════════════════════
+            wsData.push(['━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━']);
+            wsData.push(['3. ESPECIFICACIONES DEL SISTEMA']);
+            wsData.push(['━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━']);
+            wsData.push(['', 'REQUERIDO POR CLIENTE', '', 'CALCULADO']);
+            wsData.push(['Consumo anual:', d.especificaciones.consumo.toLocaleString() + ' kWh/año', '', 'Nº paneles:', d.calculos.numPaneles + ' unidades × 450W']);
+            wsData.push(['Potencia solicitada:', d.especificaciones.potencia + ' kW', '', 'Potencia real instalada:', d.calculos.potenciaReal.toFixed(2) + ' kW']);
+            wsData.push(['Sistema eléctrico:', d.especificaciones.fase === 'mono' ? 'Monofásico (220V)' : 'Trifásico (400V)', '', 'Espacio necesario en tejado:', d.calculos.espacioRequerido.toFixed(1) + ' m²']);
+            wsData.push(['Espacio disponible:', d.especificaciones.espacio + ' m²', '', 'Producción anual estimada:', d.calculos.produccionAnual.toLocaleString() + ' kWh/año']);
+            wsData.push(['Tipo de tejado:', d.especificaciones.tejado, '', 'Inversor recomendado:', d.calculos.inversor.marca + ' ' + d.calculos.inversor.modelo]);
+            wsData.push(['Almacenamiento:', d.incluyeBaterias ? document.getElementById('potencia-bateria').value + ' kWh (baterías LiFePO4)' : 'No (conexión a red)']);
+            if (d.especificaciones.presupuesto) wsData.push(['Presupuesto máximo cliente:', d.especificaciones.presupuesto + ' €']);
+            wsData.push(['']);
+
+            // ══════════════════════════════════════════
+            // 4. ANÁLISIS TÉCNICO COMPLETO
+            // ══════════════════════════════════════════
+            wsData.push(['━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━']);
+            wsData.push(['4. ANÁLISIS TÉCNICO DETALLADO']);
+            wsData.push(['━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━']);
+            wsData.push(['']);
+
+            wsData.push(['[ A ] ACCESIBILIDAD Y LOGÍSTICA']);
+            wsData.push(['  Tipo de acceso al tejado:', traducir('acceso_tejado', at.acceso)]);
+            wsData.push(['  Distancia cuadro eléctrico → tejado:', traducir('distancia_cuadro', at.distCuadro)]);
+            wsData.push(['  Espacio para almacenar materiales:', traducir('espacio_almacenamiento', at.espacioAlmac)]);
+            wsData.push(['  Andamiaje necesario:', traducir('andamiaje', at.andamiaje)]);
+            wsData.push(['']);
+
+            wsData.push(['[ B ] CONDICIONES DEL TEJADO']);
+            wsData.push(['  Orientación actual:', traducir('orientacion', at.orientacion)]);
+            wsData.push(['  Inclinación:', traducir('inclinacion', at.inclinacion)]);
+            wsData.push(['  Sombreado existente:', traducir('sombreado', at.sombreado)]);
+            wsData.push(['  Estado del tejado:', traducir('estado_tejado', at.estadoTejado)]);
+            wsData.push(['  Presencia de amianto:', traducir('amianto', at.amianto)]);
+            if (at.cargaTejado) {
+                wsData.push(['  Carga máxima soportada:', at.cargaTejado + ' kg/m²']);
+            } else {
+                wsData.push(['  Carga máxima soportada:', 'No especificada — verificar en visita técnica']);
+            }
+            wsData.push(['']);
+
+            wsData.push(['[ C ] INSTALACIÓN ELÉCTRICA']);
+            wsData.push(['  Cuadro general accesible:', traducir('cuadro_accesible', at.cuadroAccesible)]);
+            wsData.push(['  Toma de tierra:', traducir('tierra_adecuada', at.tierraAdecuada)]);
+            wsData.push(['  Acometida eléctrica:', traducir('acometida_cambio', at.acometidaCambio)]);
+            wsData.push(['  Distancia cableado cuadro-tejado:', traducir('distancia_cable', at.distanciaCable)]);
+            wsData.push(['']);
+
+            wsData.push(['[ D ] CONDICIONES CLIMÁTICAS']);
+            const climaItems2 = [];
+            if (at.climaViento) climaItems2.push('Zona de viento fuerte');
+            if (at.climaNieve) climaItems2.push('Nieve frecuente');
+            if (at.climaSalinidad) climaItems2.push('Zona salina / costa');
+            if (at.climaPolvo) climaItems2.push('Polvo / contaminación');
+            wsData.push(['  Condiciones especiales:', climaItems2.length > 0 ? climaItems2.join(' | ') : 'Ninguna']);
+            wsData.push(['']);
+
+            wsData.push(['[ E ] NECESIDADES Y PRIORIDADES DEL CLIENTE']);
+            wsData.push(['  Consumo crítico (no puede haber cortes):', traducir('consumo_critico', at.consumoCritico)]);
+            wsData.push(['  Prioridad de independencia energética:', traducir('independencia', at.independenciaPrioridad)]);
+            wsData.push(['  Previsión de ampliación futura:', traducir('ampliacion', at.ampliacionFutura)]);
+            if (at.dificultadesEspeciales) {
+                wsData.push(['']);
+                wsData.push(['  Otras dificultades / observaciones:']);
+                wsData.push(['  ' + at.dificultadesEspeciales]);
+            }
+            wsData.push(['']);
+            wsData.push(['']);
+
+            // PRESUPUESTO EN FASES
+            wsData.push(['━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━']);
+            wsData.push(['5. DESGLOSE ORIENTATIVO DE COSTES (REFERENCIA PARA EL INSTALADOR)']);
+            wsData.push(['   ⚠️  Precios estimativos. El instalador debe ajustar según sus costes reales.']);
+            wsData.push(['━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━']);
+            wsData.push(['']);
+
+            // FASE 1: SISTEMA FOTOVOLTAICO
+            wsData.push(['FASE 1 — SISTEMA FOTOVOLTAICO']);
+            wsData.push(['Paneles solares, inversor, estructura, cableado, protecciones, instalación y trámites']);
+            wsData.push(['']);
+            wsData.push(['Concepto', 'Cantidad', 'Unitario €', 'Subtotal €']);
+
+            let totalFase1 = 0;
+            document.querySelectorAll('.cant-input').forEach((input, i) => {
+                const cant = parseFloat(input.value) || 0;
+                const price = parseFloat(document.querySelector(`.price-input[data-idx="${i}"]`).value) || 0;
+                const sub = cant * price;
+                const concepto = d.costes[i].concepto;
+                wsData.push([concepto, cant.toFixed(2), price.toFixed(2), sub.toFixed(2)]);
+                totalFase1 += sub;
+            });
+
+            wsData.push(['', '', 'TOTAL FASE 1:', totalFase1.toFixed(2) + ' €']);
+            wsData.push(['']);
+            wsData.push(['NOTAS FASE 1: Sistema base funcional en conexión a red. Puede ampliarse después con almacenamiento.']);
+            wsData.push(['']);
+
+            // FASE 2: ALMACENAMIENTO (SI APLICA)
+            let totalFase2 = 0;
+            if (d.incluyeBaterias) {
+                wsData.push(['FASE 2: SISTEMA DE ALMACENAMIENTO (OPCIONAL)']);
+                wsData.push(['Descripción: Baterías, BMS, cableado DC y seguridad. Se puede instalar posteriormente si es necesario']);
+                wsData.push(['']);
+                wsData.push(['Concepto', 'Cantidad', 'Unitario €', 'Subtotal €']);
+
+                document.querySelectorAll('.cant-bat').forEach((input, i) => {
+                    const cant = parseFloat(input.value) || 0;
+                    const price = parseFloat(document.querySelector(`.price-bat[data-idx="${i}"]`).value) || 0;
+                    const sub = cant * price;
+                    const concepto = d.bateriasCostes[i].concepto;
+                    wsData.push([concepto, cant.toFixed(0), price.toFixed(2), sub.toFixed(2)]);
+                    totalFase2 += sub;
+                });
+
+                wsData.push(['', '', 'TOTAL FASE 2:', totalFase2.toFixed(2) + ' €']);
+                wsData.push(['']);
+                wsData.push(['NOTAS FASE 2: Añade independencia energética y consumo crítico. Requiere sincronización con Fase 1.']);
+                wsData.push(['']);
+            }
+
+            // RESUMEN FINAL
+            const totalGeneral = totalFase1 + totalFase2;
+            wsData.push(['═══════════════════════════════════════════════════════════════']);
+            wsData.push(['RESUMEN ECONÓMICO POR FASES']);
+            wsData.push(['═══════════════════════════════════════════════════════════════']);
+            wsData.push(['']);
+            wsData.push(['FASE 1 - Sistema Fotovoltaico:', totalFase1.toFixed(2) + ' €']);
+            if (totalFase2 > 0) {
+                wsData.push(['FASE 2 - Sistema Almacenamiento:', totalFase2.toFixed(2) + ' €']);
+                wsData.push(['', '']);
+                wsData.push(['PRESUPUESTO TOTAL PROYECTO:', totalGeneral.toFixed(2) + ' €']);
+                wsData.push(['', '']);
+                wsData.push(['Opción 1 - Solo Fase 1:', totalFase1.toFixed(2) + ' € (Sistema fotovoltaico puro, conexión a red)']);
+                wsData.push(['Opción 2 - Fases 1 + 2:', totalGeneral.toFixed(2) + ' € (Sistema completo con almacenamiento)']);
+            } else {
+                wsData.push(['', '']);
+                wsData.push(['PRESUPUESTO TOTAL PROYECTO:', totalGeneral.toFixed(2) + ' €']);
+            }
+            wsData.push(['']);
+            wsData.push(['Coste por kW instalado (Fase 1):', (totalFase1 / d.calculos.potenciaReal).toFixed(2) + ' €/kW']);
+            wsData.push(['']);
+
+            // INFORMACIÓN PARA EL INSTALADOR
+            wsData.push(['NOTAS IMPORTANTES']);
+            wsData.push(['Este presupuesto es estimativo y puede ajustarse según las condiciones reales en terreno']);
+            wsData.push(['Se recomienda realizar una visita técnica previa a la instalación para validar especificaciones']);
+            wsData.push(['Incluye: material, mano de obra y trámites administrativos']);
+            wsData.push(['Para ubicación exacta, consultar el enlace GPS/Maps proporcionado arriba']);
+            wsData.push(['Los precios pueden modificarse según proveedores y márgenes comerciales']);
+
+            // CREAR WORKSHEET
+            const ws = XLSX.utils.aoa_to_sheet(wsData);
+
+            // APLICAR ESTILOS
+            ws['!cols'] = [
+                { wch: 35 },
+                { wch: 15 },
+                { wch: 5 },
+                { wch: 35 },
+                { wch: 20 }
+            ];
+
+            // Aplicar estilos a celdas específicas
+            for (let cell in ws) {
+                if (cell.startsWith('!')) continue;
+                const cellRef = XLSX.utils.decode_cell(cell);
+
+                // Título
+                if (cellRef.r === 0) {
+                    ws[cell].s = style_titulo;
+                }
+                // Subtítulo
+                if (cellRef.r === 1) {
+                    ws[cell].s = style_subtitulo;
+                }
+            }
+
+            // AGREGAR AL WORKBOOK
+            XLSX.utils.book_append_sheet(wb, ws, 'Presupuesto');
+
+            // DESCARGAR
+            const nombreArchivo = `Presupuesto_${d.cliente.nombre.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0,10)}.xlsx`;
+            XLSX.writeFile(wb, nombreArchivo);
+            alert('✅ Presupuesto descargado correctamente en formato EXCEL profesional');
+        }
+
+        function limpiar() {
+            document.getElementById('formulario').reset();
+            document.getElementById('resultados').classList.remove('active');
+            mostrarBaterias();
+        }
+
+        function descargarPDF_DISABLED() {
+            if (!window.datosCalculo) { alert('Primero calcula el presupuesto'); return; }
+
+            const d = window.datosCalculo;
+            const at = d.analisisTecnico;
+            const fecha = new Date().toLocaleDateString('es-ES');
+
+            // Recoger costes actuales del DOM (editados por el usuario)
+            let totalFase1 = 0;
+            let filasFase1 = '';
+            document.querySelectorAll('.cant-input').forEach((input, i) => {
+                const cant = parseFloat(input.value) || 0;
+                const price = parseFloat(document.querySelector(`.price-input[data-idx="${i}"]`).value) || 0;
+                const sub = cant * price;
+                totalFase1 += sub;
+                const zebra = i % 2 === 0 ? '#f9fafb' : '#ffffff';
+                filasFase1 += `<tr style="background:${zebra}">
+                    <td style="padding:8px 12px;">${d.costes[i].concepto}</td>
+                    <td style="padding:8px 12px;text-align:center;">${cant % 1 === 0 ? cant : cant.toFixed(2)}</td>
+                    <td style="padding:8px 12px;text-align:right;">${price.toLocaleString('es-ES', {minimumFractionDigits:2})} €</td>
+                    <td style="padding:8px 12px;text-align:right;font-weight:600;">${sub.toLocaleString('es-ES', {minimumFractionDigits:2})} €</td>
+                </tr>`;
+            });
+
+            let totalFase2 = 0;
+            let filasFase2 = '';
+            let bloqueF2 = '';
+            if (d.incluyeBaterias) {
+                document.querySelectorAll('.cant-bat').forEach((input, i) => {
+                    const cant = parseFloat(input.value) || 0;
+                    const price = parseFloat(document.querySelector(`.price-bat[data-idx="${i}"]`).value) || 0;
+                    const sub = cant * price;
+                    totalFase2 += sub;
+                    const zebra = i % 2 === 0 ? '#f0f7ff' : '#ffffff';
+                    filasFase2 += `<tr style="background:${zebra}">
+                        <td style="padding:8px 12px;">${d.bateriasCostes[i].concepto}</td>
+                        <td style="padding:8px 12px;text-align:center;">${cant}</td>
+                        <td style="padding:8px 12px;text-align:right;">${price.toLocaleString('es-ES', {minimumFractionDigits:2})} €</td>
+                        <td style="padding:8px 12px;text-align:right;font-weight:600;">${sub.toLocaleString('es-ES', {minimumFractionDigits:2})} €</td>
+                    </tr>`;
+                });
+
+                bloqueF2 = `
+                <div class="page-break"></div>
+                <div class="section">
+                    <div class="section-header blue">⚡ FASE 2 — SISTEMA DE ALMACENAMIENTO (BATERÍAS)</div>
+                    <p style="color:#555;font-size:0.85em;margin:0 0 12px 0;">Sistema de almacenamiento energético. Puede instalarse en una fase posterior si el cliente lo requiere.</p>
+                    <table class="cost-table">
+                        <thead><tr>
+                            <th style="width:50%">Concepto</th>
+                            <th style="width:15%;text-align:center;">Ud.</th>
+                            <th style="width:17%;text-align:right;">Precio unit.</th>
+                            <th style="width:18%;text-align:right;">Subtotal</th>
+                        </tr></thead>
+                        <tbody>${filasFase2}</tbody>
+                        <tfoot><tr class="total-row blue-total">
+                            <td colspan="3" style="text-align:right;padding:10px 12px;">TOTAL FASE 2</td>
+                            <td style="text-align:right;padding:10px 12px;">${totalFase2.toLocaleString('es-ES',{minimumFractionDigits:2})} €</td>
+                        </tr></tfoot>
+                    </table>
+                </div>`;
+            }
+
+            const totalGeneral = totalFase1 + totalFase2;
+
+            // Alertas técnicas
+            let alertasHTML = '';
+            const alertasList = [];
+            if (d.calculos.espacioRequerido > d.especificaciones.espacio) alertasList.push(`⚠️ Espacio insuficiente: necesita ${d.calculos.espacioRequerido.toFixed(1)} m², disponible ${d.especificaciones.espacio} m²`);
+            if (at.estadoTejado === 'reparacion_importante') alertasList.push('⚠️ Tejado requiere reparación importante ANTES de la instalación');
+            if (at.amianto === 'si_probable') alertasList.push('⚠️ Amianto probable — requiere análisis y retirada especializada');
+            if (at.acometidaCambio === 'si') alertasList.push('ℹ️ Necesita cambio de acometida eléctrica — coordinar con distribuidora');
+            if (at.consumoCritico === 'si' && !d.incluyeBaterias) alertasList.push('⚠️ Consumo crítico sin almacenamiento — revisar necesidad de baterías');
+            if (at.cargaTejado && parseFloat(at.cargaTejado) < 50) alertasList.push(`⚠️ Carga tejado baja (${at.cargaTejado} kg/m²) — puede necesitar refuerzo estructural`);
+            if (at.andamiaje === 'completo') alertasList.push('ℹ️ Andamiaje completo necesario — incluir en presupuesto de instalación');
+            if (alertasList.length > 0) {
+                alertasHTML = `<div class="section alertas-box">
+                    <div class="alertas-title">🔔 AVISOS TÉCNICOS IMPORTANTES</div>
+                    <ul style="margin:0;padding-left:18px;">${alertasList.map(a => `<li style="margin-bottom:5px;">${a}</li>`).join('')}</ul>
+                </div>`;
+            }
+
+            // Condiciones climáticas
+            const climaItems = [];
+            if (at.climaViento) climaItems.push('Viento fuerte');
+            if (at.climaNieve) climaItems.push('Nieve frecuente');
+            if (at.climaSalinidad) climaItems.push('Zona salina');
+            if (at.climaPolvo) climaItems.push('Polvo / contaminación');
+
+            // Resumen fases
+            let resumenFases = `<tr><td style="padding:8px 14px;">Sistema Fotovoltaico (Fase 1)</td><td style="padding:8px 14px;text-align:right;font-weight:600;">${totalFase1.toLocaleString('es-ES',{minimumFractionDigits:2})} €</td></tr>`;
+            if (totalFase2 > 0) {
+                resumenFases += `<tr style="background:#f0f7ff"><td style="padding:8px 14px;">Almacenamiento Baterías (Fase 2)</td><td style="padding:8px 14px;text-align:right;font-weight:600;">${totalFase2.toLocaleString('es-ES',{minimumFractionDigits:2})} €</td></tr>`;
+            }
+
+            const html = `<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Especificación Técnica — ${d.cliente.nombre} — GESMECO ENERGAI</title>
+<style>
+  @page { size: A4; margin: 18mm 16mm 18mm 16mm; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 10pt; color: #222; background: #fff; }
+
+  /* CABECERA */
+  .header { display:flex; justify-content:space-between; align-items:center; border-bottom: 3px solid #2e7d32; padding-bottom: 14px; margin-bottom: 20px; }
+  .logo-block .empresa { font-size: 22pt; font-weight: 800; color: #2e7d32; letter-spacing: -0.5px; }
+  .logo-block .slogan { font-size: 8pt; color: #777; margin-top: 2px; }
+  .doc-info { text-align:right; }
+  .doc-info .doc-tipo { font-size: 11pt; font-weight: 700; color: #333; }
+  .doc-info .doc-meta { font-size: 8pt; color: #666; margin-top: 4px; }
+  .badge-instalador { display:inline-block; background:#e8f5e9; border:1px solid #81c784; color:#2e7d32; font-size:7.5pt; font-weight:700; padding:3px 8px; border-radius:3px; margin-top:5px; }
+
+  /* CLIENTE */
+  .cliente-grid { display:grid; grid-template-columns:1fr 1fr; gap:0; border:1px solid #ddd; border-radius:5px; overflow:hidden; margin-bottom:18px; }
+  .cliente-cell { padding: 7px 12px; border-bottom: 1px solid #eee; }
+  .cliente-cell:nth-child(odd) { background:#f9f9f9; border-right:1px solid #eee; }
+  .cliente-label { font-size:7.5pt; color:#888; text-transform:uppercase; font-weight:600; }
+  .cliente-value { font-size:9.5pt; color:#222; font-weight:500; margin-top:1px; }
+  .gps-box { background:#e3f2fd; border-left:3px solid #1565c0; padding:7px 10px; border-radius:3px; margin-bottom:10px; font-size:8pt; color:#1565c0; word-break:break-all; }
+  .desc-box { background:#f3f9f3; border-left:3px solid #43a047; padding:8px 12px; border-radius:3px; margin-bottom:18px; font-size:9pt; color:#333; font-style:italic; }
+
+  /* SECCIONES */
+  .section { margin-bottom: 18px; }
+  .section-header { font-size: 10pt; font-weight: 800; color: white; background: #2e7d32; padding: 7px 12px; border-radius: 4px 4px 0 0; text-transform: uppercase; letter-spacing: 0.3px; }
+  .section-header.blue { background: #1565c0; }
+  .section-header.dark { background: #263238; }
+  .section-header.orange { background: #e65100; }
+
+  /* TABLA ESPECIFICACIONES */
+  .specs-grid { display:grid; grid-template-columns:1fr 1fr; gap:0; border:1px solid #ddd; border-top:none; }
+  .specs-col { }
+  .specs-col-header { background:#f1f8e9; font-size:8pt; font-weight:700; color:#33691e; padding:6px 10px; text-transform:uppercase; border-bottom:1px solid #c5e1a5; }
+  .specs-col-header.blue-h { background:#e3f2fd; color:#0d47a1; border-bottom:1px solid #90caf9; }
+  .spec-row { display:flex; border-bottom:1px solid #eee; }
+  .spec-row:last-child { border-bottom:none; }
+  .spec-label { width:55%; font-size:8.5pt; color:#555; padding:5px 10px; border-right:1px solid #eee; }
+  .spec-value { width:45%; font-size:8.5pt; color:#222; font-weight:600; padding:5px 10px; }
+  .specs-divider { border-left:1px solid #ddd; }
+
+  /* TABLA ANÁLISIS TÉCNICO */
+  .at-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; border:1px solid #ddd; border-top:none; padding:12px; background:#fff; }
+  .at-block { }
+  .at-block-title { font-size:8pt; font-weight:700; color:#2e7d32; text-transform:uppercase; border-bottom:1px solid #c8e6c9; padding-bottom:3px; margin-bottom:7px; }
+  .at-row { display:flex; margin-bottom:4px; }
+  .at-lbl { width:50%; font-size:8pt; color:#666; }
+  .at-val { width:50%; font-size:8pt; color:#222; font-weight:600; }
+  .chip { display:inline-block; background:#e8f5e9; color:#2e7d32; font-size:7pt; font-weight:700; padding:1px 6px; border-radius:10px; border:1px solid #a5d6a7; margin:1px; }
+  .chip.warn { background:#fff3e0; color:#e65100; border-color:#ffcc80; }
+  .chip.info { background:#e3f2fd; color:#1565c0; border-color:#90caf9; }
+
+  /* TABLAS DE COSTES */
+  .cost-table { width:100%; border-collapse:collapse; border:1px solid #ddd; border-top:none; font-size:9pt; }
+  .cost-table th { background:#43a047; color:white; padding:8px 12px; text-align:left; font-weight:700; font-size:8.5pt; }
+  .cost-table.blue th { background:#1565c0; }
+  .cost-table td { border-bottom:1px solid #eee; }
+  .total-row td { background:#e8f5e9 !important; font-weight:800; font-size:10pt; color:#1b5e20; border-top:2px solid #43a047; }
+  .blue-total td { background:#e3f2fd !important; font-weight:800; font-size:10pt; color:#0d47a1; border-top:2px solid #1565c0; }
+
+  /* RESUMEN ECONÓMICO */
+  .resumen-table { width:100%; border-collapse:collapse; border:1px solid #ddd; border-top:none; }
+  .resumen-table td { padding:8px 14px; border-bottom:1px solid #eee; font-size:9.5pt; }
+  .resumen-total-row td { background:#1b5e20 !important; color:white !important; font-weight:800; font-size:12pt; padding:12px 14px; border:none; }
+  .opciones-box { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:12px; }
+  .opcion-card { border:1px solid #ddd; border-radius:5px; padding:10px 14px; }
+  .opcion-card.op1 { border-color:#81c784; background:#f1f8e9; }
+  .opcion-card.op2 { border-color:#64b5f6; background:#e3f2fd; }
+  .opcion-title { font-size:8pt; font-weight:700; text-transform:uppercase; color:#555; margin-bottom:4px; }
+  .opcion-price { font-size:14pt; font-weight:800; color:#2e7d32; }
+  .opcion-price.blue { color:#1565c0; }
+  .opcion-desc { font-size:7.5pt; color:#777; margin-top:3px; }
+
+  /* ALERTAS */
+  .alertas-box { border:1px solid #ff8f00; border-radius:5px; background:#fff8e1; padding:12px 14px; }
+  .alertas-title { font-size:9.5pt; font-weight:800; color:#e65100; margin-bottom:8px; }
+
+  /* FOOTER */
+  .footer { border-top:2px solid #2e7d32; padding-top:10px; margin-top:20px; display:flex; justify-content:space-between; align-items:center; }
+  .footer-left { font-size:7.5pt; color:#888; }
+  .footer-right { font-size:7.5pt; color:#2e7d32; font-weight:700; }
+
+  .page-break { page-break-before: always; margin-top:0; padding-top:20px; }
+  .no-break { page-break-inside: avoid; }
+
+  @media print {
+    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style>
+</head>
+<body>
+
+<!-- CABECERA -->
+<div class="header">
+  <div class="logo-block">
+    <div class="empresa">⚡ GESMECO ENERGAI</div>
+    <div class="slogan">Asesoramiento Energético · Comarca Litera · Aragón</div>
+    <div class="badge-instalador">📋 ESPECIFICACIÓN TÉCNICA PARA INSTALADOR</div>
+  </div>
+  <div class="doc-info">
+    <div class="doc-tipo">INSTALACIÓN FOTOVOLTAICA</div>
+    <div class="doc-meta">Fecha: ${fecha}</div>
+    <div class="doc-meta">Ref: GE-${d.cliente.nombre.replace(/\s/g,'').toUpperCase().slice(0,4)}-${Date.now().toString().slice(-5)}</div>
+  </div>
+</div>
+
+<!-- DATOS CLIENTE -->
+<div class="section no-break">
+  <div class="section-header">👤 DATOS DEL CLIENTE Y UBICACIÓN</div>
+  <div class="cliente-grid">
+    <div class="cliente-cell"><div class="cliente-label">Nombre</div><div class="cliente-value">${d.cliente.nombre}</div></div>
+    <div class="cliente-cell"><div class="cliente-label">Localidad</div><div class="cliente-value">${d.cliente.ubicacion || '—'}</div></div>
+    <div class="cliente-cell"><div class="cliente-label">Teléfono</div><div class="cliente-value">${d.cliente.telefono || '—'}</div></div>
+    <div class="cliente-cell"><div class="cliente-label">Dirección</div><div class="cliente-value">${d.cliente.direccion || '—'}</div></div>
+    <div class="cliente-cell"><div class="cliente-label">Email</div><div class="cliente-value">${d.cliente.email || '—'}</div></div>
+    <div class="cliente-cell"><div class="cliente-label">Fecha</div><div class="cliente-value">${fecha}</div></div>
+  </div>
+  ${d.cliente.ubicacionGPS ? `<div class="gps-box">📍 <strong>Ubicación GPS / Google Maps:</strong> ${d.cliente.ubicacionGPS}</div>` : ''}
+  ${d.cliente.descripcion ? `<div class="desc-box">📝 <strong>Descripción:</strong> ${d.cliente.descripcion}</div>` : ''}
+</div>
+
+<!-- ESPECIFICACIONES -->
+<div class="section no-break">
+  <div class="section-header">📐 ESPECIFICACIONES TÉCNICAS</div>
+  <div class="specs-grid">
+    <div class="specs-col">
+      <div class="specs-col-header">Datos del cliente</div>
+      <div class="spec-row"><span class="spec-label">Consumo anual</span><span class="spec-value">${d.especificaciones.consumo.toLocaleString('es-ES')} kWh/año</span></div>
+      <div class="spec-row"><span class="spec-label">Potencia solicitada</span><span class="spec-value">${d.especificaciones.potencia} kW</span></div>
+      <div class="spec-row"><span class="spec-label">Sistema eléctrico</span><span class="spec-value">${d.especificaciones.fase === 'mono' ? 'Monofásico (220V)' : 'Trifásico (400V)'}</span></div>
+      <div class="spec-row"><span class="spec-label">Tipo de tejado</span><span class="spec-value">${d.especificaciones.tejado.charAt(0).toUpperCase() + d.especificaciones.tejado.slice(1)}</span></div>
+      <div class="spec-row"><span class="spec-label">Espacio disponible</span><span class="spec-value">${d.especificaciones.espacio} m²</span></div>
+      ${d.especificaciones.presupuesto ? `<div class="spec-row"><span class="spec-label">Presupuesto máximo</span><span class="spec-value">${d.especificaciones.presupuesto} €</span></div>` : ''}
+    </div>
+    <div class="specs-col specs-divider">
+      <div class="specs-col-header blue-h">Cálculo del sistema</div>
+      <div class="spec-row"><span class="spec-label">Nº de paneles (450W)</span><span class="spec-value">${d.calculos.numPaneles} paneles</span></div>
+      <div class="spec-row"><span class="spec-label">Potencia real instalada</span><span class="spec-value">${d.calculos.potenciaReal.toFixed(2)} kW</span></div>
+      <div class="spec-row"><span class="spec-label">Espacio requerido</span><span class="spec-value">${d.calculos.espacioRequerido.toFixed(1)} m²</span></div>
+      <div class="spec-row"><span class="spec-label">Producción anual est.</span><span class="spec-value">${d.calculos.produccionAnual.toLocaleString('es-ES')} kWh/año</span></div>
+      <div class="spec-row"><span class="spec-label">Inversor recomendado</span><span class="spec-value">${d.calculos.inversor.marca} ${d.calculos.inversor.modelo}</span></div>
+      ${d.incluyeBaterias ? `<div class="spec-row"><span class="spec-label">Almacenamiento</span><span class="spec-value">${document.getElementById('potencia-bateria').value} kWh LiFePO4</span></div>` : '<div class="spec-row"><span class="spec-label">Almacenamiento</span><span class="spec-value">Sin baterías</span></div>'}
+    </div>
+  </div>
+</div>
+
+<!-- ANÁLISIS TÉCNICO -->
+<div class="section no-break">
+  <div class="section-header dark">🔍 ANÁLISIS TÉCNICO DETALLADO PARA EL INSTALADOR</div>
+  <div class="at-grid">
+    <div class="at-block">
+      <div class="at-block-title">Accesibilidad y Logística</div>
+      <div class="at-row"><span class="at-lbl">Acceso al tejado</span><span class="at-val">${traducir('acceso_tejado', at.acceso)}</span></div>
+      <div class="at-row"><span class="at-lbl">Distancia cuadro-tejado</span><span class="at-val">${traducir('distancia_cuadro', at.distCuadro)}</span></div>
+      <div class="at-row"><span class="at-lbl">Almacenamiento material</span><span class="at-val">${traducir('espacio_almacenamiento', at.espacioAlmac)}</span></div>
+      <div class="at-row"><span class="at-lbl">Andamiaje</span><span class="at-val">${traducir('andamiaje', at.andamiaje)}</span></div>
+    </div>
+    <div class="at-block">
+      <div class="at-block-title">Condiciones del Tejado</div>
+      <div class="at-row"><span class="at-lbl">Orientación</span><span class="at-val">${traducir('orientacion', at.orientacion)}</span></div>
+      <div class="at-row"><span class="at-lbl">Inclinación</span><span class="at-val">${traducir('inclinacion', at.inclinacion)}</span></div>
+      <div class="at-row"><span class="at-lbl">Sombreado</span><span class="at-val">${traducir('sombreado', at.sombreado)}</span></div>
+      <div class="at-row"><span class="at-lbl">Estado del tejado</span><span class="at-val">${traducir('estado_tejado', at.estadoTejado)}</span></div>
+      ${at.cargaTejado ? `<div class="at-row"><span class="at-lbl">Carga permitida</span><span class="at-val">${at.cargaTejado} kg/m²</span></div>` : ''}
+      <div class="at-row"><span class="at-lbl">Amianto</span><span class="at-val">${traducir('amianto', at.amianto)}</span></div>
+    </div>
+    <div class="at-block">
+      <div class="at-block-title">Instalación Eléctrica</div>
+      <div class="at-row"><span class="at-lbl">Cuadro general</span><span class="at-val">${traducir('cuadro_accesible', at.cuadroAccesible)}</span></div>
+      <div class="at-row"><span class="at-lbl">Tierra</span><span class="at-val">${traducir('tierra_adecuada', at.tierraAdecuada)}</span></div>
+      <div class="at-row"><span class="at-lbl">Acometida</span><span class="at-val">${traducir('acometida_cambio', at.acometidaCambio)}</span></div>
+      <div class="at-row"><span class="at-lbl">Distancia cableado</span><span class="at-val">${traducir('distancia_cable', at.distanciaCable)}</span></div>
+    </div>
+    <div class="at-block">
+      <div class="at-block-title">Necesidades y Prioridades</div>
+      <div class="at-row"><span class="at-lbl">Consumo crítico</span><span class="at-val">${traducir('consumo_critico', at.consumoCritico)}</span></div>
+      <div class="at-row"><span class="at-lbl">Independencia</span><span class="at-val">${traducir('independencia', at.independenciaPrioridad)}</span></div>
+      <div class="at-row"><span class="at-lbl">Ampliación futura</span><span class="at-val">${traducir('ampliacion', at.ampliacionFutura)}</span></div>
+      <div style="margin-top:8px;">
+        ${at.climaViento ? '<span class="chip warn">💨 Viento</span>' : ''}
+        ${at.climaNieve ? '<span class="chip info">❄️ Nieve</span>' : ''}
+        ${at.climaSalinidad ? '<span class="chip warn">🌊 Salinidad</span>' : ''}
+        ${at.climaPolvo ? '<span class="chip">🌫️ Polvo</span>' : ''}
+        ${!at.climaViento && !at.climaNieve && !at.climaSalinidad && !at.climaPolvo ? '<span class="chip">Sin condiciones especiales</span>' : ''}
+      </div>
+      ${at.dificultadesEspeciales ? `<div style="margin-top:8px;font-size:8pt;color:#c62828;font-style:italic;">⚠️ ${at.dificultadesEspeciales}</div>` : ''}
+    </div>
+  </div>
+</div>
+
+${alertasHTML}
+
+<!-- FASE 1 -->
+<div class="section no-break">
+  <div class="section-header">🔆 FASE 1 — SISTEMA FOTOVOLTAICO</div>
+  <table class="cost-table">
+    <thead><tr>
+      <th style="width:50%">Concepto</th>
+      <th style="width:15%;text-align:center;">Ud.</th>
+      <th style="width:17%;text-align:right;">Precio unitario</th>
+      <th style="width:18%;text-align:right;">Subtotal</th>
+    </tr></thead>
+    <tbody>${filasFase1}</tbody>
+    <tfoot><tr class="total-row">
+      <td colspan="3" style="text-align:right;padding:10px 12px;">TOTAL FASE 1</td>
+      <td style="text-align:right;padding:10px 12px;">${totalFase1.toLocaleString('es-ES',{minimumFractionDigits:2})} €</td>
+    </tr></tfoot>
+  </table>
+</div>
+
+${bloqueF2}
+
+<!-- RESUMEN -->
+<div class="section no-break">
+  <div class="section-header dark">💶 RESUMEN ECONÓMICO</div>
+  <table class="resumen-table">
+    ${resumenFases}
+    <tr class="resumen-total-row">
+      <td>PRESUPUESTO TOTAL DEL PROYECTO</td>
+      <td style="text-align:right;">${totalGeneral.toLocaleString('es-ES',{minimumFractionDigits:2})} €</td>
+    </tr>
+  </table>
+  ${totalFase2 > 0 ? `
+  <div class="opciones-box">
+    <div class="opcion-card op1">
+      <div class="opcion-title">Opción A — Solo Fase 1</div>
+      <div class="opcion-price">${totalFase1.toLocaleString('es-ES',{minimumFractionDigits:2})} €</div>
+      <div class="opcion-desc">Sistema fotovoltaico puro, conexión a red. Sin almacenamiento.</div>
+    </div>
+    <div class="opcion-card op2">
+      <div class="opcion-title">Opción B — Fases 1 + 2</div>
+      <div class="opcion-price blue">${totalGeneral.toLocaleString('es-ES',{minimumFractionDigits:2})} €</div>
+      <div class="opcion-desc">Sistema completo con almacenamiento en baterías.</div>
+    </div>
+  </div>` : ''}
+</div>
+
+<!-- NOTAS -->
+<div class="section no-break" style="background:#f9fafb;border:1px solid #ddd;border-radius:5px;padding:12px 14px;">
+  <div style="font-size:8.5pt;font-weight:700;color:#555;margin-bottom:8px;text-transform:uppercase;">📌 Notas para el instalador</div>
+  <ul style="font-size:8pt;color:#555;padding-left:16px;line-height:1.7;">
+    <li>Este documento es una especificación técnica elaborada por GESMECO ENERGAI para que el instalador pueda elaborar su presupuesto definitivo.</li>
+    <li>Los importes indicados son orientativos — el instalador deberá ajustarlos según sus costes, proveedores y margen comercial.</li>
+    <li>Se recomienda visita técnica previa para validar las especificaciones in situ.</li>
+    <li>Para la ubicación exacta, consultar el enlace GPS/Maps indicado arriba.</li>
+    <li>Comarca Litera: irradiancia 1.280 kWh/m²/año · Inclinación óptima 37°</li>
+  </ul>
+</div>
+
+<!-- FOOTER -->
+<div class="footer">
+  <div class="footer-left">GESMECO ENERGAI · Binéfar, Comarca Litera · Aragón<br>Documento generado el ${fecha}</div>
+  <div class="footer-right">⚡ Especificación Técnica Fotovoltaica</div>
+</div>
+
+<script>window.onload = function(){ window.print(); }<\/script>
+</body></html>`;
+
+            const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+            const blobUrl = URL.createObjectURL(blob);
+            const ventana = window.open(blobUrl, '_blank');
+            if (!ventana) {
+                // Fallback: descarga directa del HTML para abrir e imprimir
+                const a = document.createElement('a');
+                a.href = blobUrl;
+                a.download = `Especificacion_${d.cliente.nombre.replace(/\s+/g,'_')}_${new Date().toISOString().slice(0,10)}.html`;
+                a.click();
+                alert('Archivo HTML descargado. Ábrelo en el navegador y usa Ctrl+P → Guardar como PDF');
+            }
+            setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+        }
+    </script>
+</body>
+</html>
