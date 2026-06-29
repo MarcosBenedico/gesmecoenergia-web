@@ -202,7 +202,7 @@ export const contactChannels = [
 export const asesoriaServices = [
   {
     title: "Asesoría Fiscal",
-    icon: "📋",
+    icon: "",
     color: "from-accent to-accent-light",
     colorBg: "bg-accent/10",
     colorBorder: "border-accent/30",
@@ -218,7 +218,7 @@ export const asesoriaServices = [
   },
   {
     title: "Asesoría Contable",
-    icon: "💰",
+    icon: "",
     color: "from-secondary to-cyan-500",
     colorBg: "bg-secondary/10",
     colorBorder: "border-secondary/30",
@@ -234,7 +234,7 @@ export const asesoriaServices = [
   },
   {
     title: "Asesoría Laboral",
-    icon: "👥",
+    icon: "",
     color: "from-tertiary to-amber-400",
     colorBg: "bg-tertiary/10",
     colorBorder: "border-tertiary/30",
@@ -250,7 +250,7 @@ export const asesoriaServices = [
   },
   {
     title: "Gestión Administrativa",
-    icon: "📄",
+    icon: "",
     color: "from-accent-light to-secondary",
     colorBg: "bg-accent/5",
     colorBorder: "border-accent/20",
@@ -272,7 +272,7 @@ export const asesoriaServices = [
 export const segurosServices = [
   {
     title: "Seguros Particulares",
-    icon: "🏠",
+    icon: "",
     color: "from-accent to-accent-light",
     colorBg: "bg-accent/10",
     colorBorder: "border-accent/30",
@@ -288,7 +288,7 @@ export const segurosServices = [
   },
   {
     title: "Seguros Empresariales",
-    icon: "🏢",
+    icon: "",
     color: "from-secondary to-cyan-500",
     colorBg: "bg-secondary/10",
     colorBorder: "border-secondary/30",
@@ -304,7 +304,7 @@ export const segurosServices = [
   },
   {
     title: "Seguros Agrarios y Ganaderos",
-    icon: "🌾",
+    icon: "",
     color: "from-tertiary to-amber-400",
     colorBg: "bg-tertiary/10",
     colorBorder: "border-tertiary/30",
@@ -320,7 +320,7 @@ export const segurosServices = [
   },
   {
     title: "Revisión de Pólizas",
-    icon: "🔍",
+    icon: "",
     color: "from-accent-light to-secondary",
     colorBg: "bg-accent/5",
     colorBorder: "border-accent/20",
