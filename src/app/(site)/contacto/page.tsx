@@ -111,8 +111,8 @@ export default function ContactPage() {
 
               <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted">
                 <span>Respuesta en 24h. Sin spam, sin cesión de datos a terceros.</span>
-                <Button type="button" size="lg">
-                  Enviar solicitud
+                <Button type="button" size="lg" className="bg-gradient-to-r from-accent to-accent-light text-white font-bold shadow-lg hover:shadow-xl">
+                  ✉️ Enviar solicitud
                 </Button>
               </div>
             </form>

@@ -235,11 +235,11 @@ export default function HomePage() {
               </p>
             </div>
             <div className="flex flex-wrap gap-3">
-              <Button href="/analizador" size="lg" className="bg-white text-neutral-900 hover:bg-rose-50">
-                Analizar ahora
+              <Button href="/analizador" size="lg" className="bg-white text-neutral-900 font-bold hover:bg-neutral-100 shadow-lg">
+                📊 Analizar ahora
               </Button>
-              <Button href="/contacto" variant="ghost" size="lg" className="border-white/30 bg-white/10 text-white hover:bg-white/20">
-                Hablar con asesor
+              <Button href="/contacto" variant="ghost" size="lg" className="border-2 border-white text-white font-bold hover:bg-white/20">
+                📞 Hablar con asesor
               </Button>
             </div>
           </div>
