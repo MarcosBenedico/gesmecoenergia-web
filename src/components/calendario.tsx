@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { llamarCalendarAPI } from '@/lib/google-oauth-handler';
 
 interface CalendarEvent {
   id: string;
@@ -89,75 +88,59 @@ export function Calendario() {
   // Calendarios a filtrar (exactos)
   const CALENDARS_TO_FILTER = ['tareas diarias', 'festivos', 'holidays in'];
 
-  // Cargar lista de calendarios disponibles
+  // Cargar lista de calendarios via API servidor (maneja refresh de token)
   const cargarCalendarios = async () => {
     try {
-      console.log('📅 Cargando lista de calendarios...');
-      const { data: googleConfig } = await supabase
-        .from('google_config')
-        .select('access_token')
-        .eq('id', 1)
-        .single();
-
-      if (!googleConfig?.access_token) {
-        console.log('❌ Sin token de Google en Supabase');
-        setCalendars([]);
-        setError('No hay token de Google. Conecta primero en Seguimientos.');
-        return;
-      }
-
-      console.log('✅ Token encontrado, consultando Google Calendar API...');
+      console.log('📅 Cargando calendarios via /api/google/calendars...');
       setStatusMessage('🔄 Consultando Google Calendar API...');
 
-      const response = await llamarCalendarAPI(
-        'https://www.googleapis.com/calendar/v3/users/me/calendarList'
-      );
+      const response = await fetch('/api/google/calendars');
+      const data = await response.json();
 
       if (!response.ok) {
-        const errorData = await response.json();
-        console.error('❌ Error de Google Calendar API:', response.status, errorData);
-        setError(`Error al cargar calendarios: ${errorData.error?.message || 'Error desconocido'}`);
+        console.error('❌ Error:', data.error);
+        setStatusMessage(`❌ ${data.error}`);
+        setError(data.error || 'Error de Google Calendar');
         setCalendars([]);
         return;
       }
 
-      const data = await response.json();
-      console.log('📋 Respuesta de Google:', data);
+      const items = data.items || [];
+      console.log('📋 Calendarios recibidos:', items.length);
 
-      if (!data.items || data.items.length === 0) {
-        console.log('⚠️ No hay calendarios disponibles');
+      if (items.length === 0) {
         setCalendars([]);
-        setError('No hay calendarios disponibles en tu Google Account.');
+        setStatusMessage('⚠️ No hay calendarios disponibles');
+        setError('No hay calendarios en tu cuenta de Google.');
         return;
       }
 
-      let calendarList: Calendar[] = data.items
+      const calendarList: Calendar[] = items
         .filter((item: any) => {
-          const summary = item.summary.toLowerCase();
-          const esFiltrando = CALENDARS_TO_FILTER.some(filter => summary.includes(filter));
-          if (esFiltrando) console.log(`  Filtrando: ${item.summary}`);
-          return !esFiltrando;
+          const summary = (item.summary || '').toLowerCase();
+          return !CALENDARS_TO_FILTER.some(f => summary.includes(f));
         })
         .map((item: any, index: number) => {
           const colorSet = CALENDAR_COLORS[index % CALENDAR_COLORS.length];
-          const cal = {
+          console.log(`  ✅ ${item.summary}`);
+          return {
             id: item.id,
             summary: item.summary,
             email: item.id,
-            selected: true, // ⭐ TODOS SELECCIONADOS POR DEFECTO
+            selected: true, // TODOS SELECCIONADOS POR DEFECTO
             color: colorSet.color,
             bgColor: colorSet.bgColor,
             borderColor: colorSet.borderColor,
           };
-          console.log(`  ✅ Calendario: ${cal.summary} (ID: ${cal.id}, Selected: ${cal.selected})`);
-          return cal;
         });
 
-      console.log('✅ Calendarios cargados:', calendarList.length, calendarList);
+      console.log('✅ Calendarios listos:', calendarList.length);
       setCalendars(calendarList);
+      setStatusMessage(`✅ ${calendarList.length} calendario(s) cargado(s)`);
       setError('');
     } catch (err) {
-      console.error('💥 Error cargando calendarios:', err);
+      console.error('💥 Error:', err);
+      setStatusMessage('💥 Error cargando calendarios');
       setError(`Error: ${err instanceof Error ? err.message : 'Error desconocido'}`);
       setCalendars([]);
     }
@@ -167,18 +150,6 @@ export function Calendario() {
     setLoading(true);
     setError('');
     try {
-      const { data: googleConfig } = await supabase
-        .from('google_config')
-        .select('access_token')
-        .eq('id', 1)
-        .single();
-
-      if (!googleConfig?.access_token) {
-        setError('No hay token de Google.');
-        setLoading(false);
-        return;
-      }
-
       const selectedCalendars = calendars.filter((c) => c.selected);
       if (selectedCalendars.length === 0) {
         setEvents([]);
@@ -188,42 +159,37 @@ export function Calendario() {
 
       const timeMin = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
       const timeMax = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
-
       timeMin.setHours(0, 0, 0, 0);
       timeMax.setHours(23, 59, 59, 999);
 
-      let allEvents: CalendarEvent[] = [];
+      const response = await fetch('/api/google/events', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          calendarIds: selectedCalendars.map((c) => c.id),
+          timeMin: timeMin.toISOString(),
+          timeMax: timeMax.toISOString(),
+        }),
+      });
 
-      // Cargar eventos de cada calendario seleccionado
-      for (const calendar of selectedCalendars) {
-        try {
-          const response = await llamarCalendarAPI(
-            `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(
-              calendar.id
-            )}/events?timeMin=${timeMin.toISOString()}&timeMax=${timeMax.toISOString()}&singleEvents=true&orderBy=startTime&maxResults=250`
-          );
+      const data = await response.json();
 
-          if (response.ok) {
-            const data = await response.json();
-            const eventos = (data.items || []).map((item: any) => ({
-              id: item.id,
-              title: item.summary || 'Sin título',
-              start: item.start.dateTime || item.start.date,
-              end: item.end.dateTime || item.end.date,
-              description: item.description || '',
-              calendarEmail: calendar.email,
-            }));
-
-            allEvents = [...allEvents, ...eventos];
-          }
-        } catch (err) {
-          console.error(`Error cargando calendario ${calendar.summary}:`, err);
-        }
+      if (!response.ok) {
+        setError(data.error || 'Error cargando eventos');
+        setEvents([]);
+        return;
       }
 
-      // Ordenar eventos por fecha
-      allEvents.sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
-      setEvents(allEvents);
+      const eventosFormateados: CalendarEvent[] = (data.events || []).map((item: any) => ({
+        id: item.id,
+        title: item.title,
+        start: item.start,
+        end: item.end,
+        description: item.description,
+        calendarEmail: item.calendarId,
+      }));
+
+      setEvents(eventosFormateados);
     } catch (error) {
       console.error('Error al cargar eventos:', error);
       setError('Error al cargar eventos.');
