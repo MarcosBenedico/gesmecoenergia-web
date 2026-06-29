@@ -195,3 +195,143 @@ export const contactChannels = [
     action: "Llamar ahora",
   },
 ];
+
+/* ═════════════════════════════════════════════════
+   GESMECO ASESORÍA - Fiscal, Laboral, Contable
+═════════════════════════════════════════════════ */
+export const asesoriaServices = [
+  {
+    title: "Asesoría Fiscal",
+    icon: "📋",
+    color: "from-purple-500 to-purple-600",
+    colorBg: "bg-purple-500/10",
+    colorBorder: "border-purple-500/30",
+    summary: "Gestión de impuestos y obligaciones tributarias",
+    items: [
+      "Declaraciones trimestrales (IVA, IRPF)",
+      "Impuesto de sociedades",
+      "Declaraciones de la renta",
+      "Revisión de obligaciones tributarias",
+      "Planificación fiscal básica",
+      "Atención a requerimientos de Hacienda",
+    ],
+  },
+  {
+    title: "Asesoría Contable",
+    icon: "💰",
+    color: "from-indigo-500 to-indigo-600",
+    colorBg: "bg-indigo-500/10",
+    colorBorder: "border-indigo-500/30",
+    summary: "Control y organización de contabilidad empresarial",
+    items: [
+      "Contabilización de facturas",
+      "Seguimiento de ingresos y gastos",
+      "Elaboración de balances",
+      "Cuentas anuales y libros contables",
+      "Revisión de situación económica",
+      "Apoyo documental para bancos",
+    ],
+  },
+  {
+    title: "Asesoría Laboral",
+    icon: "👥",
+    color: "from-violet-500 to-violet-600",
+    colorBg: "bg-violet-500/10",
+    colorBorder: "border-violet-500/30",
+    summary: "Gestión de trabajadores y Seguridad Social",
+    items: [
+      "Altas y bajas de trabajadores",
+      "Contratos laborales y nóminas",
+      "Trámites de Seguridad Social",
+      "Partes de baja médica",
+      "Gestión de convenios",
+      "Despidos, finiquitos y certificados",
+    ],
+  },
+  {
+    title: "Gestión Administrativa",
+    icon: "📄",
+    color: "from-slate-500 to-slate-600",
+    colorBg: "bg-slate-500/10",
+    colorBorder: "border-slate-500/30",
+    summary: "Trámites generales del día a día",
+    items: [
+      "Trámites con administraciones públicas",
+      "Presentación de documentación",
+      "Expedientes y comunicaciones",
+      "Certificados y gestión documental",
+      "Apoyo en documentación empresarial",
+      "Organización de información",
+    ],
+  },
+];
+
+/* ═════════════════════════════════════════════════
+   CORREBIN SEGUROS - Particulares, Empresas, Agrarios
+═════════════════════════════════════════════════ */
+export const segurosServices = [
+  {
+    title: "Seguros Particulares",
+    icon: "🏠",
+    color: "from-emerald-500 to-emerald-600",
+    colorBg: "bg-emerald-500/10",
+    colorBorder: "border-emerald-500/30",
+    summary: "Cobertura para vida personal y familia",
+    items: [
+      "Seguro de hogar y multirriesgo",
+      "Seguro de coche y moto",
+      "Seguro de vida y salud",
+      "Seguro de decesos",
+      "Responsabilidad civil particular",
+      "Pólizas personalizadas",
+    ],
+  },
+  {
+    title: "Seguros Empresariales",
+    icon: "🏢",
+    color: "from-teal-500 to-teal-600",
+    colorBg: "bg-teal-500/10",
+    colorBorder: "border-teal-500/30",
+    summary: "Protección para negocios y autónomos",
+    items: [
+      "Responsabilidad civil profesional",
+      "Seguro de comercio y oficinas",
+      "Seguro de naves y maquinaria",
+      "Multirriesgo empresarial",
+      "Seguro de flotas",
+      "Cobertura de accidentes",
+    ],
+  },
+  {
+    title: "Seguros Agrarios y Ganaderos",
+    icon: "🌾",
+    color: "from-green-500 to-green-600",
+    colorBg: "bg-green-500/10",
+    colorBorder: "border-green-500/30",
+    summary: "Cobertura especializada para sector rural",
+    items: [
+      "Seguros de explotaciones agrícolas",
+      "Seguros ganaderos y veterinarios",
+      "Maquinaria agrícola",
+      "Responsabilidad civil agraria",
+      "Naves agrícolas y almacenamiento",
+      "Coberturas por cosechas y riesgo",
+    ],
+  },
+  {
+    title: "Revisión de Pólizas",
+    icon: "🔍",
+    color: "from-cyan-500 to-cyan-600",
+    colorBg: "bg-cyan-500/10",
+    colorBorder: "border-cyan-500/30",
+    summary: "Auditoría y optimización de coberturas",
+    items: [
+      "Revisión de coberturas actuales",
+      "Análisis de capitales asegurados",
+      "Detección de duplicidades",
+      "Comparativa de alternativas",
+      "Gestión en caso de siniestro",
+      "Acompañamiento con aseguradoras",
+    ],
+  },
+];
