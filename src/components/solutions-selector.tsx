@@ -91,16 +91,11 @@ export function SolutionsSelector() {
 
                   <div className="relative space-y-2 text-center">
                     <div className="text-2xl md:text-3xl">{solution.icon}</div>
-                    <div>
-                      <h3 className={`font-bold transition-colors ${
-                        isActive ? 'text-accent' : 'text-foreground group-hover:text-accent'
-                      }`}>
-                        {solution.label}
-                      </h3>
-                      <p className="text-[10px] text-muted/70 font-semibold uppercase tracking-wider">
-                        {solution.company}
-                      </p>
-                    </div>
+                    <h3 className={`text-lg md:text-xl font-black transition-colors ${
+                      isActive ? 'text-accent' : 'text-foreground group-hover:text-accent'
+                    }`}>
+                      {solution.company}
+                    </h3>
                     <p className="text-xs text-muted opacity-75 group-hover:opacity-100 transition-opacity">
                       {solution.description}
                     </p>
