@@ -53,7 +53,7 @@ export default function AboutPage() {
                 <span>KPI compartidos: coste total, disponibilidad y CO₂ evitado.</span>
               </div>
             </div>
-            <div className="mt-6 rounded-2xl bg-rose-50 p-5 text-sm text-foreground">
+            <div className="mt-6 rounded-2xl bg-rose-50 p-5 text-sm text-[#0f0f1e]">
               <div className="text-xs font-semibold uppercase tracking-[0.14em] text-rose-800">
                 Propósito
               </div>

@@ -49,7 +49,7 @@ export default function HomePage() {
               <Button href="/analizador" size="lg" className="bg-gradient-to-r from-accent to-accent-light text-white font-bold text-base px-8 py-4 rounded-xl shadow-glow hover:shadow-glow">
                 🚀 Analizar mi factura
               </Button>
-              <Button href="/servicios" variant="ghost" size="lg" className="border-2 border-muted text-foreground hover:border-accent hover:text-accent">
+              <Button href="/servicios" variant="ghost" size="lg" className="border-2 border-muted hover:border-accent hover:text-accent">
                 Ver servicios →
               </Button>
               <div className="text-sm font-semibold text-muted">
@@ -238,7 +238,7 @@ export default function HomePage() {
               <Button href="/analizador" size="lg" className="bg-white text-neutral-900 font-bold hover:bg-neutral-100 shadow-lg">
                 📊 Analizar ahora
               </Button>
-              <Button href="/contacto" variant="ghost" size="lg" className="border-2 border-white text-white font-bold hover:bg-white/20">
+              <Button href="/contacto" size="lg" className="border-2 border-white bg-transparent text-white font-bold hover:bg-white/20">
                 📞 Hablar con asesor
               </Button>
             </div>

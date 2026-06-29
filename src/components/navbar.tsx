@@ -274,7 +274,7 @@ export const Navbar = () => {
         {desktopNav}
 
         <div className="hidden items-center gap-2 md:flex">
-          <Button href="/contacto" variant="ghost" size="md" className="border border-border text-foreground hover:text-accent">
+          <Button href="/contacto" variant="ghost" size="md" className="border border-border hover:text-accent">
             Contacto
           </Button>
           <Button href="/contacto" variant="primary" size="md" className="bg-accent hover:bg-accent-light">
@@ -283,7 +283,7 @@ export const Navbar = () => {
         </div>
 
         <button
-          className="flex h-11 w-11 items-center justify-center rounded-full border border-border bg-white text-foreground transition hover:border-accent md:hidden"
+          className="flex h-11 w-11 items-center justify-center rounded-full border border-border bg-white text-[#0f0f1e] transition hover:border-accent md:hidden"
           aria-label="Abrir menú"
           aria-expanded={mobileOpen}
           onClick={() => setMobileOpen((v) => !v)}
