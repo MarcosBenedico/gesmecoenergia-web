@@ -274,6 +274,131 @@ const FORM_INICIAL: FormData = {
 };
 
 // ============================================
+// TIPOS PARA CAMPOS DINÁMICOS
+// ============================================
+export interface CampoMetadata {
+  id: number;
+  campo_key: string;
+  label: string;
+  tipo: 'text' | 'number' | 'select' | 'boolean' | 'textarea';
+  seccion: string;
+  orden: number;
+  opciones: { value: string; label: string }[];
+  unidad: string;
+  requerido: boolean;
+  en_excel: boolean;
+  placeholder: string;
+}
+
+const inputCls = 'rounded-lg border border-border bg-card px-4 py-3 text-foreground text-sm w-full';
+
+const SeccionCamposDinamicos = memo(
+  ({
+    campos,
+    datos,
+    onChange,
+  }: {
+    campos: CampoMetadata[];
+    datos: Record<string, any>;
+    onChange: (key: string, val: any) => void;
+  }) => {
+    if (campos.length === 0) return null;
+
+    const renderCampo = (campo: CampoMetadata) => {
+      const val = datos[campo.campo_key] ?? '';
+      const label = campo.unidad ? `${campo.label} (${campo.unidad})` : campo.label;
+
+      switch (campo.tipo) {
+        case 'boolean':
+          return (
+            <label key={campo.id} className="flex items-center gap-3 cursor-pointer py-3">
+              <input
+                type="checkbox"
+                checked={!!val}
+                onChange={(e) => onChange(campo.campo_key, e.target.checked)}
+                className="w-4 h-4 accent-accent"
+              />
+              <span className="text-sm text-foreground">{label}</span>
+            </label>
+          );
+        case 'select':
+          return (
+            <div key={campo.id}>
+              <select
+                value={val}
+                onChange={(e) => onChange(campo.campo_key, e.target.value)}
+                className={inputCls}
+              >
+                <option value="">{label}</option>
+                {campo.opciones?.map((op) => (
+                  <option key={op.value} value={op.value}>
+                    {op.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          );
+        case 'textarea':
+          return (
+            <div key={campo.id} className="md:col-span-2">
+              <textarea
+                value={val}
+                onChange={(e) => onChange(campo.campo_key, e.target.value)}
+                rows={3}
+                placeholder={campo.placeholder || label}
+                className={inputCls}
+              />
+            </div>
+          );
+        case 'number':
+          return (
+            <input
+              key={campo.id}
+              type="number"
+              value={val}
+              onChange={(e) =>
+                onChange(campo.campo_key, e.target.value ? Number(e.target.value) : '')
+              }
+              placeholder={campo.placeholder || label}
+              className={inputCls}
+            />
+          );
+        default:
+          return (
+            <input
+              key={campo.id}
+              type="text"
+              value={val}
+              onChange={(e) => onChange(campo.campo_key, e.target.value)}
+              placeholder={campo.placeholder || label}
+              className={inputCls}
+            />
+          );
+      }
+    };
+
+    return (
+      <div className="card rounded-2xl p-6 md:p-8 bg-surface/50 border border-accent/20">
+        <div className="flex items-center gap-3 mb-6">
+          <h3 className="font-bold text-foreground text-lg">✨ Campos Personalizados</h3>
+          <span className="text-xs text-muted bg-card border border-border rounded-full px-3 py-1">
+            desde Supabase · {campos.length} campo{campos.length !== 1 ? 's' : ''}
+          </span>
+        </div>
+        <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
+          {campos.map(renderCampo)}
+        </div>
+        <p className="text-xs text-muted mt-4">
+          Para añadir o quitar campos, edita la tabla{' '}
+          <code className="bg-card border border-border rounded px-1">campos_fotovoltaica</code> en
+          Supabase.
+        </p>
+      </div>
+    );
+  }
+);
+
+// ============================================
 // COMPONENTES MEMOIZADOS
 // ============================================
 
@@ -346,7 +471,19 @@ export function GeneradorFotovoltaicoFinal() {
   const [guardando, setGuardando] = useState(false);
   const [guardado, setGuardado] = useState(false);
   const [proyectoId, setProyectoId] = useState<number | null>(null);
+  const [camposPersonalizados, setCamposPersonalizados] = useState<CampoMetadata[]>([]);
+  const [datosExtras, setDatosExtras] = useState<Record<string, any>>({});
   const autoSaveTimer = useRef<NodeJS.Timeout | null>(null);
+
+  // Cargar campos dinámicos desde Supabase al montar
+  useEffect(() => {
+    fetch('/api/campos-fotovoltaica')
+      .then((r) => r.json())
+      .then((data: CampoMetadata[]) => {
+        if (Array.isArray(data)) setCamposPersonalizados(data);
+      })
+      .catch(() => {});
+  }, []);
 
   const guardarProyecto = useCallback(async () => {
     if (!formulario.cliente_nombre) return;
@@ -396,6 +533,7 @@ export function GeneradorFotovoltaicoFinal() {
         reparaciones_tejado_previas: formulario.reparaciones_tejado_previas,
         incluir_baterias: formulario.incluir_baterias,
         capacidad_baterias: formulario.capacidad_baterias || null,
+        datos_extras: Object.keys(datosExtras).length > 0 ? datosExtras : null,
         ...(resultado && {
           num_paneles: resultado.num_paneles,
           potencia_real: resultado.potencia_real,
@@ -440,7 +578,11 @@ export function GeneradorFotovoltaicoFinal() {
     } finally {
       setGuardando(false);
     }
-  }, [formulario, resultado, proyectoId]);
+  }, [formulario, resultado, proyectoId, datosExtras]);
+
+  const handleDatosExtras = useCallback((key: string, val: any) => {
+    setDatosExtras((prev) => ({ ...prev, [key]: val }));
+  }, []);
 
   // Auto-guardar optimizado - Guardar cada 2 segundos
   useEffect(() => {
@@ -883,6 +1025,13 @@ export function GeneradorFotovoltaicoFinal() {
         </div>
       </div>
 
+      {/* Campos personalizados dinámicos desde Supabase */}
+      <SeccionCamposDinamicos
+        campos={camposPersonalizados}
+        datos={datosExtras}
+        onChange={handleDatosExtras}
+      />
+
       {/* Botones */}
       <div className="flex gap-3">
         <button
@@ -972,13 +1121,18 @@ export function GeneradorFotovoltaicoFinal() {
 
               <div className="grid gap-3 grid-cols-1 md:grid-cols-2">
                 <button
-                  onClick={() => generarPdfEspecificacion({ ...formulario, ...resultado })}
+                  onClick={() => generarPdfEspecificacion({ ...formulario, ...resultado, datos_extras: datosExtras })}
                   className="px-6 py-4 rounded-lg bg-gradient-to-r from-secondary to-secondary/80 text-white font-bold hover:shadow-glow transition flex items-center justify-center gap-2"
                 >
                   📄 Descargar PDF
                 </button>
                 <button
-                  onClick={() => generarExcelEspecificacion({ ...formulario, ...resultado })}
+                  onClick={() =>
+                    generarExcelEspecificacion(
+                      { ...formulario, ...resultado, datos_extras: datosExtras },
+                      camposPersonalizados
+                    )
+                  }
                   className="px-6 py-4 rounded-lg bg-gradient-to-r from-green-600 to-green-700 text-white font-bold hover:shadow-glow transition flex items-center justify-center gap-2"
                 >
                   📊 Descargar Excel

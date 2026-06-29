@@ -44,7 +44,9 @@
       "Bash(python3)",
       "Bash(powershell -Command ' *)",
       "Bash(python inspect-excel.py \"C:\\\\Users\\\\Usuario\\\\Downloads\\\\Presupuesto_FV_Pedro_2026-06-29 \\(1\\).xlsx\")",
-      "Bash(node inspect-excel.mjs \"C:\\\\Users\\\\Usuario\\\\Downloads\\\\Presupuesto_FV_Pedro_2026-06-29 \\(1\\).xlsx\")"
+      "Bash(node inspect-excel.mjs \"C:\\\\Users\\\\Usuario\\\\Downloads\\\\Presupuesto_FV_Pedro_2026-06-29 \\(1\\).xlsx\")",
+      "mcp__visualize__read_me",
+      "mcp__visualize__show_widget"
     ]
   }
 }

@@ -2,9 +2,20 @@
  * Generador de Excel - PLANTILLA DE PEDRO
  * Idéntico al formato que Pedro proporcionó
  * 2 hojas: CLIENTE | FOTOVOLTAICA
+ * Incluye campos dinámicos desde Supabase
  */
 
 import ExcelJS from 'exceljs';
+
+interface CampoMeta {
+  campo_key: string;
+  label: string;
+  tipo: string;
+  seccion: string;
+  unidad: string;
+  en_excel: boolean;
+  opciones?: { value: string; label: string }[];
+}
 
 function agregarSeccionFotovoltaica(
   ws: ExcelJS.Worksheet,
@@ -66,7 +77,17 @@ function agregarFilaDatos(
   return fila + 1;
 }
 
-export async function generarExcelEspecificacion(datos: any) {
+function formatearValorCampo(valor: any, campo: CampoMeta): string {
+  if (valor === undefined || valor === null || valor === '') return '—';
+  if (campo.tipo === 'boolean') return valor ? 'Sí' : 'No';
+  if (campo.opciones && campo.opciones.length > 0) {
+    const op = campo.opciones.find((o) => o.value === String(valor));
+    return op ? op.label : String(valor);
+  }
+  return campo.unidad ? `${valor} ${campo.unidad}` : String(valor);
+}
+
+export async function generarExcelEspecificacion(datos: any, camposPersonalizados: CampoMeta[] = []) {
   const workbook = new ExcelJS.Workbook();
   const fecha = new Date().toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' });
 
@@ -292,6 +313,30 @@ export async function generarExcelEspecificacion(datos: any) {
       'Inversor Modelo',
       datos.inversor?.modelo || '—'
     );
+  }
+
+  // SECCIÓN DINÁMICA: Campos personalizados desde Supabase
+  const camposExcel = camposPersonalizados.filter((c) => c.en_excel !== false);
+  const datosExtras: Record<string, any> = datos.datos_extras ?? {};
+
+  if (camposExcel.length > 0) {
+    filaFV++;
+    filaFV = agregarSeccionFotovoltaica(fotovoltaica, filaFV, 'CAMPOS PERSONALIZADOS');
+
+    // Agrupar en filas de 3
+    for (let i = 0; i < camposExcel.length; i += 3) {
+      const [c1, c2, c3] = [camposExcel[i], camposExcel[i + 1], camposExcel[i + 2]];
+      filaFV = agregarFilaDatos(
+        fotovoltaica,
+        filaFV,
+        c1?.label ?? '',
+        c1 ? formatearValorCampo(datosExtras[c1.campo_key], c1) : '',
+        c2?.label ?? '',
+        c2 ? formatearValorCampo(datosExtras[c2.campo_key], c2) : '',
+        c3?.label ?? '',
+        c3 ? formatearValorCampo(datosExtras[c3.campo_key], c3) : ''
+      );
+    }
   }
 
   // Generar archivo
