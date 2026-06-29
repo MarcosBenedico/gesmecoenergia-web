@@ -39,7 +39,8 @@
       "Bash(node scripts/setup-supabase.js)",
       "Bash(npx tsx *)",
       "Bash(node scripts/check-supabase.mjs)",
-      "Bash(curl -s http://localhost:3000/api/setup-database)"
+      "Bash(curl -s http://localhost:3000/api/setup-database)",
+      "Bash(node test-supabase-direct.mjs)"
     ]
   }
 }

@@ -348,33 +348,53 @@ export function GeneradorFotovoltaicoFinal() {
   const [proyectoId, setProyectoId] = useState<number | null>(null);
   const autoSaveTimer = useRef<NodeJS.Timeout | null>(null);
 
-  // Auto-guardar optimizado
-  useEffect(() => {
-    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
-    if (!formulario.cliente_nombre) return;
-
-    autoSaveTimer.current = setTimeout(() => {
-      guardarProyecto();
-    }, 2000);
-
-    return () => {
-      if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
-    };
-  }, [formulario]);
-
   const guardarProyecto = useCallback(async () => {
     if (!formulario.cliente_nombre) return;
     setGuardando(true);
     try {
       const datosGuardar = {
-        ...formulario,
+        cliente_nombre: formulario.cliente_nombre,
+        cliente_email: formulario.cliente_email,
+        cliente_telefono: formulario.cliente_telefono,
+        cliente_ubicacion: formulario.cliente_ubicacion,
+        cliente_direccion: formulario.cliente_direccion,
+        cliente_ubicacion_gps: formulario.cliente_ubicacion_gps,
+        cliente_descripcion: formulario.cliente_descripcion,
         consumo_anual: formulario.consumo_anual || null,
         potencia_deseada: formulario.potencia_deseada || null,
+        fase_sistema: formulario.fase_sistema,
+        tipo_tejado: formulario.tipo_tejado,
         espacio_disponible: formulario.espacio_disponible || null,
+        presupuesto_maximo: formulario.presupuesto_maximo || null,
+        acceso_tejado: formulario.acceso_tejado,
+        distancia_cuadro_electrico: formulario.distancia_cuadro_electrico,
+        espacio_almacenamiento: formulario.espacio_almacenamiento,
+        andamiaje_necesario: formulario.andamiaje_necesario,
+        orientacion_tejado: formulario.orientacion_tejado,
+        inclinacion_tejado: formulario.inclinacion_tejado,
+        sombreado: formulario.sombreado,
+        estado_tejado: formulario.estado_tejado,
         carga_tejado_maxima: formulario.carga_tejado_maxima || null,
+        presencia_amianto: formulario.presencia_amianto,
+        cuadro_accesible: formulario.cuadro_accesible,
+        tierra_adecuada: formulario.tierra_adecuada,
+        acometida_cambio: formulario.acometida_cambio,
+        distancia_cableado: formulario.distancia_cableado,
+        clima_viento: formulario.clima_viento,
+        clima_nieve: formulario.clima_nieve,
+        clima_salinidad: formulario.clima_salinidad,
+        clima_polvo: formulario.clima_polvo,
+        dificultades_especiales: formulario.dificultades_especiales,
+        consumo_critico: formulario.consumo_critico,
+        independencia_prioridad: formulario.independencia_prioridad,
+        ampliacion_futura: formulario.ampliacion_futura,
         altura_edificio_pisos: formulario.altura_edificio_pisos || null,
         distancia_cuadro_a_tejado_metros: formulario.distancia_cuadro_a_tejado_metros || null,
         dias_instalacion_estimado: formulario.dias_instalacion_estimado || null,
+        necesita_grua: formulario.necesita_grua,
+        requiere_refuerzo_estructural: formulario.requiere_refuerzo_estructural,
+        reparaciones_tejado_previas: formulario.reparaciones_tejado_previas,
+        incluir_baterias: formulario.incluir_baterias,
         capacidad_baterias: formulario.capacidad_baterias || null,
         ...(resultado && {
           num_paneles: resultado.num_paneles,
@@ -383,28 +403,61 @@ export function GeneradorFotovoltaicoFinal() {
           produccion_anual: resultado.produccion_anual,
           inversor_marca: resultado.inversor?.marca,
           inversor_modelo: resultado.inversor?.modelo,
-          alertas: resultado.alertas,
+          alertas: resultado.alertas.length > 0 ? resultado.alertas : null,
         }),
       };
 
       if (proyectoId) {
-        await supabase.from('proyectos_fotovoltaicos').update(datosGuardar).eq('id', proyectoId);
+        const { error } = await supabase
+          .from('proyectos_fotovoltaicos')
+          .update(datosGuardar)
+          .eq('id', proyectoId);
+
+        if (error) {
+          console.error('❌ Error actualizando proyecto:', error);
+        } else {
+          console.log('✅ Proyecto actualizado:', proyectoId);
+          setGuardado(true);
+          setTimeout(() => setGuardado(false), 2000);
+        }
       } else {
         const { data, error } = await supabase
           .from('proyectos_fotovoltaicos')
           .insert([datosGuardar])
           .select('id');
-        if (data?.[0]) setProyectoId(data[0].id);
-      }
 
-      setGuardado(true);
-      setTimeout(() => setGuardado(false), 2000);
+        if (error) {
+          console.error('❌ Error insertando proyecto:', error);
+        } else if (data?.[0]) {
+          console.log('✅ Proyecto guardado con ID:', data[0].id);
+          setProyectoId(data[0].id);
+          setGuardado(true);
+          setTimeout(() => setGuardado(false), 2000);
+        }
+      }
     } catch (error) {
-      console.error('Error guardando:', error);
+      console.error('❌ Error guardando proyecto:', error);
     } finally {
       setGuardando(false);
     }
   }, [formulario, resultado, proyectoId]);
+
+  // Auto-guardar optimizado - Guardar cada 2 segundos
+  useEffect(() => {
+    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+
+    if (!formulario.cliente_nombre || !formulario.cliente_ubicacion) {
+      return;
+    }
+
+    autoSaveTimer.current = setTimeout(() => {
+      guardarProyecto();
+    }, 2000);
+
+    return () => {
+      if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+    };
+  }, [formulario, guardarProyecto]);
 
   const handleInputChange = useCallback((field: keyof FormData, value: any) => {
     setFormulario((prev) => ({ ...prev, [field]: value }));
