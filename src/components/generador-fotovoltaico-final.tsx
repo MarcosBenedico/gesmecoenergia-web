@@ -290,7 +290,7 @@ export interface CampoMetadata {
   placeholder: string;
 }
 
-const inputCls = 'rounded-lg border border-border bg-card px-4 py-3 text-foreground text-sm w-full';
+const inputCls = 'rounded-lg border border-border bg-card px-4 py-3 text-foreground text-sm w-full focus:outline-none focus:border-accent/60';
 
 const SeccionCamposDinamicos = memo(
   ({
@@ -306,30 +306,35 @@ const SeccionCamposDinamicos = memo(
 
     const renderCampo = (campo: CampoMetadata) => {
       const val = datos[campo.campo_key] ?? '';
-      const label = campo.unidad ? `${campo.label} (${campo.unidad})` : campo.label;
+      const labelText = campo.unidad ? `${campo.label} (${campo.unidad})` : campo.label;
 
       switch (campo.tipo) {
         case 'boolean':
           return (
-            <label key={campo.id} className="flex items-center gap-3 cursor-pointer py-3">
-              <input
-                type="checkbox"
-                checked={!!val}
-                onChange={(e) => onChange(campo.campo_key, e.target.checked)}
-                className="w-4 h-4 accent-accent"
-              />
-              <span className="text-sm text-foreground">{label}</span>
-            </label>
+            <div key={campo.id} className="flex flex-col justify-center">
+              <label className="flex items-center gap-3 cursor-pointer bg-card border border-border rounded-lg px-4 py-3 hover:border-accent/40 transition-colors">
+                <input
+                  type="checkbox"
+                  checked={!!val}
+                  onChange={(e) => onChange(campo.campo_key, e.target.checked)}
+                  className="w-4 h-4 accent-accent flex-shrink-0"
+                />
+                <span className="text-sm text-foreground">{labelText}</span>
+              </label>
+            </div>
           );
         case 'select':
           return (
-            <div key={campo.id}>
+            <div key={campo.id} className="flex flex-col gap-1">
+              <label className="text-xs font-semibold text-muted uppercase tracking-wide px-1">
+                {labelText}
+              </label>
               <select
                 value={val}
                 onChange={(e) => onChange(campo.campo_key, e.target.value)}
                 className={inputCls}
               >
-                <option value="">{label}</option>
+                <option value="">Seleccionar...</option>
                 {campo.opciones?.map((op) => (
                   <option key={op.value} value={op.value}>
                     {op.label}
@@ -340,39 +345,50 @@ const SeccionCamposDinamicos = memo(
           );
         case 'textarea':
           return (
-            <div key={campo.id} className="md:col-span-2">
+            <div key={campo.id} className="md:col-span-2 flex flex-col gap-1">
+              <label className="text-xs font-semibold text-muted uppercase tracking-wide px-1">
+                {labelText}
+              </label>
               <textarea
                 value={val}
                 onChange={(e) => onChange(campo.campo_key, e.target.value)}
                 rows={3}
-                placeholder={campo.placeholder || label}
+                placeholder={campo.placeholder || ''}
                 className={inputCls}
               />
             </div>
           );
         case 'number':
           return (
-            <input
-              key={campo.id}
-              type="number"
-              value={val}
-              onChange={(e) =>
-                onChange(campo.campo_key, e.target.value ? Number(e.target.value) : '')
-              }
-              placeholder={campo.placeholder || label}
-              className={inputCls}
-            />
+            <div key={campo.id} className="flex flex-col gap-1">
+              <label className="text-xs font-semibold text-muted uppercase tracking-wide px-1">
+                {labelText}
+              </label>
+              <input
+                type="number"
+                value={val}
+                onChange={(e) =>
+                  onChange(campo.campo_key, e.target.value ? Number(e.target.value) : '')
+                }
+                placeholder={campo.placeholder || ''}
+                className={inputCls}
+              />
+            </div>
           );
         default:
           return (
-            <input
-              key={campo.id}
-              type="text"
-              value={val}
-              onChange={(e) => onChange(campo.campo_key, e.target.value)}
-              placeholder={campo.placeholder || label}
-              className={inputCls}
-            />
+            <div key={campo.id} className="flex flex-col gap-1">
+              <label className="text-xs font-semibold text-muted uppercase tracking-wide px-1">
+                {labelText}
+              </label>
+              <input
+                type="text"
+                value={val}
+                onChange={(e) => onChange(campo.campo_key, e.target.value)}
+                placeholder={campo.placeholder || ''}
+                className={inputCls}
+              />
+            </div>
           );
       }
     };
@@ -388,10 +404,10 @@ const SeccionCamposDinamicos = memo(
         <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
           {campos.map(renderCampo)}
         </div>
-        <p className="text-xs text-muted mt-4">
+        <p className="text-xs text-muted mt-5 pt-4 border-t border-border/40">
           Para añadir o quitar campos, edita la tabla{' '}
-          <code className="bg-card border border-border rounded px-1">campos_fotovoltaica</code> en
-          Supabase.
+          <code className="bg-card border border-border rounded px-1 font-mono">campos_fotovoltaica</code>{' '}
+          en Supabase.
         </p>
       </div>
     );
