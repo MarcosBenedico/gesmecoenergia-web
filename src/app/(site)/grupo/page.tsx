@@ -1,6 +1,5 @@
 import { Container } from "@/components/container";
-import { SectionHeading } from "@/components/section-heading";
-import { BusinessUnits } from "@/components/business-units";
+import { SolutionsSelector } from "@/components/solutions-selector";
 import { ScrollReveal } from "@/components/scroll-reveal";
 
 export const metadata = {
@@ -43,27 +42,27 @@ export default function GroupPage() {
         </Container>
       </section>
 
-      {/* ── BUSINESS UNITS ── */}
+      {/* ── SOLUTIONS SELECTOR ── */}
       <section>
-        <Container>
-          <BusinessUnits />
-        </Container>
+        <SolutionsSelector />
       </section>
 
       {/* ── VALUES ── */}
       <section className="py-20 border-t border-border/30">
         <Container>
           <ScrollReveal>
-            <SectionHeading
-              kicker="Nuestros Valores"
-              title="Principios que nos definen como grupo"
-            >
-              Trabajamos con rigor, transparencia y disponibilidad. Nuestro objetivo es ayudarte a tener todas tus
-              obligaciones, riesgos y gestiones correctamente organizadas.
-            </SectionHeading>
+            <div className="space-y-6 text-center mb-12">
+              <h2 className="text-3xl font-black text-foreground md:text-4xl">
+                Nuestros valores
+              </h2>
+              <p className="max-w-2xl mx-auto text-base text-muted">
+                Trabajamos con rigor, transparencia y disponibilidad. Nuestro objetivo es ayudarte a tener todas tus
+                obligaciones, riesgos y gestiones correctamente organizadas.
+              </p>
+            </div>
           </ScrollReveal>
 
-          <div className="mt-10 grid gap-6 md:grid-cols-3">
+          <div className="grid gap-6 md:grid-cols-3">
             {[
               {
                 icon: "✓",

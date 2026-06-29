@@ -203,9 +203,9 @@ export const asesoriaServices = [
   {
     title: "Asesoría Fiscal",
     icon: "📋",
-    color: "from-purple-500 to-purple-600",
-    colorBg: "bg-purple-500/10",
-    colorBorder: "border-purple-500/30",
+    color: "from-accent to-accent-light",
+    colorBg: "bg-accent/10",
+    colorBorder: "border-accent/30",
     summary: "Gestión de impuestos y obligaciones tributarias",
     items: [
       "Declaraciones trimestrales (IVA, IRPF)",
@@ -219,9 +219,9 @@ export const asesoriaServices = [
   {
     title: "Asesoría Contable",
     icon: "💰",
-    color: "from-indigo-500 to-indigo-600",
-    colorBg: "bg-indigo-500/10",
-    colorBorder: "border-indigo-500/30",
+    color: "from-secondary to-cyan-500",
+    colorBg: "bg-secondary/10",
+    colorBorder: "border-secondary/30",
     summary: "Control y organización de contabilidad empresarial",
     items: [
       "Contabilización de facturas",
@@ -235,9 +235,9 @@ export const asesoriaServices = [
   {
     title: "Asesoría Laboral",
     icon: "👥",
-    color: "from-violet-500 to-violet-600",
-    colorBg: "bg-violet-500/10",
-    colorBorder: "border-violet-500/30",
+    color: "from-tertiary to-amber-400",
+    colorBg: "bg-tertiary/10",
+    colorBorder: "border-tertiary/30",
     summary: "Gestión de trabajadores y Seguridad Social",
     items: [
       "Altas y bajas de trabajadores",
@@ -251,9 +251,9 @@ export const asesoriaServices = [
   {
     title: "Gestión Administrativa",
     icon: "📄",
-    color: "from-slate-500 to-slate-600",
-    colorBg: "bg-slate-500/10",
-    colorBorder: "border-slate-500/30",
+    color: "from-accent-light to-secondary",
+    colorBg: "bg-accent/5",
+    colorBorder: "border-accent/20",
     summary: "Trámites generales del día a día",
     items: [
       "Trámites con administraciones públicas",
@@ -273,9 +273,9 @@ export const segurosServices = [
   {
     title: "Seguros Particulares",
     icon: "🏠",
-    color: "from-emerald-500 to-emerald-600",
-    colorBg: "bg-emerald-500/10",
-    colorBorder: "border-emerald-500/30",
+    color: "from-accent to-accent-light",
+    colorBg: "bg-accent/10",
+    colorBorder: "border-accent/30",
     summary: "Cobertura para vida personal y familia",
     items: [
       "Seguro de hogar y multirriesgo",
@@ -289,9 +289,9 @@ export const segurosServices = [
   {
     title: "Seguros Empresariales",
     icon: "🏢",
-    color: "from-teal-500 to-teal-600",
-    colorBg: "bg-teal-500/10",
-    colorBorder: "border-teal-500/30",
+    color: "from-secondary to-cyan-500",
+    colorBg: "bg-secondary/10",
+    colorBorder: "border-secondary/30",
     summary: "Protección para negocios y autónomos",
     items: [
       "Responsabilidad civil profesional",
@@ -305,9 +305,9 @@ export const segurosServices = [
   {
     title: "Seguros Agrarios y Ganaderos",
     icon: "🌾",
-    color: "from-green-500 to-green-600",
-    colorBg: "bg-green-500/10",
-    colorBorder: "border-green-500/30",
+    color: "from-tertiary to-amber-400",
+    colorBg: "bg-tertiary/10",
+    colorBorder: "border-tertiary/30",
     summary: "Cobertura especializada para sector rural",
     items: [
       "Seguros de explotaciones agrícolas",
@@ -321,9 +321,9 @@ export const segurosServices = [
   {
     title: "Revisión de Pólizas",
     icon: "🔍",
-    color: "from-cyan-500 to-cyan-600",
-    colorBg: "bg-cyan-500/10",
-    colorBorder: "border-cyan-500/30",
+    color: "from-accent-light to-secondary",
+    colorBg: "bg-accent/5",
+    colorBorder: "border-accent/20",
     summary: "Auditoría y optimización de coberturas",
     items: [
       "Revisión de coberturas actuales",
