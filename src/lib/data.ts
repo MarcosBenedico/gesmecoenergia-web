@@ -1,197 +1,197 @@
 export const heroStats = [
   {
-    label: "Ahorro detectable",
-    value: "10-30%",
-    detail: "Reducción típica de gastos energéticos",
+    label: "En cartera energética",
+    value: "4.5 GW",
+    detail: "2 GW en gas · 2.5 GW en luz (clientes Bienfar y zona)",
   },
   {
-    label: "Análisis rápido",
-    value: "< 5 min",
-    detail: "Diagnóstico completo de tu factura",
+    label: "Ahorros reales",
+    value: "15-40%",
+    detail: "En factura de clientes tras asesoramiento",
   },
   {
-    label: "ROI claro",
-    value: "1-3 años",
-    detail: "Retorno de inversión en instalaciones solares",
+    label: "Proyectos FV",
+    value: "15+",
+    detail: "Agrícolas, empresas y residencial activos",
   },
 ];
 
 export const valuePillars = [
   {
-    title: "Asesoramiento personalizado",
+    title: "Tu asesor energético de confianza",
     description:
-      "Análisis detallado de tu consumo, potencia y opciones de ahorro. Recomendaciones adaptadas a tu situación.",
+      "En Bienfar conocemos tu negocio, tu finca y tu casa. Te acompañamos con soluciones que funcionan aquí y ahora, sin complicaciones ni sorpresas.",
   },
   {
-    title: "Auditorías energéticas",
+    title: "Análisis transparente de tu factura",
     description:
-      "Evaluación completa de tu instalación, identificación de ineficiencias y propuestas de mejora técnica.",
+      "Desglosamos cada euro de tu recibo de luz y gas. Identificamos costes ocultos y te mostramos dónde puedes ahorrar de verdad.",
   },
   {
-    title: "Soluciones solares y almacenamiento",
+    title: "Soluciones solares adaptadas a tu caso",
     description:
-      "Fotovoltaica, CAES y sistemas de almacenamiento para maximizar tu autosuficiencia y ahorros.",
+      "Desde paneles en la vivienda hasta instalaciones en graneros o naves. Diseño realista, presupuesto honesto, garantía completa.",
   },
 ];
 
 export const services = [
   {
-    title: "Análisis de facturas de luz",
+    title: "Análisis y comparativa de tu factura",
     summary:
-      "Descubre dónde se va tu dinero. Revisamos tus facturas para identificar ineficiencias.",
+      "Entendemos tus costos. Revisamos línea por línea tu factura de luz y gas para encontrar dónde se va tu dinero.",
     items: [
-      "Desglose detallado de consumo y potencia",
-      "Identificación de costes ocultos y sobrecargos",
-      "Comparativa con precios de mercado",
-      "Recomendaciones de ahorro inmediato",
+      "Desglose detallado: consumo, potencia, impuestos",
+      "Comparativa real con opciones de mercado",
+      "Identificación de sobrecostes y errores de facturación",
+      "Recomendaciones concretas de ahorro inmediato",
     ],
   },
   {
-    title: "Auditorías energéticas",
+    title: "Auditoría energética en tu instalación",
     summary:
-      "Análisis técnico completo de tu instalación eléctrica y sistemas de consumo.",
+      "Visitamos tu casa, negocio o finca. Analizamos cómo usas la energía y qué puedes mejorar.",
     items: [
-      "Medición de consumos reales por circuito",
-      "Evaluación de potencias contratadas",
-      "Análisis de factor de potencia y armónicos",
-      "Propuestas de mejora priorizadas por ROI",
+      "Medición de consumos reales en cada zona",
+      "Evaluación de potencia contratada vs. necesaria",
+      "Análisis de ineficiencias y pérdidas",
+      "Propuestas priorizadas por ahorro real",
     ],
   },
   {
-    title: "Instalaciones solares (Fotovoltaica)",
+    title: "Instalación de placas solares (Fotovoltaica)",
     summary:
-      "Soluciones solares diseñadas para tu caso: autoconsumo, excedentes o instalación híbrida.",
+      "Solar para tu vivienda, ganadería, agricultura o comercio. Diseño a medida, instalación profesional, seguimiento completo.",
     items: [
-      "Cálculo de producción esperada",
-      "Diseño personalizado según cubierta y consumo",
-      "Estimación de ahorro y ROI real",
-      "Gestión de trámites administrativos",
+      "Diseño personalizado según tu tejado y consumo",
+      "Cálculo real de producción esperada en Bienfar",
+      "Estimación clara de ahorro y ROI",
+      "Gestión de trámites y conexión a red",
     ],
   },
   {
-    title: "Sistemas de almacenamiento y CAES",
+    title: "Asesoramiento energético continuo",
     summary:
-      "Baterías, almacenamiento térmico y soluciones de energía comprimida para máxima autosuficiencia.",
+      "No te dejamos solo. Seguimiento de tu instalación solar, análisis trimestral de tu factura, y soporte técnico siempre disponible.",
     items: [
-      "Evaluación de tecnologías de almacenamiento",
-      "Dimensionamiento de capacidad necesaria",
-      "Análisis de rentabilidad y amortización",
-      "Integración con paneles solares",
+      "Monitoreo del rendimiento de placas solares",
+      "Optimización de consumo según producción solar",
+      "Ajuste de potencia contratada cada año",
+      "Respuesta rápida ante dudas o problemas",
     ],
   },
 ];
 
 export const sectors = [
   {
-    name: "Viviendas unifamiliares",
+    name: "Viviendas y vecinos",
     description:
-      "Solar en cubierta, baterías y asesoramiento para máxima autosuficiencia. Ahorros de 50-70% en factura.",
+      "Placas en el tejado, análisis de factura, ahorro de 2.000-4.000€ anuales. Mejora la factura y el valor de tu casa.",
   },
   {
-    name: "Pequeños negocios",
+    name: "Ganadería y granjas",
     description:
-      "Optimización de potencia, auditorías de eficiencia y solar adaptado a tu consumo específico.",
+      "Solar para bombeo, refrigeración y consumo diario. Ahorro mensual estable. Proyectos de 15-50 kW muy rentables.",
   },
   {
-    name: "Industrias medianas",
+    name: "Agricultura y regadío",
     description:
-      "Análisis de picos de carga, implementación de CAES, solar industrial y sistemas de gestión energética.",
+      "Soluciones de bombeo solar sin coste de red. Independencia de horarios de riego. Amortización en 3-4 años.",
+  },
+  {
+    name: "Pequeños comercios",
+    description:
+      "Reducción de potencia contratada + solar en tejado. Ejemplos reales: bares, tiendas y peluquerías ahorran un 40%.",
+  },
+  {
+    name: "Naves y empresas medianas",
+    description:
+      "Análisis de picos de carga, solar industrial en cubiertas o terrenos. Proyectos desde 20 kW hasta varios MW.",
   },
   {
     name: "Comunidades de vecinos",
     description:
-      "Soluciones compartidas de solar y almacenamiento para reducir gastos comunes de energía.",
-  },
-  {
-    name: "Comercio y hostelería",
-    description:
-      "Auditorías específicas de HVAC, iluminación y frigorífico. Solar ajustado a horarios comerciales.",
-  },
-  {
-    name: "Agricultura y ganadería",
-    description:
-      "Soluciones solares para bombeo, refrigeración y almacenamiento. Reducción de costes operativos.",
+      "Solar compartida en azotea. Reducción de gastos comunes de forma visible. Todos pagan menos luz.",
   },
 ];
 
 export const methodology = [
   {
-    title: "Análisis inicial",
+    title: "Te escuchamos",
     detail:
-      "Revisamos tu factura, instalación y consumos. Identificamos oportunidades de ahorro rápido.",
+      "Entendemos tu negocio, tu consumo y tus objetivos. Revisamos tu factura actual y tu instalación.",
   },
   {
-    title: "Propuesta personalizada",
+    title: "Análisis honesto",
     detail:
-      "Diseño específico de solar, baterías o mejoras de eficiencia. Presupuesto y ROI detallado.",
+      "Calculamos de verdad cuánto puedes ahorrar. Te mostramos todas las opciones sin presión de venta.",
   },
   {
-    title: "Instalación y trámites",
+    title: "Solución personalizada",
     detail:
-      "Coordinamos toda la obra, permisos y conexión a red. Supervisión completa de calidad.",
+      "Diseño específico para tu caso. Presupuesto claro, plazos realistas, garantías completas.",
   },
   {
-    title: "Monitorización y garantía",
+    title: "Instalación y garantía",
     detail:
-      "Seguimiento del sistema, mantenimiento y soporte. Máximo rendimiento durante toda la vida útil.",
+      "Obra profesional, permisos incluidos, conexión a red. Mantenimiento y soporte durante años.",
   },
 ];
 
 export const differentiators = [
-  "Análisis técnico riguroso, sin sorpresas escondidas.",
-  "Transparencia total en costes, ahorros y plazos de amortización.",
-  "Asesoramiento independiente: no atamos a marcas específicas.",
-  "Experiencia probada en instalaciones solares, baterías y sistemas de almacenamiento.",
+  "Conocemos Bienfar y la zona. Sabemos cómo funciona tu negocio, tu granja o tu casa.",
+  "Asesoramiento sin ataduras: recomendamos lo mejor para ti, no para nosotros.",
+  "Factura y presupuesto cristalinos. Nada escondido, todo justificado técnicamente.",
+  "15+ proyectos solares activos en la zona. Casos reales, clientes conocidos, resultados probados.",
 ];
 
 export const highlights = [
   {
-    title: "Casos de éxito",
+    title: "Casos reales en Bienfar",
     items: [
-      "Vivienda familiar: 8 kW solar + batería 10 kWh = 70% de autosuficiencia.",
-      "Pequeño comercio: auditoría + solar = factura reducida en 60% en 3 años.",
-      "Granja: sistema CAES + solar = bombeo sin coste de red, ahorro anual de €4.500.",
+      "Vivienda: 6 kW solar = factura reducida de 1.200€ a 300€ anuales",
+      "Granja lechera: 30 kW solar + auditoría = ahorro anual de 8.000€",
+      "Pequeño comercio: renegociación de potencia + 5 kW solar = 45% menos en factura",
     ],
   },
   {
-    title: "Números clave",
+    title: "Números que importan",
     items: [
-      "ROI típico en solar: 1-3 años según irradiación y consumo.",
-      "Aumento de precio del inmueble: +3-5% con instalación solar.",
-      "Reducción de emisiones de CO₂: hasta 20 toneladas/año por instalación residencial.",
+      "ROI típico solar: 2-3 años en Bienfar (buena irradiación, clientes comprometidos)",
+      "Ahorro medio tras análisis de factura: 2.500-4.000€ anuales",
+      "Valor agregado: casa o negocio +5-8% en precio con solar instalado",
     ],
   },
 ];
 
 export const teamValues = [
   {
-    title: "Honestidad técnica",
-    detail: "No vendemos instalaciones innecesarias. Dimensionamos para tu caso real.",
+    title: "Honestidad total",
+    detail: "Te decimos la verdad. Si no vale la pena una instalación, no la vendemos.",
   },
   {
-    title: "Enfoque en ROI",
-    detail: "Todo proyecto tiene un análisis detallado de rentabilidad y plazo de amortización.",
+    title: "Enfoque en tu bolsillo",
+    detail: "Solo recomendamos proyectos con ROI claro. Tus ahorros son nuestro éxito.",
   },
   {
-    title: "Soporte continuo",
-    detail: "Acompañamos tu inversión desde el diseño hasta mantenimiento y garantías.",
+    title: "Soporte de verdad",
+    detail: "Estamos aquí. Llamadas, visitas, mantenimiento. No somos un número 902.",
   },
 ];
 
 export const contactChannels = [
   {
-    title: "Análisis de tu factura",
-    detail: "Subes tu última factura y te mostramos dónde puedes ahorrar.",
-    action: "Analizar factura",
+    title: "Análisis gratuito de tu factura",
+    detail: "Manda tu última factura de luz. Te mostramos en 48h cuánto puedes ahorrar.",
+    action: "Enviar factura",
   },
   {
-    title: "Auditoría energética",
-    detail: "Visitamos tu instalación y te presentamos propuestas concretas.",
-    action: "Solicitar auditoría",
+    title: "Auditoría técnica en tu lugar",
+    detail: "Visitamos tu casa, granja o negocio. Presupuesto personalizado, sin obligación.",
+    action: "Solicitar visita",
   },
   {
-    title: "Presupuesto de solar",
-    detail: "Indicanos tu consumo y te enviamos presupuesto con ROI estimado.",
-    action: "Solicitar presupuesto",
+    title: "Llamada con un asesor",
+    detail: "Habla directamente. Sin esperas, sin secuencias de chatbot. Persona a persona.",
+    action: "Llamar ahora",
   },
 ];

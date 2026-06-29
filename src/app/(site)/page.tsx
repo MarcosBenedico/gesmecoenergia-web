@@ -35,13 +35,13 @@ export default function HomePage() {
             <div className="space-y-5">
               <h1 className="text-5xl md:text-6xl lg:text-7xl font-black leading-tight">
                 <span className="bg-gradient-to-r from-accent via-accent-light to-secondary bg-clip-text text-transparent">
-                  Reduce tu factura
+                  Tu asesor energético
                 </span>
                 <br />
-                <span className="text-foreground">de luz. Ya.</span>
+                <span className="text-foreground">en Bienfar.</span>
               </h1>
               <p className="text-lg md:text-xl text-muted leading-relaxed max-w-lg">
-                Asesoramiento energético, auditorías, solar y soluciones de almacenamiento. Descubre cuánto puedes ahorrar en 5 minutos.
+                Analizamos tu factura de luz y gas. Te recomendamos solar si sale a cuenta. Ahorros reales de 15-40% en empresas y hogares.
               </p>
             </div>
 
@@ -125,11 +125,11 @@ export default function HomePage() {
       <section>
         <Container>
           <SectionHeading
-            kicker="Valor diferencial"
-            title="Gobernanza, tecnología y ejecución con un solo interlocutor."
+            kicker="Lo que nos diferencia"
+            title="Un asesor que entiende tu realidad. No solo números."
           >
-            Un modelo pensado para dirección financiera, operaciones y ESG. Datos claros,
-            contratos sólidos y proyectos que cumplen plazos y ROI.
+            Conocemos Bienfar, el sector ganadero, agrícola y comercial. Analizamos tu factura línea
+            a línea, visitamos tu instalación y recomendamos solo lo que vale la pena.
           </SectionHeading>
           <div className="mt-10 grid gap-6 md:grid-cols-3">
             {valuePillars.map((pillar) => (
@@ -144,11 +144,11 @@ export default function HomePage() {
       <section>
         <Container>
           <SectionHeading
-            kicker="Servicios principales"
-            title="Planificamos, ejecutamos y operamos todo tu ciclo energético."
+            kicker="Qué hacemos"
+            title="Análisis honesto, asesor disponible, soluciones que funcionan."
           >
-            Diseñamos estrategias para reducir riesgo, estabilizar costes y acelerar la
-            descarbonización sin perder fiabilidad operativa.
+            Desde revisar tu factura hasta instalar placas solares en tu tejado o en tu granja.
+            Te acompañamos en cada paso, sin presión, sin sorpresas.
           </SectionHeading>
           <div className="mt-10 grid gap-6 md:grid-cols-2">
             {services.slice(0, 4).map((service) => (
@@ -167,9 +167,9 @@ export default function HomePage() {
 
       <section>
         <Container>
-          <SectionHeading kicker="Sectores" title="Expertise probado en sectores críticos.">
-            Adaptamos la estrategia a tu curva de carga, perfil de riesgo y objetivos de
-            descarbonización.
+          <SectionHeading kicker="Sectores" title="Trabajamos en todos los sectores de Bienfar.">
+            Viviendas, ganadería, agricultura, comercios, empresas. Cada caso es diferente.
+            Por eso no hay soluciones estándar, sino soluciones a medida.
           </SectionHeading>
           <div className="mt-8 grid gap-4 md:grid-cols-3">
             {sectors.map((sector) => (
@@ -190,10 +190,11 @@ export default function HomePage() {
       <section>
         <Container>
           <SectionHeading
-            kicker="Metodología"
-            title="De la estrategia a la operación continua."
+            kicker="Cómo trabajamos"
+            title="Pasos claros, sin complicaciones."
           >
-            Roadmap claro, hitos medibles y reporting ejecutivo para cada fase.
+            Desde la primera llamada hasta el seguimiento después de instalar solar.
+            Transparencia total en cada fase.
           </SectionHeading>
           <div className="mt-10 grid gap-4 md:grid-cols-4">
             {methodology.map((step, index) => (
