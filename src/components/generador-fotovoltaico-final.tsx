@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef, memo } from 'react';
 import { supabase } from '@/lib/supabase';
+import { generarPdfEspecificacion } from '@/lib/pdf-generator';
 
 // ============================================
 // CONSTANTES - SIN COSTOS
@@ -914,6 +915,13 @@ export function GeneradorFotovoltaicoFinal() {
                   <li>✓ Incluir tramitología local y conexión con distribuidora</li>
                 </ul>
               </div>
+
+              <button
+                onClick={() => generarPdfEspecificacion({ ...formulario, ...resultado })}
+                className="w-full px-6 py-4 rounded-lg bg-gradient-to-r from-secondary to-secondary/80 text-white font-bold hover:shadow-glow transition flex items-center justify-center gap-2"
+              >
+                📄 Descargar Especificación en PDF
+              </button>
             </div>
           </div>
         </div>

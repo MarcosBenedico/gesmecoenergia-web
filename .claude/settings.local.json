@@ -38,7 +38,8 @@
       "Bash(cp \"C:\\\\Users\\\\Usuario\\\\Downloads\\\\DESPACHO_CALUDE\\\\DESPACHO_CALUDE\\\\generador_fotovoltaica_final.html\" \"C:\\\\Users\\\\Usuario\\\\Desktop\\\\calude_web\\\\generador_fotovoltaica_final.html\")",
       "Bash(node scripts/setup-supabase.js)",
       "Bash(npx tsx *)",
-      "Bash(node scripts/check-supabase.mjs)"
+      "Bash(node scripts/check-supabase.mjs)",
+      "Bash(curl -s http://localhost:3000/api/setup-database)"
     ]
   }
 }
