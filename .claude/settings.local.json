@@ -40,7 +40,11 @@
       "Bash(npx tsx *)",
       "Bash(node scripts/check-supabase.mjs)",
       "Bash(curl -s http://localhost:3000/api/setup-database)",
-      "Bash(node test-supabase-direct.mjs)"
+      "Bash(node test-supabase-direct.mjs)",
+      "Bash(python3)",
+      "Bash(powershell -Command ' *)",
+      "Bash(python inspect-excel.py \"C:\\\\Users\\\\Usuario\\\\Downloads\\\\Presupuesto_FV_Pedro_2026-06-29 \\(1\\).xlsx\")",
+      "Bash(node inspect-excel.mjs \"C:\\\\Users\\\\Usuario\\\\Downloads\\\\Presupuesto_FV_Pedro_2026-06-29 \\(1\\).xlsx\")"
     ]
   }
 }

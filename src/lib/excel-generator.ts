@@ -1,45 +1,69 @@
 /**
- * Generador de Excel para especificaciones fotovoltaicas
+ * Generador de Excel - PLANTILLA DE PEDRO
+ * Idéntico al formato que Pedro proporcionó
  * 2 hojas: CLIENTE | FOTOVOLTAICA
- * Optimizado para que el instalador presupueste
  */
 
 import ExcelJS from 'exceljs';
 
-const COLORES = {
-  rojo: 'FFFF3333',
-  cyan: 'FF00D4FF',
-  gris_oscuro: 'FF2C3E50',
-  gris_claro: 'FFF8F9FA',
-  blanco: 'FFFFFFFF',
-  verde: 'FF27AE60',
-};
+function agregarSeccionFotovoltaica(
+  ws: ExcelJS.Worksheet,
+  fila: number,
+  titulo: string
+): number {
+  // Header de sección (merged A:F)
+  const headerCell = ws.getCell(`A${fila}`);
+  headerCell.value = titulo;
+  headerCell.font = { bold: true, size: 18, color: { argb: 'FF000000' } };
+  headerCell.alignment = { horizontal: 'center' as const, vertical: 'middle' as const };
+  ws.mergeCells(`A${fila}:F${fila}`);
+  ws.getRow(fila).height = 25;
 
-function aplicarHeader(cell: any, texto: string) {
-  cell.value = texto;
-  cell.font = { bold: true, size: 14, color: { argb: COLORES.blanco } };
-  cell.fill = { type: 'pattern' as const, pattern: 'solid' as const, fgColor: { argb: COLORES.rojo } };
-  cell.alignment = { horizontal: 'center' as const, vertical: 'middle' as const };
+  return fila + 1;
 }
 
-function aplicarSubheader(cell: any, texto: string) {
-  cell.value = texto;
-  cell.font = { bold: true, size: 11, color: { argb: COLORES.rojo } };
-  cell.fill = { type: 'pattern' as const, pattern: 'solid' as const, fgColor: { argb: COLORES.gris_claro } };
-  cell.alignment = { horizontal: 'left' as const, vertical: 'middle' as const };
-  cell.border = { bottom: { style: 'thin' as const, color: { argb: COLORES.cyan } } };
-}
+function agregarFilaDatos(
+  ws: ExcelJS.Worksheet,
+  fila: number,
+  label1: string,
+  valor1: any,
+  label2: string,
+  valor2: any,
+  label3: string,
+  valor3: any
+): number {
+  // Columna A - Label 1
+  ws.getCell(`A${fila}`).value = label1;
+  ws.getCell(`A${fila}`).font = { size: 18, color: { argb: 'FF000000' } };
+  ws.getCell(`A${fila}`).alignment = { horizontal: 'center' as const, vertical: 'middle' as const };
 
-function aplicarLabel(cell: any) {
-  cell.font = { bold: true, size: 10, color: { argb: COLORES.gris_oscuro } };
-  cell.fill = { type: 'pattern' as const, pattern: 'solid' as const, fgColor: { argb: COLORES.gris_claro } };
-  cell.alignment = { horizontal: 'left' as const, vertical: 'middle' as const, wrapText: true };
-  cell.border = { left: { style: 'thin' as const, color: { argb: COLORES.cyan } } };
-}
+  // Columna B - Valor 1
+  ws.getCell(`B${fila}`).value = valor1 || '—';
+  ws.getCell(`B${fila}`).font = { size: 18, color: { argb: 'FF000000' } };
+  ws.getCell(`B${fila}`).alignment = { horizontal: 'center' as const, vertical: 'middle' as const };
 
-function aplicarValor(cell: any) {
-  cell.font = { size: 10, color: { argb: COLORES.gris_oscuro } };
-  cell.alignment = { horizontal: 'left' as const, vertical: 'middle' as const, wrapText: true };
+  // Columna C - Label 2
+  ws.getCell(`C${fila}`).value = label2;
+  ws.getCell(`C${fila}`).font = { size: 18, color: { argb: 'FF000000' } };
+  ws.getCell(`C${fila}`).alignment = { horizontal: 'center' as const, vertical: 'middle' as const };
+
+  // Columna D - Valor 2
+  ws.getCell(`D${fila}`).value = valor2 || '—';
+  ws.getCell(`D${fila}`).font = { size: 18, color: { argb: 'FF000000' } };
+  ws.getCell(`D${fila}`).alignment = { horizontal: 'center' as const, vertical: 'middle' as const };
+
+  // Columna E - Label 3
+  ws.getCell(`E${fila}`).value = label3;
+  ws.getCell(`E${fila}`).font = { size: 18, color: { argb: 'FF000000' } };
+  ws.getCell(`E${fila}`).alignment = { horizontal: 'center' as const, vertical: 'middle' as const };
+
+  // Columna F - Valor 3
+  ws.getCell(`F${fila}`).value = valor3 || '—';
+  ws.getCell(`F${fila}`).font = { size: 18, color: { argb: 'FF000000' } };
+  ws.getCell(`F${fila}`).alignment = { horizontal: 'center' as const, vertical: 'middle' as const };
+
+  ws.getRow(fila).height = 28;
+  return fila + 1;
 }
 
 export async function generarExcelEspecificacion(datos: any) {
@@ -49,28 +73,31 @@ export async function generarExcelEspecificacion(datos: any) {
   // ============================================
   // HOJA 1: CLIENTE
   // ============================================
-  const cliente = workbook.addWorksheet('Cliente', { properties: { tabColor: { argb: COLORES.rojo } } });
+  const cliente = workbook.addWorksheet('Cliente');
   cliente.columns = [{ width: 30 }, { width: 45 }];
 
   let fila = 1;
 
   // Header
   const headerCliente = cliente.getCell('A1');
-  aplicarHeader(headerCliente, '👤 DATOS DEL CLIENTE');
+  headerCliente.value = '👤 DATOS DEL CLIENTE';
+  headerCliente.font = { bold: true, size: 14, color: { argb: 'FF000000' } };
+  headerCliente.alignment = { horizontal: 'center' as const, vertical: 'middle' as const };
   cliente.mergeCells('A1:B1');
-  cliente.getRow(1).height = 30;
+  cliente.getRow(1).height = 25;
 
-  const subtituloCliente = cliente.getCell('A2');
-  subtituloCliente.value = `Solicitud de Presupuesto - ${fecha}`;
-  subtituloCliente.font = { size: 10, italic: true, color: { argb: COLORES.gris_oscuro } };
-  subtituloCliente.alignment = { horizontal: 'center' as const };
+  // Subtítulo
+  const subtitulo = cliente.getCell('A2');
+  subtitulo.value = `Solicitud de Presupuesto - ${fecha}`;
+  subtitulo.font = { size: 10, italic: true, color: { argb: 'FF666666' } };
+  subtitulo.alignment = { horizontal: 'center' as const };
   cliente.mergeCells('A2:B2');
-  cliente.getRow(2).height = 18;
+  cliente.getRow(2).height = 16;
 
   fila = 4;
 
-  // Datos cliente
-  const datos_cliente = [
+  // Datos
+  const campos = [
     ['Nombre Completo', datos.cliente_nombre || '—'],
     ['Email', datos.cliente_email || '—'],
     ['Teléfono', datos.cliente_telefono || '—'],
@@ -79,118 +106,65 @@ export async function generarExcelEspecificacion(datos: any) {
     ['Google Maps Link', datos.cliente_ubicacion_gps || '—'],
   ];
 
-  datos_cliente.forEach(([label, valor]) => {
-    const labelCell = cliente.getCell(`A${fila}`);
-    labelCell.value = label;
-    aplicarLabel(labelCell);
+  campos.forEach(([label, valor]) => {
+    cliente.getCell(`A${fila}`).value = label;
+    cliente.getCell(`A${fila}`).font = { bold: true, size: 10 };
+    cliente.getCell(`A${fila}`).alignment = { horizontal: 'left' as const, vertical: 'middle' as const };
 
-    const valorCell = cliente.getCell(`B${fila}`);
-    valorCell.value = valor;
-    aplicarValor(valorCell);
+    cliente.getCell(`B${fila}`).value = valor;
+    cliente.getCell(`B${fila}`).font = { size: 10 };
+    cliente.getCell(`B${fila}`).alignment = { horizontal: 'left' as const, vertical: 'middle' as const, wrapText: true };
 
     cliente.getRow(fila).height = 20;
     fila++;
   });
 
-  fila += 1;
+  fila++;
 
   // Notas
   const notasHeader = cliente.getCell(`A${fila}`);
   notasHeader.value = 'Notas / Descripción';
-  notasHeader.font = { bold: true, size: 11, color: { argb: COLORES.rojo } };
+  notasHeader.font = { bold: true, size: 11 };
   cliente.mergeCells(`A${fila}:B${fila}`);
-  cliente.getRow(fila).height = 20;
+  cliente.getRow(fila).height = 18;
   fila++;
 
   const notasCell = cliente.getCell(`A${fila}`);
   notasCell.value = datos.cliente_descripcion || '—';
   notasCell.alignment = { wrapText: true, vertical: 'top' as const };
   cliente.mergeCells(`A${fila}:B${fila}`);
-  cliente.getRow(fila).height = 60;
+  cliente.getRow(fila).height = 50;
 
   // ============================================
   // HOJA 2: FOTOVOLTAICA
   // ============================================
-  const fotovoltaica = workbook.addWorksheet('Fotovoltaica', { properties: { tabColor: { argb: COLORES.verde } } });
-
-  // Layout: Columnas para información
+  const fotovoltaica = workbook.addWorksheet('Fotovoltaica');
   fotovoltaica.columns = [
-    { width: 20 }, // A: Etiqueta 1
-    { width: 18 }, // B: Valor 1
-    { width: 20 }, // C: Etiqueta 2
-    { width: 18 }, // D: Valor 2
-    { width: 20 }, // E: Etiqueta 3
-    { width: 18 }, // F: Valor 3
+    { width: 20 },
+    { width: 20 },
+    { width: 20 },
+    { width: 20 },
+    { width: 20 },
+    { width: 20 },
   ];
 
-  let filaPV = 1;
+  let filaFV = 1;
 
-  // Header
-  const headerPV = fotovoltaica.getCell('A1');
-  aplicarHeader(headerPV, '⚡ ESPECIFICACIÓN TÉCNICA FOTOVOLTAICA');
+  // Header MERGED
+  const headerFV = fotovoltaica.getCell('A1');
+  headerFV.value = `Cliente: ${datos.cliente_nombre || '—'} | ${fecha} | GESMECO ENERGÍA`;
+  headerFV.font = { size: 18, color: { argb: 'FF000000' } };
+  headerFV.alignment = { horizontal: 'center' as const, vertical: 'middle' as const };
   fotovoltaica.mergeCells('A1:F1');
   fotovoltaica.getRow(1).height = 30;
 
-  const subtituloPV = fotovoltaica.getCell('A2');
-  subtituloPV.value = `Cliente: ${datos.cliente_nombre || '—'} | ${fecha} | GESMECO ENERGÍA`;
-  subtituloPV.font = { size: 9, italic: true, color: { argb: COLORES.gris_oscuro } };
-  fotovoltaica.mergeCells('A2:F2');
-  fotovoltaica.getRow(2).height = 16;
+  filaFV = 3;
 
-  filaPV = 4;
-
-  // FUNCIÓN AUXILIAR para agregar fila de datos (2 columnas)
-  function agregarFila2Col(
-    fila: number,
-    label1: string,
-    valor1: any,
-    label2: string,
-    valor2: any,
-    label3?: string,
-    valor3?: any
-  ) {
-    // Columna 1
-    const l1 = fotovoltaica.getCell(`A${fila}`);
-    l1.value = label1;
-    aplicarLabel(l1);
-
-    const v1 = fotovoltaica.getCell(`B${fila}`);
-    v1.value = valor1 || '—';
-    aplicarValor(v1);
-
-    // Columna 2
-    const l2 = fotovoltaica.getCell(`C${fila}`);
-    l2.value = label2;
-    aplicarLabel(l2);
-
-    const v2 = fotovoltaica.getCell(`D${fila}`);
-    v2.value = valor2 || '—';
-    aplicarValor(v2);
-
-    // Columna 3 (opcional)
-    if (label3) {
-      const l3 = fotovoltaica.getCell(`E${fila}`);
-      l3.value = label3;
-      aplicarLabel(l3);
-
-      const v3 = fotovoltaica.getCell(`F${fila}`);
-      v3.value = valor3 || '—';
-      aplicarValor(v3);
-    }
-
-    fotovoltaica.getRow(fila).height = 22;
-    return fila + 1;
-  }
-
-  // SECCIÓN 1: CONSUMO Y POTENCIA
-  const sec1Header = fotovoltaica.getCell(`A${filaPV}`);
-  aplicarSubheader(sec1Header, '📊 CONSUMO Y DEMANDA');
-  fotovoltaica.mergeCells(`A${filaPV}:F${filaPV}`);
-  fotovoltaica.getRow(filaPV).height = 22;
-  filaPV++;
-
-  filaPV = agregarFila2Col(
-    filaPV,
+  // SECCIÓN 1: CONSUMO Y DEMANDA
+  filaFV = agregarSeccionFotovoltaica(fotovoltaica, filaFV, 'CONSUMO Y DEMANDA');
+  filaFV = agregarFilaDatos(
+    fotovoltaica,
+    filaFV,
     'Consumo Anual',
     datos.consumo_anual ? `${datos.consumo_anual.toLocaleString('es-ES')} kWh` : '—',
     'Potencia Deseada',
@@ -198,9 +172,9 @@ export async function generarExcelEspecificacion(datos: any) {
     'Presupuesto Máximo',
     datos.presupuesto_maximo ? `${datos.presupuesto_maximo}€` : '—'
   );
-
-  filaPV = agregarFila2Col(
-    filaPV,
+  filaFV = agregarFilaDatos(
+    fotovoltaica,
+    filaFV,
     'Sistema Eléctrico',
     datos.fase_sistema === 'mono' ? 'Monofásico (220V)' : 'Trifásico (400V)',
     'Tipo Tejado',
@@ -209,17 +183,13 @@ export async function generarExcelEspecificacion(datos: any) {
     datos.espacio_disponible ? `${datos.espacio_disponible} m²` : '—'
   );
 
-  filaPV++;
+  filaFV++;
 
-  // SECCIÓN 2: GEOMETRÍA Y ACCESO
-  const sec2Header = fotovoltaica.getCell(`A${filaPV}`);
-  aplicarSubheader(sec2Header, '🏠 GEOMETRÍA DEL LUGAR');
-  fotovoltaica.mergeCells(`A${filaPV}:F${filaPV}`);
-  fotovoltaica.getRow(filaPV).height = 22;
-  filaPV++;
-
-  filaPV = agregarFila2Col(
-    filaPV,
+  // SECCIÓN 2: GEOMETRÍA DEL LUGAR
+  filaFV = agregarSeccionFotovoltaica(fotovoltaica, filaFV, 'GEOMETRÍA DEL LUGAR');
+  filaFV = agregarFilaDatos(
+    fotovoltaica,
+    filaFV,
     'Orientación Tejado',
     datos.orientacion_tejado || '—',
     'Inclinación',
@@ -227,9 +197,9 @@ export async function generarExcelEspecificacion(datos: any) {
     'Altura (pisos)',
     datos.altura_edificio_pisos || '—'
   );
-
-  filaPV = agregarFila2Col(
-    filaPV,
+  filaFV = agregarFilaDatos(
+    fotovoltaica,
+    filaFV,
     'Acceso al Tejado',
     datos.acceso_tejado || '—',
     'Sombreado',
@@ -238,17 +208,13 @@ export async function generarExcelEspecificacion(datos: any) {
     datos.estado_tejado || '—'
   );
 
-  filaPV++;
+  filaFV++;
 
   // SECCIÓN 3: INSTALACIÓN TÉCNICA
-  const sec3Header = fotovoltaica.getCell(`A${filaPV}`);
-  aplicarSubheader(sec3Header, '⚙️ INSTALACIÓN TÉCNICA');
-  fotovoltaica.mergeCells(`A${filaPV}:F${filaPV}`);
-  fotovoltaica.getRow(filaPV).height = 22;
-  filaPV++;
-
-  filaPV = agregarFila2Col(
-    filaPV,
+  filaFV = agregarSeccionFotovoltaica(fotovoltaica, filaFV, 'INSTALACIÓN TÉCNICA');
+  filaFV = agregarFilaDatos(
+    fotovoltaica,
+    filaFV,
     'Distancia Cuadro a Tejado',
     datos.distancia_cuadro_a_tejado_metros ? `${datos.distancia_cuadro_a_tejado_metros} m` : '—',
     'Cuadro Accesible',
@@ -256,9 +222,9 @@ export async function generarExcelEspecificacion(datos: any) {
     'Tierra Eléctrica',
     datos.tierra_adecuada || '—'
   );
-
-  filaPV = agregarFila2Col(
-    filaPV,
+  filaFV = agregarFilaDatos(
+    fotovoltaica,
+    filaFV,
     'Acometida Cambio',
     datos.acometida_cambio || '—',
     'Distancia Cableado',
@@ -266,56 +232,49 @@ export async function generarExcelEspecificacion(datos: any) {
     'Espacio Almacén',
     datos.espacio_almacenamiento || '—'
   );
-
-  filaPV = agregarFila2Col(
-    filaPV,
+  filaFV = agregarFilaDatos(
+    fotovoltaica,
+    filaFV,
     'Andamiaje Necesario',
     datos.andamiaje_necesario || '—',
     'Necesita Grúa',
-    datos.necesita_grua ? 'Sí ✓' : 'No',
+    datos.necesita_grua ? 'Sí' : 'No',
     'Refuerzo Estructural',
-    datos.requiere_refuerzo_estructural ? 'Sí ✓' : 'No'
+    datos.requiere_refuerzo_estructural ? 'Sí' : 'No'
   );
 
-  filaPV++;
+  filaFV++;
 
   // SECCIÓN 4: CONDICIONES ESPECIALES
-  const sec4Header = fotovoltaica.getCell(`A${filaPV}`);
-  aplicarSubheader(sec4Header, '⚠️ CONDICIONES ESPECIALES');
-  fotovoltaica.mergeCells(`A${filaPV}:F${filaPV}`);
-  fotovoltaica.getRow(filaPV).height = 22;
-  filaPV++;
+  filaFV = agregarSeccionFotovoltaica(fotovoltaica, filaFV, 'CONDICIONES ESPECIALES');
 
-  const condicionesEspeciales = [];
-  if (datos.clima_viento) condicionesEspeciales.push('Viento');
-  if (datos.clima_nieve) condicionesEspeciales.push('Nieve');
-  if (datos.clima_salinidad) condicionesEspeciales.push('Salinidad');
-  if (datos.clima_polvo) condicionesEspeciales.push('Polvo');
-  if (datos.presencia_amianto) condicionesEspeciales.push('Amianto probable');
-  if (datos.reparaciones_tejado_previas) condicionesEspeciales.push('Reparaciones previas');
+  const condiciones = [];
+  if (datos.clima_viento) condiciones.push('Viento');
+  if (datos.clima_nieve) condiciones.push('Nieve');
+  if (datos.clima_salinidad) condiciones.push('Salinidad');
+  if (datos.clima_polvo) condiciones.push('Polvo');
+  if (datos.presencia_amianto) condiciones.push('Amianto');
+  if (datos.reparaciones_tejado_previas) condiciones.push('Reparaciones');
 
-  filaPV = agregarFila2Col(
-    filaPV,
+  filaFV = agregarFilaDatos(
+    fotovoltaica,
+    filaFV,
     'Clima/Dificultades',
-    condicionesEspeciales.length > 0 ? condicionesEspeciales.join(', ') : 'Ninguna',
+    condiciones.length > 0 ? condiciones.join(', ') : 'Ninguna',
     'Consumo Crítico',
     datos.consumo_critico || 'No',
     'Carga Tejado Máx',
     datos.carga_tejado_maxima ? `${datos.carga_tejado_maxima} kg/m²` : '—'
   );
 
-  filaPV++;
+  filaFV++;
 
   // SECCIÓN 5: ESPECIFICACIONES CALCULADAS
   if (datos.num_paneles) {
-    const sec5Header = fotovoltaica.getCell(`A${filaPV}`);
-    aplicarSubheader(sec5Header, '📋 ESPECIFICACIONES CALCULADAS');
-    fotovoltaica.mergeCells(`A${filaPV}:F${filaPV}`);
-    fotovoltaica.getRow(filaPV).height = 22;
-    filaPV++;
-
-    filaPV = agregarFila2Col(
-      filaPV,
+    filaFV = agregarSeccionFotovoltaica(fotovoltaica, filaFV, 'ESPECIFICACIONES CALCULADAS');
+    filaFV = agregarFilaDatos(
+      fotovoltaica,
+      filaFV,
       'Paneles Necesarios',
       `${datos.num_paneles} × 450W`,
       'Potencia Real',
@@ -323,9 +282,9 @@ export async function generarExcelEspecificacion(datos: any) {
       'Espacio Requerido',
       `${datos.espacio_requerido?.toFixed(1)} m²`
     );
-
-    filaPV = agregarFila2Col(
-      filaPV,
+    filaFV = agregarFilaDatos(
+      fotovoltaica,
+      filaFV,
       'Producción Anual',
       datos.produccion_anual ? `${datos.produccion_anual.toLocaleString('es-ES')} kWh/año` : '—',
       'Inversor Marca',
@@ -333,67 +292,13 @@ export async function generarExcelEspecificacion(datos: any) {
       'Inversor Modelo',
       datos.inversor?.modelo || '—'
     );
-
-    filaPV += 1;
   }
-
-  // SECCIÓN 6: ALMACENAMIENTO (si aplica)
-  if (datos.incluir_baterias) {
-    const sec6Header = fotovoltaica.getCell(`A${filaPV}`);
-    aplicarSubheader(sec6Header, '🔋 ALMACENAMIENTO');
-    fotovoltaica.mergeCells(`A${filaPV}:F${filaPV}`);
-    fotovoltaica.getRow(filaPV).height = 22;
-    filaPV++;
-
-    filaPV = agregarFila2Col(
-      filaPV,
-      'Incluir Baterías',
-      'Sí ✓',
-      'Capacidad',
-      `${datos.capacidad_baterias} kWh`,
-      'Tipo',
-      'LiFePO4'
-    );
-
-    filaPV++;
-  }
-
-  // SECCIÓN 7: ALERTAS (si hay)
-  if (datos.alertas && datos.alertas.length > 0) {
-    const sec7Header = fotovoltaica.getCell(`A${filaPV}`);
-    aplicarSubheader(sec7Header, '🚨 VALIDACIONES TÉCNICAS IMPORTANTES');
-    fotovoltaica.mergeCells(`A${filaPV}:F${filaPV}`);
-    fotovoltaica.getRow(filaPV).height = 22;
-    filaPV++;
-
-    datos.alertas.forEach((alerta: string) => {
-      const alertaCell = fotovoltaica.getCell(`A${filaPV}`);
-      alertaCell.value = '⚠️ ' + alerta;
-      alertaCell.font = { size: 10, color: { argb: 'FFFF6B00' }, bold: true };
-      alertaCell.fill = { type: 'pattern' as const, pattern: 'solid' as const, fgColor: { argb: 'FFFFF3CD' } };
-      alertaCell.alignment = { wrapText: true, vertical: 'top' as const };
-      fotovoltaica.mergeCells(`A${filaPV}:F${filaPV}`);
-      fotovoltaica.getRow(filaPV).height = 24;
-      filaPV++;
-    });
-
-    filaPV++;
-  }
-
-  // SECCIÓN 8: NOTA FINAL
-  const notaFinal = fotovoltaica.getCell(`A${filaPV}`);
-  notaFinal.value = '📌 IMPORTANTE: Esta es una especificación técnica de GESMECO ENERGÍA basada en los datos proporcionados. El instalador debe realizar una visita técnica previa para validar todas las condiciones in situ, las medidas exactas, accesos, y cualquier complicación adicional antes de elaborar el presupuesto profesional final.';
-  notaFinal.font = { size: 9, italic: true, color: { argb: COLORES.gris_oscuro } };
-  notaFinal.fill = { type: 'pattern' as const, pattern: 'solid' as const, fgColor: { argb: 'FFF0F0F0' } };
-  notaFinal.alignment = { wrapText: true, vertical: 'top' as const };
-  fotovoltaica.mergeCells(`A${filaPV}:F${filaPV}`);
-  fotovoltaica.getRow(filaPV).height = 50;
 
   // Generar archivo
   const fileName = `Presupuesto_FV_${datos.cliente_nombre || 'proyecto'}_${new Date().toISOString().slice(0, 10)}.xlsx`;
   const buffer = await workbook.xlsx.writeBuffer();
 
-  // Crear descarga
+  // Descargar
   const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
   const url = window.URL.createObjectURL(blob);
   const link = document.createElement('a');
