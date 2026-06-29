@@ -110,7 +110,7 @@ export default function HomePage() {
                     <div className="text-xs uppercase tracking-widest text-accent font-bold mb-1">
                       ⏱️ SLA garantizado
                     </div>
-                    <span className="text-foreground font-semibold">Respuesta en &lt; 5 min ante alarmas críticas</span>
+                    <span className="text-foreground font-semibold">Respuesta en &lt; 24h ante consultas</span>
                   </div>
                   <div className="rounded-full bg-gradient-to-r from-accent to-accent-light px-3 py-2 text-xs font-bold uppercase text-white whitespace-nowrap ml-4">
                     24/7
