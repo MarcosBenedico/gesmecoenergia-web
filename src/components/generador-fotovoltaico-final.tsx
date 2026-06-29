@@ -309,8 +309,9 @@ const SeccionCamposDinamicos = memo(
     const renderCampo = (campo: CampoMetadata) => {
       const val = datos[campo.campo_key] ?? '';
       const labelText = campo.unidad ? `${campo.label} (${campo.unidad})` : campo.label;
+      const tipo = campo.tipo?.toLowerCase().trim(); // normalizar: "Number" → "number"
 
-      switch (campo.tipo) {
+      switch (tipo) {
         case 'boolean':
           return (
             <div key={campo.id} className="flex flex-col justify-center">

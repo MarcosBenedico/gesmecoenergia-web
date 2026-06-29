@@ -79,7 +79,8 @@ function agregarFilaDatos(
 
 function formatearValorCampo(valor: any, campo: CampoMeta): string {
   if (valor === undefined || valor === null || valor === '') return '—';
-  if (campo.tipo === 'boolean') return valor ? 'Sí' : 'No';
+  const tipo = campo.tipo?.toLowerCase().trim();
+  if (tipo === 'boolean') return valor ? 'Sí' : 'No';
   if (campo.opciones && campo.opciones.length > 0) {
     const op = campo.opciones.find((o) => o.value === String(valor));
     return op ? op.label : String(valor);
