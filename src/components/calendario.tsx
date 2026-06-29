@@ -31,13 +31,16 @@ export function Calendario() {
   const [loading, setLoading] = useState(false);
   const [googleConectado, setGoogleConectado] = useState(false);
   const [error, setError] = useState('');
+  const [statusMessage, setStatusMessage] = useState('Inicializando...');
   const [calendars, setCalendars] = useState<Calendar[]>([]);
   const [showCalendarSelector, setShowCalendarSelector] = useState(false);
 
   // Verificar Google directamente desde Supabase
   const verificarGoogleDirecto = async () => {
     try {
+      setStatusMessage('🔍 Verificando conexión con Google...');
       console.log('🔍 Verificando Google en Supabase...');
+
       const { data, error } = await supabase
         .from('google_config')
         .select('access_token, email')
@@ -46,22 +49,30 @@ export function Calendario() {
 
       if (error) {
         console.log('❌ Error en lectura:', error.message);
+        setStatusMessage('❌ No hay credenciales de Google guardadas. Ve a Seguimientos para conectar.');
         setGoogleConectado(false);
+        setError('No hay credenciales de Google. Debes conectar tu Google Calendar en la sección Seguimientos.');
         return false;
       }
 
       if (data?.access_token && data?.email) {
         console.log('✅ Google conectado:', data.email);
+        setStatusMessage(`✅ Google conectado: ${data.email}`);
+        setError('');
         setGoogleConectado(true);
         return true;
       }
 
       console.log('⚠️ Sin datos de Google');
+      setStatusMessage('⚠️ Credenciales incompletas');
       setGoogleConectado(false);
+      setError('Faltan credenciales. Reconecta desde Seguimientos.');
       return false;
     } catch (err) {
       console.error('💥 Error al verificar:', err);
+      setStatusMessage('💥 Error verificando Google');
       setGoogleConectado(false);
+      setError(`Error: ${err instanceof Error ? err.message : 'Error desconocido'}`);
       return false;
     }
   };
@@ -132,7 +143,7 @@ export function Calendario() {
             id: item.id,
             summary: item.summary,
             email: item.id,
-            selected: item.primary || index === 0,
+            selected: true, // ⭐ TODOS SELECCIONADOS POR DEFECTO
             color: colorSet.color,
             bgColor: colorSet.bgColor,
             borderColor: colorSet.borderColor,
@@ -406,7 +417,7 @@ export function Calendario() {
       <div className="bg-surface/80 backdrop-blur-xl border-b border-border px-6 py-4 flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-black text-foreground">Calendario</h1>
-          <p className="text-sm text-muted mt-1">Actividad de tu equipo en tiempo real</p>
+          <p className="text-sm text-muted mt-1">{statusMessage}</p>
         </div>
         <div className="flex items-center gap-3">
           {googleConectado && (
@@ -423,6 +434,12 @@ export function Calendario() {
                 <span className="text-sm font-semibold text-secondary">Conectado</span>
               </div>
             </>
+          )}
+          {!googleConectado && (
+            <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-orange/10 border border-orange/30">
+              <span className="w-2 h-2 bg-orange rounded-full"></span>
+              <span className="text-sm font-semibold text-orange">No conectado</span>
+            </div>
           )}
         </div>
       </div>
@@ -605,11 +622,28 @@ export function Calendario() {
       {/* Calendario - Contenedor principal */}
       <div className="flex-1 overflow-auto px-6 py-6">
         {!googleConectado ? (
-          <div className="h-full flex flex-col items-center justify-center">
-            <div className="text-center space-y-4">
-              <div className="text-6xl">📅</div>
-              <p className="text-muted text-lg">Conecta tu Google Calendar para ver tus eventos</p>
-              <p className="text-muted text-sm">Ve a "Seguimientos" y autoriza el acceso</p>
+          <div className="h-full flex flex-col items-center justify-center px-6">
+            <div className="text-center space-y-6 max-w-lg">
+              <div className="text-6xl">🔗</div>
+              <div className="space-y-3">
+                <h2 className="text-2xl font-bold text-foreground">Google Calendar no conectado</h2>
+                <p className="text-muted">Para ver tu calendario y el de tu equipo, necesitas conectar tu Google Account.</p>
+              </div>
+              <div className="bg-orange/10 border border-orange/30 rounded-lg p-4 text-sm text-orange space-y-2">
+                <p className="font-semibold">⚠️ Qué hacer:</p>
+                <ol className="list-decimal list-inside space-y-1 text-left">
+                  <li>Ve a la sección <span className="font-bold">"Seguimientos"</span></li>
+                  <li>Haz clic en <span className="font-bold">"Conectar Google"</span></li>
+                  <li>Autoriza el acceso a tu Google Calendar</li>
+                  <li>Vuelve aquí y haz clic en <span className="font-bold">"Recargar"</span></li>
+                </ol>
+              </div>
+              {error && (
+                <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 text-sm text-red-400">
+                  <p className="font-semibold mb-1">Error técnico:</p>
+                  <p>{error}</p>
+                </div>
+              )}
             </div>
           </div>
         ) : loading ? (
