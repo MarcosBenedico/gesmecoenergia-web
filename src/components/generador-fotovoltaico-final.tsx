@@ -297,10 +297,12 @@ const SeccionCamposDinamicos = memo(
     campos,
     datos,
     onChange,
+    columnMissing,
   }: {
     campos: CampoMetadata[];
     datos: Record<string, any>;
     onChange: (key: string, val: any) => void;
+    columnMissing?: boolean;
   }) => {
     if (campos.length === 0) return null;
 
@@ -404,7 +406,14 @@ const SeccionCamposDinamicos = memo(
         <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
           {campos.map(renderCampo)}
         </div>
-        <p className="text-xs text-muted mt-5 pt-4 border-t border-border/40">
+        {columnMissing && (
+          <div className="mt-4 rounded-lg border border-orange/40 bg-orange/10 px-4 py-3 text-xs text-orange">
+            <span className="font-bold">⚠️ Columna no existe:</span> Los valores de estos campos no se están guardando en Supabase.{' '}
+            Ejecuta el archivo <code className="font-mono bg-black/20 px-1 rounded">supabase_campos_dinamicos.sql</code> en el{' '}
+            SQL Editor de Supabase para activarlo.
+          </div>
+        )}
+        <p className="text-xs text-muted mt-4 pt-4 border-t border-border/40">
           Para añadir o quitar campos, edita la tabla{' '}
           <code className="bg-card border border-border rounded px-1 font-mono">campos_fotovoltaica</code>{' '}
           en Supabase.
@@ -489,6 +498,7 @@ export function GeneradorFotovoltaicoFinal() {
   const [proyectoId, setProyectoId] = useState<number | null>(null);
   const [camposPersonalizados, setCamposPersonalizados] = useState<CampoMetadata[]>([]);
   const [datosExtras, setDatosExtras] = useState<Record<string, any>>({});
+  const [extrasColumnMissing, setExtrasColumnMissing] = useState(false);
   const autoSaveTimer = useRef<NodeJS.Timeout | null>(null);
 
   // Cargar campos dinámicos desde Supabase al montar
@@ -602,10 +612,12 @@ export function GeneradorFotovoltaicoFinal() {
 
       try {
         await ejecutarGuardado(datosCompletos);
+        setExtrasColumnMissing(false);
       } catch (err: any) {
-        if (esColumnError(err) && hayExtras) {
-          // La columna datos_extras no existe aún: guardar sin ella (no perder los datos principales)
-          console.warn('⚠️ Columna datos_extras no existe. Guardando sin campos extras. Ejecuta supabase_campos_dinamicos.sql para activarlos.');
+        if (esColumnError(err)) {
+          // La columna datos_extras no existe aún: guardar sin ella y avisar
+          setExtrasColumnMissing(true);
+          console.warn('⚠️ Columna datos_extras no existe. Ejecuta supabase_campos_dinamicos.sql en Supabase.');
           await ejecutarGuardado(datosBase);
         } else {
           throw err;
@@ -627,13 +639,11 @@ export function GeneradorFotovoltaicoFinal() {
     setDatosExtras((prev) => ({ ...prev, [key]: val }));
   }, []);
 
-  // Auto-guardar optimizado - Guardar cada 2 segundos
+  // Auto-guardar al cambiar formulario (solo necesita nombre)
   useEffect(() => {
     if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
 
-    if (!formulario.cliente_nombre || !formulario.cliente_ubicacion) {
-      return;
-    }
+    if (!formulario.cliente_nombre) return;
 
     autoSaveTimer.current = setTimeout(() => {
       guardarProyecto();
@@ -643,6 +653,13 @@ export function GeneradorFotovoltaicoFinal() {
       if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
     };
   }, [formulario, guardarProyecto]);
+
+  // Guardar inmediatamente cuando se calculan los resultados (Generar)
+  useEffect(() => {
+    if (!resultado || !formulario.cliente_nombre) return;
+    guardarProyecto();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resultado]);
 
   const handleInputChange = useCallback((field: keyof FormData, value: any) => {
     setFormulario((prev) => ({ ...prev, [field]: value }));
@@ -1073,6 +1090,7 @@ export function GeneradorFotovoltaicoFinal() {
         campos={camposPersonalizados}
         datos={datosExtras}
         onChange={handleDatosExtras}
+        columnMissing={extrasColumnMissing}
       />
 
       {/* Botones */}
