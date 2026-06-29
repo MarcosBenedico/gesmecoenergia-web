@@ -12,6 +12,7 @@ interface SolutionTab {
   icon: string;
   color: string;
   colorBg: string;
+  company: string;
   description: string;
 }
 
@@ -22,6 +23,7 @@ const SOLUTIONS: SolutionTab[] = [
     icon: '⚡',
     color: 'from-accent to-accent-light',
     colorBg: 'bg-accent/10',
+    company: 'Gesmeco Energía',
     description: 'Asesoría energética, auditorías, solar fotovoltaica',
   },
   {
@@ -30,6 +32,7 @@ const SOLUTIONS: SolutionTab[] = [
     icon: '📋',
     color: 'from-tertiary to-amber-400',
     colorBg: 'bg-tertiary/10',
+    company: 'Asesoría Gesmeco',
     description: 'Fiscal, laboral, contable y administrativa',
   },
   {
@@ -38,6 +41,7 @@ const SOLUTIONS: SolutionTab[] = [
     icon: '🛡️',
     color: 'from-secondary to-cyan-500',
     colorBg: 'bg-secondary/10',
+    company: 'Correbin Asociados',
     description: 'Particulares, empresariales y agrarios',
   },
 ];
@@ -87,11 +91,16 @@ export function SolutionsSelector() {
 
                   <div className="relative space-y-2 text-center">
                     <div className="text-2xl md:text-3xl">{solution.icon}</div>
-                    <h3 className={`font-bold transition-colors ${
-                      isActive ? 'text-accent' : 'text-foreground group-hover:text-accent'
-                    }`}>
-                      {solution.label}
-                    </h3>
+                    <div>
+                      <h3 className={`font-bold transition-colors ${
+                        isActive ? 'text-accent' : 'text-foreground group-hover:text-accent'
+                      }`}>
+                        {solution.label}
+                      </h3>
+                      <p className="text-[10px] text-muted/70 font-semibold uppercase tracking-wider">
+                        {solution.company}
+                      </p>
+                    </div>
                     <p className="text-xs text-muted opacity-75 group-hover:opacity-100 transition-opacity">
                       {solution.description}
                     </p>
