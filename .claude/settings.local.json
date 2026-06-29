@@ -35,7 +35,10 @@
       "Bash(sed -i 's/💪 Cálculo Potencia/Cálculo de Potencia/g' src/app/gestor/page.tsx)",
       "Bash(sed -i 's/👥 Clientes/Clientes/g' src/app/gestor/page.tsx)",
       "Bash(sed -i 's/📥 Importar Clientes desde CSV/Importar Clientes desde CSV/g' src/app/gestor/page.tsx)",
-      "Bash(cp \"C:\\\\Users\\\\Usuario\\\\Downloads\\\\DESPACHO_CALUDE\\\\DESPACHO_CALUDE\\\\generador_fotovoltaica_final.html\" \"C:\\\\Users\\\\Usuario\\\\Desktop\\\\calude_web\\\\generador_fotovoltaica_final.html\")"
+      "Bash(cp \"C:\\\\Users\\\\Usuario\\\\Downloads\\\\DESPACHO_CALUDE\\\\DESPACHO_CALUDE\\\\generador_fotovoltaica_final.html\" \"C:\\\\Users\\\\Usuario\\\\Desktop\\\\calude_web\\\\generador_fotovoltaica_final.html\")",
+      "Bash(node scripts/setup-supabase.js)",
+      "Bash(npx tsx *)",
+      "Bash(node scripts/check-supabase.mjs)"
     ]
   }
 }

@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "verify:supabase": "node scripts/check-supabase.mjs",
+    "setup:supabase": "echo 'Lee el archivo SUPABASE_SETUP.md para instrucciones' && cat SUPABASE_SETUP.md"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.108.2",
