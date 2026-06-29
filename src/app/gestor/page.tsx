@@ -8,7 +8,7 @@ import { Button } from '@/components/button';
 import { Container } from '@/components/container';
 import { SistemaSegumientos } from '@/components/sistema-seguimientos';
 import { Calendario } from '@/components/calendario';
-import { GeneradorFotovoltaicoV2 } from '@/components/generador-fotovoltaico-v2';
+import { GeneradorFotovoltaicoPro } from '@/components/generador-fotovoltaico-pro';
 
 type Seccion = 'view' | 'create' | 'margenes' | 'clientes' | 'seguimientos' | 'calendario' | 'fotovoltaico';
 
@@ -587,7 +587,7 @@ export default function GestorPage() {
 
           {/* Sección: Generador Fotovoltaico */}
           {seccion === 'fotovoltaico' && (
-            <GeneradorFotovoltaicoV2 />
+            <GeneradorFotovoltaicoPro />
           )}
 
           {/* Sección: Comparativa de Tarifas */}
