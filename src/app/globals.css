@@ -361,3 +361,234 @@ input:focus, textarea:focus, select:focus {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--color-accent-light);
 }
+
+/* ══════════════════════════════════════
+   HERO BACKGROUND SYSTEM
+══════════════════════════════════════ */
+
+/* Animated grid */
+.hero-grid {
+  background-image:
+    linear-gradient(to right, rgba(255, 51, 51, 0.04) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(0, 212, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(to right, rgba(255, 51, 51, 0.015) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 51, 51, 0.015) 1px, transparent 1px);
+  background-size: 80px 80px, 80px 80px, 20px 20px, 20px 20px;
+  animation: grid-breathe 7s ease-in-out infinite;
+}
+
+@keyframes grid-breathe {
+  0%, 100% { opacity: 0.5; }
+  50%       { opacity: 1; }
+}
+
+/* Glowing orbs */
+.hero-orb-red {
+  width: 700px; height: 700px;
+  border-radius: 50%;
+  background: radial-gradient(circle at center, rgba(255, 51, 51, 0.13) 0%, transparent 65%);
+  top: -350px; left: -150px;
+  animation: orb-a 13s ease-in-out infinite;
+}
+.hero-orb-cyan {
+  width: 550px; height: 550px;
+  border-radius: 50%;
+  background: radial-gradient(circle at center, rgba(0, 212, 255, 0.11) 0%, transparent 65%);
+  bottom: -180px; right: -100px;
+  animation: orb-b 16s ease-in-out infinite;
+}
+.hero-orb-accent {
+  width: 320px; height: 320px;
+  border-radius: 50%;
+  background: radial-gradient(circle at center, rgba(255, 149, 0, 0.07) 0%, transparent 65%);
+  top: 42%; right: 18%;
+  animation: orb-c 10s ease-in-out infinite;
+}
+
+@keyframes orb-a {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  25%       { transform: translate(70px, 50px) scale(1.08); }
+  50%       { transform: translate(25px, 90px) scale(0.94); }
+  75%       { transform: translate(-40px, 30px) scale(1.04); }
+}
+@keyframes orb-b {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33%       { transform: translate(-60px, -50px) scale(1.12); }
+  66%       { transform: translate(35px, -70px) scale(0.9); }
+}
+@keyframes orb-c {
+  0%, 100% { transform: translate(0, 0); opacity: 0.5; }
+  50%       { transform: translate(50px, 25px); opacity: 0.9; }
+}
+
+/* Scan line */
+.hero-scan {
+  animation: scan-travel 8s linear infinite;
+  top: 0;
+}
+@keyframes scan-travel {
+  0%   { top: 0%; opacity: 0; }
+  5%   { opacity: 1; }
+  90%  { opacity: 0.4; }
+  100% { top: 100%; opacity: 0; }
+}
+
+/* Floating particles */
+@keyframes particle-float {
+  0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.4; }
+  33%       { transform: translate(15px, -20px) scale(1.5); opacity: 0.8; }
+  66%       { transform: translate(-10px, 10px) scale(0.8); opacity: 0.3; }
+}
+
+/* ══════════════════════════════════════
+   TEXT & BORDER ANIMATIONS
+══════════════════════════════════════ */
+
+/* Animated gradient text */
+.gradient-text-animated {
+  background: linear-gradient(135deg, #ff3333 0%, #ff6b6b 30%, #00d4ff 65%, #ff3333 100%);
+  background-size: 300% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: text-gradient-flow 5s ease infinite;
+}
+@keyframes text-gradient-flow {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* Dashboard top stripe */
+@keyframes stripe-flow {
+  0%   { background-position: 0% 50%; }
+  100% { background-position: 300% 50%; }
+}
+
+/* Hero primary button pulse */
+.btn-hero-primary {
+  animation: hero-btn-pulse 3s ease-in-out infinite;
+}
+@keyframes hero-btn-pulse {
+  0%, 100% { box-shadow: 0 4px 20px rgba(255, 51, 51, 0.35); }
+  50%       { box-shadow: 0 4px 40px rgba(255, 51, 51, 0.65), 0 0 80px rgba(255, 51, 51, 0.2); }
+}
+
+/* Dashboard card subtle shimmer */
+.dashboard-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    105deg,
+    transparent 40%,
+    rgba(255, 255, 255, 0.025) 50%,
+    transparent 60%
+  );
+  background-size: 200% 100%;
+  animation: card-shimmer 5s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes card-shimmer {
+  0%   { background-position: -100% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* ══════════════════════════════════════
+   SCROLL REVEAL
+══════════════════════════════════════ */
+
+.sr-element {
+  opacity: 0;
+  transform: var(--sr-transform, translateY(24px));
+  transition: opacity 0.7s ease, transform 0.7s ease;
+}
+.sr-element.sr-visible {
+  opacity: 1;
+  transform: none;
+}
+
+/* ══════════════════════════════════════
+   ENHANCED HOVER EFFECTS
+══════════════════════════════════════ */
+
+/* Sector cards */
+.sector-card {
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+}
+.sector-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(255, 51, 51, 0.06) 0%, transparent 60%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+.sector-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 0 30px rgba(255, 51, 51, 0.15);
+  border-color: rgba(255, 51, 51, 0.3);
+}
+.sector-card:hover::before {
+  opacity: 1;
+}
+
+/* Step cards */
+.step-card {
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.3s ease, border-color 0.3s ease;
+}
+.step-card::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--color-accent), var(--color-secondary));
+  transform: scaleX(0);
+  transition: transform 0.3s ease;
+  transform-origin: left;
+}
+.step-card:hover {
+  transform: translateY(-3px);
+  border-color: rgba(255, 51, 51, 0.3);
+}
+.step-card:hover::after {
+  transform: scaleX(1);
+}
+
+/* ══════════════════════════════════════
+   CTA SECTION ENHANCED
+══════════════════════════════════════ */
+
+.cta-bg {
+  background: linear-gradient(135deg, #1a0a0a 0%, #0f0f1e 50%, #0a1a1a 100%);
+  position: relative;
+  overflow: hidden;
+}
+.cta-bg::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 20% 50%, rgba(255, 51, 51, 0.25) 0%, transparent 50%),
+    radial-gradient(circle at 80% 50%, rgba(0, 212, 255, 0.15) 0%, transparent 50%);
+  animation: cta-pulse 6s ease-in-out infinite;
+}
+@keyframes cta-pulse {
+  0%, 100% { opacity: 0.7; }
+  50%       { opacity: 1; }
+}
+.cta-bg::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+  background-size: 40px 40px;
+}

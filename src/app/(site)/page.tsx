@@ -4,157 +4,65 @@ import { BulletList } from "@/components/bullet-list";
 import { Container } from "@/components/container";
 import { FeatureCard } from "@/components/feature-card";
 import { SectionHeading } from "@/components/section-heading";
-import { StatCard } from "@/components/stat-card";
+import { HeroSection } from "@/components/hero-section";
+import { ScrollReveal } from "@/components/scroll-reveal";
 import {
-  differentiators,
-  heroStats,
   methodology,
   sectors,
   services,
   valuePillars,
 } from "@/lib/data";
-import { siteConfig } from "@/lib/site";
 
 export default function HomePage() {
   return (
-    <div className="space-y-20 pb-20">
-      <section className="relative pt-20 overflow-hidden">
-        {/* Glow effects */}
-        <div className="absolute top-0 left-0 w-96 h-96 bg-red-500/10 rounded-full blur-3xl -z-10" />
-        <div className="absolute bottom-0 right-0 w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl -z-10" />
+    <div className="pb-20">
 
-        <Container className="grid items-center gap-16 lg:grid-cols-[1.1fr_0.9fr]">
-          <div className="space-y-8 animate-slideDown">
-            <div className="inline-flex items-center gap-2">
-              <span className="h-2 w-2 rounded-full bg-accent animate-pulse" />
-              <span className="text-sm font-bold uppercase tracking-widest text-accent">
-                Energía inteligente
-              </span>
-            </div>
+      {/* ── HERO ── */}
+      <HeroSection />
 
-            <div className="space-y-5">
-              <h1 className="text-5xl md:text-6xl lg:text-7xl font-black leading-tight">
-                <span className="bg-gradient-to-r from-accent via-accent-light to-secondary bg-clip-text text-transparent">
-                  Tu asesor energético
-                </span>
-                <br />
-                <span className="text-foreground">en Bienfar.</span>
-              </h1>
-              <p className="text-lg md:text-xl text-muted leading-relaxed max-w-lg">
-                Analizamos tu factura de luz y gas. Te recomendamos solar si sale a cuenta. Ahorros reales de 15-40% en empresas y hogares.
-              </p>
-            </div>
-
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 flex-wrap">
-              <Button href="/analizador" size="lg" className="bg-gradient-to-r from-accent to-accent-light text-white font-bold text-base px-8 py-4 rounded-xl shadow-glow hover:shadow-glow">
-                🚀 Analizar mi factura
-              </Button>
-              <Button href="/servicios" variant="ghost" size="lg" className="border-2 border-muted hover:border-accent hover:text-accent">
-                Ver servicios →
-              </Button>
-              <div className="text-sm font-semibold text-muted">
-                <span className="text-accent">✓ 100% gratis</span> · Sin compromiso
-              </div>
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-3 pt-6">
-              {heroStats.map((stat, idx) => (
-                <div key={stat.label} className="group" style={{animationDelay: `${idx * 0.1}s`}}>
-                  <StatCard
-                    label={stat.label}
-                    value={stat.value}
-                    detail={stat.detail}
-                  />
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="relative animate-float">
-            {/* Glow background */}
-            <div className="absolute inset-0 bg-gradient-to-r from-accent/20 to-secondary/20 rounded-3xl blur-2xl" />
-
-            <div className="card glass relative overflow-hidden rounded-3xl p-8 md:p-10 border-accent/30">
-              {/* Animated gradient border */}
-              <div className="absolute inset-0 rounded-3xl p-[1px] bg-gradient-to-r from-accent via-secondary to-accent opacity-30" />
-
-              <div className="relative space-y-8">
-                <div>
-                  <div className="text-xs font-bold uppercase tracking-widest text-accent mb-2">
-                    ⚡ Panel de control
-                  </div>
-                  <h3 className="text-2xl md:text-3xl font-black text-foreground">
-                    Coste total, riesgo y sostenibilidad en una sola vista.
-                  </h3>
-                </div>
-
-                <BulletList items={differentiators} />
-
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div className="rounded-xl bg-gradient-to-br from-accent/20 to-accent/10 border border-accent/30 px-4 py-4 text-sm font-bold text-accent hover:border-accent/60 group cursor-pointer">
-                    <div className="text-xs uppercase tracking-widest text-accent/70 mb-1">
-                      📊 Indicadores vivos
-                    </div>
-                    Coste/MWh · CO₂ evitado · ROI real
-                  </div>
-                  <div className="rounded-xl bg-gradient-to-br from-secondary/20 to-secondary/10 border border-secondary/30 px-4 py-4 text-sm text-muted hover:border-secondary/60 group cursor-pointer">
-                    <div className="text-xs uppercase tracking-widest text-secondary/70 mb-1">
-                      🚨 Alertas inteligentes
-                    </div>
-                    Desvío de potencia y consumo en tiempo real
-                  </div>
-                </div>
-
-                <div className="rounded-xl bg-gradient-to-r from-accent/10 to-secondary/10 border border-accent/30 px-6 py-4 flex items-center justify-between hover:border-accent/60 group">
-                  <div>
-                    <div className="text-xs uppercase tracking-widest text-accent font-bold mb-1">
-                      ⏱️ SLA garantizado
-                    </div>
-                    <span className="text-foreground font-semibold">Respuesta en &lt; 24h ante consultas</span>
-                  </div>
-                  <div className="rounded-full bg-gradient-to-r from-accent to-accent-light px-3 py-2 text-xs font-bold uppercase text-white whitespace-nowrap ml-4">
-                    24/7
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </Container>
-      </section>
-
-      <section>
+      {/* ── LO QUE NOS DIFERENCIA ── */}
+      <section className="py-20">
         <Container>
-          <SectionHeading
-            kicker="Lo que nos diferencia"
-            title="Un asesor que entiende tu realidad. No solo números."
-          >
-            Conocemos Bienfar, el sector ganadero, agrícola y comercial. Analizamos tu factura línea
-            a línea, visitamos tu instalación y recomendamos solo lo que vale la pena.
-          </SectionHeading>
+          <ScrollReveal>
+            <SectionHeading
+              kicker="Lo que nos diferencia"
+              title="Un asesor que entiende tu realidad. No solo números."
+            >
+              Conocemos Bienfar, el sector ganadero, agrícola y comercial. Analizamos tu factura línea
+              a línea, visitamos tu instalación y recomendamos solo lo que vale la pena.
+            </SectionHeading>
+          </ScrollReveal>
           <div className="mt-10 grid gap-6 md:grid-cols-3">
-            {valuePillars.map((pillar) => (
-              <FeatureCard key={pillar.title} title={pillar.title}>
-                <p className="text-sm text-muted">{pillar.description}</p>
-              </FeatureCard>
+            {valuePillars.map((pillar, i) => (
+              <ScrollReveal key={pillar.title} delay={i * 120}>
+                <FeatureCard title={pillar.title}>
+                  <p className="text-sm text-muted">{pillar.description}</p>
+                </FeatureCard>
+              </ScrollReveal>
             ))}
           </div>
         </Container>
       </section>
 
-      <section>
+      {/* ── QUÉ HACEMOS ── */}
+      <section className="py-4">
         <Container>
-          <SectionHeading
-            kicker="Qué hacemos"
-            title="Análisis honesto, asesor disponible, soluciones que funcionan."
-          >
-            Desde revisar tu factura hasta instalar placas solares en tu tejado o en tu granja.
-            Te acompañamos en cada paso, sin presión, sin sorpresas.
-          </SectionHeading>
+          <ScrollReveal>
+            <SectionHeading
+              kicker="Qué hacemos"
+              title="Análisis honesto, asesor disponible, soluciones que funcionan."
+            >
+              Desde revisar tu factura hasta instalar placas solares en tu tejado o en tu granja.
+              Te acompañamos en cada paso, sin presión, sin sorpresas.
+            </SectionHeading>
+          </ScrollReveal>
           <div className="mt-10 grid gap-6 md:grid-cols-2">
-            {services.slice(0, 4).map((service) => (
-              <FeatureCard key={service.title} title={service.title} description={service.summary}>
-                <BulletList items={service.items} />
-              </FeatureCard>
+            {services.slice(0, 4).map((service, i) => (
+              <ScrollReveal key={service.title} delay={i * 100}>
+                <FeatureCard title={service.title} description={service.summary}>
+                  <BulletList items={service.items} />
+                </FeatureCard>
+              </ScrollReveal>
             ))}
           </div>
           <div className="mt-6 text-right text-sm">
@@ -165,85 +73,103 @@ export default function HomePage() {
         </Container>
       </section>
 
-      <section>
+      {/* ── SECTORES ── */}
+      <section className="py-20">
         <Container>
-          <SectionHeading kicker="Sectores" title="Trabajamos en todos los sectores de Bienfar.">
-            Viviendas, ganadería, agricultura, comercios, empresas. Cada caso es diferente.
-            Por eso no hay soluciones estándar, sino soluciones a medida.
-          </SectionHeading>
+          <ScrollReveal>
+            <SectionHeading kicker="Sectores" title="Trabajamos en todos los sectores de Bienfar.">
+              Viviendas, ganadería, agricultura, comercios, empresas. Cada caso es diferente.
+              Por eso no hay soluciones estándar, sino soluciones a medida.
+            </SectionHeading>
+          </ScrollReveal>
           <div className="mt-8 grid gap-4 md:grid-cols-3">
-            {sectors.map((sector) => (
-              <div
-                key={sector.name}
-                className="card rounded-2xl p-5 transition duration-200 hover:-translate-y-1 hover:shadow-soft"
-              >
-                <div className="text-sm uppercase tracking-[0.16em] text-rose-700">
-                  {sector.name}
+            {sectors.map((sector, i) => (
+              <ScrollReveal key={sector.name} delay={i * 80}>
+                <div className="sector-card card rounded-2xl border border-border p-5">
+                  <div className="text-sm font-bold uppercase tracking-[0.16em] text-accent">
+                    {sector.name}
+                  </div>
+                  <p className="mt-2 text-sm text-muted">{sector.description}</p>
                 </div>
-                <p className="mt-2 text-sm text-muted">{sector.description}</p>
-              </div>
+              </ScrollReveal>
             ))}
           </div>
         </Container>
       </section>
 
-      <section>
+      {/* ── CÓMO TRABAJAMOS ── */}
+      <section className="py-4">
         <Container>
-          <SectionHeading
-            kicker="Cómo trabajamos"
-            title="Pasos claros, sin complicaciones."
-          >
-            Desde la primera llamada hasta el seguimiento después de instalar solar.
-            Transparencia total en cada fase.
-          </SectionHeading>
+          <ScrollReveal>
+            <SectionHeading kicker="Cómo trabajamos" title="Pasos claros, sin complicaciones.">
+              Desde la primera llamada hasta el seguimiento después de instalar solar.
+              Transparencia total en cada fase.
+            </SectionHeading>
+          </ScrollReveal>
           <div className="mt-10 grid gap-4 md:grid-cols-4">
             {methodology.map((step, index) => (
-              <div
-                key={step.title}
-                className="card relative flex flex-col gap-3 rounded-2xl p-5"
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-rose-50 text-sm font-semibold text-accent">
-                    {index + 1}
+              <ScrollReveal key={step.title} delay={index * 100}>
+                <div className="step-card card relative flex flex-col gap-3 rounded-2xl border border-border p-5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent/15 text-sm font-black text-accent border border-accent/30">
+                      {index + 1}
+                    </div>
+                    <span className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">
+                      Fase {index + 1}
+                    </span>
                   </div>
-                  <span className="text-xs font-semibold uppercase tracking-[0.14em] text-rose-800">
-                    Fase {index + 1}
-                  </span>
+                  <h3 className="text-base font-bold text-foreground">{step.title}</h3>
+                  <p className="text-sm text-muted">{step.detail}</p>
                 </div>
-                <h3 className="text-lg font-semibold text-foreground">{step.title}</h3>
-                <p className="text-sm text-muted">{step.detail}</p>
-              </div>
+              </ScrollReveal>
             ))}
           </div>
         </Container>
       </section>
 
-      <section>
-        <Container className="relative overflow-hidden rounded-3xl bg-neutral-900 px-8 py-12 text-white shadow-soft">
-          <div className="absolute inset-0 bg-gradient-to-br from-rose-600/50 via-neutral-900 to-neutral-900" />
-          <div className="relative flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
-            <div className="space-y-2">
-              <div className="text-xs font-semibold uppercase tracking-[0.16em] text-rose-100">
-                Empieza ahora
+      {/* ── CTA ── */}
+      <section className="mt-16 px-4">
+        <ScrollReveal>
+          <Container>
+            <div className="cta-bg relative overflow-hidden rounded-3xl px-8 py-14 text-white shadow-[0_0_80px_rgba(255,51,51,0.2)]">
+              {/* Corner decorations */}
+              <div className="absolute left-0 top-0 h-px w-48 bg-gradient-to-r from-accent to-transparent" />
+              <div className="absolute left-0 top-0 h-48 w-px bg-gradient-to-b from-accent to-transparent" />
+              <div className="absolute bottom-0 right-0 h-px w-48 bg-gradient-to-l from-secondary to-transparent" />
+              <div className="absolute bottom-0 right-0 h-48 w-px bg-gradient-to-t from-secondary to-transparent" />
+
+              <div className="relative flex flex-col gap-8 md:flex-row md:items-center md:justify-between">
+                <div className="space-y-3 max-w-xl">
+                  <div className="inline-flex items-center gap-2 rounded-full border border-accent/30 bg-accent/10 px-3 py-1">
+                    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-accent" />
+                    <span className="text-xs font-bold uppercase tracking-widest text-accent">Empieza ahora</span>
+                  </div>
+                  <h3 className="text-3xl font-black leading-tight">
+                    Descubre tu potencial de ahorro sin compromiso.
+                  </h3>
+                  <p className="text-base text-gray-300">
+                    Análisis completo de tu factura, consumos y opciones de solar.
+                    Diagnóstico personalizado, honesto y gratuito.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-3 shrink-0">
+                  <Link
+                    href="/analizador"
+                    className="inline-flex items-center gap-2 rounded-xl bg-white px-7 py-4 text-base font-black text-[#0f0f1e] shadow-lg transition-all hover:scale-[1.04] hover:shadow-[0_0_30px_rgba(255,255,255,0.3)]"
+                  >
+                    📊 Analizar ahora
+                  </Link>
+                  <Link
+                    href="/contacto"
+                    className="inline-flex items-center gap-2 rounded-xl border-2 border-white/40 bg-white/10 px-7 py-4 text-base font-bold text-white backdrop-blur-sm transition-all hover:border-white/70 hover:bg-white/20"
+                  >
+                    📞 Hablar con asesor
+                  </Link>
+                </div>
               </div>
-              <h3 className="text-3xl font-semibold">
-                Descubre tu potencial de ahorro sin compromiso.
-              </h3>
-              <p className="text-base text-gray-200">
-                Análisis completo de tu factura, consumos y opciones de solar.
-                En 5 minutos tienes un diagnóstico personalizado.
-              </p>
             </div>
-            <div className="flex flex-wrap gap-3">
-              <Button href="/analizador" size="lg" className="bg-white text-neutral-900 font-bold hover:bg-neutral-100 shadow-lg">
-                📊 Analizar ahora
-              </Button>
-              <Button href="/contacto" size="lg" className="border-2 border-white bg-transparent text-white font-bold hover:bg-white/20">
-                📞 Hablar con asesor
-              </Button>
-            </div>
-          </div>
-        </Container>
+          </Container>
+        </ScrollReveal>
       </section>
     </div>
   );
