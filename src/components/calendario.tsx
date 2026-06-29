@@ -80,7 +80,7 @@ export function Calendario() {
   // Cargar lista de calendarios disponibles
   const cargarCalendarios = async () => {
     try {
-      console.log('Cargando lista de calendarios...');
+      console.log('📅 Cargando lista de calendarios...');
       const { data: googleConfig } = await supabase
         .from('google_config')
         .select('access_token')
@@ -88,10 +88,13 @@ export function Calendario() {
         .single();
 
       if (!googleConfig?.access_token) {
-        console.log('Sin token de Google');
+        console.log('❌ Sin token de Google en Supabase');
+        setCalendars([]);
+        setError('No hay token de Google. Conecta primero en Seguimientos.');
         return;
       }
 
+      console.log('✅ Token encontrado, consultando Google Calendar API...');
       const response = await fetch('https://www.googleapis.com/calendar/v3/users/me/calendarList', {
         headers: {
           Authorization: `Bearer ${googleConfig.access_token}`,
@@ -100,26 +103,32 @@ export function Calendario() {
 
       if (!response.ok) {
         const errorData = await response.json();
-        console.error('Error de Google Calendar API:', response.status, errorData);
+        console.error('❌ Error de Google Calendar API:', response.status, errorData);
+        setError(`Error al cargar calendarios: ${errorData.error?.message || 'Error desconocido'}`);
+        setCalendars([]);
         return;
       }
 
       const data = await response.json();
+      console.log('📋 Respuesta de Google:', data);
 
       if (!data.items || data.items.length === 0) {
-        console.log('No hay calendarios disponibles');
+        console.log('⚠️ No hay calendarios disponibles');
         setCalendars([]);
+        setError('No hay calendarios disponibles en tu Google Account.');
         return;
       }
 
       let calendarList: Calendar[] = data.items
         .filter((item: any) => {
           const summary = item.summary.toLowerCase();
-          return !CALENDARS_TO_FILTER.some(filter => summary.includes(filter));
+          const esFiltrando = CALENDARS_TO_FILTER.some(filter => summary.includes(filter));
+          if (esFiltrando) console.log(`  Filtrando: ${item.summary}`);
+          return !esFiltrando;
         })
         .map((item: any, index: number) => {
           const colorSet = CALENDAR_COLORS[index % CALENDAR_COLORS.length];
-          return {
+          const cal = {
             id: item.id,
             summary: item.summary,
             email: item.id,
@@ -128,12 +137,16 @@ export function Calendario() {
             bgColor: colorSet.bgColor,
             borderColor: colorSet.borderColor,
           };
+          console.log(`  ✅ Calendario: ${cal.summary} (ID: ${cal.id}, Selected: ${cal.selected})`);
+          return cal;
         });
 
-      console.log('Calendarios cargados:', calendarList.length);
+      console.log('✅ Calendarios cargados:', calendarList.length, calendarList);
       setCalendars(calendarList);
+      setError('');
     } catch (err) {
-      console.error('Error cargando calendarios:', err);
+      console.error('💥 Error cargando calendarios:', err);
+      setError(`Error: ${err instanceof Error ? err.message : 'Error desconocido'}`);
       setCalendars([]);
     }
   };
@@ -219,17 +232,15 @@ export function Calendario() {
     const inicializar = async () => {
       const conectado = await verificarGoogleDirecto();
       if (conectado) {
+        console.log('✅ Google conectado, cargando calendarios...');
         await cargarCalendarios();
+      } else {
+        console.log('❌ Google no conectado');
+        setCalendars([]);
       }
     };
 
     inicializar();
-
-    const interval = setInterval(() => {
-      verificarGoogleDirecto();
-    }, 500);
-
-    return () => clearInterval(interval);
   }, []);
 
   // Cargar eventos cuando hay calendarios seleccionados
@@ -397,12 +408,23 @@ export function Calendario() {
           <h1 className="text-3xl font-black text-foreground">Calendario</h1>
           <p className="text-sm text-muted mt-1">Actividad de tu equipo en tiempo real</p>
         </div>
-        {googleConectado && (
-          <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-secondary/10 border border-secondary/30">
-            <span className="w-2 h-2 bg-secondary rounded-full animate-pulse"></span>
-            <span className="text-sm font-semibold text-secondary">Conectado</span>
-          </div>
-        )}
+        <div className="flex items-center gap-3">
+          {googleConectado && (
+            <>
+              <button
+                onClick={cargarCalendarios}
+                className="px-4 py-2 rounded-lg bg-card/80 border border-border/50 text-foreground hover:bg-card transition font-semibold text-sm"
+                title="Recargar lista de calendarios"
+              >
+                📅 Recargar
+              </button>
+              <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-secondary/10 border border-secondary/30">
+                <span className="w-2 h-2 bg-secondary rounded-full animate-pulse"></span>
+                <span className="text-sm font-semibold text-secondary">Conectado</span>
+              </div>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Controles principales */}
@@ -532,6 +554,16 @@ export function Calendario() {
         {/* Selector de calendarios - Panel deslizable */}
         {showCalendarSelector && (
           <div className="border-t border-border pt-4">
+            {error && (
+              <div className="mb-4 p-3 rounded-lg bg-orange/10 border border-orange/40 text-xs text-orange">
+                ⚠️ {error}
+              </div>
+            )}
+            {calendars.length === 0 && !error && (
+              <div className="text-center py-6 text-muted text-sm">
+                No hay calendarios disponibles. Haz clic en "📅 Recargar" para intentar de nuevo.
+              </div>
+            )}
             <div className="grid gap-2 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {calendars.map((calendar) => (
                 <label
