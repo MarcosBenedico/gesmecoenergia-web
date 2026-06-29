@@ -11,11 +11,12 @@ import { createClient } from '@supabase/supabase-js';
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 
-// SQL para crear la tabla
+// SQL para crear las tablas completas (idempotente - seguro de ejecutar varias veces)
 const SQL = `
-DROP TABLE IF EXISTS proyectos_fotovoltaicos CASCADE;
-
-CREATE TABLE proyectos_fotovoltaicos (
+-- ============================================================
+-- TABLA PRINCIPAL DE PROYECTOS
+-- ============================================================
+CREATE TABLE IF NOT EXISTS proyectos_fotovoltaicos (
   id BIGSERIAL PRIMARY KEY,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -69,16 +70,22 @@ CREATE TABLE proyectos_fotovoltaicos (
   inversor_marca VARCHAR(100),
   inversor_modelo VARCHAR(100),
   alertas JSONB,
+  datos_extras JSONB DEFAULT '{}',
   estado VARCHAR(50) DEFAULT 'borrador'
 );
 
-CREATE INDEX idx_proyectos_cliente_nombre ON proyectos_fotovoltaicos(cliente_nombre);
-CREATE INDEX idx_proyectos_cliente_email ON proyectos_fotovoltaicos(cliente_email);
-CREATE INDEX idx_proyectos_updated_at ON proyectos_fotovoltaicos(updated_at DESC);
-CREATE INDEX idx_proyectos_estado ON proyectos_fotovoltaicos(estado);
+-- Añadir columna datos_extras si ya existe la tabla pero sin ella
+ALTER TABLE proyectos_fotovoltaicos
+  ADD COLUMN IF NOT EXISTS datos_extras JSONB DEFAULT '{}';
+
+CREATE INDEX IF NOT EXISTS idx_proyectos_cliente_nombre ON proyectos_fotovoltaicos(cliente_nombre);
+CREATE INDEX IF NOT EXISTS idx_proyectos_cliente_email ON proyectos_fotovoltaicos(cliente_email);
+CREATE INDEX IF NOT EXISTS idx_proyectos_updated_at ON proyectos_fotovoltaicos(updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_proyectos_estado ON proyectos_fotovoltaicos(estado);
 
 ALTER TABLE proyectos_fotovoltaicos ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "allow_all_operations" ON proyectos_fotovoltaicos;
 CREATE POLICY "allow_all_operations" ON proyectos_fotovoltaicos
 FOR ALL USING (true) WITH CHECK (true);
 
@@ -90,10 +97,36 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS trigger_update_updated_at ON proyectos_fotovoltaicos;
 CREATE TRIGGER trigger_update_updated_at
   BEFORE UPDATE ON proyectos_fotovoltaicos
   FOR EACH ROW
   EXECUTE FUNCTION update_updated_at();
+
+-- ============================================================
+-- TABLA DE CAMPOS DINÁMICOS (sistema de cuestionario extensible)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS campos_fotovoltaica (
+  id        SERIAL PRIMARY KEY,
+  campo_key TEXT UNIQUE NOT NULL,
+  label     TEXT NOT NULL,
+  tipo      TEXT NOT NULL DEFAULT 'text',
+  seccion   TEXT NOT NULL DEFAULT 'extras',
+  orden     INTEGER DEFAULT 0,
+  opciones  JSONB DEFAULT '[]',
+  unidad    TEXT DEFAULT '',
+  requerido BOOLEAN DEFAULT FALSE,
+  activo    BOOLEAN DEFAULT TRUE,
+  en_excel  BOOLEAN DEFAULT TRUE,
+  placeholder TEXT DEFAULT '',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE campos_fotovoltaica ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "allow_all_campos" ON campos_fotovoltaica;
+CREATE POLICY "allow_all_campos" ON campos_fotovoltaica
+  FOR ALL USING (true) WITH CHECK (true);
 `;
 
 export async function GET() {

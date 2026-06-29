@@ -504,8 +504,10 @@ export function GeneradorFotovoltaicoFinal() {
   const guardarProyecto = useCallback(async () => {
     if (!formulario.cliente_nombre) return;
     setGuardando(true);
+
     try {
-      const datosGuardar = {
+      // Datos fijos del formulario principal
+      const datosBase = {
         cliente_nombre: formulario.cliente_nombre,
         cliente_email: formulario.cliente_email,
         cliente_telefono: formulario.cliente_telefono,
@@ -549,7 +551,6 @@ export function GeneradorFotovoltaicoFinal() {
         reparaciones_tejado_previas: formulario.reparaciones_tejado_previas,
         incluir_baterias: formulario.incluir_baterias,
         capacidad_baterias: formulario.capacidad_baterias || null,
-        datos_extras: Object.keys(datosExtras).length > 0 ? datosExtras : null,
         ...(resultado && {
           num_paneles: resultado.num_paneles,
           potencia_real: resultado.potencia_real,
@@ -561,33 +562,59 @@ export function GeneradorFotovoltaicoFinal() {
         }),
       };
 
-      if (proyectoId) {
-        const { error } = await supabase
-          .from('proyectos_fotovoltaicos')
-          .update(datosGuardar)
-          .eq('id', proyectoId);
+      // Intentar guardar CON datos_extras (campos personalizados)
+      const hayExtras = Object.keys(datosExtras).length > 0;
+      const datosCompletos = hayExtras
+        ? { ...datosBase, datos_extras: datosExtras }
+        : datosBase;
 
-        if (error) {
-          console.error('❌ Error actualizando proyecto:', error);
-        } else {
+      const esColumnError = (err: any) =>
+        err?.code === '42703' ||
+        err?.code === 'PGRST204' ||
+        err?.message?.includes('datos_extras') ||
+        err?.message?.includes('column') ||
+        err?.message?.includes('does not exist');
+
+      let guardadoOk = false;
+
+      const ejecutarGuardado = async (payload: typeof datosBase) => {
+        if (proyectoId) {
+          const { error } = await supabase
+            .from('proyectos_fotovoltaicos')
+            .update(payload)
+            .eq('id', proyectoId);
+          if (error) throw error;
           console.log('✅ Proyecto actualizado:', proyectoId);
-          setGuardado(true);
-          setTimeout(() => setGuardado(false), 2000);
+          guardadoOk = true;
+        } else {
+          const { data, error } = await supabase
+            .from('proyectos_fotovoltaicos')
+            .insert([payload])
+            .select('id');
+          if (error) throw error;
+          if (data?.[0]) {
+            setProyectoId(data[0].id);
+            console.log('✅ Proyecto guardado con ID:', data[0].id);
+            guardadoOk = true;
+          }
         }
-      } else {
-        const { data, error } = await supabase
-          .from('proyectos_fotovoltaicos')
-          .insert([datosGuardar])
-          .select('id');
+      };
 
-        if (error) {
-          console.error('❌ Error insertando proyecto:', error);
-        } else if (data?.[0]) {
-          console.log('✅ Proyecto guardado con ID:', data[0].id);
-          setProyectoId(data[0].id);
-          setGuardado(true);
-          setTimeout(() => setGuardado(false), 2000);
+      try {
+        await ejecutarGuardado(datosCompletos);
+      } catch (err: any) {
+        if (esColumnError(err) && hayExtras) {
+          // La columna datos_extras no existe aún: guardar sin ella (no perder los datos principales)
+          console.warn('⚠️ Columna datos_extras no existe. Guardando sin campos extras. Ejecuta supabase_campos_dinamicos.sql para activarlos.');
+          await ejecutarGuardado(datosBase);
+        } else {
+          throw err;
         }
+      }
+
+      if (guardadoOk) {
+        setGuardado(true);
+        setTimeout(() => setGuardado(false), 2000);
       }
     } catch (error) {
       console.error('❌ Error guardando proyecto:', error);
