@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { llamarCalendarAPI, obtenerTokenValido } from '@/lib/google-oauth-handler';
 
 interface CalendarEvent {
   id: string;
@@ -106,11 +107,11 @@ export function Calendario() {
       }
 
       console.log('✅ Token encontrado, consultando Google Calendar API...');
-      const response = await fetch('https://www.googleapis.com/calendar/v3/users/me/calendarList', {
-        headers: {
-          Authorization: `Bearer ${googleConfig.access_token}`,
-        },
-      });
+      setStatusMessage('🔄 Consultando Google Calendar API...');
+
+      const response = await llamarCalendarAPI(
+        'https://www.googleapis.com/calendar/v3/users/me/calendarList'
+      );
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -196,15 +197,10 @@ export function Calendario() {
       // Cargar eventos de cada calendario seleccionado
       for (const calendar of selectedCalendars) {
         try {
-          const response = await fetch(
+          const response = await llamarCalendarAPI(
             `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(
               calendar.id
-            )}/events?timeMin=${timeMin.toISOString()}&timeMax=${timeMax.toISOString()}&singleEvents=true&orderBy=startTime&maxResults=250`,
-            {
-              headers: {
-                Authorization: `Bearer ${googleConfig.access_token}`,
-              },
-            }
+            )}/events?timeMin=${timeMin.toISOString()}&timeMax=${timeMax.toISOString()}&singleEvents=true&orderBy=startTime&maxResults=250`
           );
 
           if (response.ok) {
