@@ -224,7 +224,7 @@ export async function guardarAnalisisWeb(params: {
       ahorro_total: rango ? Math.round(rango.max * 100) / 100 : 0,
       reduccion_porcentaje: rango ? Math.round(rango.maxPct * 10) / 10 : 0,
       consumo_anual: Math.round(datos.consumosMes.reduce((s, c) => s + (c || 0), 0) * 12),
-      datos_json: JSON.stringify({
+      datos_json: {
         origen: 'analizador-web',
         suministro: datos,
         rangoAhorroCliente: rango
@@ -243,7 +243,7 @@ export async function guardarAnalisisWeb(params: {
           ahorroMax: Math.round(o.ahorroMax * 100) / 100,
           ahorroMin: Math.round(o.ahorroMin * 100) / 100,
         })),
-      }),
+      },
       fecha: new Date().toISOString(),
     },
   ]);
