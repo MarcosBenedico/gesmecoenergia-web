@@ -2,7 +2,7 @@ export const heroStats = [
   {
     label: "En cartera energética",
     value: "4.5 GW",
-    detail: "2 GW en gas · 2.5 GW en luz (clientes Bienfar y zona)",
+    detail: "2 GW en gas · 2.5 GW en luz (clientes Binéfar y zona)",
   },
   {
     label: "Ahorros reales",
@@ -20,7 +20,7 @@ export const valuePillars = [
   {
     title: "Tu asesor energético de confianza",
     description:
-      "En Bienfar conocemos tu negocio, tu finca y tu casa. Te acompañamos con soluciones que funcionan aquí y ahora, sin complicaciones ni sorpresas.",
+      "En Binéfar conocemos tu negocio, tu finca y tu casa. Te acompañamos con soluciones que funcionan aquí y ahora, sin complicaciones ni sorpresas.",
   },
   {
     title: "Análisis transparente de tu factura",
@@ -63,7 +63,7 @@ export const services = [
       "Solar para tu vivienda, ganadería, agricultura o comercio. Diseño a medida, instalación profesional, seguimiento completo.",
     items: [
       "Diseño personalizado según tu tejado y consumo",
-      "Cálculo real de producción esperada en Bienfar",
+      "Cálculo real de producción esperada en Binéfar",
       "Estimación clara de ahorro y ROI",
       "Gestión de trámites y conexión a red",
     ],
@@ -138,7 +138,7 @@ export const methodology = [
 ];
 
 export const differentiators = [
-  "Conocemos Bienfar y la zona. Sabemos cómo funciona tu negocio, tu granja o tu casa.",
+  "Conocemos Binéfar y la zona. Sabemos cómo funciona tu negocio, tu granja o tu casa.",
   "Asesoramiento sin ataduras: recomendamos lo mejor para ti, no para nosotros.",
   "Factura y presupuesto cristalinos. Nada escondido, todo justificado técnicamente.",
   "15+ proyectos solares activos en la zona. Casos reales, clientes conocidos, resultados probados.",
@@ -146,7 +146,7 @@ export const differentiators = [
 
 export const highlights = [
   {
-    title: "Casos reales en Bienfar",
+    title: "Casos reales en Binéfar",
     items: [
       "Vivienda: 6 kW solar = factura reducida de 1.200€ a 300€ anuales",
       "Granja lechera: 30 kW solar + auditoría = ahorro anual de 8.000€",
@@ -156,7 +156,7 @@ export const highlights = [
   {
     title: "Números que importan",
     items: [
-      "ROI típico solar: 2-3 años en Bienfar (buena irradiación, clientes comprometidos)",
+      "ROI típico solar: 2-3 años en Binéfar (buena irradiación, clientes comprometidos)",
       "Ahorro medio tras análisis de factura: 2.500-4.000€ anuales",
       "Valor agregado: casa o negocio +5-8% en precio con solar instalado",
     ],

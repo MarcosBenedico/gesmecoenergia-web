@@ -28,7 +28,7 @@ export default function HomePage() {
               kicker="Lo que nos diferencia"
               title="Un asesor que entiende tu realidad. No solo números."
             >
-              Conocemos Bienfar, el sector ganadero, agrícola y comercial. Analizamos tu factura línea
+              Conocemos Binéfar, el sector ganadero, agrícola y comercial. Analizamos tu factura línea
               a línea, visitamos tu instalación y recomendamos solo lo que vale la pena.
             </SectionHeading>
           </ScrollReveal>
@@ -77,7 +77,7 @@ export default function HomePage() {
       <section className="py-20">
         <Container>
           <ScrollReveal>
-            <SectionHeading kicker="Sectores" title="Trabajamos en todos los sectores de Bienfar.">
+            <SectionHeading kicker="Sectores" title="Trabajamos en todos los sectores de Binéfar.">
               Viviendas, ganadería, agricultura, comercios, empresas. Cada caso es diferente.
               Por eso no hay soluciones estándar, sino soluciones a medida.
             </SectionHeading>

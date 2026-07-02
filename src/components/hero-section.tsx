@@ -169,7 +169,7 @@ export function HeroSection() {
             <div className="inline-flex items-center gap-3 rounded-full border border-accent/25 bg-accent/10 px-4 py-2 backdrop-blur-sm">
               <span className="h-2 w-2 animate-pulse rounded-full bg-accent" />
               <span className="text-sm font-bold uppercase tracking-widest text-accent">
-                Asesoría Energética · Bienfar
+                Asesoría Energética · Binéfar
               </span>
             </div>
 
@@ -181,7 +181,7 @@ export function HeroSection() {
                 <span className="text-foreground">energético</span>
                 <br />
                 <span className="text-foreground">en </span>
-                <span className="text-secondary">Bienfar</span>
+                <span className="text-secondary">Binéfar</span>
                 <span className="text-foreground">.</span>
               </h1>
             </div>
