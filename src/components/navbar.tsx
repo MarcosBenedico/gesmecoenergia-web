@@ -272,6 +272,37 @@ export const Navbar = () => {
         scrolled && "shadow-lg shadow-black/10"
       )}
     >
+      {/* Barra superior · Grupo Gesmeco */}
+      <div className="border-b border-border/60 bg-background/80">
+        <Container className="flex items-center justify-between gap-3 py-1.5">
+          <span className="hidden text-[11px] font-bold uppercase tracking-[0.2em] text-muted sm:block">
+            Grupo Gesmeco
+          </span>
+          <div className="flex items-center gap-1 overflow-x-auto text-[11px] font-semibold">
+            <Link
+              href="/"
+              className="whitespace-nowrap rounded-full px-2.5 py-1 text-foreground/80 transition hover:bg-accent/10 hover:text-accent"
+            >
+              ⚡ Gesmeco Energía
+            </Link>
+            <span className="text-border" aria-hidden>·</span>
+            <Link
+              href="/grupo"
+              className="whitespace-nowrap rounded-full px-2.5 py-1 text-foreground/80 transition hover:bg-tertiary/10 hover:text-tertiary"
+            >
+              📋 Asesoría Gesmeco
+            </Link>
+            <span className="text-border" aria-hidden>·</span>
+            <Link
+              href="/grupo"
+              className="whitespace-nowrap rounded-full px-2.5 py-1 text-foreground/80 transition hover:bg-secondary/10 hover:text-secondary"
+            >
+              🛡️ Correbin Asociados
+            </Link>
+          </div>
+        </Container>
+      </div>
+
       <Container className="flex items-center justify-between py-4">
         <Logo />
 

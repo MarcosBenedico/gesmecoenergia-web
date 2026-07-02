@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
-import { heroStats, differentiators } from '@/lib/data';
+import { heroStats } from '@/lib/data';
 
 /* ── Count-up hook ── */
 function useCountUp(end: number, duration = 1800, started = false) {
@@ -54,30 +54,6 @@ function AnimatedStat({ stat, started, delay }: { stat: typeof heroStats[0]; sta
   );
 }
 
-/* ── Animated progress bar ── */
-function EnergyBar({ label, value, colorClass, delay }: { label: string; value: number; colorClass: string; delay: number }) {
-  const [w, setW] = useState(0);
-  useEffect(() => {
-    const t = setTimeout(() => setW(value), delay);
-    return () => clearTimeout(t);
-  }, [value, delay]);
-
-  return (
-    <div>
-      <div className="mb-1.5 flex justify-between text-xs">
-        <span className="text-muted">{label}</span>
-        <span className="tabular-nums font-bold text-foreground">{value}%</span>
-      </div>
-      <div className="h-1.5 overflow-hidden rounded-full bg-border/40">
-        <div
-          className={`h-full rounded-full transition-all duration-1000 ease-out ${colorClass}`}
-          style={{ width: `${w}%` }}
-        />
-      </div>
-    </div>
-  );
-}
-
 /* ── Floating particle ── */
 function Particle({ style }: { style: React.CSSProperties }) {
   return (
@@ -88,17 +64,50 @@ function Particle({ style }: { style: React.CSSProperties }) {
   );
 }
 
-const BARS = [
-  { label: 'Potencia contratada optimizable', value: 35, colorClass: 'bg-secondary shadow-[0_0_8px_rgba(0,212,255,0.6)]' },
-  { label: 'Ahorro en tarifa actual', value: 22, colorClass: 'bg-accent shadow-[0_0_8px_rgba(255,51,51,0.6)]' },
-  { label: 'Cambio a mejor comercializadora', value: 18, colorClass: 'bg-purple-400 shadow-[0_0_8px_rgba(192,132,252,0.6)]' },
-];
-
-const METRICS = [
-  { label: 'Facturas analizadas', value: '2.400+', icon: '⚡', border: 'border-secondary/30', bg: 'bg-secondary/5', text: 'text-secondary' },
-  { label: 'Ahorro medio detectado', value: '€2.500', icon: '💰', border: 'border-accent/30', bg: 'bg-accent/5', text: 'text-accent' },
-  { label: 'Clientes satisfechos', value: '120+', icon: '✓', border: 'border-amber-400/30', bg: 'bg-amber-400/5', text: 'text-amber-400' },
-  { label: 'Instalaciones realizadas', value: '15+', icon: '☀️', border: 'border-purple-400/30', bg: 'bg-purple-400/5', text: 'text-purple-400' },
+/* ── Empresas del Grupo Gesmeco (panel derecho del hero) ── */
+const GRUPO_EMPRESAS = [
+  {
+    nombre: 'Gesmeco Energía',
+    area: 'Energía',
+    icono: '⚡',
+    resumen:
+      'Análisis de tu factura de luz y gas, auditorías energéticas y solar fotovoltaica para hogares, granjas y empresas.',
+    href: '/servicios',
+    border: 'border-accent/25',
+    bg: 'bg-accent/5',
+    iconBg: 'bg-accent/15',
+    chip: 'bg-accent/15 text-accent',
+    arrow: 'text-accent',
+    hoverShadow: 'hover:border-accent/50 hover:shadow-[0_8px_30px_rgba(255,51,51,0.15)]',
+  },
+  {
+    nombre: 'Asesoría Gesmeco',
+    area: 'Asesoría',
+    icono: '📋',
+    resumen:
+      'Fiscal, laboral, contable y administrativa. Impuestos, nóminas y trámites resueltos para autónomos y empresas.',
+    href: '/grupo',
+    border: 'border-tertiary/25',
+    bg: 'bg-tertiary/5',
+    iconBg: 'bg-tertiary/15',
+    chip: 'bg-tertiary/15 text-tertiary',
+    arrow: 'text-tertiary',
+    hoverShadow: 'hover:border-tertiary/50 hover:shadow-[0_8px_30px_rgba(255,149,0,0.15)]',
+  },
+  {
+    nombre: 'Correbin Asociados',
+    area: 'Seguros',
+    icono: '🛡️',
+    resumen:
+      'Correduría de seguros: hogar, vehículos, empresa y sector agrario-ganadero. Revisamos tus pólizas sin coste.',
+    href: '/grupo',
+    border: 'border-secondary/25',
+    bg: 'bg-secondary/5',
+    iconBg: 'bg-secondary/15',
+    chip: 'bg-secondary/15 text-secondary',
+    arrow: 'text-secondary',
+    hoverShadow: 'hover:border-secondary/50 hover:shadow-[0_8px_30px_rgba(0,212,255,0.15)]',
+  },
 ];
 
 const PARTICLES = [
@@ -241,71 +250,64 @@ export function HeroSection() {
               }} />
 
               {/* Header */}
-              <div className="flex items-center justify-between border-b border-border/40 px-5 py-4">
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-accent">
-                    ⚡ Monitor Energético
-                  </p>
-                  <p className="mt-0.5 text-base font-black text-foreground">Panel en tiempo real</p>
-                </div>
-                <div className="flex items-center gap-2 rounded-full border border-secondary/30 bg-secondary/10 px-3 py-1.5">
-                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-secondary" />
-                  <span className="text-[10px] font-black uppercase tracking-widest text-secondary">ACTIVO</span>
-                </div>
+              <div className="border-b border-border/40 px-6 py-5">
+                <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-accent">
+                  Grupo Gesmeco
+                </p>
+                <p className="mt-1 text-lg font-black text-foreground leading-tight">
+                  Un solo equipo para tu empresa, tu granja y tu casa
+                </p>
+                <p className="mt-1 text-xs text-muted">
+                  Tres áreas de servicio desde Binéfar, con el mismo trato de siempre.
+                </p>
               </div>
 
-              <div className="space-y-4 p-5">
-                {/* Progress bars */}
-                <div className="space-y-3">
-                  {BARS.map((bar, i) => (
-                    <EnergyBar
-                      key={bar.label}
-                      label={bar.label}
-                      value={bar.value}
-                      colorClass={bar.colorClass}
-                      delay={600 + i * 200}
-                    />
-                  ))}
-                </div>
-
-                <div className="h-px bg-border/30" />
-
-                {/* Live metric grid */}
-                <div className="grid grid-cols-2 gap-2.5">
-                  {METRICS.map((m) => (
-                    <div
-                      key={m.label}
-                      className={`group cursor-default rounded-xl border ${m.border} ${m.bg} p-3 transition-all duration-200 hover:scale-[1.04]`}
-                    >
-                      <div className="text-base">{m.icon}</div>
-                      <div className={`mt-0.5 text-lg font-black ${m.text}`}>{m.value}</div>
-                      <div className="mt-0.5 text-[10px] font-medium leading-tight text-muted">{m.label}</div>
+              <div className="p-4 space-y-3">
+                {GRUPO_EMPRESAS.map((empresa) => (
+                  <Link
+                    key={empresa.nombre}
+                    href={empresa.href}
+                    className={`group block rounded-2xl border ${empresa.border} ${empresa.bg} p-4 transition-all duration-300 hover:-translate-y-0.5 ${empresa.hoverShadow}`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-start gap-3">
+                        <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${empresa.iconBg} text-lg`}>
+                          {empresa.icono}
+                        </div>
+                        <div className="space-y-0.5">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-sm font-black text-foreground">
+                              {empresa.nombre}
+                            </span>
+                            <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider ${empresa.chip}`}>
+                              {empresa.area}
+                            </span>
+                          </div>
+                          <p className="text-xs leading-relaxed text-muted">{empresa.resumen}</p>
+                        </div>
+                      </div>
+                      <span
+                        className={`mt-1 shrink-0 text-base transition-transform duration-300 group-hover:translate-x-1 ${empresa.arrow}`}
+                        aria-hidden
+                      >
+                        →
+                      </span>
                     </div>
-                  ))}
-                </div>
+                  </Link>
+                ))}
+              </div>
 
-                {/* SLA */}
-                <div className="flex items-center justify-between rounded-xl border border-accent/25 bg-gradient-to-r from-accent/10 to-secondary/10 p-4">
-                  <div>
-                    <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-accent">
-                      ⏱ SLA garantizado
-                    </p>
-                    <p className="text-sm font-semibold text-foreground">Respuesta en &lt; 24h</p>
-                  </div>
-                  <div className="rounded-full bg-gradient-to-r from-accent to-secondary px-3 py-1.5 text-xs font-black text-white shadow-md">
-                    24/7
-                  </div>
-                </div>
-
-                {/* Differentiators */}
-                <div className="space-y-1.5">
-                  {differentiators.slice(0, 3).map((d, i) => (
-                    <div key={i} className="flex items-start gap-2 text-xs text-muted">
-                      <span className="mt-0.5 shrink-0 font-bold text-accent">✓</span>
-                      <span>{d.split('.')[0]}.</span>
-                    </div>
-                  ))}
-                </div>
+              {/* Footer */}
+              <div className="border-t border-border/40 px-6 py-4 flex items-center justify-between gap-3">
+                <p className="text-xs text-muted">
+                  Avenida de Aragón, 50 · Binéfar
+                </p>
+                <Link
+                  href="/grupo"
+                  className="text-xs font-bold text-accent transition hover:text-accent-light whitespace-nowrap"
+                >
+                  Conocer el grupo →
+                </Link>
               </div>
             </div>
           </div>
