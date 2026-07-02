@@ -572,23 +572,63 @@ export function InvoiceAnalyzer() {
               </h2>
             </div>
 
-            {/* Ahorro principal */}
-            {resultado.mejorOferta && resultado.mejorOferta.ahorroAnual > 0 ? (
+            {/* Horquilla de ahorro garantizado */}
+            {resultado.rangoAhorro ? (
               <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-accent/20 to-accent/5 border border-accent/30 p-8 md:p-12">
                 <div className="absolute top-0 right-0 w-40 h-40 bg-accent/10 rounded-full -mr-20 -mt-20" />
-                <div className="relative space-y-2">
-                  <p className="text-sm font-bold uppercase tracking-widest text-accent">
-                    Podrías ahorrar cada año
-                  </p>
-                  <div className="text-5xl md:text-7xl font-black text-accent tabular-nums">
-                    {eur(resultado.mejorOferta.ahorroAnual)} €
+                <div className="relative space-y-6">
+                  <div className="space-y-2 text-center">
+                    <p className="text-sm font-bold uppercase tracking-widest text-accent">
+                      Tu ahorro anual garantizado
+                    </p>
+                    <div className="flex items-baseline justify-center gap-3 flex-wrap">
+                      <span className="text-4xl md:text-6xl font-black text-foreground tabular-nums">
+                        {eur(resultado.rangoAhorro.min)} €
+                      </span>
+                      <span className="text-xl md:text-2xl font-bold text-muted">y</span>
+                      <span className="text-4xl md:text-6xl font-black text-accent tabular-nums">
+                        {eur(resultado.rangoAhorro.max)} €
+                      </span>
+                    </div>
+                    <p className="text-base text-muted">
+                      Entre un {resultado.rangoAhorro.minPct.toFixed(1)}% y un{' '}
+                      {resultado.rangoAhorro.maxPct.toFixed(1)}% menos en tu factura de energía
+                    </p>
                   </div>
-                  <p className="text-base text-muted">
-                    Un {resultado.mejorOferta.ahorroPorcentaje.toFixed(1)}% menos, con la tarifa{' '}
-                    <span className="font-bold text-foreground">
-                      {resultado.mejorOferta.comercializadora}
-                    </span>{' '}
-                    que negociamos para nuestros clientes
+
+                  {/* Barra visual de la horquilla */}
+                  <div className="space-y-2">
+                    <div className="relative h-4 rounded-full bg-border/30 overflow-hidden">
+                      {/* Zona mínima garantizada */}
+                      <div
+                        className="absolute inset-y-0 left-0 bg-gradient-to-r from-secondary/60 to-secondary rounded-full"
+                        style={{
+                          width: `${Math.min(100, resultado.rangoAhorro.maxPct > 0 ? (resultado.rangoAhorro.min / resultado.rangoAhorro.max) * 100 : 0)}%`,
+                        }}
+                      />
+                      {/* Zona hasta el máximo */}
+                      <div
+                        className="absolute inset-y-0 bg-gradient-to-r from-secondary to-accent opacity-80"
+                        style={{
+                          left: `${Math.min(100, resultado.rangoAhorro.maxPct > 0 ? (resultado.rangoAhorro.min / resultado.rangoAhorro.max) * 100 : 0)}%`,
+                          right: 0,
+                        }}
+                      />
+                    </div>
+                    <div className="flex justify-between text-xs font-bold">
+                      <span className="text-secondary">
+                        Mínimo garantizado · {eur(resultado.rangoAhorro.min / 12)} €/mes
+                      </span>
+                      <span className="text-accent">
+                        Máximo estimado · {eur(resultado.rangoAhorro.max / 12)} €/mes
+                      </span>
+                    </div>
+                  </div>
+
+                  <p className="text-center text-xs text-muted/80 max-w-xl mx-auto">
+                    Horquilla calculada con las condiciones reales que negociamos para nuestros
+                    clientes, aplicada a tus consumos y potencias. Tu asesor te confirmará la cifra
+                    exacta en el estudio personalizado.
                   </p>
                 </div>
               </div>
@@ -601,7 +641,7 @@ export function InvoiceAnalyzer() {
                 <p className="text-sm text-muted">
                   {resultado.ofertas.length === 0
                     ? 'Ahora mismo no tenemos una oferta comparable cargada para tu tarifa. Te contactaremos con un estudio manual.'
-                    : 'Con los precios que manejamos hoy no mejoramos tu factura. Y te lo decimos tal cual: si no vale la pena, no lo vendemos.'}
+                    : 'Con las condiciones que manejamos hoy no mejoramos tu factura. Y te lo decimos tal cual: si no vale la pena, no lo vendemos.'}
                 </p>
               </div>
             )}
@@ -664,57 +704,35 @@ export function InvoiceAnalyzer() {
               </p>
             </div>
 
-            {/* Comparativa de ofertas */}
-            {resultado.ofertas.length > 0 && (
-              <div className="space-y-4">
-                <h3 className="text-lg font-black text-foreground">
-                  Comparativa con nuestras tarifas
-                </h3>
-                <div className="grid md:grid-cols-2 gap-4">
-                  {resultado.ofertas.map((oferta, i) => {
-                    const esMejor = i === 0 && oferta.ahorroAnual > 0;
-                    return (
-                      <div
-                        key={oferta.comercializadora}
-                        className={`relative rounded-2xl border p-6 space-y-3 ${
-                          esMejor
-                            ? 'border-accent/50 bg-accent/10 shadow-[0_0_30px_rgba(255,51,51,0.15)]'
-                            : 'border-border/40 bg-card/50'
-                        }`}
-                      >
-                        {esMejor && (
-                          <div className="absolute -top-3 left-4 rounded-full bg-gradient-to-r from-accent to-accent-light px-3 py-1 text-[10px] font-black uppercase tracking-widest text-white">
-                            Mejor opción
-                          </div>
-                        )}
-                        <div className="flex items-baseline justify-between">
-                          <h4 className="text-base font-black text-foreground">
-                            {oferta.comercializadora}
-                          </h4>
-                          <div className="text-xl font-black text-foreground tabular-nums">
-                            {eur(oferta.coste.total)} €<span className="text-xs text-muted">/año</span>
-                          </div>
-                        </div>
-                        <div className="h-px bg-border/30" />
-                        <div className="flex justify-between text-xs text-muted">
-                          <span>Energía: {eur(oferta.coste.totalEnergia)} €</span>
-                          <span>Potencia: {eur(oferta.coste.totalPotencia)} €</span>
-                        </div>
-                        <div
-                          className={`rounded-lg px-3 py-2 text-sm font-bold tabular-nums ${
-                            oferta.ahorroAnual > 0
-                              ? 'bg-accent/15 text-accent'
-                              : 'bg-border/30 text-muted'
-                          }`}
-                        >
-                          {oferta.ahorroAnual > 0
-                            ? `↓ Ahorras ${eur(oferta.ahorroAnual)} €/año (${oferta.ahorroPorcentaje.toFixed(1)}%)`
-                            : 'No mejora tu tarifa actual'}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+            {/* Qué incluye el estudio */}
+            {resultado.rangoAhorro && (
+              <div className="grid sm:grid-cols-3 gap-4">
+                {[
+                  {
+                    icono: '🔒',
+                    titulo: 'Ahorro garantizado',
+                    texto: 'La horquilla es un compromiso real, no una estimación comercial.',
+                  },
+                  {
+                    icono: '📋',
+                    titulo: 'Sin permanencia',
+                    texto: 'Cambio de tarifa gestionado por nosotros, sin cortes ni papeleo.',
+                  },
+                  {
+                    icono: '🤝',
+                    titulo: 'Asesor local',
+                    texto: 'Un asesor de Binéfar revisa tu caso y te confirma la cifra exacta.',
+                  },
+                ].map((item) => (
+                  <div
+                    key={item.titulo}
+                    className="rounded-2xl border border-border/40 bg-card/50 p-5 space-y-2"
+                  >
+                    <div className="text-2xl">{item.icono}</div>
+                    <h4 className="text-sm font-black text-foreground">{item.titulo}</h4>
+                    <p className="text-xs text-muted">{item.texto}</p>
+                  </div>
+                ))}
               </div>
             )}
 

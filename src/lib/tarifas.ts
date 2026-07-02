@@ -64,19 +64,39 @@ export interface CosteCalculado {
   total: number;
 }
 
+/**
+ * Comisión de Gesmeco: se suma SOLO al precio de la energía (€/kWh)
+ * y se multiplica por el consumo. El cliente nunca la ve.
+ * - FEE_MIN (0.003) → escenario de MÁXIMO ahorro para el cliente
+ * - FEE_MAX (0.008) → escenario de MÍNIMO ahorro para el cliente
+ */
+export const FEE_MIN = 0.003;
+export const FEE_MAX = 0.008;
+
 export interface OfertaComercializadora {
   comercializadora: string;
   preciosEnergia: number[];
   preciosPotencia: number[];
-  coste: CosteCalculado;
-  ahorroAnual: number;
-  ahorroPorcentaje: number;
+  /** Coste anual para el cliente con fee mínimo (mejor caso cliente) */
+  costeConFeeMin: CosteCalculado;
+  /** Coste anual para el cliente con fee máximo (peor caso cliente) */
+  costeConFeeMax: CosteCalculado;
+  /** Ahorro anual del cliente en el mejor caso (fee 0.003) */
+  ahorroMax: number;
+  /** Ahorro anual del cliente en el peor caso (fee 0.008) */
+  ahorroMin: number;
 }
 
 export interface ResultadoComparativa {
   actual: CosteCalculado;
+  /** Uso interno / Supabase. NO mostrar al cliente. */
   ofertas: OfertaComercializadora[];
+  /** Mejor oferta interna. NO mostrar nombre ni precios al cliente. */
   mejorOferta: OfertaComercializadora | null;
+  /** Horquilla de ahorro anual a mostrar al cliente (ya acotada a >= 0) */
+  rangoAhorro: { min: number; max: number; minPct: number; maxPct: number } | null;
+  /** Comisión anual estimada para Gesmeco (interno): consumo anual × fee */
+  comisionEstimada: { min: number; max: number };
 }
 
 export function numPeriodos(tarifa: TarifaAcceso) {
@@ -127,26 +147,60 @@ export async function compararConComercializadoras(
 
   if (error) {
     console.error('Error cargando tarifas de comercializadoras:', error);
-    return { actual, ofertas: [], mejorOferta: null };
+    return {
+      actual,
+      ofertas: [],
+      mejorOferta: null,
+      rangoAhorro: null,
+      comisionEstimada: { min: 0, max: 0 },
+    };
   }
+
+  const consumoAnual = datos.consumosMes.reduce((s, c) => s + (c || 0), 0) * 12;
 
   const ofertas: OfertaComercializadora[] = (data || [])
     .filter((row: any) => Array.isArray(row.precios_energia) && Array.isArray(row.precios_potencia))
     .map((row: any) => {
-      const coste = calcularCoste(datos, row.precios_energia, row.precios_potencia);
-      const ahorroAnual = actual.total - coste.total;
+      // Fee sumado SOLO a los precios de energía, nunca a la potencia
+      const preciosFeeMin = row.precios_energia.map((p: number) => p + FEE_MIN);
+      const preciosFeeMax = row.precios_energia.map((p: number) => p + FEE_MAX);
+      const costeConFeeMin = calcularCoste(datos, preciosFeeMin, row.precios_potencia);
+      const costeConFeeMax = calcularCoste(datos, preciosFeeMax, row.precios_potencia);
       return {
         comercializadora: row.comercializadoras?.nombre || 'Comercializadora',
         preciosEnergia: row.precios_energia,
         preciosPotencia: row.precios_potencia,
-        coste,
-        ahorroAnual,
-        ahorroPorcentaje: actual.total > 0 ? (ahorroAnual / actual.total) * 100 : 0,
+        costeConFeeMin,
+        costeConFeeMax,
+        ahorroMax: actual.total - costeConFeeMin.total,
+        ahorroMin: actual.total - costeConFeeMax.total,
       };
     })
-    .sort((a, b) => b.ahorroAnual - a.ahorroAnual);
+    .sort((a, b) => b.ahorroMax - a.ahorroMax);
 
-  return { actual, ofertas, mejorOferta: ofertas[0] || null };
+  const mejorOferta = ofertas[0] || null;
+
+  // Horquilla que ve el cliente: nunca por debajo de 0
+  const rangoAhorro =
+    mejorOferta && mejorOferta.ahorroMax > 0
+      ? {
+          min: Math.max(0, mejorOferta.ahorroMin),
+          max: mejorOferta.ahorroMax,
+          minPct: actual.total > 0 ? (Math.max(0, mejorOferta.ahorroMin) / actual.total) * 100 : 0,
+          maxPct: actual.total > 0 ? (mejorOferta.ahorroMax / actual.total) * 100 : 0,
+        }
+      : null;
+
+  return {
+    actual,
+    ofertas,
+    mejorOferta,
+    rangoAhorro,
+    comisionEstimada: {
+      min: consumoAnual * FEE_MIN,
+      max: consumoAnual * FEE_MAX,
+    },
+  };
 }
 
 /** Guarda el análisis en Supabase (tabla `analisis`). No lanza: devuelve true/false. */
@@ -157,7 +211,7 @@ export async function guardarAnalisisWeb(params: {
   resultado: ResultadoComparativa;
 }): Promise<boolean> {
   const { nombre, telefono, datos, resultado } = params;
-  const mejor = resultado.mejorOferta;
+  const rango = resultado.rangoAhorro;
 
   const { error } = await supabase.from('analisis').insert([
     {
@@ -167,16 +221,27 @@ export async function guardarAnalisisWeb(params: {
       coste_actual: Math.round(resultado.actual.total * 100) / 100,
       coste_potencia: Math.round(resultado.actual.totalPotencia * 100) / 100,
       coste_energia: Math.round(resultado.actual.totalEnergia * 100) / 100,
-      ahorro_total: mejor ? Math.round(mejor.ahorroAnual * 100) / 100 : 0,
-      reduccion_porcentaje: mejor ? Math.round(mejor.ahorroPorcentaje * 10) / 10 : 0,
+      ahorro_total: rango ? Math.round(rango.max * 100) / 100 : 0,
+      reduccion_porcentaje: rango ? Math.round(rango.maxPct * 10) / 10 : 0,
       consumo_anual: Math.round(datos.consumosMes.reduce((s, c) => s + (c || 0), 0) * 12),
       datos_json: JSON.stringify({
         origen: 'analizador-web',
         suministro: datos,
+        rangoAhorroCliente: rango
+          ? { min: Math.round(rango.min * 100) / 100, max: Math.round(rango.max * 100) / 100 }
+          : null,
+        comisionEstimada: {
+          min: Math.round(resultado.comisionEstimada.min * 100) / 100,
+          max: Math.round(resultado.comisionEstimada.max * 100) / 100,
+          feeMin: FEE_MIN,
+          feeMax: FEE_MAX,
+        },
         ofertas: resultado.ofertas.map((o) => ({
           comercializadora: o.comercializadora,
-          costeAnual: Math.round(o.coste.total * 100) / 100,
-          ahorroAnual: Math.round(o.ahorroAnual * 100) / 100,
+          costeClienteFeeMin: Math.round(o.costeConFeeMin.total * 100) / 100,
+          costeClienteFeeMax: Math.round(o.costeConFeeMax.total * 100) / 100,
+          ahorroMax: Math.round(o.ahorroMax * 100) / 100,
+          ahorroMin: Math.round(o.ahorroMin * 100) / 100,
         })),
       }),
       fecha: new Date().toISOString(),
