@@ -3,21 +3,16 @@ import Link from "next/link";
 
 export const Logo = () => {
   return (
-    <Link href="/" className="flex items-center gap-3">
-      <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white shadow-card ring-1 ring-rose-100">
+    <Link href="/" className="flex items-center" aria-label="Gesmeco Energía · Inicio">
+      <div className="rounded-2xl bg-white px-4 py-2 shadow-card ring-1 ring-rose-100 transition hover:shadow-lg">
         <Image
-          src="/logo.svg"
+          src="/logo-gesmeco.png"
           alt="Gesmeco Energía"
-          width={32}
-          height={32}
+          width={779}
+          height={269}
           priority
+          className="h-11 w-auto md:h-14"
         />
-      </div>
-      <div className="leading-tight">
-        <div className="text-sm uppercase tracking-[0.08em] text-rose-700">
-          Asesoría Gesmeco
-        </div>
-        <div className="text-lg font-semibold text-foreground">Gesmeco Energía</div>
       </div>
     </Link>
   );
