@@ -67,11 +67,20 @@ export interface CosteCalculado {
 /**
  * Comisión de Gesmeco: se suma SOLO al precio de la energía (€/kWh)
  * y se multiplica por el consumo. El cliente nunca la ve.
+ *
+ * Margen MÍNIMO (siempre garantizado):
  * - FEE_MIN (0.003) → escenario de MÁXIMO ahorro para el cliente
  * - FEE_MAX (0.008) → escenario de MÍNIMO ahorro para el cliente
+ *
+ * Banda objetivo de ahorro mostrado al cliente: 20%–30%.
+ * Si el ahorro real supera la banda, se SUBE la comisión hasta que
+ * el ahorro mostrado quede entre 20% y 30%. Si no se llega a la
+ * banda, se aplica solo el margen mínimo (0.003–0.008).
  */
 export const FEE_MIN = 0.003;
 export const FEE_MAX = 0.008;
+export const AHORRO_OBJETIVO_MAX = 0.30; // 30% → tope superior mostrado
+export const AHORRO_OBJETIVO_MIN = 0.20; // 20% → tope inferior mostrado
 
 export interface OfertaComercializadora {
   comercializadora: string;
@@ -95,7 +104,13 @@ export interface ResultadoComparativa {
   mejorOferta: OfertaComercializadora | null;
   /** Horquilla de ahorro anual a mostrar al cliente (ya acotada a >= 0) */
   rangoAhorro: { min: number; max: number; minPct: number; maxPct: number } | null;
-  /** Comisión anual estimada para Gesmeco (interno): consumo anual × fee */
+  /**
+   * Fee realmente aplicado tras ajustar a la banda 20-30% (interno).
+   * paraAhorroMax → fee del extremo superior mostrado (el más bajo)
+   * paraAhorroMin → fee del extremo inferior mostrado (el más alto)
+   */
+  feeAplicado: { paraAhorroMax: number; paraAhorroMin: number; ajustado: boolean };
+  /** Comisión anual estimada para Gesmeco (interno): consumo anual × fee aplicado */
   comisionEstimada: { min: number; max: number };
 }
 
@@ -152,6 +167,7 @@ export async function compararConComercializadoras(
       ofertas: [],
       mejorOferta: null,
       rangoAhorro: null,
+      feeAplicado: { paraAhorroMax: FEE_MIN, paraAhorroMin: FEE_MAX, ajustado: false },
       comisionEstimada: { min: 0, max: 0 },
     };
   }
@@ -180,25 +196,56 @@ export async function compararConComercializadoras(
 
   const mejorOferta = ofertas[0] || null;
 
-  // Horquilla que ve el cliente: nunca por debajo de 0
-  const rangoAhorro =
-    mejorOferta && mejorOferta.ahorroMax > 0
-      ? {
-          min: Math.max(0, mejorOferta.ahorroMin),
-          max: mejorOferta.ahorroMax,
-          minPct: actual.total > 0 ? (Math.max(0, mejorOferta.ahorroMin) / actual.total) * 100 : 0,
-          maxPct: actual.total > 0 ? (mejorOferta.ahorroMax / actual.total) * 100 : 0,
-        }
-      : null;
+  // ── Ajuste del fee a la banda de ahorro 20%-30% ──
+  // Ahorro con fee f (lineal): ahorro(f) = ahorroSinFee − consumoAnual × f
+  // → fee necesario para un ahorro objetivo S: f = (ahorroSinFee − S) / consumoAnual
+  let rangoAhorro: ResultadoComparativa['rangoAhorro'] = null;
+  let feeAplicado = { paraAhorroMax: FEE_MIN, paraAhorroMin: FEE_MAX, ajustado: false };
+
+  if (mejorOferta && consumoAnual > 0) {
+    const costeSinFee = calcularCoste(
+      datos,
+      mejorOferta.preciosEnergia,
+      mejorOferta.preciosPotencia
+    );
+    const ahorroSinFee = actual.total - costeSinFee.total;
+
+    const feeParaObjetivo = (objetivoPct: number) =>
+      (ahorroSinFee - actual.total * objetivoPct) / consumoAnual;
+
+    // Extremo superior mostrado (máx. 30%): nunca por debajo del fee mínimo
+    const feeSup = Math.max(FEE_MIN, feeParaObjetivo(AHORRO_OBJETIVO_MAX));
+    // Extremo inferior mostrado (máx. 20%): nunca por debajo del fee máximo base
+    const feeInf = Math.max(FEE_MAX, feeParaObjetivo(AHORRO_OBJETIVO_MIN));
+
+    const ahorroMaxMostrado = ahorroSinFee - consumoAnual * feeSup;
+    const ahorroMinMostrado = Math.max(0, ahorroSinFee - consumoAnual * feeInf);
+
+    feeAplicado = {
+      paraAhorroMax: Math.round(feeSup * 1e6) / 1e6,
+      paraAhorroMin: Math.round(feeInf * 1e6) / 1e6,
+      ajustado: feeSup > FEE_MIN || feeInf > FEE_MAX,
+    };
+
+    if (ahorroMaxMostrado > 0) {
+      rangoAhorro = {
+        min: ahorroMinMostrado,
+        max: ahorroMaxMostrado,
+        minPct: actual.total > 0 ? (ahorroMinMostrado / actual.total) * 100 : 0,
+        maxPct: actual.total > 0 ? (ahorroMaxMostrado / actual.total) * 100 : 0,
+      };
+    }
+  }
 
   return {
     actual,
     ofertas,
     mejorOferta,
     rangoAhorro,
+    feeAplicado,
     comisionEstimada: {
-      min: consumoAnual * FEE_MIN,
-      max: consumoAnual * FEE_MAX,
+      min: consumoAnual * feeAplicado.paraAhorroMax,
+      max: consumoAnual * feeAplicado.paraAhorroMin,
     },
   };
 }
@@ -212,36 +259,86 @@ export async function guardarAnalisisWeb(params: {
 }): Promise<boolean> {
   const { nombre, telefono, datos, resultado } = params;
   const rango = resultado.rangoAhorro;
+  const info = TARIFA_INFO[datos.tarifa];
+  const r2 = (n: number) => Math.round(n * 100) / 100;
+
+  // Mapea un array de valores a { "P1 · Punta": valor, ... } para lectura fácil
+  const porPeriodo = (labels: string[], valores: number[]) =>
+    Object.fromEntries(labels.map((label, i) => [label, valores[i] ?? 0]));
 
   const { error } = await supabase.from('analisis').insert([
     {
       nombre: nombre || 'Web (sin nombre)',
       telefono: telefono || null,
       tarifa: datos.tarifa,
-      coste_actual: Math.round(resultado.actual.total * 100) / 100,
-      coste_potencia: Math.round(resultado.actual.totalPotencia * 100) / 100,
-      coste_energia: Math.round(resultado.actual.totalEnergia * 100) / 100,
-      ahorro_total: rango ? Math.round(rango.max * 100) / 100 : 0,
+      coste_actual: r2(resultado.actual.total),
+      coste_potencia: r2(resultado.actual.totalPotencia),
+      coste_energia: r2(resultado.actual.totalEnergia),
+      ahorro_total: rango ? r2(rango.max) : 0,
       reduccion_porcentaje: rango ? Math.round(rango.maxPct * 10) / 10 : 0,
       consumo_anual: Math.round(datos.consumosMes.reduce((s, c) => s + (c || 0), 0) * 12),
       datos_json: {
         origen: 'analizador-web',
-        suministro: datos,
-        rangoAhorroCliente: rango
-          ? { min: Math.round(rango.min * 100) / 100, max: Math.round(rango.max * 100) / 100 }
-          : null,
-        comisionEstimada: {
-          min: Math.round(resultado.comisionEstimada.min * 100) / 100,
-          max: Math.round(resultado.comisionEstimada.max * 100) / 100,
-          feeMin: FEE_MIN,
-          feeMax: FEE_MAX,
+
+        '1_cliente': { nombre: nombre || null, telefono: telefono || null },
+
+        '2_suministro': {
+          tarifa: info.nombre,
+          consumos_kwh_mes: porPeriodo(info.periodosEnergia, datos.consumosMes),
+          potencias_contratadas_kw: porPeriodo(info.periodosPotencia, datos.potencias),
         },
-        ofertas: resultado.ofertas.map((o) => ({
+
+        '3_precios_actuales_cliente': {
+          energia_eur_kwh: porPeriodo(info.periodosEnergia, datos.preciosEnergia),
+          potencia_eur_kw_dia: porPeriodo(info.periodosPotencia, datos.preciosPotencia),
+        },
+
+        '4_coste_actual_anual': {
+          energia: r2(resultado.actual.totalEnergia),
+          potencia: r2(resultado.actual.totalPotencia),
+          total: r2(resultado.actual.total),
+        },
+
+        '5_mostrado_al_cliente': rango
+          ? {
+              ahorro_min_eur: r2(rango.min),
+              ahorro_max_eur: r2(rango.max),
+              ahorro_min_pct: Math.round(rango.minPct * 10) / 10,
+              ahorro_max_pct: Math.round(rango.maxPct * 10) / 10,
+            }
+          : 'Sin ahorro mostrado (tarifa bien negociada)',
+
+        '6_fee_aplicado': {
+          fee_extremo_ahorro_max: resultado.feeAplicado.paraAhorroMax,
+          fee_extremo_ahorro_min: resultado.feeAplicado.paraAhorroMin,
+          ajustado_a_banda_20_30: resultado.feeAplicado.ajustado,
+          fee_base_min: FEE_MIN,
+          fee_base_max: FEE_MAX,
+        },
+
+        '7_comision_estimada_anual': {
+          min_eur: r2(resultado.comisionEstimada.min),
+          max_eur: r2(resultado.comisionEstimada.max),
+        },
+
+        '8_mejor_comercializadora': resultado.mejorOferta
+          ? {
+              nombre: resultado.mejorOferta.comercializadora,
+              precios_energia_base: porPeriodo(
+                info.periodosEnergia,
+                resultado.mejorOferta.preciosEnergia
+              ),
+              precios_potencia_base: porPeriodo(
+                info.periodosPotencia,
+                resultado.mejorOferta.preciosPotencia
+              ),
+            }
+          : null,
+
+        '9_todas_las_ofertas': resultado.ofertas.map((o) => ({
           comercializadora: o.comercializadora,
-          costeClienteFeeMin: Math.round(o.costeConFeeMin.total * 100) / 100,
-          costeClienteFeeMax: Math.round(o.costeConFeeMax.total * 100) / 100,
-          ahorroMax: Math.round(o.ahorroMax * 100) / 100,
-          ahorroMin: Math.round(o.ahorroMin * 100) / 100,
+          ahorro_max_con_fee_base: r2(o.ahorroMax),
+          ahorro_min_con_fee_base: r2(o.ahorroMin),
         })),
       },
       fecha: new Date().toISOString(),

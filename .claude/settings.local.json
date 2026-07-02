@@ -47,7 +47,12 @@
       "Bash(node inspect-excel.mjs \"C:\\\\Users\\\\Usuario\\\\Downloads\\\\Presupuesto_FV_Pedro_2026-06-29 \\(1\\).xlsx\")",
       "mcp__visualize__read_me",
       "mcp__visualize__show_widget",
-      "Bash(selectedTab)"
+      "Bash(selectedTab)",
+      "Bash(node \"C:\\\\Users\\\\Usuario\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--Users-Usuario-Desktop-calude-web\\\\1c6764be-f3a6-4def-b892-ec9e8152e7e6\\\\scratchpad\\\\test-analisis.mjs\")",
+      "Bash(cp \"C:\\\\Users\\\\Usuario\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--Users-Usuario-Desktop-calude-web\\\\1c6764be-f3a6-4def-b892-ec9e8152e7e6\\\\scratchpad\\\\test-analisis.mjs\" \"C:\\\\Users\\\\Usuario\\\\Desktop\\\\calude_web\\\\scripts\\\\test-analisis.mjs\")",
+      "Bash(node scripts/test-analisis.mjs)",
+      "Bash(rm \"C:\\\\Users\\\\Usuario\\\\Desktop\\\\calude_web\\\\scripts\\\\test-analisis.mjs\")",
+      "Bash(node -e ' *)"
     ]
   }
 }
