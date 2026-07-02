@@ -78,9 +78,30 @@ html {
   scroll-behavior: smooth;
 }
 
+/* En móvil, background-attachment: fixed está roto en iOS Safari y
+   provoca repintados/parches negros al hacer scroll */
+@media (max-width: 768px) {
+  body {
+    background-attachment: scroll;
+  }
+
+  h1 {
+    font-size: 2.25rem;
+  }
+
+  h2 {
+    font-size: 1.75rem;
+  }
+}
+
+html {
+  background-color: #0f0f1e;
+}
+
 body {
   background: linear-gradient(135deg, #0f0f1e 0%, #1a1a2e 50%, #16213e 100%);
   background-attachment: fixed;
+  min-height: 100vh;
   color: var(--color-foreground);
   font-family: var(--font-jakarta), system-ui, -apple-system, BlinkMacSystemFont,
     "Segoe UI", sans-serif;

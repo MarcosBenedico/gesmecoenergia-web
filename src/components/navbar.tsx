@@ -101,6 +101,12 @@ export const Navbar = () => {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
+  // Cerrar menús al cambiar de página
+  useEffect(() => {
+    setMobileOpen(false);
+    setOpenMenu(null);
+  }, [pathname]);
+
   const renderMega = (menu: OpenMenu) => {
     const items = menu === "Servicios" ? servicesMega : sectorsMega;
     return (
@@ -193,14 +199,10 @@ export const Navbar = () => {
     </nav>
   );
 
-  const mobileMenu = (
-    <div
-      className={cn(
-        "md:hidden",
-        mobileOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"
-      )}
-    >
-      <div className="mt-3 rounded-2xl border border-border bg-card/95 p-4 shadow-xl transition">
+  const mobileMenu = mobileOpen ? (
+    <div className="absolute inset-x-0 top-full z-50 md:hidden">
+      <Container>
+        <div className="mt-2 max-h-[75vh] overflow-y-auto rounded-2xl border border-border bg-card p-4 shadow-2xl">
         <div className="space-y-3">
           {navigation.map((item) => {
             if (item.type === "mega") {
@@ -215,7 +217,7 @@ export const Navbar = () => {
                       <Link
                         key={link.title}
                         href={link.href}
-                        className="flex items-start gap-2 rounded-xl bg-accent/10/60 px-3 py-2 text-sm text-foreground transition hover:bg-accent/10"
+                        className="flex items-start gap-2 rounded-xl bg-accent/10 px-3 py-2 text-sm text-foreground transition hover:bg-accent/15"
                         onClick={() => setMobileOpen(false)}
                       >
                         <div className="mt-0.5">{icons[link.icon as keyof typeof icons]}</div>
@@ -257,14 +259,16 @@ export const Navbar = () => {
             </Button>
           </div>
         </div>
-      </div>
+        </div>
+      </Container>
     </div>
-  );
+  ) : null;
 
   return (
     <header
       className={cn(
         "sticky top-0 z-50 border-b border-border bg-surface/95 transition-shadow",
+        "relative",
         scrolled && "shadow-lg shadow-black/10"
       )}
     >
@@ -291,7 +295,7 @@ export const Navbar = () => {
           <span className="text-xl">{mobileOpen ? "✕" : "☰"}</span>
         </button>
       </Container>
-      <Container>{mobileMenu}</Container>
+      {mobileMenu}
     </header>
   );
 };
