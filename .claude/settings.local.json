@@ -70,7 +70,8 @@
       "Bash(curl -s -X POST http://localhost:3000/api/cliente/login -H \"Content-Type: application/json\" -d '{\"usuario\":\"marcos\",\"password\":\"1234\"}')",
       "Bash(curl -s -X POST http://localhost:3000/api/cliente/datos -H \"Content-Type: application/json\" -d '{\"token\":\"fcaf2283b1adbc4d2496f6a3b447765e86826240af2ede705916632a71c3e1f5\"}')",
       "Bash(curl -s -X POST http://localhost:3000/api/gestor/consumos-app -H \"Content-Type: application/json\" -d '{\"filas\":[{\"usuario\":\"marcos\",\"anio\":2026,\"mes\":5,\"consumos_kwh\":[110,80,140]},{\"usuario\":\"marcos\",\"anio\":2026,\"mes\":6,\"consumos_kwh\":[120,95,160]}]}')",
-      "Bash(curl -s -X POST http://localhost:3000/api/gestor/consumos-app -H \"Content-Type: application/json\" -d '{\"filas\":[{\"usuario\":\"marcos\",\"anio\":2026,\"mes\":6,\"consumos_kwh\":[120,95,160],\"precios_energia\":[0.17,0.15,0.11]}]}')"
+      "Bash(curl -s -X POST http://localhost:3000/api/gestor/consumos-app -H \"Content-Type: application/json\" -d '{\"filas\":[{\"usuario\":\"marcos\",\"anio\":2026,\"mes\":6,\"consumos_kwh\":[120,95,160],\"precios_energia\":[0.17,0.15,0.11]}]}')",
+      "Bash(curl -s -o /tmp/plantilla.xlsx -w \"%{http_code} %{content_type} %{size_download} bytes\" http://localhost:3000/api/gestor/plantilla-consumos)"
     ]
   }
 }
