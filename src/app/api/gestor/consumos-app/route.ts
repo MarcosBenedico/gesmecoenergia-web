@@ -49,9 +49,10 @@ export async function POST(req: NextRequest) {
     const lista = (suministros || []).map((s: any) => ({
       ...s,
       usuario: s.clientes_app?.usuario || '',
+      cupsNorm: String(s.cups).trim().toUpperCase().replace(/\s+/g, ''),
     }));
     const porId = new Map(lista.map((s) => [s.id, s]));
-    const porCups = new Map(lista.map((s) => [s.cups, s]));
+    const porCups = new Map(lista.map((s) => [s.cupsNorm, s]));
 
     const errores: string[] = [];
     let guardadas = 0;
