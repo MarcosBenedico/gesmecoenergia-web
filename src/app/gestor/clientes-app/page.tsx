@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { TARIFA_INFO, TarifaAcceso } from '@/lib/tarifas';
 import {
   UserPlus, FileSpreadsheet, Download, Upload, ChevronLeft, Users,
-  CalendarPlus, Trash2, X, Smartphone, CheckCircle2, AlertCircle, Plug, Plus,
+  CalendarPlus, Trash2, X, Smartphone, CheckCircle2, AlertCircle, Plug, Plus, FileText, Eye,
 } from 'lucide-react';
 
 interface ClienteApp {
@@ -128,6 +128,8 @@ export default function ClientesAppPage() {
   const [suministros, setSuministros] = useState<Suministro[]>([]);
   const [sumSel, setSumSel] = useState<Suministro | null>(null);
   const [mostrarNuevoSum, setMostrarNuevoSum] = useState(false);
+  const [pestaña, setPestaña] = useState<'consumos' | 'documentos'>('consumos');
+  const [documentosCliente, setDocumentosCliente] = useState<any[]>([]);
 
   // Form nuevo suministro
   const [nsCups, setNsCups] = useState('');
@@ -205,6 +207,8 @@ export default function ClientesAppPage() {
     setSumSel(null);
     setConsumosSum([]);
     setMostrarNuevoSum(false);
+    setPestaña('consumos');
+
     const res = await fetch(`/api/gestor/suministros?cliente_id=${c.id}`);
     const json = await res.json();
     const sums: Suministro[] = (json.ok ? json.suministros : []).map((s: any) => ({
@@ -215,6 +219,11 @@ export default function ClientesAppPage() {
     }));
     setSuministros(sums);
     if (sums.length > 0) seleccionarSuministro(sums[0]);
+
+    // Cargar documentos del cliente
+    const resDoc = await fetch(`/api/gestor/documentos-cliente?cliente_id=${c.id}`);
+    const jsonDoc = await resDoc.json();
+    setDocumentosCliente(jsonDoc.ok ? jsonDoc.documentos : []);
   }
 
   async function seleccionarSuministro(s: Suministro) {
@@ -660,8 +669,40 @@ export default function ClientesAppPage() {
                     </form>
                   )}
 
+                  {/* Pestañas */}
+                  {sumSel && (
+                    <div className="flex gap-1 border-b border-border/30">
+                      <button
+                        onClick={() => setPestaña('consumos')}
+                        className={`px-4 py-2 text-sm font-semibold border-b-2 transition ${
+                          pestaña === 'consumos'
+                            ? 'border-accent text-foreground'
+                            : 'border-transparent text-muted hover:text-foreground'
+                        }`}
+                      >
+                        Consumos
+                      </button>
+                      <button
+                        onClick={() => setPestaña('documentos')}
+                        className={`px-4 py-2 text-sm font-semibold border-b-2 transition flex items-center gap-2 ${
+                          pestaña === 'documentos'
+                            ? 'border-accent text-foreground'
+                            : 'border-transparent text-muted hover:text-foreground'
+                        }`}
+                      >
+                        <FileText className="w-4 h-4" />
+                        Documentos
+                        {documentosCliente.length > 0 && (
+                          <span className="ml-1 text-xs bg-accent/20 px-1.5 rounded-full text-accent font-semibold">
+                            {documentosCliente.length}
+                          </span>
+                        )}
+                      </button>
+                    </div>
+                  )}
+
                   {/* Consumos del suministro seleccionado */}
-                  {sumSel && infoSum && (
+                  {sumSel && infoSum && pestaña === 'consumos' && (
                     <>
                       <div className="flex items-center justify-between flex-wrap gap-2">
                         <p className="text-xs text-muted">
@@ -788,6 +829,125 @@ export default function ClientesAppPage() {
                         </div>
                       )}
                     </>
+                  )}
+
+                  {/* Documentos del cliente */}
+                  {pestaña === 'documentos' && (
+                    <div className="space-y-3">
+                      <h3 className="text-sm font-semibold">Documentos subidos por el cliente</h3>
+                      {documentosCliente.length === 0 ? (
+                        <div className="text-center py-8 text-muted text-sm rounded-lg bg-secondary/20 border border-border/20">
+                          El cliente aún no ha subido documentos (facturas, fotos, contratos, etc.)
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          {documentosCliente.map((doc) => (
+                            <div
+                              key={doc.id}
+                              className="bg-secondary/40 rounded-lg p-3 group hover:bg-secondary/50 transition"
+                            >
+                              <div className="flex items-start gap-3">
+                                <div className="pt-0.5">
+                                  {doc.mime_type.startsWith('image/') ? (
+                                    <img
+                                      src={doc.url_descarga || ''}
+                                      alt="preview"
+                                      className="w-16 h-16 object-cover rounded-lg"
+                                      onError={(e) => {
+                                        (e.target as HTMLImageElement).style.display = 'none';
+                                      }}
+                                    />
+                                  ) : (
+                                    <FileText className="w-8 h-8 text-amber-400" />
+                                  )}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-start justify-between gap-2">
+                                    <div>
+                                      <p className="text-sm font-semibold">{doc.nombre_original}</p>
+                                      <div className="flex items-center gap-2 text-[11px] text-muted mt-0.5">
+                                        <span>📄 {doc.tipo_documento}</span>
+                                        <span>·</span>
+                                        <span>{Math.round(doc.tamano_bytes / 1024)} KB</span>
+                                        <span>·</span>
+                                        <span>{new Date(doc.creado_en).toLocaleDateString('es-ES')}</span>
+                                      </div>
+                                      {doc.descripcion && (
+                                        <p className="text-xs text-muted mt-1 italic">{doc.descripcion}</p>
+                                      )}
+                                      {doc.analizado && (
+                                        <div className="mt-2 p-2 bg-emerald-500/10 border border-emerald-500/30 rounded text-xs text-emerald-400">
+                                          <p className="font-semibold mb-0.5">✓ Analizado</p>
+                                          <p>{doc.notas_analisis}</p>
+                                        </div>
+                                      )}
+                                    </div>
+                                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition">
+                                      {doc.url_descarga && (
+                                        <a
+                                          href={doc.url_descarga}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="p-1.5 rounded hover:bg-card text-muted hover:text-accent transition"
+                                          title="Ver documento"
+                                        >
+                                          <Eye className="w-4 h-4" />
+                                        </a>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                              {!doc.analizado && (
+                                <div className="mt-3 pt-3 border-t border-border/20 flex gap-2">
+                                  <input
+                                    type="text"
+                                    placeholder="Añadir notas de análisis..."
+                                    className={inputCls + ' flex-1'}
+                                    id={`notas-${doc.id}`}
+                                    onKeyPress={(e) => {
+                                      if (e.key === 'Enter') {
+                                        const notas = (e.target as HTMLInputElement).value;
+                                        fetch('/api/gestor/documentos-cliente', {
+                                          method: 'PUT',
+                                          headers: { 'Content-Type': 'application/json' },
+                                          body: JSON.stringify({
+                                            id: doc.id,
+                                            analizado: true,
+                                            notas_analisis: notas,
+                                          }),
+                                        }).then(() => {
+                                          if (clienteSel) abrirCliente(clienteSel);
+                                        });
+                                      }
+                                    }}
+                                  />
+                                  <button
+                                    onClick={() => {
+                                      const notas = (document.getElementById(`notas-${doc.id}`) as HTMLInputElement).value;
+                                      fetch('/api/gestor/documentos-cliente', {
+                                        method: 'PUT',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({
+                                          id: doc.id,
+                                          analizado: true,
+                                          notas_analisis: notas,
+                                        }),
+                                      }).then(() => {
+                                        if (clienteSel) abrirCliente(clienteSel);
+                                      });
+                                    }}
+                                    className="px-3 py-2 bg-accent text-white rounded-lg text-xs font-semibold hover:bg-accent/90"
+                                  >
+                                    Marcar analizado
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   )}
                 </div>
               )}

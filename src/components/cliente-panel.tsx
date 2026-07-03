@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { TARIFA_INFO, TarifaAcceso } from '@/lib/tarifas';
-import { Zap, LogOut, TrendingUp, Euro, BarChart3, ChevronDown, ChevronUp, Plug } from 'lucide-react';
+import { Zap, LogOut, TrendingUp, Euro, BarChart3, ChevronDown, ChevronUp, Plug, FileText } from 'lucide-react';
+import { ClienteDocumentos } from './cliente-documentos';
 
 interface ConsumoMes {
   anio: number;
@@ -60,6 +61,7 @@ export function ClientePanel() {
   const [sumSelId, setSumSelId] = useState<string | null>(null);
   const [anioVisto, setAnioVisto] = useState<number>(new Date().getFullYear());
   const [mesAbierto, setMesAbierto] = useState<string | null>(null);
+  const [seccion, setSeccion] = useState<'consumos' | 'documentos'>('consumos');
 
   useEffect(() => {
     const t = localStorage.getItem('cliente_token');
@@ -264,6 +266,39 @@ export function ClientePanel() {
       </div>
 
       <div className="p-4 space-y-5 max-w-2xl mx-auto">
+        {/* Navegación de secciones */}
+        <div className="flex gap-2 border-b border-border/30">
+          <button
+            onClick={() => setSeccion('consumos')}
+            className={`px-4 py-3 text-sm font-semibold border-b-2 transition ${
+              seccion === 'consumos'
+                ? 'border-accent text-foreground'
+                : 'border-transparent text-muted hover:text-foreground'
+            }`}
+          >
+            <span className="flex items-center gap-2">
+              <Zap className="w-4 h-4" />
+              Consumos
+            </span>
+          </button>
+          <button
+            onClick={() => setSeccion('documentos')}
+            className={`px-4 py-3 text-sm font-semibold border-b-2 transition ${
+              seccion === 'documentos'
+                ? 'border-accent text-foreground'
+                : 'border-transparent text-muted hover:text-foreground'
+            }`}
+          >
+            <span className="flex items-center gap-2">
+              <FileText className="w-4 h-4" />
+              Mis documentos
+            </span>
+          </button>
+        </div>
+
+        {/* SECCIÓN: CONSUMOS */}
+        {seccion === 'consumos' && (
+          <div className="space-y-5">
         {/* Selector de suministro (si tiene más de uno) */}
         {suministros.length > 1 && (
           <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
@@ -471,6 +506,13 @@ export function ClientePanel() {
               </div>
             </div>
           </>
+        )}
+          </div>
+        )}
+
+        {/* SECCIÓN: DOCUMENTOS */}
+        {seccion === 'documentos' && token && (
+          <ClienteDocumentos token={token} />
         )}
       </div>
     </div>
