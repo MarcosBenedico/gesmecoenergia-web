@@ -56,17 +56,14 @@ export function SolutionsSelector() {
         <div className="mx-auto max-w-4xl px-6">
           {/* Header */}
           <div className="mb-8 text-center space-y-3">
-            <div className="inline-flex items-center gap-2 rounded-full border border-accent/25 bg-accent/10 px-4 py-2 backdrop-blur-sm">
-              <span className="h-2 w-2 animate-pulse rounded-full bg-accent" />
-              <span className="text-sm font-bold uppercase tracking-widest text-accent">
-                Soluciones Integrales
-              </span>
-            </div>
+            <p className="text-xs font-bold uppercase tracking-[0.3em] text-accent">
+              Servicios en detalle
+            </p>
             <h2 className="text-3xl font-black text-foreground md:text-4xl">
-              Elige tu área de interés
+              Explora cada área del grupo
             </h2>
             <p className="text-base text-muted">
-              Explora los servicios que Gesmeco y Correbin ofrecen para tu negocio
+              Selecciona una empresa para ver todo lo que puede hacer por ti
             </p>
           </div>
 

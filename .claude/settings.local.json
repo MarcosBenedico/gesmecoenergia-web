@@ -53,7 +53,8 @@
       "Bash(node scripts/test-analisis.mjs)",
       "Bash(rm \"C:\\\\Users\\\\Usuario\\\\Desktop\\\\calude_web\\\\scripts\\\\test-analisis.mjs\")",
       "Bash(node -e ' *)",
-      "PowerShell(Add-Type -AssemblyName System.Windows.Forms; $img = [System.Windows.Forms.Clipboard]::GetImage\\(\\); if \\($null -ne $img\\) { $img.Save\\(\"C:\\\\Users\\\\Usuario\\\\Desktop\\\\calude_web\\\\public\\\\logo-gesmeco.png\", [System.Drawing.Imaging.ImageFormat]::Png\\); Write-Output \\(\"GUARDADO \" + $img.Width + \"x\" + $img.Height\\) } else { Write-Output \"NO_HAY_IMAGEN_EN_PORTAPAPELES\" })"
+      "PowerShell(Add-Type -AssemblyName System.Windows.Forms; $img = [System.Windows.Forms.Clipboard]::GetImage\\(\\); if \\($null -ne $img\\) { $img.Save\\(\"C:\\\\Users\\\\Usuario\\\\Desktop\\\\calude_web\\\\public\\\\logo-gesmeco.png\", [System.Drawing.Imaging.ImageFormat]::Png\\); Write-Output \\(\"GUARDADO \" + $img.Width + \"x\" + $img.Height\\) } else { Write-Output \"NO_HAY_IMAGEN_EN_PORTAPAPELES\" })",
+      "Bash(git commit -m 'Redesign: Página del Grupo a nivel élite - identidad de grupo empresarial *)"
     ]
   }
 }
