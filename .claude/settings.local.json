@@ -65,7 +65,8 @@
       "PowerShell(Stop-Process -Id 16864 -Force -ErrorAction SilentlyContinue)",
       "Bash(npm list *)",
       "Bash(node generate-icons.mjs)",
-      "Bash(node generate-splashes.mjs)"
+      "Bash(node generate-splashes.mjs)",
+      "Bash(curl -s http://localhost:3000/mobile)"
     ]
   }
 }
