@@ -24,14 +24,25 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Usuario o contraseña incorrectos.' }, { status: 401 });
     }
 
-    const ok = await bcrypt.compare(password, cliente.password_hash);
+    // Contraseña encriptada (bcrypt) o escrita a mano en Supabase (texto plano)
+    const esBcrypt = cliente.password_hash?.startsWith('$2');
+    const ok = esBcrypt
+      ? await bcrypt.compare(password, cliente.password_hash)
+      : password === cliente.password_hash;
     if (!ok) {
       return NextResponse.json({ error: 'Usuario o contraseña incorrectos.' }, { status: 401 });
     }
 
+    // Si el token está vacío o es débil (metido a mano), generar uno seguro
+    let token = cliente.token;
+    if (!token || token.length < 32) {
+      token = (await import('crypto')).randomBytes(32).toString('hex');
+      await supabase.from('clientes_app').update({ token }).eq('id', cliente.id);
+    }
+
     return NextResponse.json({
       ok: true,
-      token: cliente.token,
+      token,
       nombre: cliente.nombre,
       usuario: cliente.usuario,
     });

@@ -31,8 +31,24 @@ export async function POST(req: NextRequest) {
       .order('anio', { ascending: false })
       .order('mes', { ascending: false });
 
+    // Normaliza valores metidos a mano en Supabase: 0.17 → [0.17], "0.17" → [0.17]
+    const aLista = (v: unknown): number[] => {
+      if (Array.isArray(v)) return v.map((n) => Number(n) || 0);
+      const n = Number(v);
+      return isNaN(n) || v === null || v === undefined || v === '' ? [] : [n];
+    };
+
     const { id, ...clienteSinId } = cliente;
-    return NextResponse.json({ ok: true, cliente: clienteSinId, consumos: consumos || [] });
+    clienteSinId.precios_energia = aLista(cliente.precios_energia);
+    clienteSinId.precios_potencia = aLista(cliente.precios_potencia);
+    clienteSinId.potencias_kw = aLista(cliente.potencias_kw);
+
+    const consumosNorm = (consumos || []).map((c) => ({
+      ...c,
+      consumos_kwh: aLista(c.consumos_kwh),
+    }));
+
+    return NextResponse.json({ ok: true, cliente: clienteSinId, consumos: consumosNorm });
   } catch (e) {
     console.error('Error cargando datos cliente:', e);
     return NextResponse.json({ error: 'Error cargando tus datos.' }, { status: 500 });

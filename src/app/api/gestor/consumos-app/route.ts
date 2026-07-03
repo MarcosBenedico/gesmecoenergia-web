@@ -66,12 +66,15 @@ export async function POST(req: NextRequest) {
         continue;
       }
 
+      const aLista = (v: unknown): number[] =>
+        Array.isArray(v) ? v.map((n) => Number(n) || 0) : isNaN(Number(v)) ? [] : [Number(v)];
+
       const consumos: number[] = (fila.consumos_kwh || []).map((n: unknown) => Number(n) || 0);
       const coste = calcularCosteMes(
         consumos,
-        cliente.precios_energia || [],
-        cliente.precios_potencia || [],
-        cliente.potencias_kw || [],
+        aLista(cliente.precios_energia),
+        aLista(cliente.precios_potencia),
+        aLista(cliente.potencias_kw),
         mes
       );
 
