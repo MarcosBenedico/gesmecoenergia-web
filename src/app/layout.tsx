@@ -20,6 +20,16 @@ export const metadata: Metadata = {
   title: "Gesmeco Energía | Tu asesor energético en Binéfar",
   description:
     "Análisis de facturas de luz y gas, auditorías energéticas y solar fotovoltaica en Binéfar. Parte del Grupo Gesmeco: energía, asesoría y seguros.",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Gesmeco Energía",
+  },
+  icons: {
+    icon: "/gesmeco-logo.png",
+    apple: "/gesmeco-logo.png",
+  },
 };
 
 export default function RootLayout({

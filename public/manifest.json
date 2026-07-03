@@ -1,0 +1,60 @@
+{
+  "name": "Gesmeco Energía",
+  "short_name": "Gesmeco",
+  "description": "Analiza tu factura de luz y descubre cuánto puedes ahorrar",
+  "start_url": "/mobile",
+  "scope": "/mobile",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#ffffff",
+  "theme_color": "#6366f1",
+  "icons": [
+    {
+      "src": "/gesmeco-logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/gesmeco-logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshot-mobile.png",
+      "sizes": "540x720",
+      "type": "image/png",
+      "form_factor": "narrow"
+    }
+  ],
+  "categories": ["utilities", "productivity"],
+  "shortcuts": [
+    {
+      "name": "Escanear factura",
+      "short_name": "Escanear",
+      "description": "Escanea una factura de luz con la cámara",
+      "url": "/mobile?mode=scan",
+      "icons": [
+        {
+          "src": "/gesmeco-logo.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Ver consumos",
+      "short_name": "Consumos",
+      "description": "Ve el histórico de tus análisis",
+      "url": "/mobile/consumos",
+      "icons": [
+        {
+          "src": "/gesmeco-logo.png",
+          "sizes": "192x192"
+        }
+      ]
+    }
+  ]
+}
