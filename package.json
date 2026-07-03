@@ -11,6 +11,7 @@
     "setup:supabase": "echo 'Lee el archivo SUPABASE_SETUP.md para instrucciones' && cat SUPABASE_SETUP.md"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.110.0",
     "@supabase/supabase-js": "^2.108.2",
     "bcryptjs": "^3.0.3",
     "exceljs": "^4.4.0",

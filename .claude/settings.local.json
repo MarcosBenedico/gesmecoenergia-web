@@ -55,7 +55,12 @@
       "Bash(node -e ' *)",
       "PowerShell(Add-Type -AssemblyName System.Windows.Forms; $img = [System.Windows.Forms.Clipboard]::GetImage\\(\\); if \\($null -ne $img\\) { $img.Save\\(\"C:\\\\Users\\\\Usuario\\\\Desktop\\\\calude_web\\\\public\\\\logo-gesmeco.png\", [System.Drawing.Imaging.ImageFormat]::Png\\); Write-Output \\(\"GUARDADO \" + $img.Width + \"x\" + $img.Height\\) } else { Write-Output \"NO_HAY_IMAGEN_EN_PORTAPAPELES\" })",
       "Bash(git commit -m 'Redesign: Página del Grupo a nivel élite - identidad de grupo empresarial *)",
-      "Bash(git commit -m 'Audit: Coherencia total de la web de cara al cliente - grupo primero, energía delante *)"
+      "Bash(git commit -m 'Audit: Coherencia total de la web de cara al cliente - grupo primero, energía delante *)",
+      "Skill(claude-api)",
+      "Skill(claude-api:*)",
+      "Bash(curl -s -X POST \"https://formsubmit.co/ajax/marcos.benedico@correbin.es\" -H \"Content-Type: application/json\" -H \"Accept: application/json\" -d '{\"_subject\":\"Activacion avisos Gesmeco Energia\",\"mensaje\":\"Correo de prueba para activar los avisos del analizador web. Pulsa el boton de confirmacion de FormSubmit.\"}')",
+      "Bash(curl -s -X POST \"https://formsubmit.co/ajax/marcos.benedico@correbin.es\" -H \"Content-Type: application/json\" -H \"Accept: application/json\" -H \"Origin: https://gesmecoenergia-web.vercel.app\" -H \"Referer: https://gesmecoenergia-web.vercel.app/analizador\" -d '{\"_subject\":\"Activacion avisos Gesmeco Energia\",\"mensaje\":\"Correo de prueba para activar los avisos del analizador web de Gesmeco Energia. Pulsa el boton de confirmacion de FormSubmit para empezar a recibir avisos.\"}')",
+      "Bash(git commit -m 'Feature: Aviso por email de cada análisis + lectura de factura con IA + WhatsApp *)"
     ]
   }
 }

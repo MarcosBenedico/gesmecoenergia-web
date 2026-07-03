@@ -12,7 +12,7 @@ import {
 } from '@/lib/tarifas';
 import { generarPlantillaAnalisis, leerPlantillaAnalisis } from '@/lib/plantilla-analisis';
 
-type Paso = 'intro' | 'metodo' | 'excel' | 'formulario' | 'resultados';
+type Paso = 'intro' | 'metodo' | 'foto' | 'excel' | 'formulario' | 'resultados';
 
 const eur = (n: number) =>
   n.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -51,6 +51,7 @@ export function InvoiceAnalyzer() {
 
   const [resultado, setResultado] = useState<ResultadoComparativa | null>(null);
   const [guardado, setGuardado] = useState(false);
+  const [avisoLectura, setAvisoLectura] = useState('');
 
   const info = TARIFA_INFO[tarifa];
   const nE = info.periodosEnergia.length;
@@ -64,7 +65,12 @@ export function InvoiceAnalyzer() {
   const setArr = (setter: React.Dispatch<React.SetStateAction<string[]>>, i: number, v: string) =>
     setter((prev) => prev.map((x, idx) => (idx === i ? v : x)));
 
-  async function analizar(datos: DatosSuministro, nombreCliente: string, tel: string) {
+  async function analizar(
+    datos: DatosSuministro,
+    nombreCliente: string,
+    tel: string,
+    origen = 'calculadora'
+  ) {
     setCargando(true);
     setError('');
     try {
@@ -79,9 +85,88 @@ export function InvoiceAnalyzer() {
         resultado: res,
       });
       setGuardado(ok);
+      // Aviso interno por correo (fire-and-forget)
+      fetch('/api/notificar-analisis', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nombre: nombreCliente,
+          telefono: tel,
+          origen,
+          tarifa: datos.tarifa,
+          costeActual: Math.round(res.actual.total * 100) / 100,
+          consumoAnual: Math.round(datos.consumosMes.reduce((s, c) => s + (c || 0), 0) * 12),
+          ahorroMin: res.rangoAhorro ? Math.round(res.rangoAhorro.min * 100) / 100 : 0,
+          ahorroMax: res.rangoAhorro ? Math.round(res.rangoAhorro.max * 100) / 100 : 0,
+          comisionMin: Math.round(res.comisionEstimada.min * 100) / 100,
+          comisionMax: Math.round(res.comisionEstimada.max * 100) / 100,
+        }),
+      }).catch(() => {});
     } catch (e) {
       console.error(e);
       setError('No se pudo completar el análisis. Inténtalo de nuevo o llámanos.');
+    } finally {
+      setCargando(false);
+    }
+  }
+
+  async function procesarFoto(file: File) {
+    setError('');
+    const tiposOk = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+    if (!tiposOk.includes(file.type)) {
+      setError('Sube una foto (JPG/PNG) o un PDF de tu factura.');
+      return;
+    }
+    if (file.size > 15 * 1024 * 1024) {
+      setError('El archivo es demasiado grande (máximo 15 MB).');
+      return;
+    }
+    setCargando(true);
+    try {
+      // Archivo → base64
+      const buffer = await file.arrayBuffer();
+      const bytes = new Uint8Array(buffer);
+      let binario = '';
+      for (let i = 0; i < bytes.length; i += 8192) {
+        binario += String.fromCharCode(...bytes.subarray(i, i + 8192));
+      }
+      const base64 = btoa(binario);
+
+      const res = await fetch('/api/leer-factura', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data: base64, mediaType: file.type }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setError(json.error || 'No se pudo leer la factura.');
+        return;
+      }
+
+      // Rellenar la calculadora con lo leído para que el cliente lo revise
+      const d = json.datos;
+      const relleno = (arr: number[]) => {
+        const out = Array(6).fill('');
+        (arr || []).forEach((v: number, i: number) => {
+          if (i < 6) out[i] = v ? String(v) : '';
+        });
+        return out;
+      };
+      setTarifa(d.tarifa as TarifaAcceso);
+      setConsumos(relleno(d.consumos_kwh_mes));
+      setPotencias(relleno(d.potencias_kw));
+      setPreciosE(relleno(d.precios_energia_eur_kwh));
+      setPreciosP(relleno(d.precios_potencia_eur_kw_dia));
+      if (d.nombre_titular && !nombre) setNombre(d.nombre_titular);
+      setAvisoLectura(
+        d.observaciones
+          ? `Factura leída. Revisa los datos antes de calcular. Nota: ${d.observaciones}`
+          : 'Factura leída correctamente. Revisa que los datos coincidan y pulsa Calcular.'
+      );
+      setPaso('formulario');
+    } catch (e) {
+      console.error(e);
+      setError('Error al procesar la factura. Inténtalo de nuevo o usa la calculadora.');
     } finally {
       setCargando(false);
     }
@@ -126,7 +211,12 @@ export function InvoiceAnalyzer() {
       setNombre(datos.nombre);
       setTelefono(datos.telefono);
       setTarifa(datos.suministro.tarifa);
-      await analizar(datos.suministro, datos.nombre || 'Web (plantilla Excel)', datos.telefono);
+      await analizar(
+        datos.suministro,
+        datos.nombre || 'Web (plantilla Excel)',
+        datos.telefono,
+        'plantilla-excel'
+      );
     } catch (e: any) {
       setError(e?.message || 'No se pudo leer el archivo. Revisa que sea la plantilla oficial.');
       setCargando(false);
@@ -138,6 +228,7 @@ export function InvoiceAnalyzer() {
     setResultado(null);
     setGuardado(false);
     setError('');
+    setAvisoLectura('');
     setConsumos(Array(6).fill(''));
     setPotencias(Array(6).fill(''));
     setPreciosE(Array(6).fill(''));
@@ -195,36 +286,54 @@ export function InvoiceAnalyzer() {
               <p className="text-muted">Necesitarás tu última factura de luz a mano</p>
             </div>
 
-            <div className="grid md:grid-cols-2 gap-6">
+            <div className="grid md:grid-cols-3 gap-5">
               <button
-                onClick={() => setPaso('formulario')}
-                className="group relative overflow-hidden rounded-2xl border-2 border-accent/30 bg-gradient-to-br from-accent/10 to-transparent p-8 text-left transition-all hover:border-accent/60 hover:shadow-[0_0_30px_rgba(255,51,51,0.2)]"
+                onClick={() => setPaso('foto')}
+                className="group relative overflow-hidden rounded-2xl border-2 border-accent/30 bg-gradient-to-br from-accent/10 to-transparent p-7 text-left transition-all hover:border-accent/60 hover:shadow-[0_0_30px_rgba(255,51,51,0.2)]"
               >
                 <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-accent to-transparent scale-x-0 group-hover:scale-x-100 transition-transform" />
-                <div className="space-y-4">
-                  <div className="text-5xl">🧮</div>
-                  <h3 className="text-lg font-bold text-foreground">Calculadora guiada</h3>
+                <div className="space-y-3">
+                  <div className="text-4xl">📸</div>
+                  <h3 className="text-lg font-bold text-foreground">Foto de tu factura</h3>
                   <p className="text-sm text-muted">
-                    Te pedimos los datos paso a paso: tarifa, potencias, consumos y precios.
-                    Con ayudas para encontrar cada dato en tu factura.
+                    Saca una foto o sube el PDF. Leemos los datos automáticamente y tú solo
+                    los revisas.
                   </p>
                   <div className="text-xs text-accent font-semibold pt-2">
-                    ✓ Recomendado · ✓ Guiado paso a paso
+                    ✓ Lo más rápido · ✓ 20 segundos
+                  </div>
+                </div>
+              </button>
+
+              <button
+                onClick={() => setPaso('formulario')}
+                className="group relative overflow-hidden rounded-2xl border-2 border-tertiary/30 bg-gradient-to-br from-tertiary/10 to-transparent p-7 text-left transition-all hover:border-tertiary/60 hover:shadow-[0_0_30px_rgba(255,149,0,0.2)]"
+              >
+                <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-tertiary to-transparent scale-x-0 group-hover:scale-x-100 transition-transform" />
+                <div className="space-y-3">
+                  <div className="text-4xl">🧮</div>
+                  <h3 className="text-lg font-bold text-foreground">Calculadora guiada</h3>
+                  <p className="text-sm text-muted">
+                    Te pedimos los datos paso a paso, con ayudas para encontrar cada dato en tu
+                    factura.
+                  </p>
+                  <div className="text-xs text-tertiary font-semibold pt-2">
+                    ✓ Paso a paso · ✓ Sin subir nada
                   </div>
                 </div>
               </button>
 
               <button
                 onClick={() => setPaso('excel')}
-                className="group relative overflow-hidden rounded-2xl border-2 border-secondary/30 bg-gradient-to-br from-secondary/10 to-transparent p-8 text-left transition-all hover:border-secondary/60 hover:shadow-[0_0_30px_rgba(0,212,255,0.2)]"
+                className="group relative overflow-hidden rounded-2xl border-2 border-secondary/30 bg-gradient-to-br from-secondary/10 to-transparent p-7 text-left transition-all hover:border-secondary/60 hover:shadow-[0_0_30px_rgba(0,212,255,0.2)]"
               >
                 <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-secondary to-transparent scale-x-0 group-hover:scale-x-100 transition-transform" />
-                <div className="space-y-4">
-                  <div className="text-5xl">📊</div>
+                <div className="space-y-3">
+                  <div className="text-4xl">📊</div>
                   <h3 className="text-lg font-bold text-foreground">Plantilla Excel</h3>
                   <p className="text-sm text-muted">
-                    Descarga nuestra plantilla, rellénala con calma y súbela.
-                    Ideal si gestionas varios suministros.
+                    Descarga la plantilla, rellénala con calma y súbela. Ideal para varios
+                    suministros.
                   </p>
                   <div className="text-xs text-secondary font-semibold pt-2">
                     ✓ Plantilla incluida · ✓ Lectura automática
@@ -235,6 +344,94 @@ export function InvoiceAnalyzer() {
 
             <button
               onClick={() => setPaso('intro')}
+              className="w-full text-sm text-muted hover:text-foreground transition"
+            >
+              ← Volver
+            </button>
+          </div>
+        </ScrollReveal>
+      )}
+
+      {/* ══════════ FOTO (IA) ══════════ */}
+      {paso === 'foto' && (
+        <ScrollReveal>
+          <div className="mx-auto max-w-2xl px-6 space-y-8">
+            <div className="text-center space-y-2">
+              <h2 className="text-3xl font-black text-foreground">Foto de tu factura</h2>
+              <p className="text-muted">
+                Sube una foto nítida o el PDF. Leemos los datos y tú solo los revisas.
+              </p>
+            </div>
+
+            <label
+              onDragEnter={(e) => {
+                e.preventDefault();
+                setDragActive(true);
+              }}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setDragActive(true);
+              }}
+              onDragLeave={(e) => {
+                e.preventDefault();
+                setDragActive(false);
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                setDragActive(false);
+                const f = e.dataTransfer.files?.[0];
+                if (f && !cargando) procesarFoto(f);
+              }}
+              className={`block rounded-2xl border-2 border-dashed p-12 text-center cursor-pointer transition-all ${
+                dragActive
+                  ? 'border-accent bg-accent/10 scale-[1.02]'
+                  : 'border-border/40 bg-surface/40 hover:border-accent/50 hover:bg-surface/60'
+              } ${cargando ? 'pointer-events-none opacity-70' : ''}`}
+            >
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp,application/pdf"
+                capture="environment"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) procesarFoto(f);
+                  e.target.value = '';
+                }}
+              />
+              <div className="space-y-3">
+                <div className="text-5xl">{cargando ? '🔍' : '📸'}</div>
+                <p className="text-lg font-bold text-foreground">
+                  {cargando ? 'Leyendo tu factura…' : 'Haz clic para sacar foto o subir archivo'}
+                </p>
+                <p className="text-sm text-muted">
+                  {cargando
+                    ? 'Suele tardar entre 10 y 30 segundos'
+                    : 'JPG, PNG o PDF · máximo 15 MB'}
+                </p>
+              </div>
+            </label>
+
+            <div className="rounded-xl border border-border/30 bg-surface/40 p-4 text-xs text-muted space-y-1">
+              <p className="font-bold text-foreground text-sm">Consejo para la foto</p>
+              <p>
+                Enfoca el apartado <span className="font-semibold text-foreground">"Detalle de la factura"</span>:
+                donde aparecen los consumos por periodo, la potencia contratada y los precios.
+                Con buena luz y sin brillos.
+              </p>
+            </div>
+
+            {error && (
+              <div className="rounded-xl border border-accent/40 bg-accent/10 p-4 text-sm font-semibold text-accent">
+                ⚠ {error}
+              </div>
+            )}
+
+            <button
+              onClick={() => {
+                setError('');
+                setPaso('metodo');
+              }}
               className="w-full text-sm text-muted hover:text-foreground transition"
             >
               ← Volver
@@ -348,6 +545,12 @@ export function InvoiceAnalyzer() {
                 Todos los datos aparecen en tu factura, en el apartado de detalle
               </p>
             </div>
+
+            {avisoLectura && (
+              <div className="rounded-xl border border-secondary/40 bg-secondary/10 p-4 text-sm font-semibold text-secondary">
+                📸 {avisoLectura}
+              </div>
+            )}
 
             <form onSubmit={handleSubmitFormulario} className="space-y-6">
               {/* 1 · Tarifa */}
