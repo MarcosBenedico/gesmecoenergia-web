@@ -24,7 +24,8 @@ export async function POST(req: NextRequest) {
     }
 
     const filas: {
-      usuario: string;
+      cups?: string;
+      usuario?: string;
       anio: number;
       mes: number;
       consumos_kwh: number[];
@@ -33,10 +34,10 @@ export async function POST(req: NextRequest) {
     hoja.eachRow((row, num) => {
       if (num === 1) return; // cabecera
       const v = (i: number) => row.getCell(i).value;
-      const usuario = String(v(1) ?? '').trim().toLowerCase();
+      const clave = String(v(1) ?? '').trim();
       const anio = Number(v(2));
       const mes = Number(v(3));
-      if (!usuario || !anio || !mes) return;
+      if (!clave || !anio || !mes) return;
 
       const consumos: number[] = [];
       for (let c = 4; c <= 9; c++) {
@@ -45,12 +46,18 @@ export async function POST(req: NextRequest) {
           consumos.push(val);
         }
       }
-      filas.push({ usuario, anio, mes, consumos_kwh: consumos });
+      // Si la clave parece un CUPS (empieza por ES y es larga) va como cups, si no como usuario
+      const esCups = /^ES\d{16,20}[A-Z0-9]{0,4}$/i.test(clave.replace(/\s+/g, ''));
+      filas.push(
+        esCups
+          ? { cups: clave, anio, mes, consumos_kwh: consumos }
+          : { usuario: clave.toLowerCase(), anio, mes, consumos_kwh: consumos }
+      );
     });
 
     if (filas.length === 0) {
       return NextResponse.json(
-        { error: 'No se encontraron filas válidas. Formato: usuario | año | mes | P1 | P2 | P3...' },
+        { error: 'No se encontraron filas válidas. Formato: cups | año | mes | P1 | P2 | P3...' },
         { status: 422 }
       );
     }

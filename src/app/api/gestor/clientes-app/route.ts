@@ -21,14 +21,17 @@ export async function GET() {
   return NextResponse.json({ ok: true, clientes: data || [] });
 }
 
-/** Crea un cliente nuevo con usuario y contraseña. */
+/** Crea un cliente nuevo con usuario, contraseña y su primer suministro (CUPS). */
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { usuario, password, nombre, telefono, tarifa, precios_energia, precios_potencia, potencias_kw } = body;
+    const { usuario, password, nombre, telefono, tarifa, precios_energia, precios_potencia, potencias_kw, cups, alias, direccion } = body;
 
     if (!usuario || !password || !nombre) {
       return NextResponse.json({ error: 'Faltan usuario, contraseña o nombre.' }, { status: 400 });
+    }
+    if (!cups?.trim()) {
+      return NextResponse.json({ error: 'Falta el código CUPS del suministro.' }, { status: 400 });
     }
     if (password.length < 6) {
       return NextResponse.json({ error: 'La contraseña debe tener al menos 6 caracteres.' }, { status: 400 });
@@ -60,6 +63,28 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Ese nombre de usuario ya existe.' }, { status: 409 });
       }
       return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    // Crear el primer suministro del cliente con su CUPS
+    const { error: errSum } = await supabase.from('suministros').insert([
+      {
+        cliente_id: data.id,
+        cups: cups.trim().toUpperCase().replace(/\s+/g, ''),
+        alias: alias?.trim() || 'Suministro principal',
+        direccion: direccion?.trim() || null,
+        tarifa: tarifa || '2.0',
+        precios_energia: precios_energia || [],
+        precios_potencia: precios_potencia || [],
+        potencias_kw: potencias_kw || [],
+      },
+    ]);
+    if (errSum) {
+      // Deshacer el cliente para no dejarlo sin suministro
+      await supabase.from('clientes_app').delete().eq('id', data.id);
+      if (errSum.code === '23505') {
+        return NextResponse.json({ error: 'Ese CUPS ya está registrado en otro suministro.' }, { status: 409 });
+      }
+      return NextResponse.json({ error: errSum.message }, { status: 500 });
     }
 
     return NextResponse.json({ ok: true, cliente: data });

@@ -2,17 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { TARIFA_INFO, TarifaAcceso } from '@/lib/tarifas';
-import { Zap, LogOut, TrendingUp, Euro, BarChart3, ChevronDown, ChevronUp } from 'lucide-react';
-
-interface ClienteInfo {
-  usuario: string;
-  nombre: string;
-  telefono: string | null;
-  tarifa: TarifaAcceso;
-  precios_energia: number[];
-  precios_potencia: number[];
-  potencias_kw: number[];
-}
+import { Zap, LogOut, TrendingUp, Euro, BarChart3, ChevronDown, ChevronUp, Plug } from 'lucide-react';
 
 interface ConsumoMes {
   anio: number;
@@ -24,6 +14,24 @@ interface ConsumoMes {
   coste_potencia: number | null;
   coste_total: number | null;
   notas: string | null;
+}
+
+interface Suministro {
+  id: string;
+  cups: string;
+  alias: string | null;
+  direccion: string | null;
+  tarifa: TarifaAcceso;
+  precios_energia: number[];
+  precios_potencia: number[];
+  potencias_kw: number[];
+  consumos: ConsumoMes[];
+}
+
+interface ClienteInfo {
+  usuario: string;
+  nombre: string;
+  telefono: string | null;
 }
 
 const MESES = [
@@ -48,7 +56,8 @@ export function ClientePanel() {
 
   // Datos
   const [cliente, setCliente] = useState<ClienteInfo | null>(null);
-  const [consumos, setConsumos] = useState<ConsumoMes[]>([]);
+  const [suministros, setSuministros] = useState<Suministro[]>([]);
+  const [sumSelId, setSumSelId] = useState<string | null>(null);
   const [anioVisto, setAnioVisto] = useState<number>(new Date().getFullYear());
   const [mesAbierto, setMesAbierto] = useState<string | null>(null);
 
@@ -78,9 +87,12 @@ export function ClientePanel() {
         return;
       }
       setCliente(json.cliente);
-      setConsumos(json.consumos);
-      if (json.consumos.length > 0) {
-        setAnioVisto(json.consumos[0].anio);
+      const sums: Suministro[] = json.suministros || [];
+      setSuministros(sums);
+      if (sums.length > 0) {
+        setSumSelId(sums[0].id);
+        const primerConAnio = sums.find((s) => s.consumos.length > 0);
+        if (primerConAnio) setAnioVisto(primerConAnio.consumos[0].anio);
       }
     } catch {
       setError('No se pudieron cargar tus datos. Comprueba tu conexión.');
@@ -118,10 +130,17 @@ export function ClientePanel() {
     localStorage.removeItem('cliente_token');
     setToken(null);
     setCliente(null);
-    setConsumos([]);
+    setSuministros([]);
     setUsuario('');
     setPassword('');
   }
+
+  const suministro = useMemo(
+    () => suministros.find((s) => s.id === sumSelId) || suministros[0] || null,
+    [suministros, sumSelId]
+  );
+
+  const consumos = suministro?.consumos || [];
 
   const consumosAnio = useMemo(
     () => consumos.filter((c) => c.anio === anioVisto).sort((a, b) => a.mes - b.mes),
@@ -220,7 +239,7 @@ export function ClientePanel() {
   }
 
   // ─── PANEL ───
-  const info = TARIFA_INFO[cliente.tarifa] || TARIFA_INFO['2.0'];
+  const info = suministro ? TARIFA_INFO[suministro.tarifa] || TARIFA_INFO['2.0'] : TARIFA_INFO['2.0'];
 
   return (
     <div className="min-h-dvh bg-background pb-10">
@@ -233,7 +252,9 @@ export function ClientePanel() {
             </div>
             <div>
               <p className="font-bold text-sm leading-tight">{cliente.nombre}</p>
-              <p className="text-xs text-muted leading-tight">Tarifa {info.nombre}</p>
+              <p className="text-xs text-muted leading-tight">
+                {suministro ? `Tarifa ${info.nombre}` : 'Sin suministros'}
+              </p>
             </div>
           </div>
           <button onClick={salir} className="p-2 rounded-lg hover:bg-secondary text-muted">
@@ -243,6 +264,38 @@ export function ClientePanel() {
       </div>
 
       <div className="p-4 space-y-5 max-w-2xl mx-auto">
+        {/* Selector de suministro (si tiene más de uno) */}
+        {suministros.length > 1 && (
+          <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+            {suministros.map((s) => (
+              <button
+                key={s.id}
+                onClick={() => { setSumSelId(s.id); setMesAbierto(null); }}
+                className={`shrink-0 flex items-center gap-2 px-3.5 py-2.5 rounded-xl border text-left transition ${
+                  s.id === suministro?.id
+                    ? 'border-accent bg-accent/15'
+                    : 'border-border/40 bg-secondary/40'
+                }`}
+              >
+                <Plug className={`w-4 h-4 ${s.id === suministro?.id ? 'text-accent' : 'text-muted'}`} />
+                <span>
+                  <span className="block text-xs font-bold">{s.alias || 'Suministro'}</span>
+                  <span className="block text-[9px] font-mono text-muted">{s.cups}</span>
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* CUPS visible si solo hay un suministro */}
+        {suministros.length === 1 && suministro && (
+          <p className="text-[11px] text-muted flex items-center gap-1.5 px-1">
+            <Plug className="w-3.5 h-3.5" />
+            {suministro.alias || 'Suministro'} ·{' '}
+            <span className="font-mono">{suministro.cups}</span>
+          </p>
+        )}
+
         {/* Selector de año */}
         {anios.length > 1 && (
           <div className="flex gap-2">
@@ -251,9 +304,7 @@ export function ClientePanel() {
                 key={a}
                 onClick={() => setAnioVisto(a)}
                 className={`px-4 py-1.5 rounded-full text-sm font-semibold transition ${
-                  a === anioVisto
-                    ? 'bg-accent text-white'
-                    : 'bg-secondary/60 text-muted'
+                  a === anioVisto ? 'bg-accent text-white' : 'bg-secondary/60 text-muted'
                 }`}
               >
                 {a}
@@ -262,7 +313,7 @@ export function ClientePanel() {
           </div>
         )}
 
-        {consumos.length === 0 ? (
+        {!suministro || consumos.length === 0 ? (
           <div className="text-center py-16 space-y-3">
             <BarChart3 className="w-12 h-12 mx-auto text-muted/40" />
             <p className="text-muted">Aún no hay consumos registrados</p>
@@ -347,7 +398,6 @@ export function ClientePanel() {
 
                     {abierto && (
                       <div className="px-3.5 pb-3.5 space-y-3 border-t border-border/20 pt-3">
-                        {/* Consumo y precio por periodo */}
                         <div>
                           <p className="text-xs font-semibold text-muted mb-1.5">
                             Consumo (kWh) y precio (€/kWh) por periodo
@@ -362,15 +412,14 @@ export function ClientePanel() {
                                   {(v || 0).toLocaleString('es-ES')}
                                 </p>
                                 <p className="text-[10px] text-accent tabular-nums">
-                                  {(c.precios_energia?.[i] ?? cliente.precios_energia[i]) != null
-                                    ? `${c.precios_energia?.[i] ?? cliente.precios_energia[i]} €`
+                                  {(c.precios_energia?.[i] ?? suministro.precios_energia[i]) != null
+                                    ? `${c.precios_energia?.[i] ?? suministro.precios_energia[i]} €`
                                     : '—'}
                                 </p>
                               </div>
                             ))}
                           </div>
                         </div>
-                        {/* Desglose de coste */}
                         <div className="flex justify-between text-xs">
                           <span className="text-muted">
                             Energía: <b className="text-foreground">{eur(c.coste_energia || 0)}</b>
@@ -387,13 +436,16 @@ export function ClientePanel() {
               })}
             </div>
 
-            {/* Mis precios */}
+            {/* Mi contrato */}
             <div className="bg-secondary/40 rounded-xl p-4 space-y-3">
-              <h3 className="text-sm font-semibold">Mi contrato · Tarifa {info.nombre}</h3>
+              <h3 className="text-sm font-semibold">
+                Mi contrato · Tarifa {info.nombre}
+              </h3>
+              <p className="text-[11px] text-muted font-mono -mt-1.5">{suministro.cups}</p>
               <div>
                 <p className="text-xs font-semibold text-muted mb-1.5">Precio energía (€/kWh)</p>
                 <div className="grid grid-cols-3 gap-1.5">
-                  {cliente.precios_energia.map((p, i) => (
+                  {suministro.precios_energia.map((p, i) => (
                     <div key={i} className="bg-background/50 rounded-lg p-2 text-center">
                       <p className="text-[10px] text-muted">{info.periodosEnergia[i] || `P${i + 1}`}</p>
                       <p className="text-sm font-bold tabular-nums">{p}</p>
@@ -406,12 +458,12 @@ export function ClientePanel() {
                   Potencia contratada (kW) · precio (€/kW·día)
                 </p>
                 <div className="grid grid-cols-3 gap-1.5">
-                  {cliente.potencias_kw.map((kw, i) => (
+                  {suministro.potencias_kw.map((kw, i) => (
                     <div key={i} className="bg-background/50 rounded-lg p-2 text-center">
                       <p className="text-[10px] text-muted">{info.periodosPotencia[i] || `P${i + 1}`}</p>
                       <p className="text-sm font-bold tabular-nums">{kw} kW</p>
                       <p className="text-[10px] text-muted tabular-nums">
-                        {cliente.precios_potencia[i] ?? '—'} €
+                        {suministro.precios_potencia[i] ?? '—'} €
                       </p>
                     </div>
                   ))}

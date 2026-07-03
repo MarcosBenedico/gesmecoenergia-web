@@ -7,7 +7,7 @@ export async function GET() {
   const hoja = workbook.addWorksheet('Consumos');
 
   hoja.columns = [
-    { header: 'usuario', key: 'usuario', width: 18 },
+    { header: 'cups', key: 'cups', width: 26 },
     { header: 'año', key: 'anio', width: 8 },
     { header: 'mes', key: 'mes', width: 6 },
     { header: 'P1', key: 'p1', width: 10 },
@@ -25,9 +25,9 @@ export async function GET() {
   cabecera.alignment = { horizontal: 'center' };
 
   // Filas de ejemplo (el gestor las sustituye por las reales)
-  hoja.addRow({ usuario: 'juan.garcia', anio: 2026, mes: 1, p1: 120, p2: 95, p3: 160 });
-  hoja.addRow({ usuario: 'juan.garcia', anio: 2026, mes: 2, p1: 110, p2: 90, p3: 150 });
-  hoja.addRow({ usuario: 'empresa.lopez', anio: 2026, mes: 1, p1: 800, p2: 650, p3: 900, p4: 400, p5: 350, p6: 700 });
+  hoja.addRow({ cups: 'ES0021000000000001AB', anio: 2026, mes: 1, p1: 120, p2: 95, p3: 160 });
+  hoja.addRow({ cups: 'ES0021000000000001AB', anio: 2026, mes: 2, p1: 110, p2: 90, p3: 150 });
+  hoja.addRow({ cups: 'ES0031000000000002CD', anio: 2026, mes: 1, p1: 800, p2: 650, p3: 900, p4: 400, p5: 350, p6: 700 });
 
   // Hoja de instrucciones
   const ayuda = workbook.addWorksheet('Instrucciones');
@@ -35,7 +35,7 @@ export async function GET() {
   const lineas = [
     'CÓMO RELLENAR LA PLANTILLA DE CONSUMOS',
     '',
-    '1. usuario → el nombre de usuario del cliente en la app (tal como lo creaste, en minúsculas).',
+    '1. cups → el código CUPS del suministro (lo ves en la ficha del cliente, en el gestor).',
     '2. año → año del consumo, ej: 2026.',
     '3. mes → número del mes, de 1 (enero) a 12 (diciembre).',
     '4. P1 a P6 → consumo del mes en kWh por periodo.',
@@ -43,9 +43,10 @@ export async function GET() {
     '   · Tarifa 3.0TD y 6.1TD: rellena P1 a P6.',
     '',
     'IMPORTANTE:',
-    '· Una fila por cliente y mes. Puedes mezclar varios clientes en el mismo Excel.',
+    '· Una fila por suministro y mes. Puedes mezclar varios suministros en el mismo Excel.',
     '· Si repites un mes ya guardado, se sobrescribe (sirve para corregir).',
-    '· El coste se calcula automáticamente con los precios del cliente.',
+    '· El coste se calcula automáticamente con los precios del suministro.',
+    '· También se admite el usuario en la columna cups SOLO si el cliente tiene un único suministro.',
     '· Borra las filas de ejemplo antes de importar.',
   ];
   lineas.forEach((t, i) => {

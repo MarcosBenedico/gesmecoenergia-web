@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { TARIFA_INFO, TarifaAcceso } from '@/lib/tarifas';
 import {
   UserPlus, FileSpreadsheet, Download, Upload, ChevronLeft, Users,
-  CalendarPlus, Trash2, X, Smartphone, CheckCircle2, AlertCircle,
+  CalendarPlus, Trash2, X, Smartphone, CheckCircle2, AlertCircle, Plug, Plus,
 } from 'lucide-react';
 
 interface ClienteApp {
@@ -14,6 +14,15 @@ interface ClienteApp {
   usuario: string;
   nombre: string;
   telefono: string | null;
+  activo: boolean;
+}
+
+interface Suministro {
+  id: string;
+  cliente_id: string;
+  cups: string;
+  alias: string | null;
+  direccion: string | null;
   tarifa: TarifaAcceso;
   precios_energia: number[];
   precios_potencia: number[];
@@ -31,10 +40,67 @@ const num = (s: string) => {
   return isNaN(n) ? 0 : n;
 };
 
+const aLista = (v: unknown): number[] =>
+  Array.isArray(v) ? v.map((n) => Number(n) || 0) : isNaN(Number(v)) || v == null ? [] : [Number(v)];
+
 const inputCls =
   'w-full rounded-lg border border-border/40 bg-background/60 px-3 py-2 text-sm text-foreground placeholder-muted/40 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/30';
 
 const labelCls = 'text-[11px] font-semibold uppercase tracking-wide text-muted mb-1 block';
+
+/** Campos de precios/potencias por periodos según tarifa */
+function CamposContrato({
+  tarifa, preciosE, setPreciosE, preciosP, setPreciosP, potencias, setPotencias,
+}: {
+  tarifa: TarifaAcceso;
+  preciosE: string[]; setPreciosE: (f: (p: string[]) => string[]) => void;
+  preciosP: string[]; setPreciosP: (f: (p: string[]) => string[]) => void;
+  potencias: string[]; setPotencias: (f: (p: string[]) => string[]) => void;
+}) {
+  const info = TARIFA_INFO[tarifa];
+  return (
+    <>
+      <div>
+        <label className={labelCls}>Precio fijo energía (€/kWh)</label>
+        <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
+          {info.periodosEnergia.map((per, i) => (
+            <div key={i}>
+              <p className="text-[10px] text-muted mb-0.5 text-center">{per.split(' ')[0]}</p>
+              <input className={inputCls} placeholder="0.00" inputMode="decimal" value={preciosE[i]}
+                onChange={(e) => setPreciosE((p) => p.map((x, j) => j === i ? e.target.value : x))} />
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="grid md:grid-cols-2 gap-4">
+        <div>
+          <label className={labelCls}>Potencia contratada (kW)</label>
+          <div className="grid grid-cols-3 gap-2">
+            {info.periodosPotencia.map((per, i) => (
+              <div key={i}>
+                <p className="text-[10px] text-muted mb-0.5 text-center">{per.split(' ')[0]}</p>
+                <input className={inputCls} placeholder="0.0" inputMode="decimal" value={potencias[i]}
+                  onChange={(e) => setPotencias((p) => p.map((x, j) => j === i ? e.target.value : x))} />
+              </div>
+            ))}
+          </div>
+        </div>
+        <div>
+          <label className={labelCls}>Precio potencia (€/kW·día)</label>
+          <div className="grid grid-cols-3 gap-2">
+            {info.periodosPotencia.map((per, i) => (
+              <div key={i}>
+                <p className="text-[10px] text-muted mb-0.5 text-center">{per.split(' ')[0]}</p>
+                <input className={inputCls} placeholder="0.00" inputMode="decimal" value={preciosP[i]}
+                  onChange={(e) => setPreciosP((p) => p.map((x, j) => j === i ? e.target.value : x))} />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
 
 export default function ClientesAppPage() {
   const router = useRouter();
@@ -45,19 +111,34 @@ export default function ClientesAppPage() {
   const [cargando, setCargando] = useState(false);
   const [mostrarCrear, setMostrarCrear] = useState(false);
 
-  // Form crear cliente
+  // Form crear cliente (incluye su primer suministro)
   const [fUsuario, setFUsuario] = useState('');
   const [fPassword, setFPassword] = useState('');
   const [fNombre, setFNombre] = useState('');
   const [fTelefono, setFTelefono] = useState('');
+  const [fCups, setFCups] = useState('');
+  const [fAlias, setFAlias] = useState('');
   const [fTarifa, setFTarifa] = useState<TarifaAcceso>('2.0');
   const [fPreciosE, setFPreciosE] = useState<string[]>(Array(6).fill(''));
   const [fPreciosP, setFPreciosP] = useState<string[]>(Array(6).fill(''));
   const [fPotencias, setFPotencias] = useState<string[]>(Array(6).fill(''));
 
-  // Consumos
+  // Cliente abierto + suministros
   const [clienteSel, setClienteSel] = useState<ClienteApp | null>(null);
-  const [consumosCliente, setConsumosCliente] = useState<any[]>([]);
+  const [suministros, setSuministros] = useState<Suministro[]>([]);
+  const [sumSel, setSumSel] = useState<Suministro | null>(null);
+  const [mostrarNuevoSum, setMostrarNuevoSum] = useState(false);
+
+  // Form nuevo suministro
+  const [nsCups, setNsCups] = useState('');
+  const [nsAlias, setNsAlias] = useState('');
+  const [nsTarifa, setNsTarifa] = useState<TarifaAcceso>('2.0');
+  const [nsPreciosE, setNsPreciosE] = useState<string[]>(Array(6).fill(''));
+  const [nsPreciosP, setNsPreciosP] = useState<string[]>(Array(6).fill(''));
+  const [nsPotencias, setNsPotencias] = useState<string[]>(Array(6).fill(''));
+
+  // Consumos del suministro seleccionado
+  const [consumosSum, setConsumosSum] = useState<any[]>([]);
   const [cAnio, setCAnio] = useState(String(new Date().getFullYear()));
   const [cMes, setCMes] = useState(String(new Date().getMonth() + 1));
   const [cConsumos, setCConsumos] = useState<string[]>(Array(6).fill(''));
@@ -99,6 +180,8 @@ export default function ClientesAppPage() {
           password: fPassword,
           nombre: fNombre,
           telefono: fTelefono,
+          cups: fCups,
+          alias: fAlias,
           tarifa: fTarifa,
           precios_energia: fPreciosE.slice(0, info.periodosEnergia.length).map(num),
           precios_potencia: fPreciosP.slice(0, info.periodosPotencia.length).map(num),
@@ -107,8 +190,8 @@ export default function ClientesAppPage() {
       });
       const json = await res.json();
       if (!res.ok) { aviso(json.error, true); return; }
-      aviso(`Cliente "${fUsuario}" creado correctamente. Entrégale su usuario y contraseña.`);
-      setFUsuario(''); setFPassword(''); setFNombre(''); setFTelefono('');
+      aviso(`Cliente "${fUsuario}" creado con su suministro. Entrégale usuario y contraseña.`);
+      setFUsuario(''); setFPassword(''); setFNombre(''); setFTelefono(''); setFCups(''); setFAlias('');
       setFPreciosE(Array(6).fill('')); setFPreciosP(Array(6).fill('')); setFPotencias(Array(6).fill(''));
       setMostrarCrear(false);
       cargarClientes();
@@ -117,31 +200,39 @@ export default function ClientesAppPage() {
     }
   }
 
-  const aLista = (v: unknown): number[] =>
-    Array.isArray(v) ? v.map((n) => Number(n) || 0) : isNaN(Number(v)) || v == null ? [] : [Number(v)];
-
   async function abrirCliente(c: ClienteApp) {
     setClienteSel(c);
+    setSumSel(null);
+    setConsumosSum([]);
+    setMostrarNuevoSum(false);
+    const res = await fetch(`/api/gestor/suministros?cliente_id=${c.id}`);
+    const json = await res.json();
+    const sums: Suministro[] = (json.ok ? json.suministros : []).map((s: any) => ({
+      ...s,
+      precios_energia: aLista(s.precios_energia),
+      precios_potencia: aLista(s.precios_potencia),
+      potencias_kw: aLista(s.potencias_kw),
+    }));
+    setSuministros(sums);
+    if (sums.length > 0) seleccionarSuministro(sums[0]);
+  }
+
+  async function seleccionarSuministro(s: Suministro) {
+    setSumSel(s);
     setCConsumos(Array(6).fill(''));
-    const res = await fetch(`/api/gestor/consumos-app?cliente_id=${c.id}`);
+    const res = await fetch(`/api/gestor/consumos-app?suministro_id=${s.id}`);
     const json = await res.json();
     const consumos = json.ok ? json.consumos : [];
-    setConsumosCliente(consumos);
+    setConsumosSum(consumos);
 
-    // Precarga precios: los del último mes guardado, o los fijos del contrato
     const ultimo = consumos[0];
-    const preciosBase = ultimo?.precios_energia?.length
-      ? aLista(ultimo.precios_energia)
-      : aLista(c.precios_energia);
-    const preciosPBase = ultimo?.precios_potencia?.length
-      ? aLista(ultimo.precios_potencia)
-      : aLista(c.precios_potencia);
+    const preciosBase = ultimo?.precios_energia?.length ? aLista(ultimo.precios_energia) : s.precios_energia;
+    const preciosPBase = ultimo?.precios_potencia?.length ? aLista(ultimo.precios_potencia) : s.precios_potencia;
     const relleno = (arr: number[]) =>
       Array.from({ length: 6 }, (_, i) => (arr[i] != null ? String(arr[i]) : ''));
     setCPrecios(relleno(preciosBase));
     setCPreciosP(relleno(preciosPBase));
 
-    // Sugiere el mes siguiente al último guardado
     if (ultimo) {
       const sigMes = ultimo.mes === 12 ? 1 : ultimo.mes + 1;
       const sigAnio = ultimo.mes === 12 ? ultimo.anio + 1 : ultimo.anio;
@@ -150,19 +241,60 @@ export default function ClientesAppPage() {
     }
   }
 
-  async function guardarConsumo(e: React.FormEvent) {
+  async function crearSuministro(e: React.FormEvent) {
     e.preventDefault();
     if (!clienteSel) return;
     setCargando(true);
-    const nP = TARIFA_INFO[clienteSel.tarifa].periodosEnergia.length;
-    const nPot = TARIFA_INFO[clienteSel.tarifa].periodosPotencia.length;
+    const info = TARIFA_INFO[nsTarifa];
+    try {
+      const res = await fetch('/api/gestor/suministros', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cliente_id: clienteSel.id,
+          cups: nsCups,
+          alias: nsAlias,
+          tarifa: nsTarifa,
+          precios_energia: nsPreciosE.slice(0, info.periodosEnergia.length).map(num),
+          precios_potencia: nsPreciosP.slice(0, info.periodosPotencia.length).map(num),
+          potencias_kw: nsPotencias.slice(0, info.periodosPotencia.length).map(num),
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) { aviso(json.error, true); return; }
+      aviso(`Suministro ${json.suministro.cups} añadido.`);
+      setNsCups(''); setNsAlias('');
+      setNsPreciosE(Array(6).fill('')); setNsPreciosP(Array(6).fill('')); setNsPotencias(Array(6).fill(''));
+      setMostrarNuevoSum(false);
+      abrirCliente(clienteSel);
+    } finally {
+      setCargando(false);
+    }
+  }
+
+  async function borrarSuministro(s: Suministro) {
+    if (!confirm(`¿Eliminar el suministro ${s.cups} y TODOS sus consumos?`)) return;
+    await fetch('/api/gestor/suministros', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: s.id }),
+    });
+    if (clienteSel) abrirCliente(clienteSel);
+  }
+
+  async function guardarConsumo(e: React.FormEvent) {
+    e.preventDefault();
+    if (!sumSel) return;
+    setCargando(true);
+    const nP = TARIFA_INFO[sumSel.tarifa].periodosEnergia.length;
+    const nPot = TARIFA_INFO[sumSel.tarifa].periodosPotencia.length;
     try {
       const res = await fetch('/api/gestor/consumos-app', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           filas: [{
-            cliente_id: clienteSel.id,
+            suministro_id: sumSel.id,
             anio: cAnio,
             mes: cMes,
             consumos_kwh: cConsumos.slice(0, nP).map(num),
@@ -178,7 +310,7 @@ export default function ClientesAppPage() {
       }
       aviso(`Consumo de ${MESES[parseInt(cMes) - 1]} ${cAnio} guardado. El cliente ya lo ve en su app.`);
       setCConsumos(Array(6).fill(''));
-      abrirCliente(clienteSel);
+      seleccionarSuministro(sumSel);
     } finally {
       setCargando(false);
     }
@@ -217,7 +349,7 @@ export default function ClientesAppPage() {
         (errs.length ? ` Atención, ${errs.length} filas con error: ${errs.slice(0, 3).join('; ')}` : ''),
         errs.length > 0 && json2.guardadas === 0
       );
-      if (clienteSel) abrirCliente(clienteSel);
+      if (sumSel) seleccionarSuministro(sumSel);
     } finally {
       setCargando(false);
     }
@@ -230,11 +362,11 @@ export default function ClientesAppPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id }),
     });
-    if (clienteSel) abrirCliente(clienteSel);
+    if (sumSel) seleccionarSuministro(sumSel);
   }
 
   async function borrarCliente(c: ClienteApp) {
-    if (!confirm(`¿Eliminar al cliente "${c.usuario}" y TODOS sus consumos? No se puede deshacer.`)) return;
+    if (!confirm(`¿Eliminar al cliente "${c.usuario}", sus suministros y TODOS sus consumos? No se puede deshacer.`)) return;
     await fetch('/api/gestor/clientes-app', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
@@ -246,8 +378,7 @@ export default function ClientesAppPage() {
 
   if (!autorizado) return null;
 
-  const infoSel = clienteSel ? TARIFA_INFO[clienteSel.tarifa] : null;
-  const infoCrear = TARIFA_INFO[fTarifa];
+  const infoSum = sumSel ? TARIFA_INFO[sumSel.tarifa] : null;
 
   return (
     <div className="min-h-screen bg-background">
@@ -266,7 +397,7 @@ export default function ClientesAppPage() {
                 <Smartphone className="w-4.5 h-4.5 text-accent" />
                 App de Clientes
               </h1>
-              <p className="text-xs text-muted">Cuentas, precios y consumos mensuales</p>
+              <p className="text-xs text-muted">Cuentas, suministros (CUPS) y consumos mensuales</p>
             </div>
           </div>
           <div className="flex items-center gap-2 text-sm text-muted">
@@ -294,13 +425,10 @@ export default function ClientesAppPage() {
 
         {/* ── ACCIONES PRINCIPALES ── */}
         <div className="grid md:grid-cols-2 gap-4">
-          {/* Nuevo cliente */}
           <button
             onClick={() => setMostrarCrear(!mostrarCrear)}
             className={`flex items-center gap-3.5 p-5 rounded-2xl border text-left transition ${
-              mostrarCrear
-                ? 'border-accent bg-accent/10'
-                : 'border-border/40 bg-surface/40 hover:border-accent/50'
+              mostrarCrear ? 'border-accent bg-accent/10' : 'border-border/40 bg-surface/40 hover:border-accent/50'
             }`}
           >
             <div className="w-11 h-11 rounded-xl bg-accent/15 border border-accent/25 flex items-center justify-center shrink-0">
@@ -308,18 +436,17 @@ export default function ClientesAppPage() {
             </div>
             <div>
               <p className="font-bold text-sm">Nuevo cliente</p>
-              <p className="text-xs text-muted">Crear cuenta con usuario y contraseña</p>
+              <p className="text-xs text-muted">Cuenta + primer suministro con CUPS</p>
             </div>
           </button>
 
-          {/* Importar Excel */}
           <div className="flex items-center gap-3.5 p-5 rounded-2xl border border-border/40 bg-surface/40">
             <div className="w-11 h-11 rounded-xl bg-emerald-500/15 border border-emerald-500/25 flex items-center justify-center shrink-0">
               <FileSpreadsheet className="w-5 h-5 text-emerald-400" />
             </div>
             <div className="flex-1 min-w-0">
               <p className="font-bold text-sm">Importar consumos</p>
-              <p className="text-xs text-muted">Varios clientes y meses a la vez</p>
+              <p className="text-xs text-muted">Por CUPS, varios meses a la vez</p>
             </div>
             <div className="flex flex-col gap-1.5 shrink-0">
               <a
@@ -345,7 +472,7 @@ export default function ClientesAppPage() {
           </div>
         </div>
 
-        {/* ── FORMULARIO NUEVO CLIENTE (plegable) ── */}
+        {/* ── FORMULARIO NUEVO CLIENTE ── */}
         {mostrarCrear && (
           <form onSubmit={crearCliente} className="rounded-2xl border border-border/40 bg-surface/40 p-6 space-y-5">
             <div className="flex items-center justify-between">
@@ -374,53 +501,35 @@ export default function ClientesAppPage() {
               </div>
             </div>
 
-            <div>
-              <label className={labelCls}>Tarifa de acceso</label>
-              <select className={inputCls} value={fTarifa} onChange={(e) => setFTarifa(e.target.value as TarifaAcceso)}>
-                {Object.entries(TARIFA_INFO).map(([k, v]) => (
-                  <option key={k} value={k}>{v.nombre} · {v.descripcion}</option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className={labelCls}>Precio fijo energía (€/kWh)</label>
-              <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
-                {infoCrear.periodosEnergia.map((per, i) => (
-                  <div key={i}>
-                    <p className="text-[10px] text-muted mb-0.5 text-center">{per.split(' ')[0]}</p>
-                    <input className={inputCls} placeholder="0.00" inputMode="decimal" value={fPreciosE[i]}
-                      onChange={(e) => setFPreciosE((p) => p.map((x, j) => j === i ? e.target.value : x))} />
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="grid md:grid-cols-2 gap-4">
-              <div>
-                <label className={labelCls}>Potencia contratada (kW)</label>
-                <div className="grid grid-cols-3 gap-2">
-                  {infoCrear.periodosPotencia.map((per, i) => (
-                    <div key={i}>
-                      <p className="text-[10px] text-muted mb-0.5 text-center">{per.split(' ')[0]}</p>
-                      <input className={inputCls} placeholder="0.0" inputMode="decimal" value={fPotencias[i]}
-                        onChange={(e) => setFPotencias((p) => p.map((x, j) => j === i ? e.target.value : x))} />
-                    </div>
-                  ))}
+            <div className="rounded-xl border border-accent/25 bg-accent/5 p-4 space-y-4">
+              <p className="text-sm font-bold flex items-center gap-2">
+                <Plug className="w-4 h-4 text-accent" />
+                Primer suministro
+              </p>
+              <div className="grid md:grid-cols-2 gap-4">
+                <div>
+                  <label className={labelCls}>Código CUPS *</label>
+                  <input className={inputCls + ' font-mono'} placeholder="ES0021000000000001AB" value={fCups} onChange={(e) => setFCups(e.target.value)} required />
+                </div>
+                <div>
+                  <label className={labelCls}>Alias (lo que verá el cliente)</label>
+                  <input className={inputCls} placeholder="Casa / Nave / Local..." value={fAlias} onChange={(e) => setFAlias(e.target.value)} />
                 </div>
               </div>
               <div>
-                <label className={labelCls}>Precio potencia (€/kW·día)</label>
-                <div className="grid grid-cols-3 gap-2">
-                  {infoCrear.periodosPotencia.map((per, i) => (
-                    <div key={i}>
-                      <p className="text-[10px] text-muted mb-0.5 text-center">{per.split(' ')[0]}</p>
-                      <input className={inputCls} placeholder="0.00" inputMode="decimal" value={fPreciosP[i]}
-                        onChange={(e) => setFPreciosP((p) => p.map((x, j) => j === i ? e.target.value : x))} />
-                    </div>
+                <label className={labelCls}>Tarifa de acceso</label>
+                <select className={inputCls} value={fTarifa} onChange={(e) => setFTarifa(e.target.value as TarifaAcceso)}>
+                  {Object.entries(TARIFA_INFO).map(([k, v]) => (
+                    <option key={k} value={k}>{v.nombre} · {v.descripcion}</option>
                   ))}
-                </div>
+                </select>
               </div>
+              <CamposContrato
+                tarifa={fTarifa}
+                preciosE={fPreciosE} setPreciosE={setFPreciosE}
+                preciosP={fPreciosP} setPreciosP={setFPreciosP}
+                potencias={fPotencias} setPotencias={setFPotencias}
+              />
             </div>
 
             <button type="submit" disabled={cargando} className="px-6 py-2.5 bg-accent text-white rounded-xl font-bold text-sm disabled:opacity-50 hover:bg-accent/90 transition">
@@ -458,9 +567,6 @@ export default function ClientesAppPage() {
                   <p className="font-semibold text-sm truncate">{c.nombre}</p>
                   <div className="flex items-center gap-2 text-xs text-muted">
                     <span>@{c.usuario}</span>
-                    <span className="px-1.5 py-0.5 rounded bg-card/80 border border-border/30 font-mono text-[10px]">
-                      {TARIFA_INFO[c.tarifa]?.nombre}
-                    </span>
                     {c.telefono && <span className="hidden md:inline">{c.telefono}</span>}
                   </div>
                 </div>
@@ -468,13 +574,11 @@ export default function ClientesAppPage() {
                   <button
                     onClick={() => clienteSel?.id === c.id ? setClienteSel(null) : abrirCliente(c)}
                     className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold transition ${
-                      clienteSel?.id === c.id
-                        ? 'bg-accent text-white'
-                        : 'bg-accent/10 text-accent hover:bg-accent/20'
+                      clienteSel?.id === c.id ? 'bg-accent text-white' : 'bg-accent/10 text-accent hover:bg-accent/20'
                     }`}
                   >
-                    <CalendarPlus className="w-3.5 h-3.5" />
-                    Consumos
+                    <Plug className="w-3.5 h-3.5" />
+                    Suministros
                   </button>
                   <button
                     onClick={() => borrarCliente(c)}
@@ -486,118 +590,204 @@ export default function ClientesAppPage() {
                 </div>
               </div>
 
-              {/* Panel de consumos */}
-              {clienteSel?.id === c.id && infoSel && (
+              {/* Panel del cliente: suministros + consumos */}
+              {clienteSel?.id === c.id && (
                 <div className="border-t border-border/30 bg-background/40 p-4 md:p-5 space-y-5">
-                  <form onSubmit={guardarConsumo} className="space-y-4">
-                    <div className="flex items-center justify-between flex-wrap gap-2">
-                      <p className="text-sm font-bold flex items-center gap-2">
-                        <CalendarPlus className="w-4 h-4 text-accent" />
-                        Subir consumo del mes
-                      </p>
-                      <div className="flex gap-2">
-                        <select className={inputCls + ' w-36'} value={cMes} onChange={(e) => setCMes(e.target.value)}>
-                          {MESES.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
-                        </select>
-                        <input className={inputCls + ' w-20'} placeholder="Año" value={cAnio} onChange={(e) => setCAnio(e.target.value)} />
-                      </div>
-                    </div>
+                  {/* Selector de suministros */}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {suministros.map((s) => (
+                      <button
+                        key={s.id}
+                        onClick={() => seleccionarSuministro(s)}
+                        className={`group flex items-center gap-2 px-3.5 py-2 rounded-xl border text-left transition ${
+                          sumSel?.id === s.id
+                            ? 'border-accent bg-accent/15 text-foreground'
+                            : 'border-border/40 bg-card/30 text-muted hover:border-accent/40'
+                        }`}
+                      >
+                        <Plug className={`w-3.5 h-3.5 ${sumSel?.id === s.id ? 'text-accent' : ''}`} />
+                        <span>
+                          <span className="block text-xs font-bold">{s.alias || 'Suministro'}</span>
+                          <span className="block text-[10px] font-mono">{s.cups}</span>
+                        </span>
+                      </button>
+                    ))}
+                    <button
+                      onClick={() => setMostrarNuevoSum(!mostrarNuevoSum)}
+                      className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-dashed border-border/50 text-xs font-semibold text-muted hover:border-accent/50 hover:text-accent transition"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      Añadir suministro
+                    </button>
+                  </div>
 
-                    <div className="overflow-x-auto rounded-xl border border-border/30">
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="text-[11px] uppercase tracking-wide text-muted bg-card/40">
-                            <th className="text-left px-3 py-2 font-semibold">Periodo</th>
-                            <th className="text-left px-3 py-2 font-semibold">Consumo (kWh)</th>
-                            <th className="text-left px-3 py-2 font-semibold">Precio (€/kWh)</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {infoSel.periodosEnergia.map((per, i) => (
-                            <tr key={i} className="border-t border-border/20">
-                              <td className="px-3 py-1.5 text-xs font-semibold whitespace-nowrap">{per}</td>
-                              <td className="px-3 py-1.5">
-                                <input
-                                  className={inputCls}
-                                  placeholder="0"
-                                  inputMode="decimal"
-                                  autoFocus={i === 0}
-                                  value={cConsumos[i]}
-                                  onChange={(e) => setCConsumos((p) => p.map((x, j) => j === i ? e.target.value : x))}
-                                />
-                              </td>
-                              <td className="px-3 py-1.5">
-                                <input
-                                  className={inputCls}
-                                  placeholder="0.00"
-                                  inputMode="decimal"
-                                  value={cPrecios[i]}
-                                  onChange={(e) => setCPrecios((p) => p.map((x, j) => j === i ? e.target.value : x))}
-                                />
-                              </td>
-                            </tr>
+                  {/* Form nuevo suministro */}
+                  {mostrarNuevoSum && (
+                    <form onSubmit={crearSuministro} className="rounded-xl border border-accent/25 bg-accent/5 p-4 space-y-4">
+                      <p className="text-sm font-bold">Nuevo suministro para {c.nombre}</p>
+                      <div className="grid md:grid-cols-2 gap-4">
+                        <div>
+                          <label className={labelCls}>Código CUPS *</label>
+                          <input className={inputCls + ' font-mono'} placeholder="ES0021000000000001AB" value={nsCups} onChange={(e) => setNsCups(e.target.value)} required />
+                        </div>
+                        <div>
+                          <label className={labelCls}>Alias</label>
+                          <input className={inputCls} placeholder="Casa / Nave / Local..." value={nsAlias} onChange={(e) => setNsAlias(e.target.value)} />
+                        </div>
+                      </div>
+                      <div>
+                        <label className={labelCls}>Tarifa de acceso</label>
+                        <select className={inputCls} value={nsTarifa} onChange={(e) => setNsTarifa(e.target.value as TarifaAcceso)}>
+                          {Object.entries(TARIFA_INFO).map(([k, v]) => (
+                            <option key={k} value={k}>{v.nombre} · {v.descripcion}</option>
                           ))}
-                        </tbody>
-                      </table>
-                    </div>
-                    <p className="text-[11px] text-muted -mt-2">
-                      Los precios vienen rellenados con los del último mes (o el contrato). Solo teclea los consumos.
-                    </p>
-
-                    <button
-                      type="button"
-                      onClick={() => setMostrarPreciosPotencia(!mostrarPreciosPotencia)}
-                      className="text-xs text-accent hover:underline"
-                    >
-                      {mostrarPreciosPotencia ? 'Ocultar' : 'Cambiar'} precios de potencia (€/kW·día)
-                    </button>
-                    {mostrarPreciosPotencia && (
-                      <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
-                        {infoSel.periodosPotencia.map((per, i) => (
-                          <div key={i}>
-                            <p className="text-[10px] text-muted mb-0.5">{per}</p>
-                            <input className={inputCls} placeholder="0.00" inputMode="decimal" value={cPreciosP[i]}
-                              onChange={(e) => setCPreciosP((p) => p.map((x, j) => j === i ? e.target.value : x))} />
-                          </div>
-                        ))}
+                        </select>
                       </div>
-                    )}
-
-                    <button
-                      type="submit"
-                      disabled={cargando}
-                      className="w-full md:w-auto px-6 py-2.5 bg-accent text-white rounded-xl text-sm font-bold disabled:opacity-50 hover:bg-accent/90 transition"
-                    >
-                      {cargando ? 'Guardando...' : `Guardar ${MESES[parseInt(cMes) - 1]} ${cAnio}`}
-                    </button>
-                  </form>
-
-                  {consumosCliente.length > 0 && (
-                    <div>
-                      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted mb-2">
-                        Meses guardados ({consumosCliente.length})
-                      </p>
-                      <div className="rounded-xl border border-border/30 divide-y divide-border/20 overflow-hidden">
-                        {consumosCliente.map((cc) => (
-                          <div key={cc.id} className="flex items-center gap-3 px-3.5 py-2.5 text-sm bg-card/20">
-                            <span className="font-medium w-32 shrink-0">{MESES[cc.mes - 1]} {cc.anio}</span>
-                            <span className="text-muted text-xs flex-1">
-                              {(cc.consumos_kwh || []).reduce((a: number, b: number) => a + (b || 0), 0).toLocaleString('es-ES')} kWh
-                            </span>
-                            <span className="font-bold tabular-nums">
-                              {(cc.coste_total || 0).toLocaleString('es-ES', { minimumFractionDigits: 2 })} €
-                            </span>
-                            <button
-                              onClick={() => borrarConsumo(cc.id)}
-                              className="p-1.5 rounded-lg text-muted hover:text-red-400 hover:bg-red-500/10 transition"
-                              title="Borrar mes"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        ))}
+                      <CamposContrato
+                        tarifa={nsTarifa}
+                        preciosE={nsPreciosE} setPreciosE={setNsPreciosE}
+                        preciosP={nsPreciosP} setPreciosP={setNsPreciosP}
+                        potencias={nsPotencias} setPotencias={setNsPotencias}
+                      />
+                      <div className="flex gap-2">
+                        <button type="submit" disabled={cargando} className="px-5 py-2 bg-accent text-white rounded-lg text-sm font-bold disabled:opacity-50">
+                          {cargando ? 'Guardando...' : 'Añadir suministro'}
+                        </button>
+                        <button type="button" onClick={() => setMostrarNuevoSum(false)} className="px-4 py-2 rounded-lg border border-border/40 text-sm text-muted">
+                          Cancelar
+                        </button>
                       </div>
-                    </div>
+                    </form>
+                  )}
+
+                  {/* Consumos del suministro seleccionado */}
+                  {sumSel && infoSum && (
+                    <>
+                      <div className="flex items-center justify-between flex-wrap gap-2">
+                        <p className="text-xs text-muted">
+                          <span className="font-mono font-semibold text-foreground">{sumSel.cups}</span>
+                          {' · '}Tarifa {infoSum.nombre}
+                        </p>
+                        {suministros.length > 1 && (
+                          <button
+                            onClick={() => borrarSuministro(sumSel)}
+                            className="text-xs text-muted hover:text-red-400 transition"
+                          >
+                            Eliminar este suministro
+                          </button>
+                        )}
+                      </div>
+
+                      <form onSubmit={guardarConsumo} className="space-y-4">
+                        <div className="flex items-center justify-between flex-wrap gap-2">
+                          <p className="text-sm font-bold flex items-center gap-2">
+                            <CalendarPlus className="w-4 h-4 text-accent" />
+                            Subir consumo del mes
+                          </p>
+                          <div className="flex gap-2">
+                            <select className={inputCls + ' w-36'} value={cMes} onChange={(e) => setCMes(e.target.value)}>
+                              {MESES.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
+                            </select>
+                            <input className={inputCls + ' w-20'} placeholder="Año" value={cAnio} onChange={(e) => setCAnio(e.target.value)} />
+                          </div>
+                        </div>
+
+                        <div className="overflow-x-auto rounded-xl border border-border/30">
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="text-[11px] uppercase tracking-wide text-muted bg-card/40">
+                                <th className="text-left px-3 py-2 font-semibold">Periodo</th>
+                                <th className="text-left px-3 py-2 font-semibold">Consumo (kWh)</th>
+                                <th className="text-left px-3 py-2 font-semibold">Precio (€/kWh)</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {infoSum.periodosEnergia.map((per, i) => (
+                                <tr key={i} className="border-t border-border/20">
+                                  <td className="px-3 py-1.5 text-xs font-semibold whitespace-nowrap">{per}</td>
+                                  <td className="px-3 py-1.5">
+                                    <input
+                                      className={inputCls}
+                                      placeholder="0"
+                                      inputMode="decimal"
+                                      value={cConsumos[i]}
+                                      onChange={(e) => setCConsumos((p) => p.map((x, j) => j === i ? e.target.value : x))}
+                                    />
+                                  </td>
+                                  <td className="px-3 py-1.5">
+                                    <input
+                                      className={inputCls}
+                                      placeholder="0.00"
+                                      inputMode="decimal"
+                                      value={cPrecios[i]}
+                                      onChange={(e) => setCPrecios((p) => p.map((x, j) => j === i ? e.target.value : x))}
+                                    />
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                        <p className="text-[11px] text-muted -mt-2">
+                          Los precios vienen rellenados con los del último mes (o el contrato). Solo teclea los consumos.
+                        </p>
+
+                        <button
+                          type="button"
+                          onClick={() => setMostrarPreciosPotencia(!mostrarPreciosPotencia)}
+                          className="text-xs text-accent hover:underline"
+                        >
+                          {mostrarPreciosPotencia ? 'Ocultar' : 'Cambiar'} precios de potencia (€/kW·día)
+                        </button>
+                        {mostrarPreciosPotencia && (
+                          <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
+                            {infoSum.periodosPotencia.map((per, i) => (
+                              <div key={i}>
+                                <p className="text-[10px] text-muted mb-0.5">{per}</p>
+                                <input className={inputCls} placeholder="0.00" inputMode="decimal" value={cPreciosP[i]}
+                                  onChange={(e) => setCPreciosP((p) => p.map((x, j) => j === i ? e.target.value : x))} />
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        <button
+                          type="submit"
+                          disabled={cargando}
+                          className="w-full md:w-auto px-6 py-2.5 bg-accent text-white rounded-xl text-sm font-bold disabled:opacity-50 hover:bg-accent/90 transition"
+                        >
+                          {cargando ? 'Guardando...' : `Guardar ${MESES[parseInt(cMes) - 1]} ${cAnio}`}
+                        </button>
+                      </form>
+
+                      {consumosSum.length > 0 && (
+                        <div>
+                          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted mb-2">
+                            Meses guardados ({consumosSum.length})
+                          </p>
+                          <div className="rounded-xl border border-border/30 divide-y divide-border/20 overflow-hidden">
+                            {consumosSum.map((cc) => (
+                              <div key={cc.id} className="flex items-center gap-3 px-3.5 py-2.5 text-sm bg-card/20">
+                                <span className="font-medium w-32 shrink-0">{MESES[cc.mes - 1]} {cc.anio}</span>
+                                <span className="text-muted text-xs flex-1">
+                                  {(cc.consumos_kwh || []).reduce((a: number, b: number) => a + (b || 0), 0).toLocaleString('es-ES')} kWh
+                                </span>
+                                <span className="font-bold tabular-nums">
+                                  {(cc.coste_total || 0).toLocaleString('es-ES', { minimumFractionDigits: 2 })} €
+                                </span>
+                                <button
+                                  onClick={() => borrarConsumo(cc.id)}
+                                  className="p-1.5 rounded-lg text-muted hover:text-red-400 hover:bg-red-500/10 transition"
+                                  title="Borrar mes"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               )}
