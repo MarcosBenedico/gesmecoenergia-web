@@ -5,40 +5,41 @@ import { sectors } from "@/lib/data";
 
 export const metadata = {
   title: "Sectores | Gesmeco Energía",
-  description: "Especialistas en sectores con consumo crítico y necesidad de fiabilidad.",
+  description:
+    "Viviendas, ganadería, agricultura, comercios y empresas de Binéfar y comarca. Soluciones energéticas a medida de cada sector.",
 };
 
 const sectorDetails = [
   {
-    title: "Industria",
+    title: "Hogares y comunidades",
     bullets: [
-      "Coberturas a medida para producción 24/7.",
-      "Optimización de base load y gestión de picos.",
-      "Planes de eficiencia por línea y activo.",
+      "Revisión de tarifa y potencia contratada: la mayoría paga de más.",
+      "Solar en tejado con amortización clara antes de firmar nada.",
+      "Solar compartida en comunidades: todos los vecinos pagan menos luz.",
     ],
   },
   {
-    title: "Logística y frío",
+    title: "Ganadería y agricultura",
     bullets: [
-      "Reducción de consumo específico en refrigeración.",
-      "Autoconsumo con almacenamiento para cargas críticas.",
-      "Monitorización centralizada de múltiples centros.",
+      "Solar para bombeo, refrigeración y consumo de granja.",
+      "Riego sin depender de horarios caros de red.",
+      "Instalaciones pensadas para el campo: robustas y sin complicaciones.",
     ],
   },
   {
-    title: "Agroalimentario",
+    title: "Comercios y hostelería",
     bullets: [
-      "Autosuficiencia parcial con PPAs o autoconsumo.",
-      "Mejora de factor de potencia y reactiva.",
-      "Planes de descarbonización alineados a ESG.",
+      "Ajuste de potencia contratada al consumo real del negocio.",
+      "Solar en tejado para bares, tiendas y peluquerías.",
+      "Factura clara: sabes qué pagas y por qué, cada mes.",
     ],
   },
   {
-    title: "Retail y terciario",
+    title: "Naves y empresas",
     bullets: [
-      "Unificación de contratos multi-sede.",
-      "Cuadros de mando centralizados.",
-      "Detección temprana de desvíos y fugas.",
+      "Análisis de picos de carga y penalizaciones evitables.",
+      "Solar industrial en cubierta, desde 20 kW hasta varios MW.",
+      "Seguimiento continuo: la instalación rinde o te decimos por qué no.",
     ],
   },
 ];
@@ -48,9 +49,9 @@ export default function SectorsPage() {
     <div className="pb-20">
       <section className="pt-14">
         <Container>
-          <SectionHeading kicker="Sectores" title="Expertise especializado por industria.">
-            Construimos soluciones adaptadas a cada curva de consumo, nivel de criticidad y
-            objetivos de coste y carbono.
+          <SectionHeading kicker="Sectores" title="Conocemos cada sector de Binéfar y comarca.">
+            Viviendas, granjas, comercios y naves no consumen igual. Por eso cada solución
+            empieza por entender cómo trabajas tú.
           </SectionHeading>
           <div className="mt-10 grid gap-4 md:grid-cols-3">
             {sectors.map((sector) => (
@@ -72,10 +73,10 @@ export default function SectorsPage() {
         <Container>
           <SectionHeading
             kicker="Soluciones"
-            title="Lo que cambia por sector"
+            title="Lo que cambia según tu caso"
           >
-            Ajustamos contratos, tecnología y operación según la criticidad y perfil de
-            riesgo de cada negocio.
+            Mismo rigor, distinta receta: lo que le funciona a una granja no es lo que
+            necesita un comercio. Esto es lo que solemos hacer en cada sector.
           </SectionHeading>
           <div className="mt-10 grid gap-6 md:grid-cols-2">
             {sectorDetails.map((item) => (

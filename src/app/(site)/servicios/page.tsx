@@ -9,7 +9,7 @@ import Link from "next/link";
 export const metadata = {
   title: "Servicios | Gesmeco Energía",
   description:
-    "Asesoramiento energético, auditorías, análisis de facturas, solar fotovoltaica, CAES y soluciones de ahorro energético.",
+    "Análisis de facturas de luz y gas, auditorías energéticas, solar fotovoltaica y asesoramiento continuo en Binéfar y comarca.",
 };
 
 export default function ServicesPage() {
@@ -21,7 +21,7 @@ export default function ServicesPage() {
             kicker="Servicios"
             title="Reduce tu factura de luz. Aquí está el cómo."
           >
-            Asesoramiento, auditorías, análisis de consumos, solar y almacenamiento.
+            Análisis de factura, auditorías, solar fotovoltaica y seguimiento continuo.
             Soluciones adaptadas a tu situación, sin sorpresas.
           </SectionHeading>
           <div className="mt-10 grid gap-6 md:grid-cols-2">
@@ -59,15 +59,15 @@ export default function ServicesPage() {
                 ✨ Ahorro comprobado
               </div>
               <p className="text-foreground">
-                Reducción típica de 10-30% en factura. ROI en 1-3 años con solar.
-                Presupuestos detallados sin compromisos.
+                Ahorros reales del 15-40% en factura. ROI en 2-3 años con solar.
+                Presupuestos detallados sin compromiso.
               </p>
-              <p className="font-semibold text-accent-light">Auditoría · Solar · Almacenamiento · Eficiencia</p>
+              <p className="font-semibold text-accent-light">Factura · Auditoría · Solar · Seguimiento</p>
             </div>
             <div className="space-y-3 rounded-2xl border border-border bg-surface/50 p-5 text-sm text-foreground">
               <div className="font-semibold uppercase tracking-widest text-secondary">🚀 Empieza ahora</div>
               <p className="text-foreground">
-                Analiza tu factura en 5 minutos. Descubre tu potencial de ahorro sin
+                Analiza tu factura en 2 minutos. Descubre tu potencial de ahorro sin
                 compromiso. Respuesta en 48h.
               </p>
               <Link href="/analizador" className="font-semibold text-secondary hover:text-secondary/80 transition">

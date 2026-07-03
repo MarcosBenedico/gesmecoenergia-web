@@ -7,7 +7,7 @@ import { siteConfig } from "@/lib/site";
 export const metadata = {
   title: "Contacto | Gesmeco Energía",
   description:
-    "Agenda una sesión con Gesmeco Energía para revisar tu estrategia, contratos y planes de descarbonización.",
+    "Habla con un asesor del Grupo Gesmeco en Binéfar: energía, asesoría fiscal-laboral y seguros. Respuesta en menos de 24h.",
 };
 
 export default function ContactPage() {
@@ -16,9 +16,9 @@ export default function ContactPage() {
       <section className="pt-14">
         <Container className="grid gap-10 md:grid-cols-[1.05fr_0.95fr] md:items-start">
           <div className="space-y-6">
-            <SectionHeading kicker="Contacto" title="Hablemos de tu estrategia energética.">
-              Cuéntanos tu situación actual y tus prioridades. Preparamos un diagnóstico inicial en
-              5 días con oportunidades rápidas y una hoja de ruta clara.
+            <SectionHeading kicker="Contacto" title="Cuéntanos qué necesitas.">
+              Energía, asesoría o seguros: te responde una persona del equipo en menos de 24h.
+              Si nos mandas tu factura, en 48h tienes el análisis hecho.
             </SectionHeading>
             <div className="grid gap-4 md:grid-cols-2">
               {contactChannels.map((channel) => (
@@ -36,7 +36,6 @@ export default function ContactPage() {
                 Datos directos
               </div>
               <p className="mt-1">{siteConfig.contact.email}</p>
-              <p>{siteConfig.contact.phone}</p>
               <p>{siteConfig.contact.address}</p>
             </div>
           </div>
@@ -92,10 +91,11 @@ export default function ContactPage() {
                   <option value="" disabled>
                     Selecciona una opción
                   </option>
-                  <option value="costes">Reducir coste total</option>
-                  <option value="ppa">Estructurar PPA</option>
-                  <option value="autoconsumo">Proyecto de autoconsumo</option>
-                  <option value="eficiencia">Plan de eficiencia y CO₂</option>
+                  <option value="factura">Analizar mi factura de luz o gas</option>
+                  <option value="solar">Placas solares para mi casa o negocio</option>
+                  <option value="auditoria">Auditoría energética</option>
+                  <option value="asesoria">Asesoría fiscal, laboral o contable</option>
+                  <option value="seguros">Seguros (Correbin Asociados)</option>
                   <option value="otro">Otra necesidad</option>
                 </select>
               </div>
@@ -105,7 +105,7 @@ export default function ContactPage() {
                 <textarea
                   className="mt-2 h-28 w-full rounded-xl border border-rose-100 bg-white px-3 py-2 text-sm outline-none transition focus:border-accent focus:shadow-soft"
                   name="message"
-                  placeholder="Cuéntanos consumo anual, contratos vigentes, retos y objetivos."
+                  placeholder="Cuéntanos tu caso: qué pagas de luz, si tienes negocio o granja, qué te preocupa..."
                 />
               </div>
 

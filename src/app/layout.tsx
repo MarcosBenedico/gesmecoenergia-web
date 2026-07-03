@@ -17,9 +17,9 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "Gesmeco Energía | Estrategia y gestión energética",
+  title: "Gesmeco Energía | Tu asesor energético en Binéfar",
   description:
-    "Soluciones premium de gestión energética, PPAs, autoconsumo y descarbonización para empresas que buscan control y resultados.",
+    "Análisis de facturas de luz y gas, auditorías energéticas y solar fotovoltaica en Binéfar. Parte del Grupo Gesmeco: energía, asesoría y seguros.",
 };
 
 export default function RootLayout({

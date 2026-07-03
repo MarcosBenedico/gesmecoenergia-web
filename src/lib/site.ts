@@ -29,8 +29,8 @@ export const servicesMega: MegaLink[] = [
     icon: "solar",
   },
   {
-    title: "Almacenamiento y CAES",
-    description: "Baterías, almacenamiento térmico y soluciones de aire comprimido.",
+    title: "Asesoramiento continuo",
+    description: "Seguimiento de tu instalación, tu factura y tu potencia, año tras año.",
     href: "/servicios",
     icon: "leaf",
   },
@@ -51,7 +51,7 @@ export const sectorsMega: MegaLink[] = [
   },
   {
     title: "Industrias medianas",
-    description: "Análisis de picos, CAES, solar industrial y gestión energética.",
+    description: "Análisis de picos, solar industrial y gestión energética.",
     href: "/sectores",
     icon: "factory",
   },
@@ -73,7 +73,7 @@ export const navigation: NavItem[] = [
 export const siteConfig = {
   name: "Gesmeco Energía",
   description:
-    "Asesoramiento energético, auditorías, análisis de facturas, solar fotovoltaica, CAES y soluciones de ahorro energético.",
+    "Tu asesor energético en Binéfar. Análisis de facturas, auditorías y solar fotovoltaica. Parte del Grupo Gesmeco: energía, asesoría y seguros.",
   contact: {
     email: "marcos.benedico@correbin.es",
     phone: "",
@@ -85,8 +85,3 @@ export const siteConfig = {
   },
 };
 
-export const brandHighlights = {
-  headline: "Reduce tu factura de luz. Aquí está el cómo.",
-  subheadline:
-    "Asesoramiento energético, auditorías, análisis de facturas, solar fotovoltaica, CAES y soluciones de ahorro energético.",
-};
