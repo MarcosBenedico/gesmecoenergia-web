@@ -61,7 +61,11 @@
       "Bash(curl -s -X POST \"https://formsubmit.co/ajax/marcos.benedico@correbin.es\" -H \"Content-Type: application/json\" -H \"Accept: application/json\" -d '{\"_subject\":\"Activacion avisos Gesmeco Energia\",\"mensaje\":\"Correo de prueba para activar los avisos del analizador web. Pulsa el boton de confirmacion de FormSubmit.\"}')",
       "Bash(curl -s -X POST \"https://formsubmit.co/ajax/marcos.benedico@correbin.es\" -H \"Content-Type: application/json\" -H \"Accept: application/json\" -H \"Origin: https://gesmecoenergia-web.vercel.app\" -H \"Referer: https://gesmecoenergia-web.vercel.app/analizador\" -d '{\"_subject\":\"Activacion avisos Gesmeco Energia\",\"mensaje\":\"Correo de prueba para activar los avisos del analizador web de Gesmeco Energia. Pulsa el boton de confirmacion de FormSubmit para empezar a recibir avisos.\"}')",
       "Bash(git commit -m 'Feature: Aviso por email de cada análisis + lectura de factura con IA + WhatsApp *)",
-      "Bash(curl -s -X POST \"https://formsubmit.co/ajax/marcos.benedico@correbin.es\" -H \"Content-Type: application/json\" -H \"Accept: application/json\" -H \"Origin: https://gesmecoenergia-web.vercel.app\" -H \"Referer: https://gesmecoenergia-web.vercel.app/analizador\" -d '{\"_subject\":\"Prueba avisos analizador OK\",\"mensaje\":\"Prueba de verificacion: si recibes este correo, los avisos del analizador funcionan correctamente.\"}')"
+      "Bash(curl -s -X POST \"https://formsubmit.co/ajax/marcos.benedico@correbin.es\" -H \"Content-Type: application/json\" -H \"Accept: application/json\" -H \"Origin: https://gesmecoenergia-web.vercel.app\" -H \"Referer: https://gesmecoenergia-web.vercel.app/analizador\" -d '{\"_subject\":\"Prueba avisos analizador OK\",\"mensaje\":\"Prueba de verificacion: si recibes este correo, los avisos del analizador funcionan correctamente.\"}')",
+      "PowerShell(Stop-Process -Id 16864 -Force -ErrorAction SilentlyContinue)",
+      "Bash(npm list *)",
+      "Bash(node generate-icons.mjs)",
+      "Bash(node generate-splashes.mjs)"
     ]
   }
 }

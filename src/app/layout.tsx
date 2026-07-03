@@ -39,6 +39,22 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es">
+      <head>
+        {/* iOS meta tags */}
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="apple-mobile-web-app-title" content="Gesmeco Energía" />
+        <meta name="apple-itunes-app" content="app-id=123456789" />
+
+        {/* Icons */}
+        <link rel="apple-touch-icon" href="/icon-180.png" />
+        <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
+        <link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png" />
+
+        {/* Android */}
+        <meta name="theme-color" content="#6366f1" />
+        <meta name="mobile-web-app-capable" content="yes" />
+      </head>
       <body className={`${jakarta.variable} bg-background text-foreground antialiased`}>
         {children}
       </body>

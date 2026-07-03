@@ -1,0 +1,23 @@
+<svg viewBox="0 0 1170 2532" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="splashGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0f172a;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#1e293b;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+
+  <!-- Fondo -->
+  <rect width="1170" height="2532" fill="url(#splashGradient)" />
+
+  <!-- Logo centrado -->
+  <g transform="translate(585, 1100)">
+    <!-- Rayo -->
+    <polygon points="0,-100 50,-20 0,40 -50,-20" fill="#6366f1" opacity="0.9"/>
+    <polygon points="0,80 40,200 0,250 -40,200" fill="#6366f1" opacity="0.85"/>
+    <circle cx="0" cy="120" r="80" fill="#6366f1" opacity="0.2"/>
+  </g>
+
+  <!-- Texto -->
+  <text x="585" y="1600" font-size="120" font-weight="bold" fill="white" text-anchor="middle" font-family="Arial, sans-serif">Gesmeco Energía</text>
+  <text x="585" y="1750" font-size="60" fill="#6366f1" text-anchor="middle" font-family="Arial, sans-serif">Analiza tu factura</text>
+</svg>
