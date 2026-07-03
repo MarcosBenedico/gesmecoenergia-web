@@ -359,6 +359,12 @@ export default function GestorPage() {
             >
               Generador Fotovoltaico
             </button>
+            <a
+              href="/gestor/clientes-app"
+              className="px-4 py-2 rounded-lg font-semibold transition bg-emerald-600 text-white hover:bg-emerald-500"
+            >
+              📱 App Clientes · Consumos
+            </a>
           </div>
 
           {/* Sección: Ver Tarifas */}
