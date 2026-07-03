@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
 
     const { data: consumos } = await supabase
       .from('consumos_clientes')
-      .select('anio, mes, consumos_kwh, coste_energia, coste_potencia, coste_total, notas')
+      .select('anio, mes, consumos_kwh, precios_energia, precios_potencia, coste_energia, coste_potencia, coste_total, notas')
       .eq('cliente_id', cliente.id)
       .order('anio', { ascending: false })
       .order('mes', { ascending: false });
@@ -46,6 +46,8 @@ export async function POST(req: NextRequest) {
     const consumosNorm = (consumos || []).map((c) => ({
       ...c,
       consumos_kwh: aLista(c.consumos_kwh),
+      precios_energia: c.precios_energia ? aLista(c.precios_energia) : null,
+      precios_potencia: c.precios_potencia ? aLista(c.precios_potencia) : null,
     }));
 
     return NextResponse.json({ ok: true, cliente: clienteSinId, consumos: consumosNorm });

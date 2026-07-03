@@ -18,6 +18,8 @@ interface ConsumoMes {
   anio: number;
   mes: number;
   consumos_kwh: number[];
+  precios_energia: number[] | null;
+  precios_potencia: number[] | null;
   coste_energia: number | null;
   coste_potencia: number | null;
   coste_total: number | null;
@@ -345,9 +347,11 @@ export function ClientePanel() {
 
                     {abierto && (
                       <div className="px-3.5 pb-3.5 space-y-3 border-t border-border/20 pt-3">
-                        {/* Consumo por periodo */}
+                        {/* Consumo y precio por periodo */}
                         <div>
-                          <p className="text-xs font-semibold text-muted mb-1.5">Consumo por periodo</p>
+                          <p className="text-xs font-semibold text-muted mb-1.5">
+                            Consumo (kWh) y precio (€/kWh) por periodo
+                          </p>
                           <div className="grid grid-cols-3 gap-1.5">
                             {c.consumos_kwh.map((v, i) => (
                               <div key={i} className="bg-background/50 rounded-lg p-2 text-center">
@@ -356,6 +360,11 @@ export function ClientePanel() {
                                 </p>
                                 <p className="text-sm font-bold tabular-nums">
                                   {(v || 0).toLocaleString('es-ES')}
+                                </p>
+                                <p className="text-[10px] text-accent tabular-nums">
+                                  {(c.precios_energia?.[i] ?? cliente.precios_energia[i]) != null
+                                    ? `${c.precios_energia?.[i] ?? cliente.precios_energia[i]} €`
+                                    : '—'}
                                 </p>
                               </div>
                             ))}

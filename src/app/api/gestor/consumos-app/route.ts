@@ -70,10 +70,19 @@ export async function POST(req: NextRequest) {
         Array.isArray(v) ? v.map((n) => Number(n) || 0) : isNaN(Number(v)) ? [] : [Number(v)];
 
       const consumos: number[] = (fila.consumos_kwh || []).map((n: unknown) => Number(n) || 0);
+
+      // Precio del mes: el enviado en la fila, o el fijo del contrato del cliente
+      const preciosEnergiaMes = fila.precios_energia?.length
+        ? aLista(fila.precios_energia)
+        : aLista(cliente.precios_energia);
+      const preciosPotenciaMes = fila.precios_potencia?.length
+        ? aLista(fila.precios_potencia)
+        : aLista(cliente.precios_potencia);
+
       const coste = calcularCosteMes(
         consumos,
-        aLista(cliente.precios_energia),
-        aLista(cliente.precios_potencia),
+        preciosEnergiaMes,
+        preciosPotenciaMes,
         aLista(cliente.potencias_kw),
         mes
       );
@@ -84,6 +93,8 @@ export async function POST(req: NextRequest) {
           anio,
           mes,
           consumos_kwh: consumos,
+          precios_energia: preciosEnergiaMes,
+          precios_potencia: preciosPotenciaMes,
           coste_energia: coste.energia,
           coste_potencia: coste.potencia,
           coste_total: coste.total,

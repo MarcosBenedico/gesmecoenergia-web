@@ -54,6 +54,9 @@ export default function ClientesAppPage() {
   const [cAnio, setCAnio] = useState(String(new Date().getFullYear()));
   const [cMes, setCMes] = useState(String(new Date().getMonth() + 1));
   const [cConsumos, setCConsumos] = useState<string[]>(Array(6).fill(''));
+  const [cPrecios, setCPrecios] = useState<string[]>(Array(6).fill(''));
+  const [cPreciosP, setCPreciosP] = useState<string[]>(Array(6).fill(''));
+  const [mostrarPreciosPotencia, setMostrarPreciosPotencia] = useState(false);
 
   useEffect(() => {
     if (!localStorage.getItem('admin_token')) {
@@ -106,11 +109,37 @@ export default function ClientesAppPage() {
     }
   }
 
+  const aLista = (v: unknown): number[] =>
+    Array.isArray(v) ? v.map((n) => Number(n) || 0) : isNaN(Number(v)) || v == null ? [] : [Number(v)];
+
   async function abrirCliente(c: ClienteApp) {
     setClienteSel(c);
+    setCConsumos(Array(6).fill(''));
     const res = await fetch(`/api/gestor/consumos-app?cliente_id=${c.id}`);
     const json = await res.json();
-    setConsumosCliente(json.ok ? json.consumos : []);
+    const consumos = json.ok ? json.consumos : [];
+    setConsumosCliente(consumos);
+
+    // Precarga precios: los del último mes guardado, o los fijos del contrato
+    const ultimo = consumos[0];
+    const preciosBase = ultimo?.precios_energia?.length
+      ? aLista(ultimo.precios_energia)
+      : aLista(c.precios_energia);
+    const preciosPBase = ultimo?.precios_potencia?.length
+      ? aLista(ultimo.precios_potencia)
+      : aLista(c.precios_potencia);
+    const relleno = (arr: number[]) =>
+      Array.from({ length: 6 }, (_, i) => (arr[i] != null && arr[i] !== 0 ? String(arr[i]) : arr[i] === 0 ? '0' : ''));
+    setCPrecios(relleno(preciosBase));
+    setCPreciosP(relleno(preciosPBase));
+
+    // Sugiere el mes siguiente al último guardado
+    if (ultimo) {
+      const sigMes = ultimo.mes === 12 ? 1 : ultimo.mes + 1;
+      const sigAnio = ultimo.mes === 12 ? ultimo.anio + 1 : ultimo.anio;
+      setCMes(String(sigMes));
+      setCAnio(String(sigAnio));
+    }
   }
 
   async function guardarConsumo(e: React.FormEvent) {
@@ -118,6 +147,7 @@ export default function ClientesAppPage() {
     if (!clienteSel) return;
     setCargando(true);
     const nP = TARIFA_INFO[clienteSel.tarifa].periodosEnergia.length;
+    const nPot = TARIFA_INFO[clienteSel.tarifa].periodosPotencia.length;
     try {
       const res = await fetch('/api/gestor/consumos-app', {
         method: 'POST',
@@ -128,6 +158,8 @@ export default function ClientesAppPage() {
             anio: cAnio,
             mes: cMes,
             consumos_kwh: cConsumos.slice(0, nP).map(num),
+            precios_energia: cPrecios.slice(0, nP).map(num),
+            precios_potencia: cPreciosP.slice(0, nPot).map(num),
           }],
         }),
       });
@@ -311,22 +343,81 @@ export default function ClientesAppPage() {
               {/* Panel de consumos del cliente seleccionado */}
               {clienteSel?.id === c.id && infoSel && (
                 <div className="mt-4 pt-4 border-t border-border/20 space-y-4">
-                  <form onSubmit={guardarConsumo} className="space-y-3">
-                    <p className="text-sm font-semibold">Añadir / editar mes</p>
-                    <div className="flex gap-2">
-                      <input className={inputCls + ' max-w-24'} placeholder="Año" value={cAnio} onChange={(e) => setCAnio(e.target.value)} />
-                      <select className={inputCls + ' max-w-40'} value={cMes} onChange={(e) => setCMes(e.target.value)}>
-                        {MESES.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
-                      </select>
+                  <form onSubmit={guardarConsumo} className="space-y-4 bg-background/30 rounded-xl p-4">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <p className="text-sm font-bold">📅 Subir consumo del mes</p>
+                      <div className="flex gap-2">
+                        <select className={inputCls + ' w-36'} value={cMes} onChange={(e) => setCMes(e.target.value)}>
+                          {MESES.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
+                        </select>
+                        <input className={inputCls + ' w-20'} placeholder="Año" value={cAnio} onChange={(e) => setCAnio(e.target.value)} />
+                      </div>
                     </div>
-                    <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
-                      {infoSel.periodosEnergia.map((per, i) => (
-                        <input key={i} className={inputCls} placeholder={`${per} kWh`} value={cConsumos[i]}
-                          onChange={(e) => setCConsumos((p) => p.map((x, j) => j === i ? e.target.value : x))} />
-                      ))}
+
+                    {/* Tabla periodo → consumo + precio */}
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="text-xs text-muted">
+                            <th className="text-left pb-1.5 pr-3">Periodo</th>
+                            <th className="text-left pb-1.5 pr-3">Consumo (kWh)</th>
+                            <th className="text-left pb-1.5">Precio (€/kWh)</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {infoSel.periodosEnergia.map((per, i) => (
+                            <tr key={i}>
+                              <td className="pr-3 py-1 text-xs font-semibold whitespace-nowrap">{per}</td>
+                              <td className="pr-3 py-1">
+                                <input
+                                  className={inputCls}
+                                  placeholder="0"
+                                  inputMode="decimal"
+                                  autoFocus={i === 0}
+                                  value={cConsumos[i]}
+                                  onChange={(e) => setCConsumos((p) => p.map((x, j) => j === i ? e.target.value : x))}
+                                />
+                              </td>
+                              <td className="py-1">
+                                <input
+                                  className={inputCls}
+                                  placeholder="0.00"
+                                  inputMode="decimal"
+                                  value={cPrecios[i]}
+                                  onChange={(e) => setCPrecios((p) => p.map((x, j) => j === i ? e.target.value : x))}
+                                />
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      <p className="text-[11px] text-muted mt-1">
+                        💡 Los precios vienen rellenados con los del último mes (o el contrato). Solo teclea los consumos.
+                      </p>
                     </div>
-                    <button type="submit" disabled={cargando} className="px-4 py-2 bg-accent text-white rounded-lg text-sm font-semibold disabled:opacity-50">
-                      Guardar mes
+
+                    {/* Precios de potencia (opcional, plegado) */}
+                    <button
+                      type="button"
+                      onClick={() => setMostrarPreciosPotencia(!mostrarPreciosPotencia)}
+                      className="text-xs text-accent hover:underline"
+                    >
+                      {mostrarPreciosPotencia ? '▾ Ocultar' : '▸ Cambiar'} precios de potencia (€/kW·día)
+                    </button>
+                    {mostrarPreciosPotencia && (
+                      <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
+                        {infoSel.periodosPotencia.map((per, i) => (
+                          <div key={i}>
+                            <p className="text-[10px] text-muted mb-0.5">{per}</p>
+                            <input className={inputCls} placeholder="0.00" inputMode="decimal" value={cPreciosP[i]}
+                              onChange={(e) => setCPreciosP((p) => p.map((x, j) => j === i ? e.target.value : x))} />
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <button type="submit" disabled={cargando} className="w-full md:w-auto px-6 py-2.5 bg-accent text-white rounded-lg text-sm font-bold disabled:opacity-50">
+                      {cargando ? 'Guardando...' : `💾 Guardar ${MESES[parseInt(cMes) - 1]} ${cAnio}`}
                     </button>
                   </form>
 
