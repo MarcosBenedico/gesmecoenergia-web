@@ -71,7 +71,14 @@
       "Bash(curl -s -X POST http://localhost:3000/api/cliente/datos -H \"Content-Type: application/json\" -d '{\"token\":\"fcaf2283b1adbc4d2496f6a3b447765e86826240af2ede705916632a71c3e1f5\"}')",
       "Bash(curl -s -X POST http://localhost:3000/api/gestor/consumos-app -H \"Content-Type: application/json\" -d '{\"filas\":[{\"usuario\":\"marcos\",\"anio\":2026,\"mes\":5,\"consumos_kwh\":[110,80,140]},{\"usuario\":\"marcos\",\"anio\":2026,\"mes\":6,\"consumos_kwh\":[120,95,160]}]}')",
       "Bash(curl -s -X POST http://localhost:3000/api/gestor/consumos-app -H \"Content-Type: application/json\" -d '{\"filas\":[{\"usuario\":\"marcos\",\"anio\":2026,\"mes\":6,\"consumos_kwh\":[120,95,160],\"precios_energia\":[0.17,0.15,0.11]}]}')",
-      "Bash(curl -s -o /tmp/plantilla.xlsx -w \"%{http_code} %{content_type} %{size_download} bytes\" http://localhost:3000/api/gestor/plantilla-consumos)"
+      "Bash(curl -s -o /tmp/plantilla.xlsx -w \"%{http_code} %{content_type} %{size_download} bytes\" http://localhost:3000/api/gestor/plantilla-consumos)",
+      "Bash(curl -s \"https://rhsflkemubgigagwmoqb.supabase.co/rest/v1/documentos_cliente?select=id&limit=1\" -H \"apikey: sb_publishable_OWi92FE3lAu3qd6YioVGJw_BrmCB_HM\" -H \"Authorization: Bearer sb_publishable_OWi92FE3lAu3qd6YioVGJw_BrmCB_HM\")",
+      "Bash(curl -s \"https://rhsflkemubgigagwmoqb.supabase.co/storage/v1/bucket/documentos_clientes\" -H \"apikey: sb_publishable_OWi92FE3lAu3qd6YioVGJw_BrmCB_HM\" -H \"Authorization: Bearer sb_publishable_OWi92FE3lAu3qd6YioVGJw_BrmCB_HM\")",
+      "Bash(curl -s -X POST \"https://rhsflkemubgigagwmoqb.supabase.co/storage/v1/bucket\" -H \"apikey: sb_publishable_OWi92FE3lAu3qd6YioVGJw_BrmCB_HM\" -H \"Authorization: Bearer sb_publishable_OWi92FE3lAu3qd6YioVGJw_BrmCB_HM\" -H \"Content-Type: application/json\" -d '{\"id\":\"documentos_clientes\",\"name\":\"documentos_clientes\",\"public\":false,\"file_size_limit\":52428800,\"allowed_mime_types\":[\"image/jpeg\",\"image/png\",\"image/webp\",\"application/pdf\"]}')",
+      "Bash(git rm *)",
+      "Bash(curl -s http://localhost:3000/api/setup-documentos)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000/gestor)",
+      "Bash(git commit -m 'Feature: aviso email al gestor por documento subido + setup automático de Storage + limpieza *)"
     ]
   }
 }

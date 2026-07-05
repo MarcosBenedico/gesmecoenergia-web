@@ -14,6 +14,48 @@ const supabaseAdmin = createClient(
 
 const MAX_TAMAÑO = 50 * 1024 * 1024; // 50 MB
 const TIPOS_PERMITIDOS = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+const EMAIL_AVISOS = 'marcos.benedico@correbin.es';
+
+/** Aviso por email al gestor (FormSubmit, mismo sistema que notificar-analisis). No bloquea la respuesta. */
+async function avisarNuevoDocumento(datos: {
+  nombre_cliente: string;
+  usuario: string;
+  nombre_doc: string;
+  tipo: string;
+  tamano: number;
+  descripcion: string | null;
+}) {
+  try {
+    const mb = (datos.tamano / (1024 * 1024)).toFixed(2);
+    await fetch(`https://formsubmit.co/ajax/${EMAIL_AVISOS}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        Origin: 'https://gesmecoenergia-web.vercel.app',
+        Referer: 'https://gesmecoenergia-web.vercel.app/cliente',
+      },
+      body: JSON.stringify({
+        _subject: `📄 ${datos.nombre_cliente} ha subido un documento: ${datos.nombre_doc}`,
+        _template: 'box',
+        mensaje: [
+          `NUEVO DOCUMENTO DE CLIENTE · ${new Date().toLocaleString('es-ES', { timeZone: 'Europe/Madrid' })}`,
+          ``,
+          `Cliente: ${datos.nombre_cliente} (${datos.usuario})`,
+          `Documento: ${datos.nombre_doc}`,
+          `Tipo: ${datos.tipo}`,
+          `Tamaño: ${mb} MB`,
+          datos.descripcion ? `Notas del cliente: ${datos.descripcion}` : `Sin notas.`,
+          ``,
+          `Revísalo en el panel de gestión → Clientes App → documentos.`,
+        ].join('\n'),
+      }),
+    });
+  } catch (e) {
+    // El aviso nunca debe romper la subida
+    console.error('Error avisando nuevo documento:', e);
+  }
+}
 
 /**
  * GET: Lista documentos del cliente
@@ -92,7 +134,7 @@ export async function POST(req: NextRequest) {
     // Obtener cliente (verificar sesión válida)
     const { data: cliente, error: errCliente } = await supabaseAnon
       .from('clientes_app')
-      .select('id')
+      .select('id, nombre, usuario')
       .eq('token', token)
       .single();
 
@@ -153,6 +195,16 @@ export async function POST(req: NextRequest) {
         .remove([archivo_path]);
       return NextResponse.json({ error: errDoc.message }, { status: 500 });
     }
+
+    // Avisar al gestor por email (en segundo plano, sin bloquear la respuesta)
+    avisarNuevoDocumento({
+      nombre_cliente: cliente.nombre || cliente.usuario,
+      usuario: cliente.usuario,
+      nombre_doc: nombre,
+      tipo: tipo_documento || 'otro',
+      tamano: buffer.length,
+      descripcion: descripcion || null,
+    });
 
     return NextResponse.json(
       { ok: true, documento: doc },
