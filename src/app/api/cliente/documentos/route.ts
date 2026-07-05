@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-const supabase = createClient(
+// Usar anon key para lectura (con RLS) y service role para escritura (sin RLS)
+const supabaseAnon = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
+
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
 const MAX_TAMAÑO = 50 * 1024 * 1024; // 50 MB
@@ -23,7 +29,7 @@ export async function GET(req: NextRequest) {
     }
 
     // Obtener cliente
-    const { data: cliente, error: errCliente } = await supabase
+    const { data: cliente, error: errCliente } = await supabaseAnon
       .from('clientes_app')
       .select('id')
       .eq('token', token)
@@ -33,8 +39,8 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Sesión caducada.' }, { status: 401 });
     }
 
-    // Listar documentos del cliente
-    const { data: docs, error: errDocs } = await supabase
+    // Listar documentos del cliente (usar admin para no tener RLS)
+    const { data: docs, error: errDocs } = await supabaseAdmin
       .from('documentos_cliente')
       .select('id, nombre_original, tipo_documento, descripcion, tamano_bytes, mime_type, creado_en, analizado, notas_analisis, archivo_path')
       .eq('cliente_id', cliente.id)
@@ -47,7 +53,7 @@ export async function GET(req: NextRequest) {
     // Generar URLs firmadas para descargar (válidas 1 hora)
     const docs_con_url = await Promise.all(
       (docs || []).map(async (doc) => {
-        const { data } = await supabase.storage
+        const { data } = await supabaseAdmin.storage
           .from('documentos_clientes')
           .createSignedUrl(doc.archivo_path, 3600);
         return {
@@ -83,8 +89,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Obtener cliente
-    const { data: cliente, error: errCliente } = await supabase
+    // Obtener cliente (verificar sesión válida)
+    const { data: cliente, error: errCliente } = await supabaseAnon
       .from('clientes_app')
       .select('id')
       .eq('token', token)
@@ -110,8 +116,8 @@ export async function POST(req: NextRequest) {
       .slice(0, 100);
     const archivo_path = `documentos_clientes/cliente_${cliente.id}/${timestamp}_${nombreLimpio}`;
 
-    // Subir a Storage
-    const { error: errStorage } = await supabase.storage
+    // Subir a Storage (usar admin para permisos de escritura)
+    const { error: errStorage } = await supabaseAdmin.storage
       .from('documentos_clientes')
       .upload(archivo_path, buffer, {
         contentType: mime_type,
@@ -123,8 +129,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'No se pudo guardar el archivo.' }, { status: 500 });
     }
 
-    // Guardar metadatos en BD
-    const { data: doc, error: errDoc } = await supabase
+    // Guardar metadatos en BD (usar admin para no depender de RLS)
+    const { data: doc, error: errDoc } = await supabaseAdmin
       .from('documentos_cliente')
       .insert([
         {
@@ -142,7 +148,7 @@ export async function POST(req: NextRequest) {
 
     if (errDoc) {
       // Intentar limpiar el archivo subido
-      await supabase.storage
+      await supabaseAdmin.storage
         .from('documentos_clientes')
         .remove([archivo_path]);
       return NextResponse.json({ error: errDoc.message }, { status: 500 });
@@ -166,8 +172,8 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: 'Faltan token o id.' }, { status: 400 });
     }
 
-    // Verificar que el cliente es propietario
-    const { data: cliente, error: errCliente } = await supabase
+    // Verificar que el cliente es propietario (verificar sesión válida)
+    const { data: cliente, error: errCliente } = await supabaseAnon
       .from('clientes_app')
       .select('id')
       .eq('token', token)
@@ -177,8 +183,8 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: 'Sesión caducada.' }, { status: 401 });
     }
 
-    // Obtener el documento
-    const { data: doc, error: errDoc } = await supabase
+    // Obtener el documento (usar admin para lecturas sin RLS)
+    const { data: doc, error: errDoc } = await supabaseAdmin
       .from('documentos_cliente')
       .select('id, archivo_path, cliente_id')
       .eq('id', id)
@@ -188,13 +194,13 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: 'Documento no encontrado.' }, { status: 404 });
     }
 
-    // Eliminar de storage
-    await supabase.storage
+    // Eliminar de storage (usar admin)
+    await supabaseAdmin.storage
       .from('documentos_clientes')
       .remove([doc.archivo_path]);
 
-    // Eliminar de BD
-    const { error: errDelete } = await supabase
+    // Eliminar de BD (usar admin para no depender de RLS)
+    const { error: errDelete } = await supabaseAdmin
       .from('documentos_cliente')
       .delete()
       .eq('id', id);

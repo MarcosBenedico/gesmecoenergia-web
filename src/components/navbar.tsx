@@ -251,6 +251,9 @@ export const Navbar = () => {
             );
           })}
           <div className="flex flex-col gap-2 pt-2">
+            <Button href="/cliente" size="md">
+              Mi cuenta
+            </Button>
             <Button href="/contacto" size="md">
               Contacto
             </Button>
@@ -309,6 +312,9 @@ export const Navbar = () => {
         {desktopNav}
 
         <div className="hidden items-center gap-2 md:flex">
+          <Button href="/cliente" variant="ghost" size="md" className="border border-border hover:text-accent">
+            Mi cuenta
+          </Button>
           <Button href="/contacto" variant="ghost" size="md" className="border border-border hover:text-accent">
             Contacto
           </Button>

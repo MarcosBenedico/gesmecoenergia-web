@@ -129,9 +129,9 @@ export function ClienteDocumentos({ token }: { token: string }) {
     if (!archivo) { aviso('Selecciona un archivo', true); return; }
 
     setSubiendo(true);
-    try {
-      const reader = new FileReader();
-      reader.onload = async (ev) => {
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      try {
         const base64 = (ev.target?.result as string).split(',')[1];
         const res = await fetch('/api/cliente/documentos', {
           method: 'POST',
@@ -152,14 +152,18 @@ export function ClienteDocumentos({ token }: { token: string }) {
         setDescripcion('');
         setArchivo(null);
         setMostrarForm(false);
-        cargarDocumentos();
-      };
-      reader.readAsDataURL(archivo);
-    } catch {
-      aviso('Error subiendo documento', true);
-    } finally {
+        await cargarDocumentos();
+      } catch (error) {
+        aviso('Error subiendo documento', true);
+      } finally {
+        setSubiendo(false);
+      }
+    };
+    reader.onerror = () => {
+      aviso('Error leyendo el archivo', true);
       setSubiendo(false);
-    }
+    };
+    reader.readAsDataURL(archivo);
   }
 
   async function eliminar(id: string) {
