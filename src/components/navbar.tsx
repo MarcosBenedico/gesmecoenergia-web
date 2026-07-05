@@ -250,14 +250,14 @@ export const Navbar = () => {
               </Link>
             );
           })}
-          <div className="flex flex-col gap-2 pt-2">
-            <Button href="/cliente" size="md">
+          <div className="flex flex-col gap-3 pt-3">
+            <Button href="/cliente" variant="ghost" size="md">
               Mi cuenta
             </Button>
-            <Button href="/contacto" size="md">
+            <Button href="/contacto" variant="ghost" size="md">
               Contacto
             </Button>
-            <Button href="/contacto" variant="primary" size="md">
+            <Button href="/contacto" variant="accent" size="md">
               Solicitar estudio
             </Button>
           </div>
@@ -311,14 +311,14 @@ export const Navbar = () => {
 
         {desktopNav}
 
-        <div className="hidden items-center gap-2 md:flex">
-          <Button href="/cliente" variant="ghost" size="md" className="border border-border hover:text-accent">
+        <div className="hidden items-center gap-3 md:flex">
+          <Button href="/cliente" variant="ghost" size="md">
             Mi cuenta
           </Button>
-          <Button href="/contacto" variant="ghost" size="md" className="border border-border hover:text-accent">
+          <Button href="/contacto" variant="ghost" size="md">
             Contacto
           </Button>
-          <Button href="/contacto" variant="primary" size="md" className="bg-accent hover:bg-accent-light">
+          <Button href="/contacto" variant="accent" size="md">
             Solicitar estudio
           </Button>
         </div>
