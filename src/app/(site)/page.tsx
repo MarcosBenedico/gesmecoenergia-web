@@ -6,7 +6,6 @@ import { FeatureCard } from "@/components/feature-card";
 import { SectionHeading } from "@/components/section-heading";
 import { HeroSection } from "@/components/hero-section";
 import { ScrollReveal } from "@/components/scroll-reveal";
-import { Background3D } from "@/components/background-3d";
 import { Card3D } from "@/components/card-3d";
 import {
   methodology,
@@ -18,7 +17,6 @@ import {
 export default function HomePage() {
   return (
     <div className="pb-20 relative">
-      <Background3D />
 
       {/* ── HERO ── */}
       <div className="relative z-10">

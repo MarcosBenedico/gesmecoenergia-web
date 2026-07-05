@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Container } from "@/components/container";
 import { SolutionsSelector } from "@/components/solutions-selector";
 import { ScrollReveal } from "@/components/scroll-reveal";
+import { GrupoEmpresas3D } from "@/components/grupo-empresas-3d";
 
 export const metadata = {
   title: "Grupo Gesmeco | Energía, Asesoría y Seguros en Binéfar",
@@ -84,13 +85,6 @@ const EMPRESAS = [
   },
 ];
 
-const CIFRAS_GRUPO = [
-  { valor: "3", etiqueta: "Áreas de servicio", detalle: "Energía · Asesoría · Seguros" },
-  { valor: "1", etiqueta: "Único interlocutor", detalle: "Un equipo, una llamada" },
-  { valor: "4.5 GW", etiqueta: "Cartera energética", detalle: "Gas y luz gestionados" },
-  { valor: "Binéfar", etiqueta: "Nuestra casa", detalle: "Avenida de Aragón, 50" },
-];
-
 const COMPROMISOS = [
   {
     numero: "01",
@@ -164,28 +158,14 @@ export default function GroupPage() {
             </div>
           </ScrollReveal>
 
-          {/* Cifras del grupo */}
-          <ScrollReveal delay={200}>
-            <div className="mx-auto mt-16 grid max-w-4xl grid-cols-2 gap-px overflow-hidden rounded-2xl border border-border/40 bg-border/30 md:grid-cols-4">
-              {CIFRAS_GRUPO.map((c) => (
-                <div key={c.etiqueta} className="bg-card/80 p-6 text-center backdrop-blur-sm">
-                  <div className="text-2xl font-black text-foreground md:text-3xl">{c.valor}</div>
-                  <div className="mt-1 text-[10px] font-bold uppercase tracking-[0.2em] text-accent">
-                    {c.etiqueta}
-                  </div>
-                  <div className="mt-1 text-xs text-muted">{c.detalle}</div>
-                </div>
-              ))}
-            </div>
-          </ScrollReveal>
         </Container>
       </section>
 
-      {/* ═══════════ LAS TRES EMPRESAS ═══════════ */}
-      <section className="py-12">
+      {/* ═══════════ LAS TRES EMPRESAS (showcase 3D) ═══════════ */}
+      <section className="relative z-10 py-12">
         <Container>
           <ScrollReveal>
-            <div className="mb-14 flex items-end justify-between gap-6 flex-wrap">
+            <div className="mb-4 flex items-end justify-between gap-6 flex-wrap">
               <div className="space-y-3">
                 <p className="text-xs font-bold uppercase tracking-[0.3em] text-accent">
                   Las empresas del grupo
@@ -201,77 +181,7 @@ export default function GroupPage() {
             </div>
           </ScrollReveal>
 
-          <div className="space-y-8">
-            {EMPRESAS.map((empresa, i) => (
-              <ScrollReveal key={empresa.nombre} delay={i * 120}>
-                <div
-                  id={empresa.area.toLowerCase()}
-                  className={`group relative overflow-hidden rounded-3xl border bg-card/70 backdrop-blur-sm transition-all duration-500 hover:-translate-y-1 ${empresa.borderClass} ${empresa.glowClass}`}
-                >
-                  {/* Línea superior de área */}
-                  <div
-                    className={`absolute left-0 top-0 h-1 w-full bg-gradient-to-r ${empresa.lineClass} to-transparent opacity-60 transition-opacity group-hover:opacity-100`}
-                  />
-
-                  <div className="grid gap-8 p-8 md:p-10 lg:grid-cols-[1.1fr_1fr]">
-                    {/* Columna identidad */}
-                    <div className="space-y-5">
-                      <div className="flex items-center gap-4">
-                        <div
-                          className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl text-2xl ${empresa.iconClass}`}
-                        >
-                          {empresa.icono}
-                        </div>
-                        <div>
-                          <div
-                            className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.2em] ${empresa.chipClass}`}
-                          >
-                            {empresa.area}
-                          </div>
-                          <h3 className="mt-1 text-2xl font-black text-foreground md:text-3xl">
-                            {empresa.nombre}
-                          </h3>
-                        </div>
-                      </div>
-
-                      <p className="text-lg font-bold leading-snug text-foreground/90">
-                        “{empresa.claim}”
-                      </p>
-
-                      <p className="text-sm leading-relaxed text-muted">{empresa.descripcion}</p>
-
-                      <Link
-                        href={empresa.href}
-                        className={`inline-flex items-center gap-2 text-sm font-bold transition ${empresa.linkClass}`}
-                      >
-                        {empresa.cta}
-                        <span className="transition-transform group-hover:translate-x-1">→</span>
-                      </Link>
-                    </div>
-
-                    {/* Columna servicios */}
-                    <div className="flex flex-col justify-center rounded-2xl border border-border/30 bg-background/40 p-6">
-                      <p className="mb-4 text-[10px] font-bold uppercase tracking-[0.25em] text-muted">
-                        Qué hacemos por ti
-                      </p>
-                      <ul className="space-y-3">
-                        {empresa.servicios.map((servicio) => (
-                          <li key={servicio} className="flex items-start gap-3 text-sm text-muted">
-                            <span
-                              className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${empresa.dotClass}`}
-                            />
-                            <span className="transition-colors group-hover:text-foreground/90">
-                              {servicio}
-                            </span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  </div>
-                </div>
-              </ScrollReveal>
-            ))}
-          </div>
+          <GrupoEmpresas3D />
         </Container>
       </section>
 
