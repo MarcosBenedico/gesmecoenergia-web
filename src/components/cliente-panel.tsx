@@ -1,9 +1,11 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { TARIFA_INFO, TarifaAcceso } from '@/lib/tarifas';
 import { Zap, LogOut, TrendingUp, Euro, BarChart3, ChevronDown, ChevronUp, Plug, FileText } from 'lucide-react';
 import { ClienteDocumentos } from './cliente-documentos';
+import { Background3D } from './background-3d';
+import { Card3D } from './card-3d';
 
 interface ConsumoMes {
   anio: number;
@@ -171,8 +173,9 @@ export function ClientePanel() {
   // ─── PANTALLA DE CARGA ───
   if (cargando) {
     return (
-      <div className="min-h-dvh bg-background flex items-center justify-center">
-        <div className="text-center space-y-3">
+      <div className="min-h-dvh bg-background flex items-center justify-center relative overflow-hidden">
+        <Background3D />
+        <div className="text-center space-y-3 relative z-10">
           <Zap className="w-10 h-10 mx-auto text-accent animate-pulse" />
           <p className="text-muted text-sm">Cargando...</p>
         </div>
@@ -183,8 +186,9 @@ export function ClientePanel() {
   // ─── LOGIN ───
   if (!token || !cliente) {
     return (
-      <div className="min-h-dvh bg-background flex flex-col justify-center p-6">
-        <div className="max-w-sm mx-auto w-full space-y-8">
+      <div className="min-h-dvh bg-background flex flex-col justify-center p-6 relative overflow-hidden">
+        <Background3D />
+        <div className="max-w-sm mx-auto w-full space-y-8 relative z-10">
           <div className="text-center space-y-2">
             <div className="w-16 h-16 mx-auto rounded-2xl bg-accent/15 border border-accent/30 flex items-center justify-center">
               <Zap className="w-8 h-8 text-accent" />
@@ -360,25 +364,25 @@ export function ClientePanel() {
           <>
             {/* Resumen del año */}
             <div className="grid grid-cols-3 gap-2.5">
-              <div className="bg-accent/10 border border-accent/25 rounded-xl p-3">
+              <Card3D glowColor="#6366f1" className="!p-3">
                 <Euro className="w-4 h-4 text-accent mb-1.5" />
                 <p className="text-lg font-bold leading-tight">{eur(resumenAnio.totalEur)}</p>
                 <p className="text-[11px] text-muted">Gasto {anioVisto}</p>
-              </div>
-              <div className="bg-secondary/60 rounded-xl p-3">
+              </Card3D>
+              <Card3D glowColor="#06b6d4" className="!p-3">
                 <Zap className="w-4 h-4 text-accent mb-1.5" />
                 <p className="text-lg font-bold leading-tight">{kwh(resumenAnio.totalKwh)}</p>
                 <p className="text-[11px] text-muted">Consumo {anioVisto}</p>
-              </div>
-              <div className="bg-secondary/60 rounded-xl p-3">
+              </Card3D>
+              <Card3D glowColor="#8b5cf6" className="!p-3">
                 <TrendingUp className="w-4 h-4 text-accent mb-1.5" />
                 <p className="text-lg font-bold leading-tight">{eur(resumenAnio.mediaMes)}</p>
                 <p className="text-[11px] text-muted">Media/mes</p>
-              </div>
+              </Card3D>
             </div>
 
             {/* Gráfico de barras por mes */}
-            <div className="bg-secondary/40 rounded-xl p-4">
+            <Card3D className="!p-4">
               <h3 className="text-sm font-semibold mb-3">Gasto por mes · {anioVisto}</h3>
               <div className="flex items-end gap-1.5 h-32">
                 {Array.from({ length: 12 }, (_, i) => {
@@ -400,7 +404,7 @@ export function ClientePanel() {
                   );
                 })}
               </div>
-            </div>
+            </Card3D>
 
             {/* Detalle mes a mes */}
             <div className="space-y-2">
