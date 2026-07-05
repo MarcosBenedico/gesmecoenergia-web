@@ -6,6 +6,8 @@ import { FeatureCard } from "@/components/feature-card";
 import { SectionHeading } from "@/components/section-heading";
 import { HeroSection } from "@/components/hero-section";
 import { ScrollReveal } from "@/components/scroll-reveal";
+import { Background3D } from "@/components/background-3d";
+import { Card3D } from "@/components/card-3d";
 import {
   methodology,
   sectors,
@@ -15,13 +17,16 @@ import {
 
 export default function HomePage() {
   return (
-    <div className="pb-20">
+    <div className="pb-20 relative">
+      <Background3D />
 
       {/* ── HERO ── */}
-      <HeroSection />
+      <div className="relative z-10">
+        <HeroSection />
+      </div>
 
       {/* ── LO QUE NOS DIFERENCIA ── */}
-      <section className="py-20">
+      <section className="py-20 relative z-10">
         <Container>
           <ScrollReveal>
             <SectionHeading
@@ -35,9 +40,10 @@ export default function HomePage() {
           <div className="mt-10 grid gap-6 md:grid-cols-3">
             {valuePillars.map((pillar, i) => (
               <ScrollReveal key={pillar.title} delay={i * 120}>
-                <FeatureCard title={pillar.title}>
+                <Card3D glowColor={['#6366f1', '#06b6d4', '#8b5cf6'][i % 3]} className="!p-6">
+                  <h3 className="text-lg font-bold text-foreground mb-2">{pillar.title}</h3>
                   <p className="text-sm text-muted">{pillar.description}</p>
-                </FeatureCard>
+                </Card3D>
               </ScrollReveal>
             ))}
           </div>
@@ -45,7 +51,7 @@ export default function HomePage() {
       </section>
 
       {/* ── QUÉ HACEMOS ── */}
-      <section className="py-4">
+      <section className="py-4 relative z-10">
         <Container>
           <ScrollReveal>
             <SectionHeading
@@ -59,14 +65,16 @@ export default function HomePage() {
           <div className="mt-10 grid gap-6 md:grid-cols-2">
             {services.slice(0, 4).map((service, i) => (
               <ScrollReveal key={service.title} delay={i * 100}>
-                <FeatureCard title={service.title} description={service.summary}>
+                <Card3D glowColor={['#06b6d4', '#8b5cf6', '#6366f1', '#ec4899'][i % 4]} className="!p-6">
+                  <h3 className="text-lg font-bold text-foreground mb-3">{service.title}</h3>
+                  <p className="text-sm text-muted mb-3">{service.summary}</p>
                   <BulletList items={service.items} />
-                </FeatureCard>
+                </Card3D>
               </ScrollReveal>
             ))}
           </div>
-          <div className="mt-6 text-right text-sm">
-            <Link href="/servicios" className="font-semibold text-accent hover:underline">
+          <div className="mt-6 text-right text-sm relative z-10">
+            <Link href="/servicios" className="font-semibold text-accent hover:text-accent/80 transition">
               Ver detalle de servicios →
             </Link>
           </div>
@@ -74,7 +82,7 @@ export default function HomePage() {
       </section>
 
       {/* ── SECTORES ── */}
-      <section className="py-20">
+      <section className="py-20 relative z-10">
         <Container>
           <ScrollReveal>
             <SectionHeading kicker="Sectores" title="Trabajamos en todos los sectores de Binéfar.">
@@ -85,12 +93,12 @@ export default function HomePage() {
           <div className="mt-8 grid gap-4 md:grid-cols-3">
             {sectors.map((sector, i) => (
               <ScrollReveal key={sector.name} delay={i * 80}>
-                <div className="sector-card card rounded-2xl border border-border p-5">
+                <Card3D glowColor={['#06b6d4', '#8b5cf6', '#6366f1'][i % 3]} className="!p-5">
                   <div className="text-sm font-bold uppercase tracking-[0.16em] text-accent">
                     {sector.name}
                   </div>
                   <p className="mt-2 text-sm text-muted">{sector.description}</p>
-                </div>
+                </Card3D>
               </ScrollReveal>
             ))}
           </div>
@@ -98,7 +106,7 @@ export default function HomePage() {
       </section>
 
       {/* ── CÓMO TRABAJAMOS ── */}
-      <section className="py-4">
+      <section className="py-4 relative z-10">
         <Container>
           <ScrollReveal>
             <SectionHeading kicker="Cómo trabajamos" title="Pasos claros, sin complicaciones.">
@@ -109,8 +117,8 @@ export default function HomePage() {
           <div className="mt-10 grid gap-4 md:grid-cols-4">
             {methodology.map((step, index) => (
               <ScrollReveal key={step.title} delay={index * 100}>
-                <div className="step-card card relative flex flex-col gap-3 rounded-2xl border border-border p-5">
-                  <div className="flex items-center justify-between">
+                <Card3D glowColor={['#06b6d4', '#8b5cf6', '#ec4899', '#6366f1'][index % 4]} className="!p-5">
+                  <div className="flex items-center justify-between mb-3">
                     <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent/15 text-sm font-black text-accent border border-accent/30">
                       {index + 1}
                     </div>
@@ -119,8 +127,8 @@ export default function HomePage() {
                     </span>
                   </div>
                   <h3 className="text-base font-bold text-foreground">{step.title}</h3>
-                  <p className="text-sm text-muted">{step.detail}</p>
-                </div>
+                  <p className="text-sm text-muted mt-2">{step.detail}</p>
+                </Card3D>
               </ScrollReveal>
             ))}
           </div>
@@ -128,7 +136,7 @@ export default function HomePage() {
       </section>
 
       {/* ── CTA ── */}
-      <section className="mt-16 px-4">
+      <section className="mt-16 px-4 relative z-10">
         <ScrollReveal>
           <Container>
             <div className="cta-bg relative overflow-hidden rounded-3xl px-8 py-14 text-white shadow-[0_0_80px_rgba(255,51,51,0.2)]">
