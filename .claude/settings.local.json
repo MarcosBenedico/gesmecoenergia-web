@@ -97,7 +97,8 @@
       "Bash(git commit -m 'Feature: lógica real completa del módulo Vencimientos y Cartera \\(v2\\) *)",
       "Bash(curl -s \"http://localhost:3000/api/luz/importar?tipo=clientes\" -o /dev/null -w \"clientes: %{http_code}\\\\n\")",
       "Bash(curl -s \"http://localhost:3000/api/luz/importar?tipo=cups\")",
-      "Bash(git commit -m 'Feature: módulo Gestión Luz / Cartera Energética completo *)"
+      "Bash(git commit -m 'Feature: módulo Gestión Luz / Cartera Energética completo *)",
+      "Bash(git commit -m 'Design: rediseño visual del Panel de Gestión con hub de inicio *)"
     ]
   }
 }

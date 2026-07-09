@@ -9,8 +9,9 @@ import { Container } from '@/components/container';
 import { SistemaSegumientos } from '@/components/sistema-seguimientos';
 import { Calendario } from '@/components/calendario';
 import { GeneradorFotovoltaicoFinal } from '@/components/generador-fotovoltaico-final';
+import { GestorHub } from '@/components/gestor-hub';
 
-type Seccion = 'view' | 'create' | 'margenes' | 'clientes' | 'seguimientos' | 'calendario' | 'fotovoltaico';
+type Seccion = 'inicio' | 'view' | 'create' | 'margenes' | 'clientes' | 'seguimientos' | 'calendario' | 'fotovoltaico';
 
 interface Precio {
   id: number;
@@ -30,7 +31,7 @@ interface FormCrearTarifa {
 export default function GestorPage() {
   const router = useRouter();
   const [usuarioActual, setUsuarioActual] = useState<string | null>(null);
-  const [seccion, setSeccion] = useState<Seccion>('view');
+  const [seccion, setSeccion] = useState<Seccion>('inicio');
   const [precios, setPrecios] = useState<Precio[]>([]);
   const [comercializadoras, setComercializadoras] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -273,111 +274,69 @@ export default function GestorPage() {
   const potenciasForm = formCrear.tarifa === '2.0' ? 2 : 6;
 
   return (
-    <div className="min-h-screen bg-background py-20">
-      <Container>
-        <div className="space-y-6">
-          {/* Header */}
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-foreground">Panel de Gestión</h1>
-              <p className="text-sm text-muted">{usuarioActual}</p>
+    <div className="min-h-screen bg-background">
+      {/* Cabecera del panel */}
+      <header className="sticky top-0 z-40 border-b border-border bg-surface/95 backdrop-blur">
+        <div className="mx-auto max-w-[1500px] px-4 md:px-6 py-3 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-9 h-9 rounded-xl bg-accent/15 border border-accent/30 flex items-center justify-center shrink-0">
+              <span className="text-base">⚙️</span>
             </div>
-            <Button variant="ghost" onClick={handleLogout} size="md">
+            <div className="min-w-0">
+              <h1 className="text-sm md:text-base font-black text-foreground leading-tight truncate">
+                Panel de Gestión · Grupo Gesmeco
+              </h1>
+              <p className="text-[11px] text-muted leading-tight truncate">
+                {new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })} · {usuarioActual}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            {/* Accesos rápidos a los módulos */}
+            <a href="/gestor/luz" title="Gestión Luz" className="hidden sm:flex w-9 h-9 rounded-lg bg-amber-500/15 border border-amber-500/30 items-center justify-center text-sm hover:bg-amber-500/25 transition">⚡</a>
+            <a href="/gestor/correbin" title="Vencimientos y Cartera" className="hidden sm:flex w-9 h-9 rounded-lg bg-cyan-500/15 border border-cyan-500/30 items-center justify-center text-sm hover:bg-cyan-500/25 transition">🛡️</a>
+            <a href="/gestor/clientes-app" title="App Clientes" className="hidden sm:flex w-9 h-9 rounded-lg bg-emerald-500/15 border border-emerald-500/30 items-center justify-center text-sm hover:bg-emerald-500/25 transition">📱</a>
+            <button
+              onClick={handleLogout}
+              className="px-3 py-2 rounded-lg bg-card/80 border border-border/50 text-xs font-semibold text-muted hover:text-foreground hover:bg-card transition"
+            >
               Cerrar sesión
-            </Button>
+            </button>
           </div>
+        </div>
+      </header>
 
-          {/* Botones de sección */}
-          <div className="rounded-2xl p-6 flex gap-3 flex-wrap bg-gradient-to-r from-surface to-card border border-border">
-            <button
-              onClick={() => setSeccion('view')}
-              className={`px-4 py-2 rounded-lg font-semibold transition ${
-                seccion === 'view'
-                  ? 'bg-accent text-white'
-                  : 'bg-card/80 text-foreground border border-border/50 hover:bg-card'
-              }`}
-            >
-              Ver Tarifas
-            </button>
-            <button
-              onClick={() => setSeccion('create')}
-              className={`px-4 py-2 rounded-lg font-semibold transition ${
-                seccion === 'create'
-                  ? 'bg-accent text-white'
-                  : 'bg-card/80 text-foreground border border-border/50 hover:bg-card'
-              }`}
-            >
-              Crear Tarifa
-            </button>
-            <button
-              onClick={() => setSeccion('margenes')}
-              className={`px-4 py-2 rounded-lg font-semibold transition ${
-                seccion === 'margenes'
-                  ? 'bg-accent text-white'
-                  : 'bg-card/80 text-foreground border border-border/50 hover:bg-card'
-              }`}
-            >
-              Comparativa
-            </button>
-            <button
-              onClick={() => setSeccion('clientes')}
-              className={`px-4 py-2 rounded-lg font-semibold transition ${
-                seccion === 'clientes'
-                  ? 'bg-accent text-white'
-                  : 'bg-card/80 text-foreground border border-border/50 hover:bg-card'
-              }`}
-            >
-              Gestionar Clientes
-            </button>
-            <button
-              onClick={() => setSeccion('seguimientos')}
-              className={`px-4 py-2 rounded-lg font-semibold transition ${
-                seccion === 'seguimientos'
-                  ? 'bg-accent text-white'
-                  : 'bg-card/80 text-foreground border border-border/50 hover:bg-card'
-              }`}
-            >
-              Seguimientos
-            </button>
-            <button
-              onClick={() => setSeccion('calendario')}
-              className={`px-4 py-2 rounded-lg font-semibold transition ${
-                seccion === 'calendario'
-                  ? 'bg-accent text-white'
-                  : 'bg-card/80 text-foreground border border-border/50 hover:bg-card'
-              }`}
-            >
-              Calendario
-            </button>
-            <button
-              onClick={() => setSeccion('fotovoltaico')}
-              className={`px-4 py-2 rounded-lg font-semibold transition ${
-                seccion === 'fotovoltaico'
-                  ? 'bg-secondary text-white'
-                  : 'bg-card/80 text-foreground border border-border/50 hover:bg-card'
-              }`}
-            >
-              Generador Fotovoltaico
-            </button>
-            <a
-              href="/gestor/clientes-app"
-              className="px-4 py-2 rounded-lg font-semibold transition bg-emerald-600 text-white hover:bg-emerald-500"
-            >
-              📱 App Clientes · Consumos
-            </a>
-            <a
-              href="/gestor/correbin"
-              className="px-4 py-2 rounded-lg font-semibold transition bg-cyan-700 text-white hover:bg-cyan-600"
-            >
-              🛡️ Vencimientos y Cartera
-            </a>
-            <a
-              href="/gestor/luz"
-              className="px-4 py-2 rounded-lg font-semibold transition bg-amber-600 text-white hover:bg-amber-500"
-            >
-              ⚡ Gestión Luz
-            </a>
-          </div>
+      <div className="mx-auto max-w-[1500px] px-4 md:px-6 py-6">
+        <div className="space-y-6">
+
+          {/* Navegación de herramientas */}
+          <nav className="flex gap-1.5 flex-wrap items-center rounded-2xl p-2 bg-surface/60 border border-border/40">
+            {([
+              ['inicio', '🏠 Inicio'],
+              ['view', 'Ver Tarifas'],
+              ['create', 'Crear Tarifa'],
+              ['margenes', 'Comparativa'],
+              ['clientes', 'Gestionar Clientes'],
+              ['seguimientos', 'Seguimientos'],
+              ['calendario', 'Calendario'],
+              ['fotovoltaico', 'Fotovoltaico'],
+            ] as [Seccion, string][]).map(([sec, nombre]) => (
+              <button
+                key={sec}
+                onClick={() => setSeccion(sec)}
+                className={`px-3.5 py-2 rounded-xl text-sm font-semibold transition ${
+                  seccion === sec
+                    ? 'bg-accent text-white shadow-[0_4px_14px_rgba(255,51,51,0.3)]'
+                    : 'text-muted hover:text-foreground hover:bg-card/80'
+                }`}
+              >
+                {nombre}
+              </button>
+            ))}
+          </nav>
+
+          {/* Sección: Inicio (hub) */}
+          {seccion === 'inicio' && <GestorHub onIr={(s) => setSeccion(s as Seccion)} />}
 
           {/* Sección: Ver Tarifas */}
           {seccion === 'view' && (
@@ -613,7 +572,7 @@ export default function GestorPage() {
             <ComparativaSimulador clientes={clientes} comercializadoras={comercializadoras} precios={precios} />
           )}
         </div>
-      </Container>
+      </div>
     </div>
   );
 }
