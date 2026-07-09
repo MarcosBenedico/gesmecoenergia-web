@@ -78,7 +78,19 @@
       "Bash(git rm *)",
       "Bash(curl -s http://localhost:3000/api/setup-documentos)",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000/gestor)",
-      "Bash(git commit -m 'Feature: aviso email al gestor por documento subido + setup automático de Storage + limpieza *)"
+      "Bash(git commit -m 'Feature: aviso email al gestor por documento subido + setup automático de Storage + limpieza *)",
+      "Bash(curl -s -X POST \"https://rhsflkemubgigagwmoqb.supabase.co/rest/v1/rpc/exec_sql\" -H \"apikey: sb_publishable_OWi92FE3lAu3qd6YioVGJw_BrmCB_HM\" -H \"Authorization: Bearer sb_publishable_OWi92FE3lAu3qd6YioVGJw_BrmCB_HM\" -H \"Content-Type: application/json\" -d '{\"query\":\"SELECT 1\"}')",
+      "Bash(curl -s -X POST \"https://rhsflkemubgigagwmoqb.supabase.co/rest/v1/clientes_app\" -H \"apikey: sb_publishable_OWi92FE3lAu3qd6YioVGJw_BrmCB_HM\" -H \"Authorization: Bearer sb_publishable_OWi92FE3lAu3qd6YioVGJw_BrmCB_HM\" -H \"Content-Type: application/json\" -H \"Prefer: return=representation\" -d '{\"usuario\":\"test_claude_tmp\",\"password_hash\":\"test1234\",\"nombre\":\"Test Claude\",\"activo\":true,\"token\":\"tok_test_claude_1234567890abcdef1234567890abcdef\"}')",
+      "Bash(curl -s -X POST http://localhost:3000/api/cliente/suministros -H 'Content-Type: application/json' -d '{\"token\":\"tok_test_claude_1234567890abcdef1234567890abcdef\",\"cups\":\"ES9999000011112222TEST\",\"alias\":\"Casa Test\",\"tarifa\":\"2.0\",\"precios_energia\":[0.15,0.10,0.08],\"precios_potencia\":[0.08,0.05],\"potencias_kw\":[4.6,4.6]}')",
+      "Bash(curl -s -X POST http://localhost:3000/api/cliente/consumos -H 'Content-Type: application/json' -d '{\"token\":\"tok_test_claude_1234567890abcdef1234567890abcdef\",\"suministro_id\":\"4a8e56ca-ae25-4383-9d2d-ae7c0669eb5a\",\"anio\":2026,\"mes\":6,\"consumos_kwh\":[120,80,150],\"notas\":\"añadido por el cliente\"}')",
+      "Bash(curl -s -X POST http://localhost:3000/api/cliente/consumos -H 'Content-Type: application/json' -d '{\"token\":\"tok_test_claude_1234567890abcdef1234567890abcdef\",\"suministro_id\":\"4a8e56ca-ae25-4383-9d2d-ae7c0669eb5a\",\"anio\":2026,\"mes\":6,\"consumos_kwh\":[130,80,150],\"precios_energia\":[0.18,0.12,0.09]}')",
+      "Bash(curl -s -X PUT http://localhost:3000/api/cliente/suministros -H 'Content-Type: application/json' -d '{\"token\":\"tok_test_claude_1234567890abcdef1234567890abcdef\",\"id\":\"4a8e56ca-ae25-4383-9d2d-ae7c0669eb5a\",\"alias\":\"Casa Test Editada\",\"precios_energia\":[0.14,0.09,0.07]}')",
+      "Bash(curl -s -X POST http://localhost:3000/api/cliente/documentos -H 'Content-Type: application/json' -d '{\"token\":\"tok_test_claude_1234567890abcdef1234567890abcdef\",\"nombre\":\"factura_test.png\",\"tipo_documento\":\"factura\",\"archivo_base64\":\"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==\",\"mime_type\":\"image/png\"}')",
+      "Bash(curl -s http://localhost:3000/api/cliente/documentos?token=tok_test_claude_1234567890abcdef1234567890abcdef)",
+      "Bash(curl -s -w ' → HTTP %{http_code}\\\\n' -o /dev/null 'http://localhost:3000/api/cliente/documentos?token=token_falso&descargar=1fec7689-ad89-4582-a2d4-700eb9c73e39')",
+      "Bash(curl -s -X DELETE http://localhost:3000/api/cliente/documentos -H 'Content-Type: application/json' -d '{\"token\":\"tok_test_claude_1234567890abcdef1234567890abcdef\",\"id\":\"1fec7689-ad89-4582-a2d4-700eb9c73e39\"}')",
+      "Bash(curl -s -X DELETE \"https://rhsflkemubgigagwmoqb.supabase.co/rest/v1/clientes_app?usuario=eq.test_claude_tmp\" -H \"apikey: sb_publishable_OWi92FE3lAu3qd6YioVGJw_BrmCB_HM\" -H \"Authorization: Bearer sb_publishable_OWi92FE3lAu3qd6YioVGJw_BrmCB_HM\" -w \"HTTP %{http_code}\")",
+      "Bash(git commit -m 'Feature: autogestión del cliente \\(suministros y consumos\\) + documentos funcionando de verdad *)"
     ]
   }
 }

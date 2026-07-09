@@ -36,6 +36,35 @@ const formatSize = (bytes: number) => {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 };
 
+// El servidor (Vercel) admite ~4,5 MB de body: comprimimos imágenes y limitamos PDFs
+const MAX_PDF = 4 * 1024 * 1024;
+const OBJETIVO_IMAGEN = 2.5 * 1024 * 1024;
+
+/** Comprime una imagen en el navegador: máx 2000px de lado, JPEG progresivamente más comprimido. */
+async function comprimirImagen(archivo: File): Promise<File> {
+  if (!archivo.type.startsWith('image/') || archivo.size <= OBJETIVO_IMAGEN) return archivo;
+
+  const bitmap = await createImageBitmap(archivo);
+  const escala = Math.min(1, 2000 / Math.max(bitmap.width, bitmap.height));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.round(bitmap.width * escala);
+  canvas.height = Math.round(bitmap.height * escala);
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return archivo;
+  ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+
+  for (const calidad of [0.85, 0.7, 0.55, 0.4]) {
+    const blob: Blob | null = await new Promise((res) => canvas.toBlob(res, 'image/jpeg', calidad));
+    if (blob && blob.size <= OBJETIVO_IMAGEN) {
+      return new File([blob], archivo.name.replace(/\.\w+$/, '.jpg'), { type: 'image/jpeg' });
+    }
+    if (calidad === 0.4 && blob) {
+      return new File([blob], archivo.name.replace(/\.\w+$/, '.jpg'), { type: 'image/jpeg' });
+    }
+  }
+  return archivo;
+}
+
 export function ClienteDocumentos({ token }: { token: string }) {
   const [documentos, setDocumentos] = useState<Documento[]>([]);
   const [cargando, setCargando] = useState(false);
@@ -108,12 +137,13 @@ export function ClienteDocumentos({ token }: { token: string }) {
       ctx.drawImage(videoRef.current, 0, 0);
       canvasRef.current.toBlob((blob) => {
         if (blob) {
-          setArchivo(new File([blob], `foto_${Date.now()}.png`, { type: 'image/png' }));
+          setArchivo(new File([blob], `foto_${Date.now()}.jpg`, { type: 'image/jpeg' }));
           setNombre(`Factura ${new Date().toLocaleDateString('es-ES')}`);
           setTipo('factura');
           cerrarCamara();
+          setMostrarForm(true);
         }
-      }, 'image/png');
+      }, 'image/jpeg', 0.85);
     }
   }
 
@@ -128,42 +158,49 @@ export function ClienteDocumentos({ token }: { token: string }) {
     e.preventDefault();
     if (!archivo) { aviso('Selecciona un archivo', true); return; }
 
+    // Los PDF no se pueden comprimir: límite claro
+    if (archivo.type === 'application/pdf' && archivo.size > MAX_PDF) {
+      aviso(`El PDF pesa ${formatSize(archivo.size)}. Máximo 4 MB.`, true);
+      return;
+    }
+
     setSubiendo(true);
-    const reader = new FileReader();
-    reader.onload = async (ev) => {
-      try {
-        const base64 = (ev.target?.result as string).split(',')[1];
-        const res = await fetch('/api/cliente/documentos', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            token,
-            nombre: nombre || archivo.name,
-            tipo_documento: tipo,
-            descripcion: descripcion || null,
-            archivo_base64: base64,
-            mime_type: archivo.type,
-          }),
-        });
-        const json = await res.json();
-        if (!res.ok) { aviso(json.error, true); return; }
-        aviso('Documento subido correctamente');
-        setNombre('');
-        setDescripcion('');
-        setArchivo(null);
-        setMostrarForm(false);
-        await cargarDocumentos();
-      } catch (error) {
-        aviso('Error subiendo documento', true);
-      } finally {
-        setSubiendo(false);
-      }
-    };
-    reader.onerror = () => {
-      aviso('Error leyendo el archivo', true);
+    try {
+      // Comprimir imágenes grandes antes de enviar
+      const listo = await comprimirImagen(archivo);
+
+      const base64: string = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (ev) => resolve((ev.target?.result as string).split(',')[1]);
+        reader.onerror = () => reject(new Error('No se pudo leer el archivo'));
+        reader.readAsDataURL(listo);
+      });
+
+      const res = await fetch('/api/cliente/documentos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token,
+          nombre: nombre || archivo.name,
+          tipo_documento: tipo,
+          descripcion: descripcion || null,
+          archivo_base64: base64,
+          mime_type: listo.type,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) { aviso(json.error || 'Error subiendo documento', true); return; }
+      aviso('Documento subido correctamente');
+      setNombre('');
+      setDescripcion('');
+      setArchivo(null);
+      setMostrarForm(false);
+      await cargarDocumentos();
+    } catch {
+      aviso('Error subiendo documento', true);
+    } finally {
       setSubiendo(false);
-    };
-    reader.readAsDataURL(archivo);
+    }
   }
 
   async function eliminar(id: string) {

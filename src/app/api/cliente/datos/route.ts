@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
 
     const { data: consumos } = await supabase
       .from('consumos_clientes')
-      .select('suministro_id, anio, mes, consumos_kwh, precios_energia, precios_potencia, coste_energia, coste_potencia, coste_total, notas')
+      .select('id, suministro_id, anio, mes, consumos_kwh, precios_energia, precios_potencia, coste_energia, coste_potencia, coste_total, notas')
       .eq('cliente_id', cliente.id)
       .order('anio', { ascending: false })
       .order('mes', { ascending: false });

@@ -2,12 +2,14 @@
 
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { TARIFA_INFO, TarifaAcceso } from '@/lib/tarifas';
-import { Zap, LogOut, TrendingUp, Euro, BarChart3, ChevronDown, ChevronUp, Plug, FileText } from 'lucide-react';
+import { Zap, LogOut, TrendingUp, Euro, BarChart3, ChevronDown, ChevronUp, Plug, FileText, Plus, Pencil } from 'lucide-react';
 import { ClienteDocumentos } from './cliente-documentos';
+import { FormSuministro, FormConsumoMes } from './cliente-editar';
 import { Background3D } from './background-3d';
 import { Card3D } from './card-3d';
 
 interface ConsumoMes {
+  id?: string;
   anio: number;
   mes: number;
   consumos_kwh: number[];
@@ -65,6 +67,16 @@ export function ClientePanel() {
   const [mesAbierto, setMesAbierto] = useState<string | null>(null);
   const [seccion, setSeccion] = useState<'consumos' | 'documentos'>('consumos');
 
+  // Formularios de autogestión
+  const [formSum, setFormSum] = useState<'nuevo' | 'editar' | null>(null);
+  const [formConsumo, setFormConsumo] = useState<null | { existente?: ConsumoMes }>(null);
+
+  async function recargar() {
+    setFormSum(null);
+    setFormConsumo(null);
+    if (token) await cargarDatos(token);
+  }
+
   useEffect(() => {
     const t = localStorage.getItem('cliente_token');
     if (t) {
@@ -94,7 +106,8 @@ export function ClientePanel() {
       const sums: Suministro[] = json.suministros || [];
       setSuministros(sums);
       if (sums.length > 0) {
-        setSumSelId(sums[0].id);
+        // Mantener el suministro seleccionado si sigue existiendo
+        setSumSelId((prev) => (prev && sums.some((s) => s.id === prev) ? prev : sums[0].id));
         const primerConAnio = sums.find((s) => s.consumos.length > 0);
         if (primerConAnio) setAnioVisto(primerConAnio.consumos[0].anio);
       }
@@ -303,36 +316,51 @@ export function ClientePanel() {
         {/* SECCIÓN: CONSUMOS */}
         {seccion === 'consumos' && (
           <div className="space-y-5">
-        {/* Selector de suministro (si tiene más de uno) */}
-        {suministros.length > 1 && (
-          <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
-            {suministros.map((s) => (
-              <button
-                key={s.id}
-                onClick={() => { setSumSelId(s.id); setMesAbierto(null); }}
-                className={`shrink-0 flex items-center gap-2 px-3.5 py-2.5 rounded-xl border text-left transition ${
-                  s.id === suministro?.id
-                    ? 'border-accent bg-accent/15'
-                    : 'border-border/40 bg-secondary/40'
-                }`}
-              >
-                <Plug className={`w-4 h-4 ${s.id === suministro?.id ? 'text-accent' : 'text-muted'}`} />
-                <span>
-                  <span className="block text-xs font-bold">{s.alias || 'Suministro'}</span>
-                  <span className="block text-[9px] font-mono text-muted">{s.cups}</span>
-                </span>
-              </button>
-            ))}
-          </div>
+        {/* Selector de suministros + añadir */}
+        <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+          {suministros.map((s) => (
+            <button
+              key={s.id}
+              onClick={() => { setSumSelId(s.id); setMesAbierto(null); setFormConsumo(null); setFormSum(null); }}
+              className={`shrink-0 flex items-center gap-2 px-3.5 py-2.5 rounded-xl border text-left transition ${
+                s.id === suministro?.id
+                  ? 'border-accent bg-accent/15'
+                  : 'border-border/40 bg-secondary/40'
+              }`}
+            >
+              <Plug className={`w-4 h-4 ${s.id === suministro?.id ? 'text-accent' : 'text-muted'}`} />
+              <span>
+                <span className="block text-xs font-bold">{s.alias || 'Suministro'}</span>
+                <span className="block text-[9px] font-mono text-muted">{s.cups}</span>
+              </span>
+            </button>
+          ))}
+          <button
+            onClick={() => { setFormSum(formSum === 'nuevo' ? null : 'nuevo'); setFormConsumo(null); }}
+            className={`shrink-0 flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl border border-dashed text-xs font-bold transition ${
+              formSum === 'nuevo'
+                ? 'border-accent text-accent bg-accent/10'
+                : 'border-border/60 text-muted hover:border-accent hover:text-accent'
+            }`}
+          >
+            <Plus className="w-4 h-4" />
+            Añadir suministro
+          </button>
+        </div>
+
+        {/* Formulario: nuevo suministro */}
+        {formSum === 'nuevo' && token && (
+          <FormSuministro token={token} onGuardado={recargar} onCancelar={() => setFormSum(null)} />
         )}
 
-        {/* CUPS visible si solo hay un suministro */}
-        {suministros.length === 1 && suministro && (
-          <p className="text-[11px] text-muted flex items-center gap-1.5 px-1">
-            <Plug className="w-3.5 h-3.5" />
-            {suministro.alias || 'Suministro'} ·{' '}
-            <span className="font-mono">{suministro.cups}</span>
-          </p>
+        {/* Formulario: editar suministro actual */}
+        {formSum === 'editar' && token && suministro && (
+          <FormSuministro
+            token={token}
+            suministro={suministro}
+            onGuardado={recargar}
+            onCancelar={() => setFormSum(null)}
+          />
         )}
 
         {/* Selector de año */}
@@ -352,13 +380,35 @@ export function ClientePanel() {
           </div>
         )}
 
+        {/* Formulario: añadir/corregir consumo mensual */}
+        {formConsumo && token && suministro && (
+          <FormConsumoMes
+            token={token}
+            suministroId={suministro.id}
+            tarifa={suministro.tarifa}
+            preciosContrato={suministro.precios_energia}
+            consumoExistente={formConsumo.existente}
+            onGuardado={recargar}
+            onCancelar={() => setFormConsumo(null)}
+          />
+        )}
+
         {!suministro || consumos.length === 0 ? (
           <div className="text-center py-16 space-y-3">
             <BarChart3 className="w-12 h-12 mx-auto text-muted/40" />
             <p className="text-muted">Aún no hay consumos registrados</p>
             <p className="text-xs text-muted/60">
-              Iremos añadiendo tus consumos cada mes. Vuelve pronto.
+              Iremos añadiendo tus consumos cada mes, o añádelos tú si los tienes a mano.
             </p>
+            {suministro && !formConsumo && (
+              <button
+                onClick={() => setFormConsumo({})}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-accent/15 text-accent text-sm font-bold hover:bg-accent/25 transition"
+              >
+                <Plus className="w-4 h-4" />
+                Añadir mis consumos
+              </button>
+            )}
           </div>
         ) : (
           <>
@@ -408,7 +458,16 @@ export function ClientePanel() {
 
             {/* Detalle mes a mes */}
             <div className="space-y-2">
-              <h3 className="text-sm font-semibold px-1">Detalle mensual</h3>
+              <div className="flex items-center justify-between px-1">
+                <h3 className="text-sm font-semibold">Detalle mensual</h3>
+                <button
+                  onClick={() => { setFormConsumo(formConsumo && !formConsumo.existente ? null : {}); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                  className="inline-flex items-center gap-1.5 text-xs font-bold text-accent hover:underline"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  Añadir mes
+                </button>
+              </div>
               {[...consumosAnio].reverse().map((c) => {
                 const key = `${c.anio}-${c.mes}`;
                 const abierto = mesAbierto === key;
@@ -468,6 +527,13 @@ export function ClientePanel() {
                           </span>
                         </div>
                         {c.notas && <p className="text-xs text-muted italic">{c.notas}</p>}
+                        <button
+                          onClick={() => { setFormConsumo({ existente: c }); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                          className="inline-flex items-center gap-1.5 text-xs font-bold text-accent hover:underline"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                          Corregir este mes
+                        </button>
                       </div>
                     )}
                   </div>
@@ -477,9 +543,18 @@ export function ClientePanel() {
 
             {/* Mi contrato */}
             <div className="bg-secondary/40 rounded-xl p-4 space-y-3">
-              <h3 className="text-sm font-semibold">
-                Mi contrato · Tarifa {info.nombre}
-              </h3>
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold">
+                  Mi contrato · Tarifa {info.nombre}
+                </h3>
+                <button
+                  onClick={() => { setFormSum('editar'); setFormConsumo(null); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                  className="inline-flex items-center gap-1.5 text-xs font-bold text-accent hover:underline"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                  Modificar
+                </button>
+              </div>
               <p className="text-[11px] text-muted font-mono -mt-1.5">{suministro.cups}</p>
               <div>
                 <p className="text-xs font-semibold text-muted mb-1.5">Precio energía (€/kWh)</p>

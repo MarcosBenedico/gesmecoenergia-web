@@ -1,28 +1,47 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { servirDocumento } from '@/lib/documentos-storage';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
+// Sin archivo_path en el listado: puede contener el archivo entero (respaldo en BD)
+const CAMPOS_LISTA =
+  'id, nombre_original, tipo_documento, descripcion, tamano_bytes, mime_type, creado_en, analizado, notas_analisis';
+
 /**
- * GET: Lista documentos de un cliente específico (para el asesor)
- * PUT: Actualiza notas de análisis del documento
+ * GET: Lista documentos de un cliente (para el asesor).
+ *      Con ?descargar={id} devuelve el archivo en sí.
+ * PUT: Actualiza notas de análisis del documento.
  */
 
 export async function GET(req: NextRequest) {
   try {
     const clienteId = req.nextUrl.searchParams.get('cliente_id');
+    const descargar = req.nextUrl.searchParams.get('descargar');
+
+    // ── Modo descarga ──
+    if (descargar) {
+      const { data: doc } = await supabase
+        .from('documentos_cliente')
+        .select('archivo_path, mime_type, nombre_original')
+        .eq('id', descargar)
+        .single();
+      if (!doc) {
+        return NextResponse.json({ error: 'Documento no encontrado.' }, { status: 404 });
+      }
+      return servirDocumento(doc.archivo_path, doc.mime_type, doc.nombre_original);
+    }
 
     if (!clienteId) {
       return NextResponse.json({ error: 'Falta cliente_id.' }, { status: 400 });
     }
 
-    // Listar documentos del cliente con sus metadatos
     const { data: docs, error: errDocs } = await supabase
       .from('documentos_cliente')
-      .select('id, nombre_original, tipo_documento, descripcion, tamano_bytes, mime_type, creado_en, analizado, notas_analisis, archivo_path')
+      .select(CAMPOS_LISTA)
       .eq('cliente_id', clienteId)
       .order('creado_en', { ascending: false });
 
@@ -30,19 +49,11 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: errDocs.message }, { status: 500 });
     }
 
-    // Generar URLs firmadas para preview/descarga (válidas 24 horas)
-    const docs_con_url = await Promise.all(
-      (docs || []).map(async (doc) => {
-        const { data } = await supabase.storage
-          .from('documentos_clientes')
-          .createSignedUrl(doc.archivo_path, 86400); // 24h
-        return {
-          ...doc,
-          url_descarga: data?.signedUrl || null,
-          tamaño_kb: Math.round(doc.tamano_bytes / 1024),
-        };
-      })
-    );
+    const docs_con_url = (docs || []).map((doc) => ({
+      ...doc,
+      url_descarga: `/api/gestor/documentos-cliente?descargar=${doc.id}`,
+      tamano_kb: Math.round((doc.tamano_bytes || 0) / 1024),
+    }));
 
     return NextResponse.json({
       ok: true,
