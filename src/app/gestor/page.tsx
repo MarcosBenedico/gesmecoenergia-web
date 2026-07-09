@@ -371,6 +371,12 @@ export default function GestorPage() {
             >
               🛡️ Vencimientos y Cartera
             </a>
+            <a
+              href="/gestor/luz"
+              className="px-4 py-2 rounded-lg font-semibold transition bg-amber-600 text-white hover:bg-amber-500"
+            >
+              ⚡ Gestión Luz
+            </a>
           </div>
 
           {/* Sección: Ver Tarifas */}

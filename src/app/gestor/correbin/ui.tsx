@@ -74,12 +74,13 @@ export function Badge({ children, tono = 'muted' }: { children: React.ReactNode;
   );
 }
 
-export function EstadoCarga({ cargando, error, faltaMigracion, vacio, textoVacio }: {
+export function EstadoCarga({ cargando, error, faltaMigracion, vacio, textoVacio, sqlFile = 'supabase_correbin_v2.sql' }: {
   cargando: boolean;
   error: string;
   faltaMigracion?: boolean;
   vacio: boolean;
   textoVacio: string;
+  sqlFile?: string;
 }) {
   if (cargando) {
     return (
@@ -96,7 +97,7 @@ export function EstadoCarga({ cargando, error, faltaMigracion, vacio, textoVacio
         <div>
           <p className="font-bold">El módulo aún no está activado en la base de datos.</p>
           <p className="mt-1 text-amber-300/80">
-            Ejecuta el fichero <code className="font-mono bg-black/20 px-1.5 py-0.5 rounded">supabase_correbin.sql</code> en
+            Ejecuta el fichero <code className="font-mono bg-black/20 px-1.5 py-0.5 rounded">{sqlFile}</code> en
             Supabase → SQL Editor (una sola vez). Después recarga esta página.
           </p>
         </div>

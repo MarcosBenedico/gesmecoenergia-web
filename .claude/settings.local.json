@@ -94,7 +94,10 @@
       "Bash(curl -s -o /dev/null -w \"gestor: %{http_code}\\\\n\" http://localhost:3000/gestor)",
       "Bash(curl -s -o /dev/null -w \"clientes-app: %{http_code}\\\\n\" http://localhost:3000/gestor/clientes-app)",
       "Bash(git commit -m 'Feature: módulo Vencimientos y Cartera para Correbin Asociados *)",
-      "Bash(git commit -m 'Feature: lógica real completa del módulo Vencimientos y Cartera \\(v2\\) *)"
+      "Bash(git commit -m 'Feature: lógica real completa del módulo Vencimientos y Cartera \\(v2\\) *)",
+      "Bash(curl -s \"http://localhost:3000/api/luz/importar?tipo=clientes\" -o /dev/null -w \"clientes: %{http_code}\\\\n\")",
+      "Bash(curl -s \"http://localhost:3000/api/luz/importar?tipo=cups\")",
+      "Bash(git commit -m 'Feature: módulo Gestión Luz / Cartera Energética completo *)"
     ]
   }
 }
