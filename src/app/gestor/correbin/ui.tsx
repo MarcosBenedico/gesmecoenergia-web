@@ -2,7 +2,10 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { AlertCircle, Loader } from 'lucide-react';
-import { diasHasta, urgenciaVencimiento } from '@/lib/correbin';
+import {
+  diasHasta, urgenciaVencimiento, PRIORIDAD_TONO, SEGMENTO_COLOR, SEGMENTO_LABEL,
+  VctResponsable, Prioridad,
+} from '@/lib/correbin';
 
 /** Kit UI compartido del módulo Vencimientos y Cartera (estilo del panel actual). */
 
@@ -147,6 +150,50 @@ export function useLista<T>(recurso: string, params: Record<string, string> = {}
   useEffect(() => { recargar(); }, [recargar]);
 
   return { datos, cargando, error, faltaMigracion, recargar };
+}
+
+/** Badge de prioridad A/B/C/D del cliente. */
+export function BadgePrioridad({ prioridad }: { prioridad: string | null | undefined }) {
+  const p = (prioridad || 'C') as Prioridad;
+  const tono = PRIORIDAD_TONO[p] || PRIORIDAD_TONO.C;
+  return (
+    <span className={`inline-flex items-center justify-center w-6 h-6 rounded-md border text-[11px] font-black ${tono}`}>
+      {p}
+    </span>
+  );
+}
+
+/** Badge de segmento con su color. */
+export function BadgeSegmento({ segmento }: { segmento: string | null | undefined }) {
+  if (!segmento) return <span className="text-muted text-xs">—</span>;
+  const color = SEGMENTO_COLOR[segmento];
+  return (
+    <span className={`inline-block px-2 py-0.5 rounded-full border text-[11px] font-semibold whitespace-nowrap ${color?.badge || 'bg-card/80 text-muted border-border/50'}`}>
+      {SEGMENTO_LABEL[segmento] || segmento}
+    </span>
+  );
+}
+
+/** Selector de responsable alimentado por vct_responsables (con opción "Sin asignar"). */
+export function SelectorResponsable({ valor, onCambio, className }: {
+  valor: string | null | undefined;
+  onCambio: (v: string | null) => void;
+  className?: string;
+}) {
+  const { datos } = useLista<VctResponsable>('responsables', { activo: 'true' });
+  const nombres = datos.map((r) => r.nombre);
+  const actual = valor || '';
+  return (
+    <select
+      value={actual}
+      onChange={(e) => onCambio(e.target.value || null)}
+      className={className || 'rounded-lg border border-border/40 bg-background/60 px-2 py-1 text-xs font-semibold'}
+    >
+      <option value="">Sin asignar</option>
+      {actual && !nombres.includes(actual) && <option value={actual}>{actual}</option>}
+      {nombres.map((n) => <option key={n} value={n}>{n}</option>)}
+    </select>
+  );
 }
 
 /** Guardado genérico contra la API del módulo. Devuelve mensaje de error o null si fue bien. */

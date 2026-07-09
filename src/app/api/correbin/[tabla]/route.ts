@@ -30,19 +30,51 @@ const TABLAS: Record<string, DefTabla> = {
   clientes: {
     tabla: 'vct_clientes',
     select: '*',
-    columnas: ['nombre', 'nif', 'telefono', 'email', 'direccion', 'poblacion', 'tipo', 'origen', 'responsable', 'notas', 'activo'],
-    filtros: ['tipo', 'responsable', 'activo'],
+    columnas: ['nombre', 'nif', 'telefono', 'email', 'direccion', 'poblacion', 'contacto_principal', 'tipo', 'origen', 'responsable', 'prioridad', 'segmento', 'potencial_comercial', 'prima_total', 'comision_total', 'notas', 'activo'],
+    filtros: ['tipo', 'responsable', 'activo', 'prioridad', 'segmento'],
     buscarEn: 'nombre',
     orden: { col: 'nombre', asc: true },
     conActualizado: true,
   },
   polizas: {
     tabla: 'vct_polizas',
-    select: '*, vct_clientes(nombre)',
-    columnas: ['cliente_id', 'numero_poliza', 'ramo', 'compania', 'prima_anual', 'fecha_efecto', 'fecha_vencimiento', 'forma_pago', 'estado', 'mediador', 'responsable', 'notas'],
-    filtros: ['cliente_id', 'ramo', 'estado', 'compania', 'responsable', 'mediador'],
+    select: '*, vct_clientes(nombre, nif, prioridad, segmento)',
+    columnas: ['cliente_id', 'numero_poliza', 'ramo', 'compania', 'prima_anual', 'comision', 'fecha_efecto', 'fecha_vencimiento', 'forma_pago', 'estado', 'mediador', 'responsable', 'prioridad', 'segmento', 'origen_importacion', 'notas'],
+    filtros: ['cliente_id', 'ramo', 'estado', 'compania', 'responsable', 'mediador', 'prioridad', 'segmento'],
     buscarEn: 'numero_poliza',
     orden: { col: 'fecha_vencimiento', asc: true },
+    conActualizado: true,
+  },
+  vencimientos: {
+    tabla: 'vct_vencimientos',
+    select: '*, vct_clientes(nombre, prioridad)',
+    columnas: ['cliente_id', 'poliza_id', 'fecha_vct', 'titulo_evento', 'segmento', 'color', 'estado_vencimiento', 'responsable', 'fecha_ultimo_contacto', 'proxima_accion', 'fecha_proxima_accion', 'observaciones'],
+    filtros: ['cliente_id', 'poliza_id', 'segmento', 'estado_vencimiento', 'responsable'],
+    orden: { col: 'fecha_vct', asc: true },
+    conActualizado: true,
+  },
+  produccion: {
+    tabla: 'vct_produccion',
+    select: '*, vct_clientes(nombre)',
+    columnas: ['cliente_id', 'poliza_id', 'fecha_emision', 'fecha_efecto', 'ramo', 'compania', 'prima', 'comision', 'tipo_produccion', 'responsable', 'observaciones'],
+    filtros: ['cliente_id', 'tipo_produccion', 'ramo', 'responsable', 'compania'],
+    orden: { col: 'fecha_emision', asc: false },
+    conActualizado: true,
+  },
+  anulaciones: {
+    tabla: 'vct_anulaciones',
+    select: '*, vct_clientes(nombre)',
+    columnas: ['cliente_id', 'poliza_id', 'fecha_anulacion', 'prima', 'motivo', 'tipo_anulacion', 'poliza_sustituta_id', 'afecta_cartera', 'responsable', 'observaciones'],
+    filtros: ['cliente_id', 'tipo_anulacion', 'responsable'],
+    orden: { col: 'fecha_anulacion', asc: false },
+    conActualizado: true,
+  },
+  cambios_mediador: {
+    tabla: 'vct_cambios_mediador',
+    select: '*, vct_clientes(nombre)',
+    columnas: ['cliente_id', 'prima', 'compania', 'ramo', 'carta_firmada', 'estado_compania', 'fecha_solicitud', 'fecha_envio_compania', 'fecha_entrada', 'estado', 'responsable', 'observaciones'],
+    filtros: ['cliente_id', 'estado', 'responsable'],
+    orden: { col: 'creado_en', asc: false },
     conActualizado: true,
   },
   movimientos: {
@@ -55,8 +87,8 @@ const TABLAS: Record<string, DefTabla> = {
   oportunidades: {
     tabla: 'vct_oportunidades',
     select: '*, vct_clientes(nombre)',
-    columnas: ['cliente_id', 'nombre_contacto', 'telefono', 'ramo', 'compania_actual', 'etapa', 'prima_estimada', 'fecha_prevista', 'responsable', 'notas'],
-    filtros: ['etapa', 'ramo', 'responsable'],
+    columnas: ['cliente_id', 'nombre_contacto', 'telefono', 'ramo', 'compania_actual', 'etapa', 'prima_estimada', 'probabilidad', 'documentacion_recibida', 'proxima_accion', 'fecha_proxima_accion', 'resultado', 'fecha_prevista', 'responsable', 'notas'],
+    filtros: ['etapa', 'ramo', 'responsable', 'cliente_id'],
     buscarEn: 'nombre_contacto',
     orden: { col: 'creado_en', asc: false },
     conActualizado: true,
@@ -64,9 +96,23 @@ const TABLAS: Record<string, DefTabla> = {
   tareas: {
     tabla: 'vct_tareas',
     select: '*, vct_clientes(nombre)',
-    columnas: ['cliente_id', 'poliza_id', 'titulo', 'descripcion', 'fecha_limite', 'prioridad', 'estado', 'responsable', 'hecho_en'],
-    filtros: ['estado', 'prioridad', 'cliente_id', 'responsable'],
+    columnas: ['cliente_id', 'poliza_id', 'vencimiento_id', 'pipeline_id', 'tipo_tarea', 'titulo', 'descripcion', 'fecha_limite', 'prioridad', 'estado', 'responsable', 'hecho_en'],
+    filtros: ['estado', 'prioridad', 'cliente_id', 'responsable', 'tipo_tarea', 'vencimiento_id', 'pipeline_id'],
     orden: { col: 'fecha_limite', asc: true },
+  },
+  responsables: {
+    tabla: 'vct_responsables',
+    select: '*',
+    columnas: ['nombre', 'rol', 'activo'],
+    filtros: ['rol', 'activo'],
+    orden: { col: 'nombre', asc: true },
+  },
+  config: {
+    tabla: 'vct_config',
+    select: '*',
+    columnas: ['clave', 'valor'],
+    filtros: ['clave'],
+    orden: { col: 'clave', asc: true },
   },
 };
 
@@ -114,10 +160,14 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ tabla: stri
   const buscar = params.get('buscar');
   if (buscar && def.buscarEn) query = query.ilike(def.buscarEn, `%${buscar}%`);
 
-  // Rango de fechas para vencimientos / calendario
+  // Rango de fechas para vencimientos / calendario / históricos
   const desde = params.get('desde');
   const hasta = params.get('hasta');
-  const colFecha = tabla === 'polizas' ? 'fecha_vencimiento' : tabla === 'movimientos' ? 'fecha' : tabla === 'tareas' ? 'fecha_limite' : null;
+  const COLS_FECHA: Record<string, string> = {
+    polizas: 'fecha_vencimiento', movimientos: 'fecha', tareas: 'fecha_limite',
+    vencimientos: 'fecha_vct', produccion: 'fecha_emision', anulaciones: 'fecha_anulacion',
+  };
+  const colFecha = COLS_FECHA[tabla] || null;
   if (colFecha) {
     if (desde) query = query.gte(colFecha, desde);
     if (hasta) query = query.lte(colFecha, hasta);
@@ -154,6 +204,18 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ tabla: stri
 
   try {
     const { id, ...body } = await req.json();
+
+    // config: upsert por clave (su PK no es id)
+    if (tabla === 'config') {
+      if (!body.clave) return NextResponse.json({ error: 'Falta la clave.' }, { status: 400 });
+      const { error } = await supabase.from(def.tabla).upsert(
+        { clave: body.clave, valor: String(body.valor ?? ''), actualizado_en: new Date().toISOString() },
+        { onConflict: 'clave' }
+      );
+      if (error) return respuestaError(error.message);
+      return NextResponse.json({ ok: true });
+    }
+
     if (!id) return NextResponse.json({ error: 'Falta el id.' }, { status: 400 });
     const campos = filtrarCampos(def, body);
     if (def.conActualizado) campos.actualizado_en = new Date().toISOString();
