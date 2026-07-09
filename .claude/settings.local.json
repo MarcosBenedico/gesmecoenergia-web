@@ -99,7 +99,9 @@
       "Bash(curl -s \"http://localhost:3000/api/luz/importar?tipo=cups\")",
       "Bash(git commit -m 'Feature: módulo Gestión Luz / Cartera Energética completo *)",
       "Bash(git commit -m 'Design: rediseño visual del Panel de Gestión con hub de inicio *)",
-      "Bash(git commit -m 'Fix: lector de Excel robusto en importadores \\(Luz y Correbin\\) *)"
+      "Bash(git commit -m 'Fix: lector de Excel robusto en importadores \\(Luz y Correbin\\) *)",
+      "Bash(curl -s -o /dev/null -w \"plantilla completa: %{http_code} %{size_download}B\\\\n\" \"http://localhost:3000/api/luz/importar?tipo=completo\")",
+      "Bash(git commit -m 'Feature: plantilla completa de importación Luz con actualización incremental por NIF *)"
     ]
   }
 }

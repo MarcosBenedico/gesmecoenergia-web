@@ -18,6 +18,36 @@ const supabase = createClient(
 interface CampoDef { clave: string; nombre: string; obligatorio?: boolean; alias: string[] }
 
 const TIPOS: Record<string, { nombre: string; campos: CampoDef[] }> = {
+  completo: {
+    nombre: 'Plantilla completa (clientes + CUPS + acción)',
+    campos: [
+      { clave: 'cliente', nombre: 'Cliente', obligatorio: true, alias: ['cliente', 'nombre', 'titular', 'razon social'] },
+      { clave: 'nif', nombre: 'CIF/NIF (índice)', obligatorio: true, alias: ['nif', 'cif', 'cif/nif', 'dni', 'documento'] },
+      { clave: 'contacto', nombre: 'Contacto', alias: ['contacto', 'persona contacto', 'persona'] },
+      { clave: 'telefono', nombre: 'Teléfono', alias: ['telefono', 'tel', 'movil'] },
+      { clave: 'email', nombre: 'Email', alias: ['email', 'correo', 'mail'] },
+      { clave: 'tipo_cliente', nombre: 'Tipo cliente', alias: ['tipo cliente', 'tipo'] },
+      { clave: 'prioridad', nombre: 'Prioridad (A-D)', alias: ['prioridad', 'prio'] },
+      { clave: 'responsable', nombre: 'Responsable', alias: ['responsable', 'gestor', 'comercial'] },
+      { clave: 'proxima_accion', nombre: 'Próxima acción', alias: ['proxima accion', 'accion', 'siguiente accion', 'paso actual'] },
+      { clave: 'fecha_accion', nombre: 'Fecha próxima acción', alias: ['fecha proxima accion', 'fecha accion'] },
+      { clave: 'cups', nombre: 'CUPS', alias: ['cups', 'codigo cups', 'punto suministro'] },
+      { clave: 'alias', nombre: 'Alias suministro', alias: ['alias', 'alias suministro', 'nombre suministro'] },
+      { clave: 'direccion', nombre: 'Dirección suministro', alias: ['direccion', 'direccion suministro', 'domicilio'] },
+      { clave: 'tarifa', nombre: 'Tarifa', alias: ['tarifa', 'tarifa acceso', 'atr', 'peaje'] },
+      { clave: 'comercializadora', nombre: 'Comercializadora actual', alias: ['comercializadora', 'comercializadora actual', 'compania'] },
+      { clave: 'consumo', nombre: 'Consumo anual (kWh)', alias: ['consumo', 'consumo anual', 'kwh'] },
+      { clave: 'fecha_fin', nombre: 'Fecha fin contrato', alias: ['fecha fin', 'fin contrato', 'vencimiento'] },
+      { clave: 'fin_permanencia', nombre: 'Fin permanencia', alias: ['fin permanencia', 'fecha fin permanencia', 'permanencia'] },
+      { clave: 'dias_preaviso', nombre: 'Días preaviso', alias: ['dias preaviso', 'preaviso'] },
+      { clave: 'estado', nombre: 'Estado CUPS', alias: ['estado', 'estado cups', 'situacion'] },
+      { clave: 'comision_prevista', nombre: 'Comisión prevista (€)', alias: ['comision prevista', 'comision', 'comisión'] },
+      { clave: 'fecha_prevista_cobro', nombre: 'Fecha prevista cobro', alias: ['fecha prevista cobro', 'fecha cobro previsto'] },
+      { clave: 'comercializadora_final', nombre: 'Comercializadora final (contrato)', alias: ['comercializadora final', 'nueva comercializadora'] },
+      { clave: 'fecha_activacion', nombre: 'Fecha activación', alias: ['fecha activacion', 'activacion', 'fecha activación'] },
+      { clave: 'observaciones', nombre: 'Observaciones', alias: ['observaciones', 'notas', 'comentarios'] },
+    ],
+  },
   clientes: {
     nombre: 'Clientes energía',
     campos: [
@@ -169,6 +199,9 @@ export async function GET(req: NextRequest) {
   ws.columns.forEach((c) => { c.width = 20; });
 
   const EJEMPLOS: Record<string, (string | number)[]> = {
+    completo: ['Carnes Binéfar SA', 'A22334455', 'José Pérez', '974430001', 'admin@carnesbinefar.es', 'Industria', 'A', 'Energía',
+      'Pedir última factura', '20/07/2026', 'ES0021000012345678AB', 'Nave matadero', 'Pol. Ind. El Sosal 1', '6.1TD', 'Endesa',
+      850000, '01/03/2026', '01/03/2026', 30, 'Pendiente ofertar', 1200, '01/09/2026', '', '', 'Cliente industrial, 3 naves'],
     clientes: ['Carnes Binéfar SA', 'A22334455', 'José Pérez', '974430001', 'admin@carnesbinefar.es', 'Industria', 'Energía', 'A', 'Alto consumo, 3 naves'],
     cups: ['Carnes Binéfar SA', 'A22334455', 'ES0021000012345678AB', 'Pol. Ind. El Sosal 1', '6.1TD', 'Endesa', 'e-distribución', 250, 850000, '01/03/2025', '01/03/2026', 'Sí', '01/03/2026', 30, '2000€', 'Pendiente ofertar', 'Energía'],
     pipeline: ['Talleres Urgeles SL', 'ES0021000098765432ZX', 'Cambio comercializadora', 45000, 900, 'Oferta enviada', 60, 'Energía', 'Llamar para cerrar', '15/07/2026'],
@@ -222,9 +255,26 @@ function validarFila(tipo: string, fila: Fila, mapeo: Mapeo, caches: Awaited<Ret
       return { estado: 'incompleta', motivo: `Falta ${campo.nombre}`, alertas };
     }
   }
-  for (const cf of ['fecha_inicio', 'fecha_fin', 'fin_permanencia', 'fecha_envio', 'fecha_firma', 'fecha_prevista', 'fecha_real', 'fecha_accion', 'fecha_cobro']) {
+  for (const cf of ['fecha_inicio', 'fecha_fin', 'fin_permanencia', 'fecha_envio', 'fecha_firma', 'fecha_prevista', 'fecha_real', 'fecha_accion', 'fecha_cobro', 'fecha_prevista_cobro', 'fecha_activacion']) {
     const t = val(fila, mapeo, cf);
     if (t && !aFechaISO(t)) return { estado: 'error', motivo: `Fecha no válida en ${cf}: "${t}"`, alertas };
+  }
+
+  if (tipo === 'completo') {
+    const nif = val(fila, mapeo, 'nif');
+    if (!nif) return { estado: 'incompleta', motivo: 'Falta el CIF/NIF (es el índice)', alertas };
+    const cups = normCups(val(fila, mapeo, 'cups'));
+    if (cups) {
+      if (cups.length < 10) return { estado: 'error', motivo: `CUPS no válido: "${cups}"`, alertas };
+      if (caches.cupsExistentes.has(cups) || vistas.has(cups)) {
+        alertas.push('actualizará el CUPS existente con los datos nuevos');
+      } else {
+        if (!val(fila, mapeo, 'fecha_fin')) alertas.push('CUPS nuevo sin fecha fin contrato');
+        vistas.add(cups);
+      }
+    }
+    if (!val(fila, mapeo, 'proxima_accion') && !cups) alertas.push('fila solo actualiza datos del cliente');
+    return { estado: 'ok', motivo: alertas.join(' · '), alertas };
   }
 
   if (tipo === 'cups') {
@@ -349,6 +399,143 @@ export async function POST(req: NextRequest) {
 
       try {
         const responsable = g('responsable') || null;
+
+        // ── PLANTILLA COMPLETA: crea o ACTUALIZA por NIF (cliente + CUPS + acción + comisión + activación) ──
+        if (tipo === 'completo') {
+          const nifNorm = g('nif').toUpperCase().replace(/[\s-]/g, '');
+          const nombreNorm = normalizarNombre(g('cliente'));
+          const existenteId = (nifNorm && caches.porNif.get(nifNorm)) || caches.porNombre.get(nombreNorm);
+
+          // Solo se pisan los campos que vienen con valor (nunca se borra nada)
+          const prioridadRaw = g('prioridad').toUpperCase();
+          const datosCliente: Record<string, unknown> = {};
+          if (g('contacto')) datosCliente.persona_contacto = g('contacto');
+          if (g('telefono')) datosCliente.telefono = g('telefono');
+          if (g('email')) datosCliente.email = g('email');
+          if (g('tipo_cliente')) datosCliente.tipo_cliente = mapTipoCliente(g('tipo_cliente'));
+          if (['A', 'B', 'C', 'D'].includes(prioridadRaw)) datosCliente.prioridad = prioridadRaw;
+          if (responsable) datosCliente.responsable = responsable;
+          if (g('proxima_accion')) datosCliente.proxima_accion = g('proxima_accion');
+          if (aFechaISO(g('fecha_accion'))) datosCliente.fecha_proxima_accion = aFechaISO(g('fecha_accion'));
+          if (g('observaciones')) datosCliente.observaciones = g('observaciones');
+
+          let clienteId: string;
+          if (existenteId) {
+            clienteId = existenteId;
+            if (Object.keys(datosCliente).length) {
+              await supabase.from('luz_clientes')
+                .update({ ...datosCliente, actualizado_en: new Date().toISOString() })
+                .eq('id', clienteId);
+            }
+          } else {
+            const { data: nuevo, error: errC } = await supabase.from('luz_clientes')
+              .insert([{ nombre: g('cliente').trim(), nif: nifNorm || null, ...datosCliente }])
+              .select('id').single();
+            if (errC || !nuevo) throw new Error(errC?.message || 'no se pudo crear el cliente');
+            clienteId = nuevo.id;
+            clientesCreados++;
+            if (nifNorm) caches.porNif.set(nifNorm, clienteId);
+            caches.porNombre.set(nombreNorm, clienteId);
+          }
+          if (datosCliente.prioridad) caches.prioridadCliente.set(clienteId, datosCliente.prioridad as string);
+          const prioridad = caches.prioridadCliente.get(clienteId) || 'C';
+
+          // Próxima acción → tarea de seguimiento
+          if (g('proxima_accion')) {
+            await supabase.from('luz_tareas').insert([{
+              cliente_id: clienteId, tipo_tarea: 'seguimiento',
+              descripcion: g('proxima_accion'), responsable,
+              fecha_limite: aFechaISO(g('fecha_accion')),
+            }]);
+          }
+
+          // CUPS: crear si es nuevo, ACTUALIZAR si ya existe
+          const cups = normCups(g('cups'));
+          let cupsId: string | null = null;
+          if (cups) {
+            const finContrato = aFechaISO(g('fecha_fin'));
+            const finPermanencia = aFechaISO(g('fin_permanencia'));
+            const diasPreaviso = parseInt(g('dias_preaviso')) || null;
+            const fechaLimitePreaviso = finContrato && diasPreaviso
+              ? new Date(new Date(finContrato).getTime() - diasPreaviso * 86400000).toISOString().slice(0, 10)
+              : null;
+
+            const ESTADOS_SET = new Set(['sin_factura', 'factura_recibida', 'datos_incompletos', 'pendiente_permanencia', 'pendiente_ofertar', 'oferta_enviada', 'pendiente_firma', 'contrato_firmado', 'pendiente_activacion', 'activado', 'perdido', 'no_viable', 'revisar_adelante']);
+            const estadoRaw = norm(g('estado')).replace(/ /g, '_');
+            const estadoCups = ESTADOS_SET.has(estadoRaw) ? estadoRaw
+              : /oferta/.test(estadoRaw) ? 'oferta_enviada'
+              : /firma/.test(estadoRaw) ? 'pendiente_firma'
+              : /activad/.test(estadoRaw) ? 'activado'
+              : /ofertar/.test(estadoRaw) ? 'pendiente_ofertar'
+              : null;
+
+            const datosCups: Record<string, unknown> = { prioridad };
+            if (g('alias')) datosCups.alias_suministro = g('alias');
+            if (g('direccion')) datosCups.direccion_suministro = g('direccion');
+            if (g('tarifa')) datosCups.tarifa_acceso = mapTarifa(g('tarifa'));
+            if (g('comercializadora')) datosCups.comercializadora_actual = g('comercializadora');
+            if (aNumero(g('consumo'))) datosCups.consumo_anual_kwh = aNumero(g('consumo'));
+            if (finContrato) datosCups.fecha_fin_contrato = finContrato;
+            if (finPermanencia) { datosCups.fecha_fin_permanencia = finPermanencia; datosCups.tiene_permanencia = true; }
+            if (diasPreaviso) datosCups.dias_preaviso = diasPreaviso;
+            if (fechaLimitePreaviso) datosCups.fecha_limite_preaviso = fechaLimitePreaviso;
+            if (estadoCups) datosCups.estado_cups = estadoCups;
+            if (responsable) datosCups.responsable = responsable;
+
+            const existenteCups = caches.cupsExistentes.get(cups);
+            if (existenteCups) {
+              cupsId = existenteCups.id;
+              await supabase.from('luz_cups')
+                .update({ ...datosCups, actualizado_en: new Date().toISOString() })
+                .eq('id', cupsId);
+            } else {
+              const { data: nuevoCups, error: errCups } = await supabase.from('luz_cups')
+                .insert([{ cliente_id: clienteId, cups, estado_cups: 'factura_recibida', ...datosCups }])
+                .select('id').single();
+              if (errCups) throw new Error(errCups.message);
+              cupsId = nuevoCups!.id;
+              caches.cupsExistentes.set(cups, { id: cupsId, cliente_id: clienteId });
+            }
+
+            const base = {
+              cliente_id: clienteId, cups_id: cupsId, clienteNombre: g('cliente'), cups,
+              comercializadora: g('comercializadora') || null, prioridad, responsable,
+            };
+            if (finContrato) await crearFechaCritica({ ...base, tipo: 'fin_contrato', fecha: finContrato });
+            if (finPermanencia) await crearFechaCritica({ ...base, tipo: 'fin_permanencia', fecha: finPermanencia });
+            if (fechaLimitePreaviso) await crearFechaCritica({ ...base, tipo: 'limite_preaviso', fecha: fechaLimitePreaviso });
+          }
+
+          // Comisión prevista
+          if (aNumero(g('comision_prevista')) > 0) {
+            await supabase.from('luz_comisiones').insert([{
+              cliente_id: clienteId, cups_id: cupsId,
+              comercializadora: g('comercializadora_final') || g('comercializadora') || null,
+              importe_previsto: aNumero(g('comision_prevista')),
+              fecha_prevista_cobro: aFechaISO(g('fecha_prevista_cobro')),
+              estado_comision: 'prevista',
+            }]);
+          }
+
+          // Activación (contrato activado + CUPS a "activado")
+          const fechaAct = aFechaISO(g('fecha_activacion'));
+          if (fechaAct) {
+            await supabase.from('luz_contratos').insert([{
+              cliente_id: clienteId, cups_id: cupsId,
+              comercializadora_final: g('comercializadora_final') || null,
+              fecha_activacion_real: fechaAct, estado_contrato: 'activado', responsable,
+            }]);
+            if (cupsId) {
+              await supabase.from('luz_cups').update({
+                estado_cups: 'activado',
+                ...(g('comercializadora_final') ? { comercializadora_actual: g('comercializadora_final') } : {}),
+              }).eq('id', cupsId);
+            }
+          }
+
+          importadas++;
+          continue;
+        }
 
         if (tipo === 'clientes') {
           const { creado } = await resolverOCrearCliente(g('cliente'), g('nif'), {

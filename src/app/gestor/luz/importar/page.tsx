@@ -10,8 +10,9 @@ import { Card, btnPrimario, btnSecundario, inputCls } from '../ui';
  */
 
 const TIPOS_IMPORT = [
-  { clave: 'clientes', nombre: 'Clientes energía', desc: 'Titulares con contacto, tipo, prioridad y responsable.' },
-  { clave: 'cups', nombre: 'CUPS / suministros', desc: 'La base: genera fechas críticas automáticamente.' },
+  { clave: 'completo', nombre: '⭐ Plantilla completa (recomendada)', desc: 'Cliente + CUPS + próxima acción + comisión + activación en una sola fila. El CIF/NIF es el índice: si el cliente o el CUPS ya existen, se ACTUALIZAN con los datos nuevos (nunca se borra nada).' },
+  { clave: 'clientes', nombre: 'Solo clientes energía', desc: 'Titulares con contacto, tipo, prioridad y responsable.' },
+  { clave: 'cups', nombre: 'Solo CUPS / suministros', desc: 'Genera fechas críticas automáticamente.' },
   { clave: 'pipeline', nombre: 'Pipeline energético', desc: 'Oportunidades vivas con próxima acción.' },
   { clave: 'contratos', nombre: 'Contratos', desc: 'Contratos en trámite o activados.' },
   { clave: 'comisiones', nombre: 'Comisiones', desc: 'Previsto y cobrado por comercializadora.' },
@@ -36,7 +37,7 @@ const ESTILO: Record<string, string> = {
 
 export default function ImportarLuzPage() {
   const [paso, setPaso] = useState(1);
-  const [tipo, setTipo] = useState('cups');
+  const [tipo, setTipo] = useState('completo');
   const [archivo, setArchivo] = useState<File | null>(null);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState('');
