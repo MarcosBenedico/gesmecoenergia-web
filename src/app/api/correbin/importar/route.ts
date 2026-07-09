@@ -74,7 +74,7 @@ export async function POST(req: NextRequest) {
     }
 
     const wb = new ExcelJS.Workbook();
-    await wb.xlsx.load(Buffer.from(archivo_base64, 'base64'));
+    await wb.xlsx.load(Buffer.from(archivo_base64, 'base64') as unknown as ExcelJS.Buffer);
     const ws = wb.worksheets[0];
     if (!ws) return NextResponse.json({ error: 'El Excel no tiene hojas.' }, { status: 400 });
 
