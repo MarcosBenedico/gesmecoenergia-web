@@ -365,6 +365,12 @@ export default function GestorPage() {
             >
               📱 App Clientes · Consumos
             </a>
+            <a
+              href="/gestor/correbin"
+              className="px-4 py-2 rounded-lg font-semibold transition bg-cyan-700 text-white hover:bg-cyan-600"
+            >
+              🛡️ Vencimientos y Cartera
+            </a>
           </div>
 
           {/* Sección: Ver Tarifas */}

@@ -90,7 +90,10 @@
       "Bash(curl -s -w ' → HTTP %{http_code}\\\\n' -o /dev/null 'http://localhost:3000/api/cliente/documentos?token=token_falso&descargar=1fec7689-ad89-4582-a2d4-700eb9c73e39')",
       "Bash(curl -s -X DELETE http://localhost:3000/api/cliente/documentos -H 'Content-Type: application/json' -d '{\"token\":\"tok_test_claude_1234567890abcdef1234567890abcdef\",\"id\":\"1fec7689-ad89-4582-a2d4-700eb9c73e39\"}')",
       "Bash(curl -s -X DELETE \"https://rhsflkemubgigagwmoqb.supabase.co/rest/v1/clientes_app?usuario=eq.test_claude_tmp\" -H \"apikey: sb_publishable_OWi92FE3lAu3qd6YioVGJw_BrmCB_HM\" -H \"Authorization: Bearer sb_publishable_OWi92FE3lAu3qd6YioVGJw_BrmCB_HM\" -w \"HTTP %{http_code}\")",
-      "Bash(git commit -m 'Feature: autogestión del cliente \\(suministros y consumos\\) + documentos funcionando de verdad *)"
+      "Bash(git commit -m 'Feature: autogestión del cliente \\(suministros y consumos\\) + documentos funcionando de verdad *)",
+      "Bash(curl -s -o /dev/null -w \"gestor: %{http_code}\\\\n\" http://localhost:3000/gestor)",
+      "Bash(curl -s -o /dev/null -w \"clientes-app: %{http_code}\\\\n\" http://localhost:3000/gestor/clientes-app)",
+      "Bash(git commit -m 'Feature: módulo Vencimientos y Cartera para Correbin Asociados *)"
     ]
   }
 }
