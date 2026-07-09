@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import ExcelJS from 'exceljs';
 import { normalizarNombre, tituloVencimiento, SEGMENTO_COLOR } from '@/lib/correbin';
+import { leerExcel } from '@/lib/excel-lectura';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -316,19 +317,15 @@ export async function POST(req: NextRequest) {
 
     // ── ANALIZAR: leer el Excel y sugerir mapeo ──
     if (accion === 'analizar') {
-      const wb = new ExcelJS.Workbook();
-      await wb.xlsx.load(Buffer.from(body.archivo_base64, 'base64') as unknown as ExcelJS.Buffer);
-      const ws = wb.worksheets[0];
-      if (!ws) return NextResponse.json({ error: 'El Excel no tiene hojas.' }, { status: 400 });
-
-      const cabeceras: string[] = [];
-      ws.getRow(1).eachCell({ includeEmpty: true }, (cell, col) => { cabeceras[col - 1] = celdaTexto(cell.value); });
-
-      const filas: Fila[] = [];
-      for (let i = 2; i <= Math.min(ws.rowCount, 5001); i++) {
-        const fila: Fila = [];
-        ws.getRow(i).eachCell({ includeEmpty: true }, (cell, col) => { fila[col - 1] = celdaTexto(cell.value); });
-        if (fila.some((c) => c && c.trim())) filas.push(fila);
+      // Lectura robusta: ExcelJS con respaldo SheetJS (ficheros de CRM, Python, LibreOffice...)
+      let cabeceras: string[];
+      let filas: Fila[];
+      try {
+        const leido = await leerExcel(body.archivo_base64);
+        cabeceras = leido.cabeceras;
+        filas = leido.filas;
+      } catch (e) {
+        return NextResponse.json({ error: e instanceof Error ? e.message : 'No se pudo leer el fichero.' }, { status: 400 });
       }
 
       // Mapeo sugerido por coincidencia de alias
