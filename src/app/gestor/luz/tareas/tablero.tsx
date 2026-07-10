@@ -2,9 +2,9 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { GripVertical } from 'lucide-react';
-import { LuzTarea, TIPO_TAREA_LABEL, diasHasta, fmtFecha } from '@/lib/luz';
-import { Badge, BadgeVencimiento } from '../ui';
+import { GripVertical, Pencil } from 'lucide-react';
+import { LuzTarea, LuzCliente, TIPOS_TAREA, TIPO_TAREA_LABEL, diasHasta, fmtFecha } from '@/lib/luz';
+import { Badge, BadgeVencimiento, SelectorResponsable } from '../ui';
 
 /** Bucket temporal de una tarea: en qué columna del tablero cae. */
 export type BucketTarea = 'atrasado' | 'hoy' | 'semana' | 'futuro' | 'sin_fecha' | 'hecho';
@@ -48,13 +48,74 @@ function tonoColumna(clave: BucketTarea): string {
 
 interface TableroProps {
   tareas: LuzTarea[];
+  clientes: LuzCliente[];
   onMover: (t: LuzTarea, bucket: BucketTarea) => Promise<void> | void;
   onBorrar: (t: LuzTarea) => Promise<void> | void;
+  onGuardar: (id: string, cambios: Record<string, unknown>) => Promise<void> | void;
 }
 
-export function TableroTareas({ tareas, onMover, onBorrar }: TableroProps) {
+/** Formulario de edición completa de una tarjeta (persiste en base de datos al guardar). */
+function EditorTarjeta({ t, clientes, onGuardar, onCerrar }: {
+  t: LuzTarea;
+  clientes: LuzCliente[];
+  onGuardar: (id: string, cambios: Record<string, unknown>) => Promise<void> | void;
+  onCerrar: () => void;
+}) {
+  const [f, setF] = useState({
+    descripcion: t.descripcion,
+    tipo_tarea: t.tipo_tarea,
+    cliente_id: t.cliente_id || '',
+    fecha_limite: t.fecha_limite || '',
+    prioridad: t.prioridad || 'media',
+    responsable: t.responsable || '',
+  });
+  const inputMini = 'w-full rounded-md border border-border/40 bg-background/70 px-1.5 py-1 text-[11px]';
+  return (
+    <form
+      onSubmit={async (e) => {
+        e.preventDefault();
+        await onGuardar(t.id, {
+          descripcion: f.descripcion,
+          tipo_tarea: f.tipo_tarea,
+          cliente_id: f.cliente_id || null,
+          fecha_limite: f.fecha_limite || null,
+          prioridad: f.prioridad,
+          responsable: f.responsable || null,
+        });
+        onCerrar();
+      }}
+      className="mt-2 pt-2 border-t border-border/30 space-y-1.5"
+      onClick={(e) => e.stopPropagation()}
+    >
+      <textarea className={`${inputMini} resize-none`} rows={2} value={f.descripcion} onChange={(e) => setF({ ...f, descripcion: e.target.value })} />
+      <div className="grid grid-cols-2 gap-1.5">
+        <select className={inputMini} value={f.tipo_tarea} onChange={(e) => setF({ ...f, tipo_tarea: e.target.value })}>
+          {TIPOS_TAREA.map((x) => <option key={x} value={x}>{TIPO_TAREA_LABEL[x]}</option>)}
+        </select>
+        <select className={inputMini} value={f.prioridad} onChange={(e) => setF({ ...f, prioridad: e.target.value })}>
+          <option value="alta">Alta</option><option value="media">Media</option><option value="baja">Baja</option>
+        </select>
+      </div>
+      <select className={inputMini} value={f.cliente_id} onChange={(e) => setF({ ...f, cliente_id: e.target.value })}>
+        <option value="">— Sin cliente —</option>
+        {clientes.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+      </select>
+      <div className="grid grid-cols-2 gap-1.5">
+        <input className={inputMini} type="date" value={f.fecha_limite} onChange={(e) => setF({ ...f, fecha_limite: e.target.value })} />
+        <SelectorResponsable valor={f.responsable} onCambio={(v) => setF((x) => ({ ...x, responsable: v || '' }))} className={inputMini} />
+      </div>
+      <div className="flex gap-1.5">
+        <button type="submit" className="flex-1 px-2 py-1 rounded-md bg-accent text-white text-[10px] font-bold hover:bg-accent/90">Guardar</button>
+        <button type="button" onClick={onCerrar} className="px-2 py-1 rounded-md border border-border/50 text-[10px] font-semibold text-muted">Cancelar</button>
+      </div>
+    </form>
+  );
+}
+
+export function TableroTareas({ tareas, clientes, onMover, onBorrar, onGuardar }: TableroProps) {
   const [arrastrando, setArrastrando] = useState<string | null>(null);
   const [columnaActiva, setColumnaActiva] = useState<BucketTarea | null>(null);
+  const [editando, setEditando] = useState<string | null>(null);
 
   function soltarEn(clave: BucketTarea, e: React.DragEvent) {
     e.preventDefault();
@@ -115,12 +176,21 @@ export function TableroTareas({ tareas, onMover, onBorrar }: TableroProps) {
                             {TIPO_TAREA_LABEL[t.tipo_tarea]?.split(' ')[0] || '📌'} {t.descripcion}
                           </span>
                         </label>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); onBorrar(t); }}
-                          className="opacity-0 group-hover:opacity-100 text-muted hover:text-red-400 text-xs shrink-0 transition"
-                        >
-                          ✕
-                        </button>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setEditando(editando === t.id ? null : t.id); }}
+                            className="opacity-0 group-hover:opacity-100 text-muted hover:text-accent transition"
+                            title="Editar tarea"
+                          >
+                            <Pencil className="w-3 h-3" />
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); onBorrar(t); }}
+                            className="opacity-0 group-hover:opacity-100 text-muted hover:text-red-400 text-xs transition"
+                          >
+                            ✕
+                          </button>
+                        </div>
                       </div>
 
                       <div className="flex items-center justify-between gap-2 mt-2 pl-5">
@@ -140,6 +210,10 @@ export function TableroTareas({ tareas, onMover, onBorrar }: TableroProps) {
                         {!hecha && clave !== 'sin_fecha' && t.fecha_limite && <BadgeVencimiento fecha={t.fecha_limite} />}
                         {hecha && <span className="text-[10px] text-muted">{fmtFecha(t.actualizado_en)}</span>}
                       </div>
+
+                      {editando === t.id && (
+                        <EditorTarjeta t={t} clientes={clientes} onGuardar={onGuardar} onCerrar={() => setEditando(null)} />
+                      )}
                     </div>
                   );
                 })}

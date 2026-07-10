@@ -34,7 +34,7 @@ export default function CorrebinLayout({ children }: { children: ReactNode }) {
     <div className="min-h-screen bg-background">
       {/* Cabecera del módulo */}
       <header className="sticky top-0 z-40 border-b border-border bg-surface/95 backdrop-blur">
-        <div className="mx-auto max-w-[1500px] px-4 md:px-6 py-3 flex items-center justify-between gap-3">
+        <div className="mx-auto w-full max-w-[1920px] 2xl:max-w-none px-4 md:px-6 py-3 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
             <Link
               href="/gestor"
@@ -60,7 +60,7 @@ export default function CorrebinLayout({ children }: { children: ReactNode }) {
         </div>
       </header>
 
-      <div className="mx-auto max-w-[1500px] px-4 md:px-6 py-5 flex flex-col lg:flex-row gap-5">
+      <div className="mx-auto w-full max-w-[1920px] 2xl:max-w-none px-4 md:px-6 py-5 flex flex-col lg:flex-row gap-5">
         {/* Menú lateral (horizontal en móvil) */}
         <nav className="lg:w-60 shrink-0">
           <div className="flex lg:flex-col gap-1.5 overflow-x-auto lg:overflow-visible pb-2 lg:pb-0 -mx-1 px-1">

@@ -277,7 +277,7 @@ export default function GestorPage() {
     <div className="min-h-screen bg-background">
       {/* Cabecera del panel */}
       <header className="sticky top-0 z-40 border-b border-border bg-surface/95 backdrop-blur">
-        <div className="mx-auto max-w-[1500px] px-4 md:px-6 py-3 flex items-center justify-between gap-3">
+        <div className="mx-auto w-full max-w-[1920px] 2xl:max-w-none px-4 md:px-6 py-3 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
             <div className="w-9 h-9 rounded-xl bg-accent/15 border border-accent/30 flex items-center justify-center shrink-0">
               <span className="text-base">⚙️</span>
@@ -306,7 +306,7 @@ export default function GestorPage() {
         </div>
       </header>
 
-      <div className="mx-auto max-w-[1500px] px-4 md:px-6 py-6">
+      <div className="mx-auto w-full max-w-[1920px] 2xl:max-w-none px-4 md:px-6 py-6">
         <div className="space-y-6">
 
           {/* Navegación de herramientas */}

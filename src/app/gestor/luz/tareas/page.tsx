@@ -1,44 +1,72 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { Plus, X, Download, LayoutGrid, Table2 } from 'lucide-react';
+import { Plus, X, Download, LayoutGrid, List, CalendarDays } from 'lucide-react';
 import {
   LuzTarea, LuzCliente, TIPOS_TAREA, TIPO_TAREA_LABEL, ESTADOS_TAREA, ESTADO_TAREA_LABEL,
   TAREAS_ABIERTAS, diasHasta,
 } from '@/lib/luz';
 import { Card, Kpi, Badge, BadgeVencimiento, EstadoCarga, useListaLuz, guardarLuz, inputCls, labelCls, btnPrimario, btnSecundario, SelectorResponsable } from '../ui';
 import { TableroTareas, bucketDeTarea, BucketTarea } from './tablero';
+import { CalendarioTareas } from './calendario';
 
 const FORM_VACIO = { descripcion: '', cliente_id: '', tipo_tarea: 'llamar_cliente', fecha_limite: '', prioridad: 'media', responsable: '' };
+
+/** ¿La tarea pertenece al panel del responsable? Las compartidas ("A / B") cuentan para ambos. */
+function esDelPanel(t: LuzTarea, panel: string): boolean {
+  if (!panel) return true;
+  if (!t.responsable) return panel === '__sin__';
+  return t.responsable.split('/').map((s) => s.trim().toLowerCase()).some((n) => n.startsWith(panel.toLowerCase()));
+}
+
+const iso = (d: Date) => d.toISOString().slice(0, 10);
 
 export default function TareasLuzPage() {
   const { datos, cargando, error, faltaMigracion, recargar } = useListaLuz<LuzTarea>('tareas');
   const clientes = useListaLuz<LuzCliente>('clientes');
-  const [fEstado, setFEstado] = useState('abiertas');
-  const [fResp, setFResp] = useState('');
+  const [panel, setPanel] = useState('');           // '' = todos · 'marcos' · 'david' · '__sin__'
+  const [vista, setVista] = useState<'tablero' | 'calendario' | 'lista'>('tablero');
   const [mostrarForm, setMostrarForm] = useState(false);
   const [form, setForm] = useState(FORM_VACIO);
   const [errorForm, setErrorForm] = useState('');
-  const [vista, setVista] = useState<'tablero' | 'lista'>('tablero');
   const [msg, setMsg] = useState('');
+  const [verCompletadas, setVerCompletadas] = useState(false);
 
-  const responsables = useMemo(() => Array.from(new Set(datos.map((t) => t.responsable).filter(Boolean))) as string[], [datos]);
-  const abiertas = datos.filter((t) => TAREAS_ABIERTAS.includes(t.estado));
+  // Recordar el panel elegido entre sesiones
+  useEffect(() => {
+    const p = localStorage.getItem('luz_tareas_panel');
+    if (p !== null) setPanel(p);
+  }, []);
+  function cambiarPanel(p: string) {
+    setPanel(p);
+    localStorage.setItem('luz_tareas_panel', p);
+  }
+
+  /** Paneles disponibles: nombres simples extraídos de los responsables reales de las tareas. */
+  const paneles = useMemo(() => {
+    const nombres = new Set<string>();
+    datos.forEach((t) => t.responsable?.split('/').forEach((s) => {
+      const n = s.trim().split(' ')[0];
+      if (n) nombres.add(n);
+    }));
+    return Array.from(nombres).sort();
+  }, [datos]);
+
+  const delPanel = useMemo(() => datos.filter((t) => esDelPanel(t, panel)), [datos, panel]);
+  const abiertas = delPanel.filter((t) => TAREAS_ABIERTAS.includes(t.estado));
   const vencidas = abiertas.filter((t) => (diasHasta(t.fecha_limite) ?? 1) < 0);
+  const paraHoy = abiertas.filter((t) => diasHasta(t.fecha_limite) === 0);
 
-  const filtradas = useMemo(() => datos.filter((t) => {
-    if (fEstado === 'abiertas' && !TAREAS_ABIERTAS.includes(t.estado)) return false;
-    if (fEstado !== 'abiertas' && fEstado && t.estado !== fEstado) return false;
-    if (fResp && t.responsable !== fResp) return false;
-    return true;
-  }).sort((a, b) => (a.fecha_limite || '9999').localeCompare(b.fecha_limite || '9999')), [datos, fEstado, fResp]);
+  const paraTablero = useMemo(() => delPanel.filter((t) => bucketDeTarea(t) !== null), [delPanel]);
 
-  /** Datos para el tablero: todo lo abierto (con o sin fecha) + lo completado hoy, sin el filtro de estado (que no pinta nada aquí). */
-  const paraTablero = useMemo(() => datos.filter((t) => {
-    if (fResp && t.responsable !== fResp) return false;
-    return bucketDeTarea(t) !== null;
-  }), [datos, fResp]);
+  // ── Acciones (todas persisten en base de datos) ──
+  async function guardarCambios(id: string, cambios: Record<string, unknown>) {
+    const err = await guardarLuz('tareas', 'PUT', { id, ...cambios });
+    if (err) { setMsg(err); return; }
+    setMsg('');
+    recargar();
+  }
 
   async function moverABucket(t: LuzTarea, bucket: BucketTarea) {
     if (bucket === 'atrasado') return;
@@ -48,21 +76,23 @@ export default function TareasLuzPage() {
       cambios.estado = 'completada';
     } else {
       if (t.estado === 'completada') cambios.estado = 'pendiente';
-      if (bucket === 'hoy') cambios.fecha_limite = hoy.toISOString().slice(0, 10);
-      else if (bucket === 'semana') cambios.fecha_limite = new Date(hoy.getTime() + 3 * 86400000).toISOString().slice(0, 10);
-      else if (bucket === 'futuro') cambios.fecha_limite = new Date(hoy.getTime() + 14 * 86400000).toISOString().slice(0, 10);
+      if (bucket === 'hoy') cambios.fecha_limite = iso(hoy);
+      else if (bucket === 'semana') cambios.fecha_limite = iso(new Date(hoy.getTime() + 3 * 86400000));
+      else if (bucket === 'futuro') cambios.fecha_limite = iso(new Date(hoy.getTime() + 14 * 86400000));
       else if (bucket === 'sin_fecha') cambios.fecha_limite = null;
     }
-    const err = await guardarLuz('tareas', 'PUT', { id: t.id, ...cambios });
-    if (err) { setMsg(err); return; }
-    setMsg('');
-    recargar();
+    await guardarCambios(t.id, cambios);
   }
 
   async function borrarTarea(t: LuzTarea) {
-    if (!confirm('¿Borrar tarea?')) return;
+    if (!confirm('¿Borrar tarea definitivamente?')) return;
     await guardarLuz('tareas', 'DELETE', { id: t.id });
     recargar();
+  }
+
+  async function posponer(t: LuzTarea, dias: number) {
+    const base = t.fecha_limite && (diasHasta(t.fecha_limite) ?? 0) >= 0 ? new Date(t.fecha_limite) : new Date();
+    await guardarCambios(t.id, { fecha_limite: iso(new Date(base.getTime() + dias * 86400000)) });
   }
 
   async function crear(e: React.FormEvent) {
@@ -82,31 +112,104 @@ export default function TareasLuzPage() {
 
   const selCls = 'rounded-lg border border-border/40 bg-background/60 px-2 py-1.5 text-xs font-semibold';
 
+  // ── Lista profesional: agrupada por estado ──
+  const GRUPOS: { estado: string; titulo: string; tono: string }[] = [
+    { estado: 'pendiente', titulo: 'Pendientes', tono: 'text-amber-300' },
+    { estado: 'en_curso', titulo: 'En curso', tono: 'text-secondary' },
+    { estado: 'bloqueada', titulo: 'Bloqueadas', tono: 'text-red-400' },
+  ];
+
+  function FilaTarea({ t }: { t: LuzTarea }) {
+    const abierta = TAREAS_ABIERTAS.includes(t.estado);
+    return (
+      <tr className={`border-b border-border/20 hover:bg-card/50 transition ${!abierta ? 'opacity-50' : ''}`}>
+        <td className="px-3 py-2 w-8">
+          <input type="checkbox" checked={t.estado === 'completada'}
+            onChange={() => guardarCambios(t.id, { estado: t.estado === 'completada' ? 'pendiente' : 'completada' })}
+            className="accent-[#22c55e] w-4 h-4" />
+        </td>
+        <td className="px-3 py-2 min-w-64">
+          <input
+            className="w-full bg-transparent text-xs font-semibold outline-none rounded px-1 py-0.5 hover:bg-background/50 focus:bg-background/70 focus:ring-1 focus:ring-accent/40"
+            defaultValue={t.descripcion}
+            onBlur={(e) => { if (e.target.value.trim() && e.target.value !== t.descripcion) guardarCambios(t.id, { descripcion: e.target.value.trim() }); }}
+          />
+        </td>
+        <td className="px-3 py-2">
+          <select className={`${selCls} max-w-40`} value={t.tipo_tarea}
+            onChange={(e) => guardarCambios(t.id, { tipo_tarea: e.target.value })}>
+            {TIPOS_TAREA.map((x) => <option key={x} value={x}>{TIPO_TAREA_LABEL[x]}</option>)}
+          </select>
+        </td>
+        <td className="px-3 py-2 max-w-44">
+          <select className={`${selCls} w-full`} value={t.cliente_id || ''}
+            onChange={(e) => guardarCambios(t.id, { cliente_id: e.target.value || null })}>
+            <option value="">— Sin cliente —</option>
+            {clientes.datos.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+          </select>
+          {t.cliente_id && (
+            <Link href={`/gestor/luz/clientes/${t.cliente_id}`} className="block text-[10px] text-accent hover:underline mt-0.5">ver ficha →</Link>
+          )}
+        </td>
+        <td className="px-3 py-2">
+          <SelectorResponsable valor={t.responsable} onCambio={(v) => guardarCambios(t.id, { responsable: v })} />
+        </td>
+        <td className="px-3 py-2">
+          <input className={selCls} type="date" value={t.fecha_limite || ''}
+            onChange={(e) => guardarCambios(t.id, { fecha_limite: e.target.value || null })} />
+          {abierta && t.fecha_limite && <span className="block mt-0.5"><BadgeVencimiento fecha={t.fecha_limite} /></span>}
+        </td>
+        <td className="px-3 py-2">
+          <select className={selCls} value={t.prioridad}
+            onChange={(e) => guardarCambios(t.id, { prioridad: e.target.value })}>
+            <option value="alta">🔴 Alta</option><option value="media">🟡 Media</option><option value="baja">⚪ Baja</option>
+          </select>
+        </td>
+        <td className="px-3 py-2">
+          <select className={selCls} value={t.estado}
+            onChange={(e) => guardarCambios(t.id, { estado: e.target.value })}>
+            {ESTADOS_TAREA.map((es) => <option key={es} value={es}>{ESTADO_TAREA_LABEL[es]}</option>)}
+          </select>
+        </td>
+        <td className="px-3 py-2 w-8">
+          <button onClick={() => borrarTarea(t)} className="text-muted hover:text-red-400 text-xs">✕</button>
+        </td>
+      </tr>
+    );
+  }
+
+  const cabecera = (
+    <tr className="text-left text-[11px] uppercase tracking-wide text-muted border-b border-border/40">
+      <th className="px-3 py-2.5">✓</th><th className="px-3 py-2.5">Tarea</th><th className="px-3 py-2.5">Tipo</th>
+      <th className="px-3 py-2.5">Cliente</th><th className="px-3 py-2.5">Responsable</th><th className="px-3 py-2.5">Fecha límite</th>
+      <th className="px-3 py-2.5">Prioridad</th><th className="px-3 py-2.5">Estado</th><th className="px-3 py-2.5"></th>
+    </tr>
+  );
+
+  const completadas = delPanel.filter((t) => t.estado === 'completada');
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
           <h2 className="text-xl font-black text-foreground">Tareas y Alertas</h2>
-          <p className="text-xs text-muted mt-0.5">Qué hay que hacer y quién lo tiene que hacer. Las alertas viven en el Dashboard.</p>
+          <p className="text-xs text-muted mt-0.5">Qué hay que hacer y quién lo tiene que hacer. Todo cambio se guarda al momento.</p>
         </div>
-        <div className="flex items-center gap-2">
-          {/* Interruptor de vista Tablero / Lista */}
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Vistas */}
           <div className="inline-flex rounded-lg border border-border/50 bg-card/60 p-0.5">
-            <button
-              onClick={() => setVista('tablero')}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition ${vista === 'tablero' ? 'bg-accent text-white' : 'text-muted hover:text-foreground'}`}
-            >
-              <LayoutGrid className="w-3.5 h-3.5" /> Tablero
-            </button>
-            <button
-              onClick={() => setVista('lista')}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition ${vista === 'lista' ? 'bg-accent text-white' : 'text-muted hover:text-foreground'}`}
-            >
-              <Table2 className="w-3.5 h-3.5" /> Lista
-            </button>
+            {([['tablero', 'Tablero', LayoutGrid], ['calendario', 'Calendario', CalendarDays], ['lista', 'Lista', List]] as const).map(([v, n, Icono]) => (
+              <button
+                key={v}
+                onClick={() => setVista(v)}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition ${vista === v ? 'bg-accent text-white' : 'text-muted hover:text-foreground'}`}
+              >
+                <Icono className="w-3.5 h-3.5" /> {n}
+              </button>
+            ))}
           </div>
-          <a href={`/api/luz/exportar?tipo=tareas${fResp ? `&responsable=${encodeURIComponent(fResp)}` : ''}`} className={btnSecundario} download>
-            <Download className="w-4 h-4" /> Exportar abiertas
+          <a href="/api/luz/exportar?tipo=tareas" className={btnSecundario} download>
+            <Download className="w-4 h-4" />
           </a>
           <button onClick={() => setMostrarForm((v) => !v)} className={btnPrimario}>
             {mostrarForm ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />} {mostrarForm ? 'Cancelar' : 'Nueva tarea'}
@@ -114,12 +217,33 @@ export default function TareasLuzPage() {
         </div>
       </div>
 
-      {msg && <p className="text-xs text-secondary bg-secondary/10 border border-secondary/25 rounded-lg p-2.5">{msg}</p>}
+      {/* ── Panel por responsable ── */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-[11px] font-bold uppercase tracking-wide text-muted">Panel:</span>
+        <div className="inline-flex rounded-xl border border-border/50 bg-card/60 p-0.5 flex-wrap">
+          <button onClick={() => cambiarPanel('')}
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition ${panel === '' ? 'bg-accent text-white' : 'text-muted hover:text-foreground'}`}>
+            👥 Todos
+          </button>
+          {paneles.map((p) => (
+            <button key={p} onClick={() => cambiarPanel(p)}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition ${panel === p ? 'bg-accent text-white' : 'text-muted hover:text-foreground'}`}>
+              {p}
+            </button>
+          ))}
+          <button onClick={() => cambiarPanel('__sin__')}
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition ${panel === '__sin__' ? 'bg-accent text-white' : 'text-muted hover:text-foreground'}`}>
+            Sin asignar
+          </button>
+        </div>
+      </div>
+
+      {msg && <p className="text-xs text-red-400 bg-red-500/10 border border-red-500/30 rounded-lg p-2.5">{msg}</p>}
 
       <div className="grid grid-cols-3 gap-3">
         <Kpi valor={abiertas.length} etiqueta="Abiertas" />
         <Kpi valor={vencidas.length} etiqueta="Fuera de plazo" color={vencidas.length ? 'text-red-400' : 'text-emerald-400'} />
-        <Kpi valor={abiertas.filter((t) => diasHasta(t.fecha_limite) === 0).length} etiqueta="Para hoy" color="text-amber-400" />
+        <Kpi valor={paraHoy.length} etiqueta="Para hoy" color="text-amber-400" />
       </div>
 
       {mostrarForm && (
@@ -161,59 +285,66 @@ export default function TareasLuzPage() {
         </Card>
       )}
 
-      <div className="flex gap-2 flex-wrap items-center">
-        {vista === 'lista' && [['abiertas', 'Abiertas'], ...ESTADOS_TAREA.map((e) => [e, ESTADO_TAREA_LABEL[e]])].map(([v, n]) => (
-          <button key={v} onClick={() => setFEstado(v!)} className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${fEstado === v ? 'bg-accent text-white' : 'bg-card/80 text-muted border border-border/50'}`}>{n}</button>
-        ))}
-        <select className={selCls} value={fResp} onChange={(e) => setFResp(e.target.value)}>
-          <option value="">Responsable: todos</option>
-          {responsables.map((r) => <option key={r} value={r}>{r}</option>)}
-        </select>
-      </div>
-
       <EstadoCarga cargando={cargando} error={error} faltaMigracion={faltaMigracion}
-        vacio={!cargando && !error && vista === 'lista' && filtradas.length === 0} textoVacio="Sin tareas con este filtro. 👌" sqlFile="supabase_luz.sql" />
+        vacio={!cargando && !error && delPanel.length === 0} textoVacio="Sin tareas en este panel. 👌" sqlFile="supabase_luz.sql" />
 
-      {vista === 'tablero' && !cargando && !error && !faltaMigracion && (
-        <TableroTareas tareas={paraTablero} onMover={moverABucket} onBorrar={borrarTarea} />
-      )}
+      {!cargando && !error && !faltaMigracion && (
+        <>
+          {vista === 'tablero' && (
+            <TableroTareas tareas={paraTablero} clientes={clientes.datos} onMover={moverABucket} onBorrar={borrarTarea} onGuardar={guardarCambios} />
+          )}
 
-      {vista === 'lista' && filtradas.length > 0 && (
-        <div className="space-y-2">
-          {filtradas.map((t) => {
-            const abierta = TAREAS_ABIERTAS.includes(t.estado);
-            return (
-              <div key={t.id} className={`flex items-center justify-between gap-3 p-3 rounded-lg bg-secondary/40 flex-wrap ${!abierta ? 'opacity-50' : ''}`}>
-                <div className="flex items-center gap-3 min-w-0">
-                  <input type="checkbox" checked={t.estado === 'completada'}
-                    onChange={() => abierta && guardarLuz('tareas', 'PUT', { id: t.id, estado: 'completada' }).then(() => recargar())}
-                    className="accent-[#22c55e] w-4 h-4 shrink-0" />
-                  <div className="min-w-0">
-                    <p className={`text-sm font-semibold truncate ${t.estado === 'completada' ? 'line-through' : ''}`}>
-                      {TIPO_TAREA_LABEL[t.tipo_tarea]?.split(' ')[0] || '📌'} {t.descripcion}
+          {vista === 'calendario' && (
+            <CalendarioTareas
+              tareas={delPanel}
+              onMoverADia={(t, fecha) => guardarCambios(t.id, { fecha_limite: fecha, ...(t.estado === 'completada' ? { estado: 'pendiente' } : {}) })}
+              onCompletar={(t) => guardarCambios(t.id, { estado: 'completada' })}
+              onPosponer={posponer}
+            />
+          )}
+
+          {vista === 'lista' && (
+            <div className="space-y-4">
+              {GRUPOS.map(({ estado, titulo, tono }) => {
+                const grupo = delPanel
+                  .filter((t) => t.estado === estado)
+                  .sort((a, b) => (a.fecha_limite || '9999').localeCompare(b.fecha_limite || '9999'));
+                if (grupo.length === 0) return null;
+                return (
+                  <Card key={estado} className="!p-0 overflow-x-auto">
+                    <p className={`px-4 pt-3 pb-1 text-xs font-black uppercase tracking-wide ${tono}`}>
+                      {titulo} <span className="text-muted font-bold">({grupo.length})</span>
                     </p>
-                    <p className="text-[11px] text-muted truncate">
-                      {t.cliente_id
-                        ? <Link href={`/gestor/luz/clientes/${t.cliente_id}`} className="hover:text-accent">{t.luz_clientes?.nombre || 'Cliente'}</Link>
-                        : 'Sin cliente'}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 shrink-0 flex-wrap">
-                  {abierta && t.prioridad === 'alta' && <Badge tono="rojo">alta</Badge>}
-                  {abierta && <BadgeVencimiento fecha={t.fecha_limite} />}
-                  <select value={t.estado}
-                    onChange={async (e) => { await guardarLuz('tareas', 'PUT', { id: t.id, estado: e.target.value }); recargar(); }}
-                    className={selCls}>
-                    {ESTADOS_TAREA.map((es) => <option key={es} value={es}>{ESTADO_TAREA_LABEL[es]}</option>)}
-                  </select>
-                  <SelectorResponsable valor={t.responsable} onCambio={async (v) => { await guardarLuz('tareas', 'PUT', { id: t.id, responsable: v }); recargar(); }} />
-                  <button onClick={async () => { if (confirm('¿Borrar tarea?')) { await guardarLuz('tareas', 'DELETE', { id: t.id }); recargar(); } }} className="text-muted hover:text-red-400 text-xs px-1">✕</button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+                    <table className="w-full text-sm">
+                      <thead>{cabecera}</thead>
+                      <tbody>{grupo.map((t) => <FilaTarea key={t.id} t={t} />)}</tbody>
+                    </table>
+                  </Card>
+                );
+              })}
+
+              {/* Completadas, plegadas por defecto */}
+              {completadas.length > 0 && (
+                <Card className="!p-0 overflow-x-auto">
+                  <button onClick={() => setVerCompletadas((v) => !v)} className="w-full text-left px-4 py-3 text-xs font-black uppercase tracking-wide text-emerald-400 hover:bg-card/40 transition">
+                    {verCompletadas ? '▾' : '▸'} Completadas <span className="text-muted font-bold">({completadas.length})</span>
+                  </button>
+                  {verCompletadas && (
+                    <table className="w-full text-sm">
+                      <thead>{cabecera}</thead>
+                      <tbody>
+                        {completadas
+                          .sort((a, b) => (b.actualizado_en || '').localeCompare(a.actualizado_en || ''))
+                          .slice(0, 100)
+                          .map((t) => <FilaTarea key={t.id} t={t} />)}
+                      </tbody>
+                    </table>
+                  )}
+                </Card>
+              )}
+            </div>
+          )}
+        </>
       )}
     </div>
   );

@@ -7,8 +7,9 @@ import { ChevronLeft, Plus, Pencil, X } from 'lucide-react';
 import {
   LuzCliente, LuzCups, LuzOportunidad, LuzContrato, LuzComision, LuzTarea, LuzFechaCritica,
   TIPOS_CLIENTE, TIPO_CLIENTE_LABEL, PRIORIDADES, PRIORIDAD_LABEL, ESTADOS_CLIENTE, ESTADO_CLIENTE_LABEL,
-  TARIFAS_ACCESO, ESTADOS_CUPS, ESTADO_CUPS_LABEL, ESTADO_PIPELINE_LABEL, ESTADO_CONTRATO_LABEL,
-  ESTADO_COMISION_LABEL, TIPOS_TAREA, TIPO_TAREA_LABEL, TAREAS_ABIERTAS, TIPOS_OPORTUNIDAD,
+  TARIFAS_ACCESO, ESTADOS_CUPS, ESTADO_CUPS_LABEL, ESTADO_PIPELINE_LABEL, ESTADOS_CONTRATO, ESTADO_CONTRATO_LABEL,
+  ESTADOS_COMISION, ESTADO_COMISION_LABEL, TIPOS_COMISION, TIPO_COMISION_LABEL, TIPOS_FECHA, TIPO_FECHA_LABEL,
+  TIPOS_TAREA, TIPO_TAREA_LABEL, TAREAS_ABIERTAS, TIPOS_OPORTUNIDAD,
   TIPO_OPORTUNIDAD_LABEL, tituloFechaCritica, fmtEur, fmtFecha, fmtKwh, normCups,
 } from '@/lib/luz';
 import {
@@ -42,6 +43,9 @@ export default function FichaClienteLuz() {
   const [formEditCups, setFormEditCups] = useState<Record<string, string>>({});
   const [formTarea, setFormTarea] = useState<{ descripcion: string; tipo_tarea: string; fecha_limite: string } | null>(null);
   const [formOp, setFormOp] = useState<{ tipo_oportunidad: string; comision_potencial: string; proxima_accion: string; fecha_proxima_accion: string } | null>(null);
+  const [formFecha, setFormFecha] = useState<{ tipo_fecha: string; fecha: string; descripcion: string } | null>(null);
+  const [formContrato, setFormContrato] = useState<{ comercializadora_final: string; estado_contrato: string; fecha_activacion_prevista: string } | null>(null);
+  const [formCom, setFormCom] = useState<{ comercializadora: string; tipo_comision: string; importe_previsto: string; fecha_prevista_cobro: string } | null>(null);
   const [msg, setMsg] = useState('');
 
   const consumoTotal = cups.datos.reduce((s, c) => s + (Number(c.consumo_anual_kwh) || 0), 0);
@@ -171,6 +175,51 @@ export default function FichaClienteLuz() {
     if (err) { setMsg(err); return; }
     setFormOp(null);
     pipeline.recargar();
+  }
+
+  async function crearFecha(e: React.FormEvent) {
+    e.preventDefault();
+    if (!formFecha?.fecha || !cliente) { setMsg('Indica la fecha.'); return; }
+    const err = await guardarLuz('fechas', 'POST', {
+      cliente_id: clienteId, tipo_fecha: formFecha.tipo_fecha, fecha: formFecha.fecha,
+      titulo: tituloFechaCritica(cliente.nombre, '', formFecha.tipo_fecha, null),
+      descripcion: formFecha.descripcion || null,
+      prioridad: cliente.prioridad || 'C', responsable: cliente.responsable,
+    });
+    if (err) { setMsg(err); return; }
+    setFormFecha(null); setMsg('');
+    fechas.recargar();
+  }
+
+  async function crearContrato(e: React.FormEvent) {
+    e.preventDefault();
+    if (!formContrato) return;
+    const err = await guardarLuz('contratos', 'POST', {
+      cliente_id: clienteId,
+      comercializadora_final: formContrato.comercializadora_final || null,
+      estado_contrato: formContrato.estado_contrato,
+      fecha_activacion_prevista: formContrato.fecha_activacion_prevista || null,
+      responsable: cliente?.responsable || null,
+    });
+    if (err) { setMsg(err); return; }
+    setFormContrato(null); setMsg('');
+    contratos.recargar();
+  }
+
+  async function crearComision(e: React.FormEvent) {
+    e.preventDefault();
+    if (!formCom) return;
+    const err = await guardarLuz('comisiones', 'POST', {
+      cliente_id: clienteId,
+      comercializadora: formCom.comercializadora || null,
+      tipo_comision: formCom.tipo_comision,
+      importe_previsto: parseFloat(formCom.importe_previsto) || 0,
+      fecha_prevista_cobro: formCom.fecha_prevista_cobro || null,
+      estado_comision: 'prevista',
+    });
+    if (err) { setMsg(err); return; }
+    setFormCom(null); setMsg('');
+    comisiones.recargar();
   }
 
   if (clientes.cargando) return <EstadoCarga cargando error="" vacio={false} textoVacio="" />;
@@ -463,7 +512,24 @@ export default function FichaClienteLuz() {
 
         {/* Fechas críticas del cliente */}
         <Card>
-          <h3 className="font-bold text-foreground mb-3">Fechas críticas</h3>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-bold text-foreground">Fechas críticas</h3>
+            <button onClick={() => setFormFecha(formFecha ? null : { tipo_fecha: 'fin_contrato', fecha: '', descripcion: '' })} className={btnSecundario}>
+              {formFecha ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />} Fecha
+            </button>
+          </div>
+          {formFecha && (
+            <form onSubmit={crearFecha} className="mb-3 space-y-2">
+              <div className="grid grid-cols-2 gap-2">
+                <select className={inputCls} value={formFecha.tipo_fecha} onChange={(e) => setFormFecha({ ...formFecha, tipo_fecha: e.target.value })}>
+                  {TIPOS_FECHA.map((t) => <option key={t} value={t}>{TIPO_FECHA_LABEL[t]}</option>)}
+                </select>
+                <input className={inputCls} type="date" value={formFecha.fecha} onChange={(e) => setFormFecha({ ...formFecha, fecha: e.target.value })} />
+              </div>
+              <input className={inputCls} value={formFecha.descripcion} onChange={(e) => setFormFecha({ ...formFecha, descripcion: e.target.value })} placeholder="Descripción opcional" />
+              <button type="submit" className={btnPrimario}>Crear</button>
+            </form>
+          )}
           {fechas.datos.length === 0 ? <p className="text-sm text-muted text-center py-3">Sin fechas críticas pendientes.</p> : (
             <div className="space-y-1.5">
               {fechas.datos.map((f) => (
@@ -478,21 +544,79 @@ export default function FichaClienteLuz() {
 
         {/* Contratos y comisiones */}
         <Card>
-          <h3 className="font-bold text-foreground mb-3">Contratos y comisiones</h3>
+          <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
+            <h3 className="font-bold text-foreground">Contratos y comisiones</h3>
+            <div className="flex gap-1.5">
+              <button onClick={() => { setFormCom(null); setFormContrato(formContrato ? null : { comercializadora_final: '', estado_contrato: 'pendiente_preparar', fecha_activacion_prevista: '' }); }} className={btnSecundario}>
+                {formContrato ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />} Contrato
+              </button>
+              <button onClick={() => { setFormContrato(null); setFormCom(formCom ? null : { comercializadora: '', tipo_comision: 'desconocida', importe_previsto: '', fecha_prevista_cobro: '' }); }} className={btnSecundario}>
+                {formCom ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />} Comisión
+              </button>
+            </div>
+          </div>
+
+          {formContrato && (
+            <form onSubmit={crearContrato} className="mb-3 space-y-2">
+              <div className="grid grid-cols-2 gap-2">
+                <input className={inputCls} value={formContrato.comercializadora_final} onChange={(e) => setFormContrato({ ...formContrato, comercializadora_final: e.target.value })} placeholder="Comercializadora" />
+                <select className={inputCls} value={formContrato.estado_contrato} onChange={(e) => setFormContrato({ ...formContrato, estado_contrato: e.target.value })}>
+                  {ESTADOS_CONTRATO.map((es) => <option key={es} value={es}>{ESTADO_CONTRATO_LABEL[es]}</option>)}
+                </select>
+              </div>
+              <input className={inputCls} type="date" value={formContrato.fecha_activacion_prevista} onChange={(e) => setFormContrato({ ...formContrato, fecha_activacion_prevista: e.target.value })} />
+              <button type="submit" className={btnPrimario}>Crear contrato</button>
+            </form>
+          )}
+
+          {formCom && (
+            <form onSubmit={crearComision} className="mb-3 space-y-2">
+              <div className="grid grid-cols-2 gap-2">
+                <input className={inputCls} value={formCom.comercializadora} onChange={(e) => setFormCom({ ...formCom, comercializadora: e.target.value })} placeholder="Comercializadora" />
+                <select className={inputCls} value={formCom.tipo_comision} onChange={(e) => setFormCom({ ...formCom, tipo_comision: e.target.value })}>
+                  {TIPOS_COMISION.map((t) => <option key={t} value={t}>{TIPO_COMISION_LABEL[t]}</option>)}
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <input className={inputCls} type="number" step="0.01" value={formCom.importe_previsto} onChange={(e) => setFormCom({ ...formCom, importe_previsto: e.target.value })} placeholder="Importe previsto €" />
+                <input className={inputCls} type="date" value={formCom.fecha_prevista_cobro} onChange={(e) => setFormCom({ ...formCom, fecha_prevista_cobro: e.target.value })} />
+              </div>
+              <button type="submit" className={btnPrimario}>Crear comisión</button>
+            </form>
+          )}
+
           <div className="space-y-1.5 text-xs">
             {contratos.datos.map((c) => (
-              <div key={c.id} className="flex justify-between gap-2 p-2 rounded-lg bg-card/60">
-                <span><Badge tono={c.estado_contrato === 'activado' ? 'verde' : 'ambar'}>{ESTADO_CONTRATO_LABEL[c.estado_contrato]}</Badge> {c.comercializadora_final}</span>
-                <span className="text-muted">{fmtFecha(c.fecha_activacion_real || c.fecha_activacion_prevista)}</span>
+              <div key={c.id} className="flex justify-between gap-2 p-2 rounded-lg bg-card/60 items-center">
+                <span className="flex items-center gap-1.5 min-w-0">
+                  <select
+                    value={c.estado_contrato}
+                    onChange={async (e) => { await guardarLuz('contratos', 'PUT', { id: c.id, estado_contrato: e.target.value }); contratos.recargar(); }}
+                    className="rounded-md border border-border/40 bg-background/60 px-1.5 py-0.5 text-[10px] font-semibold"
+                  >
+                    {ESTADOS_CONTRATO.map((es) => <option key={es} value={es}>{ESTADO_CONTRATO_LABEL[es]}</option>)}
+                  </select>
+                  <span className="truncate">{c.comercializadora_final || '—'}</span>
+                </span>
+                <span className="text-muted shrink-0">{fmtFecha(c.fecha_activacion_real || c.fecha_activacion_prevista)}</span>
               </div>
             ))}
             {comisiones.datos.map((c) => (
-              <div key={c.id} className="flex justify-between gap-2 p-2 rounded-lg bg-card/60">
-                <span><Badge tono={c.estado_comision === 'cobrada' ? 'verde' : 'ambar'}>{ESTADO_COMISION_LABEL[c.estado_comision]}</Badge> {fmtEur(Number(c.importe_previsto))} previsto · {fmtEur(Number(c.importe_cobrado))} cobrado</span>
-                <span className="text-muted">{fmtFecha(c.fecha_prevista_cobro)}</span>
+              <div key={c.id} className="flex justify-between gap-2 p-2 rounded-lg bg-card/60 items-center">
+                <span className="flex items-center gap-1.5 min-w-0">
+                  <select
+                    value={c.estado_comision}
+                    onChange={async (e) => { await guardarLuz('comisiones', 'PUT', { id: c.id, estado_comision: e.target.value }); comisiones.recargar(); }}
+                    className="rounded-md border border-border/40 bg-background/60 px-1.5 py-0.5 text-[10px] font-semibold"
+                  >
+                    {ESTADOS_COMISION.map((es) => <option key={es} value={es}>{ESTADO_COMISION_LABEL[es]}</option>)}
+                  </select>
+                  <span className="truncate">{fmtEur(Number(c.importe_previsto))} previsto · {fmtEur(Number(c.importe_cobrado))} cobrado</span>
+                </span>
+                <span className="text-muted shrink-0">{fmtFecha(c.fecha_prevista_cobro)}</span>
               </div>
             ))}
-            {contratos.datos.length + comisiones.datos.length === 0 && <p className="text-sm text-muted text-center py-3">Sin contratos ni comisiones.</p>}
+            {contratos.datos.length + comisiones.datos.length === 0 && !formContrato && !formCom && <p className="text-sm text-muted text-center py-3">Sin contratos ni comisiones.</p>}
           </div>
         </Card>
       </div>
