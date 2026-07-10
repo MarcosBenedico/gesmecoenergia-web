@@ -3,12 +3,13 @@
 import { Suspense, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { Download, FileSignature } from 'lucide-react';
+import { Download, FileSignature, LayoutGrid, Table2 } from 'lucide-react';
 import {
   LuzOportunidad, ESTADOS_PIPELINE, ESTADO_PIPELINE_LABEL, TIPOS_OPORTUNIDAD, TIPO_OPORTUNIDAD_LABEL,
   PIPELINE_CERRADO, PRIORIDADES, diasHasta, fmtEur, fmtFecha, fmtKwh,
 } from '@/lib/luz';
 import { Card, Kpi, Badge, BadgePrioridad, EstadoCarga, useListaLuz, guardarLuz, inputCls, btnSecundario, SelectorResponsable } from '../ui';
+import { TableroPipeline } from './tablero';
 
 function PipelineContenido() {
   const sp = useSearchParams();
@@ -18,6 +19,7 @@ function PipelineContenido() {
   const [fTipo, setFTipo] = useState('');
   const [fEspecial, setFEspecial] = useState(sp.get('alerta') || '');
   const [msg, setMsg] = useState('');
+  const [vista, setVista] = useState<'tablero' | 'tabla'>('tablero');
 
   const responsables = useMemo(() => Array.from(new Set(datos.map((o) => o.responsable).filter(Boolean))) as string[], [datos]);
 
@@ -79,9 +81,26 @@ function PipelineContenido() {
           <h2 className="text-xl font-black text-foreground">Pipeline Energético</h2>
           <p className="text-xs text-muted mt-0.5">Oportunidades vivas — las nuevas se crean desde la ficha del cliente.</p>
         </div>
-        <a href={`/api/luz/exportar?tipo=pipeline${fEstado ? `&estado=${fEstado}` : ''}${fResp ? `&responsable=${encodeURIComponent(fResp)}` : ''}`} className={btnSecundario} download>
-          <Download className="w-4 h-4" /> Exportar
-        </a>
+        <div className="flex items-center gap-2">
+          {/* Interruptor de vista Tablero / Tabla */}
+          <div className="inline-flex rounded-lg border border-border/50 bg-card/60 p-0.5">
+            <button
+              onClick={() => setVista('tablero')}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition ${vista === 'tablero' ? 'bg-accent text-white' : 'text-muted hover:text-foreground'}`}
+            >
+              <LayoutGrid className="w-3.5 h-3.5" /> Tablero
+            </button>
+            <button
+              onClick={() => setVista('tabla')}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition ${vista === 'tabla' ? 'bg-accent text-white' : 'text-muted hover:text-foreground'}`}
+            >
+              <Table2 className="w-3.5 h-3.5" /> Tabla
+            </button>
+          </div>
+          <a href={`/api/luz/exportar?tipo=pipeline${fEstado ? `&estado=${fEstado}` : ''}${fResp ? `&responsable=${encodeURIComponent(fResp)}` : ''}`} className={btnSecundario} download>
+            <Download className="w-4 h-4" /> Exportar
+          </a>
+        </div>
       </div>
 
       <div className="grid grid-cols-3 gap-3">
@@ -115,10 +134,18 @@ function PipelineContenido() {
       </Card>
 
       <EstadoCarga cargando={cargando} error={error} faltaMigracion={faltaMigracion}
-        vacio={!cargando && !error && filtradas.length === 0}
+        vacio={!cargando && !error && vista === 'tabla' && filtradas.length === 0}
         textoVacio="Sin oportunidades con este filtro." sqlFile="supabase_luz.sql" />
 
-      {filtradas.length > 0 && (
+      {vista === 'tablero' && !cargando && !error && !faltaMigracion && (
+        <TableroPipeline
+          oportunidades={filtradas}
+          onCambiarEstado={cambiarEstado}
+          onConvertir={convertirEnContrato}
+        />
+      )}
+
+      {vista === 'tabla' && filtradas.length > 0 && (
         <Card className="!p-0 overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
