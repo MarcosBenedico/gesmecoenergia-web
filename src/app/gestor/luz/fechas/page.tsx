@@ -3,10 +3,10 @@
 import { Suspense, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { ChevronLeft, ChevronRight, Download } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, RefreshCw } from 'lucide-react';
 import {
-  LuzFechaCritica, TIPOS_FECHA, TIPO_FECHA_LABEL, TIPO_FECHA_TONO, PRIORIDADES,
-  diasHasta, fmtFecha,
+  LuzFechaCritica, LuzCups, TIPOS_FECHA, TIPO_FECHA_LABEL, TIPO_FECHA_TONO, PRIORIDADES,
+  diasHasta, fmtFecha, tituloFechaCritica,
 } from '@/lib/luz';
 import { Card, BadgePrioridad, BadgeVencimiento, EstadoCarga, useListaLuz, guardarLuz, btnSecundario, SelectorResponsable } from '../ui';
 
@@ -25,6 +25,8 @@ function FechasContenido() {
   const [fEstado, setFEstado] = useState('pendiente');
   const [fDias, setFDias] = useState(sp.get('dias') || '');
   const [verD, setVerD] = useState(false);
+  const [generando, setGenerando] = useState(false);
+  const [msgGen, setMsgGen] = useState('');
 
   const rango = useMemo(() => {
     if (vista === 'listado') {
@@ -64,6 +66,43 @@ function FechasContenido() {
     return [...Array.from({ length: offset }, () => null as number | null), ...Array.from({ length: ultimo }, (_, i) => i + 1)];
   }, [ancla]);
 
+  /** Crea las fechas críticas que falten a partir de las fechas guardadas en los CUPS. */
+  async function generarDesdeCups() {
+    setGenerando(true);
+    setMsgGen('');
+    try {
+      const [cupsRes, fechasRes] = await Promise.all([fetch('/api/luz/cups'), fetch('/api/luz/fechas')]);
+      const cupsList: LuzCups[] = (await cupsRes.json()).datos || [];
+      const fechasList: LuzFechaCritica[] = (await fechasRes.json()).datos || [];
+      const existe = (cupsId: string, tipo: string) => fechasList.some((f) => f.cups_id === cupsId && f.tipo_fecha === tipo);
+      let creadas = 0;
+      for (const c of cupsList) {
+        if (['perdido', 'no_viable'].includes(c.estado_cups)) continue;
+        const pares: [string, string | null][] = [
+          ['fin_contrato', c.fecha_fin_contrato],
+          ['fin_permanencia', c.fecha_fin_permanencia],
+          ['limite_preaviso', c.fecha_limite_preaviso],
+        ];
+        for (const [tipo, fecha] of pares) {
+          if (!fecha || existe(c.id, tipo)) continue;
+          const err = await guardarLuz('fechas', 'POST', {
+            cliente_id: c.cliente_id, cups_id: c.id, tipo_fecha: tipo, fecha,
+            titulo: tituloFechaCritica(c.luz_clientes?.nombre || 'Cliente', c.cups, tipo, c.comercializadora_actual),
+            prioridad: c.prioridad || c.luz_clientes?.prioridad || 'C',
+            responsable: c.responsable,
+          });
+          if (!err) creadas++;
+        }
+      }
+      setMsgGen(creadas > 0 ? `✓ ${creadas} fecha(s) crítica(s) creadas desde los CUPS.` : 'Todo al día: los CUPS con fechas ya tienen su fecha crítica.');
+      recargar();
+    } catch {
+      setMsgGen('Error generando fechas.');
+    } finally {
+      setGenerando(false);
+    }
+  }
+
   const selCls = 'rounded-lg border border-border/40 bg-background/60 px-2 py-1.5 text-xs font-semibold';
 
   return (
@@ -74,6 +113,9 @@ function FechasContenido() {
           <p className="text-xs text-muted mt-0.5">{eventos.length} evento(s) · fin contrato, permanencias, preavisos, firmas, activaciones y comisiones</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          <button onClick={generarDesdeCups} disabled={generando} className={btnSecundario} title="Crear fechas críticas desde las fechas de los CUPS">
+            <RefreshCw className={`w-4 h-4 ${generando ? 'animate-spin' : ''}`} /> Generar desde CUPS
+          </button>
           <a href={`/api/luz/exportar?tipo=fechas${fTipo ? `&tipo_fecha=${fTipo}` : ''}${fResp ? `&responsable=${encodeURIComponent(fResp)}` : ''}`} className={btnSecundario} download>
             <Download className="w-4 h-4" />
           </a>
@@ -89,6 +131,8 @@ function FechasContenido() {
           )}
         </div>
       </div>
+
+      {msgGen && <p className="text-xs text-secondary bg-secondary/10 border border-secondary/25 rounded-lg p-2.5">{msgGen}</p>}
 
       <Card className="!p-3">
         <div className="flex gap-2 flex-wrap items-center">

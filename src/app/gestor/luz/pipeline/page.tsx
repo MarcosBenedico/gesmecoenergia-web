@@ -3,13 +3,15 @@
 import { Suspense, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { Download, FileSignature, LayoutGrid, Table2 } from 'lucide-react';
+import { Download, FileSignature, LayoutGrid, Plus, Table2, X } from 'lucide-react';
 import {
-  LuzOportunidad, ESTADOS_PIPELINE, ESTADO_PIPELINE_LABEL, TIPOS_OPORTUNIDAD, TIPO_OPORTUNIDAD_LABEL,
+  LuzOportunidad, LuzCliente, ESTADOS_PIPELINE, ESTADO_PIPELINE_LABEL, TIPOS_OPORTUNIDAD, TIPO_OPORTUNIDAD_LABEL,
   PIPELINE_CERRADO, PRIORIDADES, diasHasta, fmtEur, fmtFecha, fmtKwh,
 } from '@/lib/luz';
-import { Card, Kpi, Badge, BadgePrioridad, EstadoCarga, useListaLuz, guardarLuz, inputCls, btnSecundario, SelectorResponsable } from '../ui';
+import { Card, Kpi, Badge, BadgePrioridad, EstadoCarga, useListaLuz, guardarLuz, inputCls, labelCls, btnPrimario, btnSecundario, SelectorResponsable } from '../ui';
 import { TableroPipeline } from './tablero';
+
+const OP_VACIA = { cliente_id: '', tipo_oportunidad: 'cambio_comercializadora', comision_potencial: '', proxima_accion: '', fecha_proxima_accion: '', responsable: '' };
 
 function PipelineContenido() {
   const sp = useSearchParams();
@@ -20,6 +22,10 @@ function PipelineContenido() {
   const [fEspecial, setFEspecial] = useState(sp.get('alerta') || '');
   const [msg, setMsg] = useState('');
   const [vista, setVista] = useState<'tablero' | 'tabla'>('tablero');
+  const [mostrarForm, setMostrarForm] = useState(false);
+  const [formOp, setFormOp] = useState(OP_VACIA);
+  const [errorForm, setErrorForm] = useState('');
+  const clientes = useListaLuz<LuzCliente>('clientes');
 
   const responsables = useMemo(() => Array.from(new Set(datos.map((o) => o.responsable).filter(Boolean))) as string[], [datos]);
 
@@ -72,6 +78,26 @@ function PipelineContenido() {
     recargar();
   }
 
+  async function crearOportunidad(e: React.FormEvent) {
+    e.preventDefault();
+    const cliente = clientes.datos.find((c) => c.id === formOp.cliente_id);
+    if (!cliente) { setErrorForm('Selecciona el cliente.'); return; }
+    setErrorForm('');
+    const err = await guardarLuz('pipeline', 'POST', {
+      cliente_id: cliente.id,
+      nombre_oportunidad: `${cliente.nombre} · ${TIPO_OPORTUNIDAD_LABEL[formOp.tipo_oportunidad]}`,
+      tipo_oportunidad: formOp.tipo_oportunidad,
+      estado: 'prospecto',
+      comision_potencial: parseFloat(formOp.comision_potencial) || 0,
+      proxima_accion: formOp.proxima_accion || null,
+      fecha_proxima_accion: formOp.fecha_proxima_accion || null,
+      responsable: formOp.responsable || cliente.responsable || null,
+    });
+    if (err) { setErrorForm(err); return; }
+    setFormOp(OP_VACIA); setMostrarForm(false);
+    recargar();
+  }
+
   const selCls = 'rounded-lg border border-border/40 bg-background/60 px-2 py-1.5 text-xs font-semibold';
 
   return (
@@ -79,7 +105,7 @@ function PipelineContenido() {
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
           <h2 className="text-xl font-black text-foreground">Pipeline Energético</h2>
-          <p className="text-xs text-muted mt-0.5">Oportunidades vivas — las nuevas se crean desde la ficha del cliente.</p>
+          <p className="text-xs text-muted mt-0.5">Oportunidades vivas — créalas aquí o desde la ficha del cliente.</p>
         </div>
         <div className="flex items-center gap-2">
           {/* Interruptor de vista Tablero / Tabla */}
@@ -100,8 +126,51 @@ function PipelineContenido() {
           <a href={`/api/luz/exportar?tipo=pipeline${fEstado ? `&estado=${fEstado}` : ''}${fResp ? `&responsable=${encodeURIComponent(fResp)}` : ''}`} className={btnSecundario} download>
             <Download className="w-4 h-4" /> Exportar
           </a>
+          <button onClick={() => setMostrarForm((v) => !v)} className={btnPrimario}>
+            {mostrarForm ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />} {mostrarForm ? 'Cancelar' : 'Nueva oportunidad'}
+          </button>
         </div>
       </div>
+
+      {mostrarForm && (
+        <Card>
+          <form onSubmit={crearOportunidad} className="space-y-3">
+            <div className="grid md:grid-cols-3 gap-3">
+              <div>
+                <label className={labelCls}>Cliente *</label>
+                <select className={inputCls} value={formOp.cliente_id} onChange={(e) => setFormOp({ ...formOp, cliente_id: e.target.value })}>
+                  <option value="">— Selecciona cliente —</option>
+                  {clientes.datos.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className={labelCls}>Tipo de oportunidad</label>
+                <select className={inputCls} value={formOp.tipo_oportunidad} onChange={(e) => setFormOp({ ...formOp, tipo_oportunidad: e.target.value })}>
+                  {TIPOS_OPORTUNIDAD.map((t) => <option key={t} value={t}>{TIPO_OPORTUNIDAD_LABEL[t]}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className={labelCls}>Comisión potencial (€)</label>
+                <input className={inputCls} type="number" step="0.01" value={formOp.comision_potencial} onChange={(e) => setFormOp({ ...formOp, comision_potencial: e.target.value })} />
+              </div>
+              <div>
+                <label className={labelCls}>Próxima acción</label>
+                <input className={inputCls} value={formOp.proxima_accion} onChange={(e) => setFormOp({ ...formOp, proxima_accion: e.target.value })} placeholder="Pedir factura, llamar..." />
+              </div>
+              <div>
+                <label className={labelCls}>Fecha próxima acción</label>
+                <input className={inputCls} type="date" value={formOp.fecha_proxima_accion} onChange={(e) => setFormOp({ ...formOp, fecha_proxima_accion: e.target.value })} />
+              </div>
+              <div>
+                <label className={labelCls}>Responsable</label>
+                <SelectorResponsable valor={formOp.responsable} onCambio={(v) => setFormOp((f) => ({ ...f, responsable: v || '' }))} className={inputCls} />
+              </div>
+            </div>
+            {errorForm && <p className="text-xs text-red-400">{errorForm}</p>}
+            <button type="submit" className={btnPrimario}>Crear oportunidad</button>
+          </form>
+        </Card>
+      )}
 
       <div className="grid grid-cols-3 gap-3">
         <Kpi valor={abiertas.length} etiqueta="Abiertas" color="text-secondary" />

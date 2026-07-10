@@ -92,23 +92,34 @@ export function GestorHub({ onIr }: { onIr: (seccion: string) => void }) {
     (async () => {
       const cups = await api('/api/luz/cups');
       if (!cups) { setLuz({ cargado: true, activo: false, lineas: [] }); return; }
-      const pipeline = (await api('/api/luz/pipeline')) || [];
-      const comisiones = (await api('/api/luz/comisiones')) || [];
+      const [clientes, pipeline, comisiones, tareas] = await Promise.all([
+        api('/api/luz/clientes').then((d) => d || []),
+        api('/api/luz/pipeline').then((d) => d || []),
+        api('/api/luz/comisiones').then((d) => d || []),
+        api('/api/luz/tareas').then((d) => d || []),
+      ]);
       const abiertas = pipeline.filter((o: any) => !['ganado', 'perdido', 'revisar_adelante'].includes(o.estado));
       const comisionPot = abiertas.reduce((s: number, o: any) => s + (Number(o.comision_potencial) || 0), 0);
       const pendiente = comisiones
         .filter((c: any) => ['prevista', 'pendiente_validar', 'pendiente_cobro', 'reclamada', 'cobrada_parcial'].includes(c.estado_comision))
         .reduce((s: number, c: any) => s + (Number(c.importe_previsto) || 0) - (Number(c.importe_cobrado) || 0), 0);
+      const cobrada = comisiones.reduce((s: number, c: any) => s + (Number(c.importe_cobrado) || 0), 0);
       const sinAccion = abiertas.filter((o: any) => !o.proxima_accion);
+      const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+      const tareasVencidas = tareas.filter((t: any) =>
+        ['pendiente', 'en_curso', 'bloqueada'].includes(t.estado) && t.fecha_limite && new Date(t.fecha_limite) < hoy);
       setLuz({
         cargado: true, activo: true,
         lineas: [
+          { valor: String(clientes.length), etiqueta: 'clientes' },
           { valor: String(cups.length), etiqueta: 'CUPS' },
-          { valor: eur0(comisionPot), etiqueta: 'comisión en pipeline' },
+          { valor: eur0(cobrada + pendiente), etiqueta: `comisión (${eur0(pendiente)} pte.)` },
         ],
-        alerta: sinAccion.length
+        alerta: tareasVencidas.length
+          ? `${tareasVencidas.length} tarea(s) fuera de plazo`
+          : sinAccion.length
           ? `${sinAccion.length} oportunidad(es) sin próxima acción`
-          : pendiente > 0 ? `${eur0(pendiente)} de comisión pendiente` : undefined,
+          : comisionPot > 0 ? `${eur0(comisionPot)} de comisión en pipeline` : undefined,
       });
     })();
   }, []);

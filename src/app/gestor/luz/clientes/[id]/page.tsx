@@ -38,6 +38,8 @@ export default function FichaClienteLuz() {
   const [editando, setEditando] = useState(false);
   const [formC, setFormC] = useState<Record<string, string>>({});
   const [formCups, setFormCups] = useState<typeof CUPS_VACIO | null>(null);
+  const [editCupsId, setEditCupsId] = useState<string | null>(null);
+  const [formEditCups, setFormEditCups] = useState<Record<string, string>>({});
   const [formTarea, setFormTarea] = useState<{ descripcion: string; tipo_tarea: string; fecha_limite: string } | null>(null);
   const [formOp, setFormOp] = useState<{ tipo_oportunidad: string; comision_potencial: string; proxima_accion: string; fecha_proxima_accion: string } | null>(null);
   const [msg, setMsg] = useState('');
@@ -96,6 +98,47 @@ export default function FichaClienteLuz() {
       fechas.recargar();
     }
     setFormCups(null); setMsg('');
+    cups.recargar();
+  }
+
+  function empezarEdicionCups(c: LuzCups) {
+    setFormEditCups({
+      alias_suministro: c.alias_suministro || '', direccion_suministro: c.direccion_suministro || '',
+      tarifa_acceso: c.tarifa_acceso, comercializadora_actual: c.comercializadora_actual || '',
+      distribuidora: c.distribuidora || '', consumo_anual_kwh: String(c.consumo_anual_kwh || ''),
+      coste_anual_estimado: String(c.coste_anual_estimado || ''),
+      fecha_fin_contrato: c.fecha_fin_contrato || '', fecha_fin_permanencia: c.fecha_fin_permanencia || '',
+      dias_preaviso: String(c.dias_preaviso ?? ''), penalizacion: c.penalizacion || '',
+      responsable: c.responsable || '', observaciones: c.observaciones || '',
+    });
+    setEditCupsId(c.id);
+  }
+
+  async function guardarEdicionCups(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editCupsId) return;
+    const original = cups.datos.find((c) => c.id === editCupsId);
+    const err = await guardarLuz('cups', 'PUT', {
+      id: editCupsId,
+      ...formEditCups,
+      consumo_anual_kwh: parseFloat(formEditCups.consumo_anual_kwh) || 0,
+      coste_anual_estimado: parseFloat(formEditCups.coste_anual_estimado) || 0,
+      dias_preaviso: parseInt(formEditCups.dias_preaviso) || null,
+      fecha_fin_contrato: formEditCups.fecha_fin_contrato || null,
+      fecha_fin_permanencia: formEditCups.fecha_fin_permanencia || null,
+      tiene_permanencia: !!formEditCups.fecha_fin_permanencia,
+    });
+    if (err) { setMsg(err); return; }
+    // Si se acaba de poner fin de contrato y antes no lo tenía → fecha crítica automática
+    if (formEditCups.fecha_fin_contrato && original && !original.fecha_fin_contrato && cliente) {
+      await guardarLuz('fechas', 'POST', {
+        cliente_id: clienteId, cups_id: editCupsId, tipo_fecha: 'fin_contrato', fecha: formEditCups.fecha_fin_contrato,
+        titulo: tituloFechaCritica(cliente.nombre, original.cups, 'fin_contrato', formEditCups.comercializadora_actual),
+        prioridad: cliente.prioridad, responsable: formEditCups.responsable || cliente.responsable,
+      });
+      fechas.recargar();
+    }
+    setEditCupsId(null); setMsg('');
     cups.recargar();
   }
 
@@ -273,28 +316,69 @@ export default function FichaClienteLuz() {
         ) : (
           <div className="space-y-2">
             {cups.datos.map((c) => (
-              <div key={c.id} className="flex items-center justify-between gap-3 p-3 rounded-lg bg-card/60 flex-wrap">
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold">
-                    {c.alias_suministro || 'Suministro'} · {c.tarifa_acceso}
-                    <span className="text-muted font-mono text-[10px] ml-2">{c.cups}</span>
-                  </p>
-                  <p className="text-xs text-muted mt-0.5">
-                    {c.comercializadora_actual || 'sin comercializadora'} · {fmtKwh(Number(c.consumo_anual_kwh))}
-                    {c.fecha_fin_contrato ? ` · fin ${fmtFecha(c.fecha_fin_contrato)}` : ' · ⚠️ sin fin contrato'}
-                    {!c.responsable && ' · ⚠️ sin responsable'}
-                  </p>
+              <div key={c.id} className="p-3 rounded-lg bg-card/60">
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold">
+                      {c.alias_suministro || 'Suministro'} · {c.tarifa_acceso}
+                      <span className="text-muted font-mono text-[10px] ml-2">{c.cups}</span>
+                    </p>
+                    <p className="text-xs text-muted mt-0.5">
+                      {c.comercializadora_actual || 'sin comercializadora'} · {fmtKwh(Number(c.consumo_anual_kwh))}
+                      {c.fecha_fin_contrato ? ` · fin ${fmtFecha(c.fecha_fin_contrato)}` : ' · ⚠️ sin fin contrato'}
+                      {!c.responsable && ' · ⚠️ sin responsable'}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {c.fecha_fin_contrato && <BadgeVencimiento fecha={c.fecha_fin_contrato} />}
+                    <select
+                      value={c.estado_cups}
+                      onChange={async (e) => { await guardarLuz('cups', 'PUT', { id: c.id, estado_cups: e.target.value }); cups.recargar(); }}
+                      className="rounded-lg border border-border/40 bg-background/60 px-2 py-1 text-xs font-semibold"
+                    >
+                      {ESTADOS_CUPS.map((es) => <option key={es} value={es}>{ESTADO_CUPS_LABEL[es]}</option>)}
+                    </select>
+                    <button
+                      onClick={() => (editCupsId === c.id ? setEditCupsId(null) : empezarEdicionCups(c))}
+                      className="p-1.5 rounded-lg border border-border/40 text-muted hover:text-foreground hover:border-accent/50 transition"
+                      title="Editar suministro"
+                    >
+                      {editCupsId === c.id ? <X className="w-3.5 h-3.5" /> : <Pencil className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  {c.fecha_fin_contrato && <BadgeVencimiento fecha={c.fecha_fin_contrato} />}
-                  <select
-                    value={c.estado_cups}
-                    onChange={async (e) => { await guardarLuz('cups', 'PUT', { id: c.id, estado_cups: e.target.value }); cups.recargar(); }}
-                    className="rounded-lg border border-border/40 bg-background/60 px-2 py-1 text-xs font-semibold"
-                  >
-                    {ESTADOS_CUPS.map((es) => <option key={es} value={es}>{ESTADO_CUPS_LABEL[es]}</option>)}
-                  </select>
-                </div>
+
+                {editCupsId === c.id && (
+                  <form onSubmit={guardarEdicionCups} className="mt-3 pt-3 border-t border-border/30 space-y-3">
+                    <div className="grid md:grid-cols-4 gap-3">
+                      <div><label className={labelCls}>Alias</label><input className={inputCls} value={formEditCups.alias_suministro} onChange={(e) => setFormEditCups({ ...formEditCups, alias_suministro: e.target.value })} /></div>
+                      <div>
+                        <label className={labelCls}>Tarifa</label>
+                        <select className={inputCls} value={formEditCups.tarifa_acceso} onChange={(e) => setFormEditCups({ ...formEditCups, tarifa_acceso: e.target.value })}>
+                          {TARIFAS_ACCESO.map((t) => <option key={t} value={t}>{t}</option>)}
+                        </select>
+                      </div>
+                      <div><label className={labelCls}>Comercializadora</label><input className={inputCls} value={formEditCups.comercializadora_actual} onChange={(e) => setFormEditCups({ ...formEditCups, comercializadora_actual: e.target.value })} /></div>
+                      <div><label className={labelCls}>Distribuidora</label><input className={inputCls} value={formEditCups.distribuidora} onChange={(e) => setFormEditCups({ ...formEditCups, distribuidora: e.target.value })} /></div>
+                      <div className="md:col-span-2"><label className={labelCls}>Dirección suministro</label><input className={inputCls} value={formEditCups.direccion_suministro} onChange={(e) => setFormEditCups({ ...formEditCups, direccion_suministro: e.target.value })} /></div>
+                      <div><label className={labelCls}>Consumo anual (kWh)</label><input className={inputCls} type="number" value={formEditCups.consumo_anual_kwh} onChange={(e) => setFormEditCups({ ...formEditCups, consumo_anual_kwh: e.target.value })} /></div>
+                      <div><label className={labelCls}>Coste anual (€)</label><input className={inputCls} type="number" step="0.01" value={formEditCups.coste_anual_estimado} onChange={(e) => setFormEditCups({ ...formEditCups, coste_anual_estimado: e.target.value })} /></div>
+                      <div><label className={labelCls}>Fin contrato</label><input className={inputCls} type="date" value={formEditCups.fecha_fin_contrato} onChange={(e) => setFormEditCups({ ...formEditCups, fecha_fin_contrato: e.target.value })} /></div>
+                      <div><label className={labelCls}>Fin permanencia</label><input className={inputCls} type="date" value={formEditCups.fecha_fin_permanencia} onChange={(e) => setFormEditCups({ ...formEditCups, fecha_fin_permanencia: e.target.value })} /></div>
+                      <div><label className={labelCls}>Días preaviso</label><input className={inputCls} type="number" value={formEditCups.dias_preaviso} onChange={(e) => setFormEditCups({ ...formEditCups, dias_preaviso: e.target.value })} /></div>
+                      <div>
+                        <label className={labelCls}>Responsable</label>
+                        <SelectorResponsable valor={formEditCups.responsable} onCambio={(v) => setFormEditCups((f) => ({ ...f, responsable: v || '' }))} className={inputCls} />
+                      </div>
+                      <div className="md:col-span-2"><label className={labelCls}>Penalización</label><input className={inputCls} value={formEditCups.penalizacion} onChange={(e) => setFormEditCups({ ...formEditCups, penalizacion: e.target.value })} /></div>
+                      <div className="md:col-span-2"><label className={labelCls}>Observaciones</label><input className={inputCls} value={formEditCups.observaciones} onChange={(e) => setFormEditCups({ ...formEditCups, observaciones: e.target.value })} /></div>
+                    </div>
+                    <div className="flex gap-2">
+                      <button type="submit" className={btnPrimario}>Guardar suministro</button>
+                      <button type="button" onClick={() => setEditCupsId(null)} className={btnSecundario}>Cancelar</button>
+                    </div>
+                  </form>
+                )}
               </div>
             ))}
           </div>

@@ -217,8 +217,13 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ tabla: stri
         return NextResponse.json({ error: 'Para "revisar más adelante" hay que indicar la fecha de revisión futura.' }, { status: 400 });
       }
     }
-    if (tabla === 'comisiones' && (campos.estado_comision === 'cobrada' || campos.estado_comision === 'cobrada_parcial') && !campos.fecha_cobro) {
-      campos.fecha_cobro = new Date().toISOString().slice(0, 10);
+    if (tabla === 'comisiones' && (campos.estado_comision === 'cobrada' || campos.estado_comision === 'cobrada_parcial')) {
+      if (!campos.fecha_cobro) campos.fecha_cobro = new Date().toISOString().slice(0, 10);
+      // Cobrada sin importe indicado → se asume cobrado el importe previsto
+      if (campos.estado_comision === 'cobrada' && !campos.importe_cobrado) {
+        const { data: actual } = await supabase.from('luz_comisiones').select('importe_previsto, importe_cobrado').eq('id', id).single();
+        if (!Number(actual?.importe_cobrado)) campos.importe_cobrado = actual?.importe_previsto ?? 0;
+      }
     }
 
     campos.actualizado_en = new Date().toISOString();
