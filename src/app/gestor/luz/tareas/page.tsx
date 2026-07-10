@@ -2,12 +2,13 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
-import { Plus, X, Download } from 'lucide-react';
+import { Plus, X, Download, LayoutGrid, Table2 } from 'lucide-react';
 import {
   LuzTarea, LuzCliente, TIPOS_TAREA, TIPO_TAREA_LABEL, ESTADOS_TAREA, ESTADO_TAREA_LABEL,
   TAREAS_ABIERTAS, diasHasta,
 } from '@/lib/luz';
 import { Card, Kpi, Badge, BadgeVencimiento, EstadoCarga, useListaLuz, guardarLuz, inputCls, labelCls, btnPrimario, btnSecundario, SelectorResponsable } from '../ui';
+import { TableroTareas, bucketDeTarea, BucketTarea } from './tablero';
 
 const FORM_VACIO = { descripcion: '', cliente_id: '', tipo_tarea: 'llamar_cliente', fecha_limite: '', prioridad: 'media', responsable: '' };
 
@@ -19,6 +20,8 @@ export default function TareasLuzPage() {
   const [mostrarForm, setMostrarForm] = useState(false);
   const [form, setForm] = useState(FORM_VACIO);
   const [errorForm, setErrorForm] = useState('');
+  const [vista, setVista] = useState<'tablero' | 'lista'>('tablero');
+  const [msg, setMsg] = useState('');
 
   const responsables = useMemo(() => Array.from(new Set(datos.map((t) => t.responsable).filter(Boolean))) as string[], [datos]);
   const abiertas = datos.filter((t) => TAREAS_ABIERTAS.includes(t.estado));
@@ -30,6 +33,37 @@ export default function TareasLuzPage() {
     if (fResp && t.responsable !== fResp) return false;
     return true;
   }).sort((a, b) => (a.fecha_limite || '9999').localeCompare(b.fecha_limite || '9999')), [datos, fEstado, fResp]);
+
+  /** Datos para el tablero: todo lo abierto (con o sin fecha) + lo completado hoy, sin el filtro de estado (que no pinta nada aquí). */
+  const paraTablero = useMemo(() => datos.filter((t) => {
+    if (fResp && t.responsable !== fResp) return false;
+    return bucketDeTarea(t) !== null;
+  }), [datos, fResp]);
+
+  async function moverABucket(t: LuzTarea, bucket: BucketTarea) {
+    if (bucket === 'atrasado') return;
+    const hoy = new Date();
+    const cambios: Record<string, unknown> = {};
+    if (bucket === 'hecho') {
+      cambios.estado = 'completada';
+    } else {
+      if (t.estado === 'completada') cambios.estado = 'pendiente';
+      if (bucket === 'hoy') cambios.fecha_limite = hoy.toISOString().slice(0, 10);
+      else if (bucket === 'semana') cambios.fecha_limite = new Date(hoy.getTime() + 3 * 86400000).toISOString().slice(0, 10);
+      else if (bucket === 'futuro') cambios.fecha_limite = new Date(hoy.getTime() + 14 * 86400000).toISOString().slice(0, 10);
+      else if (bucket === 'sin_fecha') cambios.fecha_limite = null;
+    }
+    const err = await guardarLuz('tareas', 'PUT', { id: t.id, ...cambios });
+    if (err) { setMsg(err); return; }
+    setMsg('');
+    recargar();
+  }
+
+  async function borrarTarea(t: LuzTarea) {
+    if (!confirm('¿Borrar tarea?')) return;
+    await guardarLuz('tareas', 'DELETE', { id: t.id });
+    recargar();
+  }
 
   async function crear(e: React.FormEvent) {
     e.preventDefault();
@@ -55,7 +89,22 @@ export default function TareasLuzPage() {
           <h2 className="text-xl font-black text-foreground">Tareas y Alertas</h2>
           <p className="text-xs text-muted mt-0.5">Qué hay que hacer y quién lo tiene que hacer. Las alertas viven en el Dashboard.</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
+          {/* Interruptor de vista Tablero / Lista */}
+          <div className="inline-flex rounded-lg border border-border/50 bg-card/60 p-0.5">
+            <button
+              onClick={() => setVista('tablero')}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition ${vista === 'tablero' ? 'bg-accent text-white' : 'text-muted hover:text-foreground'}`}
+            >
+              <LayoutGrid className="w-3.5 h-3.5" /> Tablero
+            </button>
+            <button
+              onClick={() => setVista('lista')}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition ${vista === 'lista' ? 'bg-accent text-white' : 'text-muted hover:text-foreground'}`}
+            >
+              <Table2 className="w-3.5 h-3.5" /> Lista
+            </button>
+          </div>
           <a href={`/api/luz/exportar?tipo=tareas${fResp ? `&responsable=${encodeURIComponent(fResp)}` : ''}`} className={btnSecundario} download>
             <Download className="w-4 h-4" /> Exportar abiertas
           </a>
@@ -64,6 +113,8 @@ export default function TareasLuzPage() {
           </button>
         </div>
       </div>
+
+      {msg && <p className="text-xs text-secondary bg-secondary/10 border border-secondary/25 rounded-lg p-2.5">{msg}</p>}
 
       <div className="grid grid-cols-3 gap-3">
         <Kpi valor={abiertas.length} etiqueta="Abiertas" />
@@ -111,7 +162,7 @@ export default function TareasLuzPage() {
       )}
 
       <div className="flex gap-2 flex-wrap items-center">
-        {[['abiertas', 'Abiertas'], ...ESTADOS_TAREA.map((e) => [e, ESTADO_TAREA_LABEL[e]])].map(([v, n]) => (
+        {vista === 'lista' && [['abiertas', 'Abiertas'], ...ESTADOS_TAREA.map((e) => [e, ESTADO_TAREA_LABEL[e]])].map(([v, n]) => (
           <button key={v} onClick={() => setFEstado(v!)} className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${fEstado === v ? 'bg-accent text-white' : 'bg-card/80 text-muted border border-border/50'}`}>{n}</button>
         ))}
         <select className={selCls} value={fResp} onChange={(e) => setFResp(e.target.value)}>
@@ -121,9 +172,13 @@ export default function TareasLuzPage() {
       </div>
 
       <EstadoCarga cargando={cargando} error={error} faltaMigracion={faltaMigracion}
-        vacio={!cargando && !error && filtradas.length === 0} textoVacio="Sin tareas con este filtro. 👌" sqlFile="supabase_luz.sql" />
+        vacio={!cargando && !error && vista === 'lista' && filtradas.length === 0} textoVacio="Sin tareas con este filtro. 👌" sqlFile="supabase_luz.sql" />
 
-      {filtradas.length > 0 && (
+      {vista === 'tablero' && !cargando && !error && !faltaMigracion && (
+        <TableroTareas tareas={paraTablero} onMover={moverABucket} onBorrar={borrarTarea} />
+      )}
+
+      {vista === 'lista' && filtradas.length > 0 && (
         <div className="space-y-2">
           {filtradas.map((t) => {
             const abierta = TAREAS_ABIERTAS.includes(t.estado);
