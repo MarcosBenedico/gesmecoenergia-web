@@ -3,19 +3,43 @@
 import { Suspense, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { Download } from 'lucide-react';
+import { Download, Plus, X } from 'lucide-react';
 import {
-  LuzContrato, ESTADOS_CONTRATO, ESTADO_CONTRATO_LABEL, CONTRATO_EN_CURSO,
-  diasHasta, fmtFecha,
+  LuzContrato, LuzCliente, LuzCups, ESTADOS_CONTRATO, ESTADO_CONTRATO_LABEL, CONTRATO_EN_CURSO,
+  TARIFAS_ACCESO, diasHasta, fmtFecha,
 } from '@/lib/luz';
-import { Card, Kpi, Badge, EstadoCarga, useListaLuz, guardarLuz, inputCls, btnSecundario, SelectorResponsable } from '../ui';
+import { Card, Kpi, Badge, EstadoCarga, useListaLuz, guardarLuz, inputCls, labelCls, btnPrimario, btnSecundario, SelectorResponsable } from '../ui';
+
+const CONTRATO_VACIO = { cliente_id: '', cups_id: '', comercializadora_final: '', tarifa_acceso: '2.0TD', estado_contrato: 'pendiente_preparar', fecha_activacion_prevista: '', responsable: '' };
 
 function ContratosContenido() {
   const sp = useSearchParams();
   const { datos, cargando, error, faltaMigracion, recargar } = useListaLuz<LuzContrato>('contratos');
+  const clientes = useListaLuz<LuzCliente>('clientes');
+  const cups = useListaLuz<LuzCups>('cups');
   const [fEstado, setFEstado] = useState(sp.get('estado_contrato') || '');
   const [fEspecial, setFEspecial] = useState('');
   const [msg, setMsg] = useState('');
+  const [mostrarForm, setMostrarForm] = useState(false);
+  const [form, setForm] = useState(CONTRATO_VACIO);
+  const [errorForm, setErrorForm] = useState('');
+
+  const cupsDelCliente = useMemo(() => cups.datos.filter((c) => c.cliente_id === form.cliente_id), [cups.datos, form.cliente_id]);
+
+  async function crear(e: React.FormEvent) {
+    e.preventDefault();
+    if (!form.cliente_id) { setErrorForm('Selecciona el cliente.'); return; }
+    setErrorForm('');
+    const err = await guardarLuz('contratos', 'POST', {
+      ...form,
+      cups_id: form.cups_id || null,
+      fecha_activacion_prevista: form.fecha_activacion_prevista || null,
+      responsable: form.responsable || null,
+    });
+    if (err) { setErrorForm(err); return; }
+    setForm(CONTRATO_VACIO); setMostrarForm(false);
+    recargar();
+  }
 
   const mesActual = new Date().toISOString().slice(0, 7);
 
@@ -64,10 +88,58 @@ function ContratosContenido() {
           <h2 className="text-xl font-black text-foreground">Contratos y Activaciones</h2>
           <p className="text-xs text-muted mt-0.5">Que ninguna venta se pierda después del sí: firma → envío → validación → activación.</p>
         </div>
-        <a href={`/api/luz/exportar?tipo=contratos${fEstado ? `&estado_contrato=${fEstado}` : ''}`} className={btnSecundario} download>
-          <Download className="w-4 h-4" /> Exportar
-        </a>
+        <div className="flex gap-2">
+          <a href={`/api/luz/exportar?tipo=contratos${fEstado ? `&estado_contrato=${fEstado}` : ''}`} className={btnSecundario} download>
+            <Download className="w-4 h-4" /> Exportar
+          </a>
+          <button onClick={() => setMostrarForm((v) => !v)} className={btnPrimario}>
+            {mostrarForm ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />} {mostrarForm ? 'Cancelar' : 'Nuevo contrato'}
+          </button>
+        </div>
       </div>
+
+      {mostrarForm && (
+        <Card>
+          <form onSubmit={crear} className="space-y-3">
+            <div className="grid md:grid-cols-3 gap-3">
+              <div>
+                <label className={labelCls}>Cliente *</label>
+                <select className={inputCls} value={form.cliente_id} onChange={(e) => setForm({ ...form, cliente_id: e.target.value, cups_id: '' })}>
+                  <option value="">— Selecciona —</option>
+                  {clientes.datos.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className={labelCls}>CUPS (opcional)</label>
+                <select className={inputCls} value={form.cups_id} onChange={(e) => setForm({ ...form, cups_id: e.target.value })} disabled={!form.cliente_id}>
+                  <option value="">— Sin CUPS —</option>
+                  {cupsDelCliente.map((c) => <option key={c.id} value={c.id}>{c.alias_suministro || c.cups}</option>)}
+                </select>
+              </div>
+              <div><label className={labelCls}>Comercializadora final</label><input className={inputCls} value={form.comercializadora_final} onChange={(e) => setForm({ ...form, comercializadora_final: e.target.value })} /></div>
+              <div>
+                <label className={labelCls}>Tarifa</label>
+                <select className={inputCls} value={form.tarifa_acceso} onChange={(e) => setForm({ ...form, tarifa_acceso: e.target.value })}>
+                  {TARIFAS_ACCESO.map((t) => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className={labelCls}>Estado inicial</label>
+                <select className={inputCls} value={form.estado_contrato} onChange={(e) => setForm({ ...form, estado_contrato: e.target.value })}>
+                  {ESTADOS_CONTRATO.map((es) => <option key={es} value={es}>{ESTADO_CONTRATO_LABEL[es]}</option>)}
+                </select>
+              </div>
+              <div><label className={labelCls}>Activación prevista</label><input className={inputCls} type="date" value={form.fecha_activacion_prevista} onChange={(e) => setForm({ ...form, fecha_activacion_prevista: e.target.value })} /></div>
+              <div>
+                <label className={labelCls}>Responsable</label>
+                <SelectorResponsable valor={form.responsable} onCambio={(v) => setForm((f) => ({ ...f, responsable: v || '' }))} className={inputCls} />
+              </div>
+            </div>
+            {errorForm && <p className="text-xs text-red-400">{errorForm}</p>}
+            <button type="submit" className={btnPrimario}>Crear contrato</button>
+          </form>
+        </Card>
+      )}
 
       <div className="grid grid-cols-3 gap-3">
         <Kpi valor={pendFirma.length} etiqueta="Pendientes de firma" color={pendFirma.length ? 'text-amber-400' : 'text-foreground'} />
@@ -95,7 +167,7 @@ function ContratosContenido() {
 
       <EstadoCarga cargando={cargando} error={error} faltaMigracion={faltaMigracion}
         vacio={!cargando && !error && filtrados.length === 0}
-        textoVacio="Sin contratos con este filtro. Se crean desde el Pipeline (ganado → contrato)." sqlFile="supabase_luz.sql" />
+        textoVacio="Sin contratos con este filtro. Créalos con el botón «Nuevo contrato» o desde el Pipeline (ganado → contrato)." sqlFile="supabase_luz.sql" />
 
       {filtrados.length > 0 && (
         <Card className="!p-0 overflow-x-auto">

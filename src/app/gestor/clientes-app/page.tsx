@@ -393,7 +393,7 @@ export default function ClientesAppPage() {
     <div className="min-h-screen bg-background">
       {/* ── CABECERA ── */}
       <header className="border-b border-border/30 bg-surface/40 backdrop-blur sticky top-0 z-20">
-        <div className="max-w-5xl mx-auto px-4 md:px-8 py-4 flex items-center justify-between">
+        <div className="max-w-[1600px] mx-auto px-4 md:px-8 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Link
               href="/gestor"
@@ -417,7 +417,7 @@ export default function ClientesAppPage() {
         </div>
       </header>
 
-      <main className="max-w-5xl mx-auto px-4 md:px-8 py-6 space-y-6">
+      <main className="max-w-[1600px] mx-auto px-4 md:px-8 py-6 space-y-6">
         {/* Avisos */}
         {mensaje && (
           <div className="flex items-start gap-2.5 p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-sm">

@@ -3,12 +3,14 @@
 import { Suspense, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { ChevronLeft, ChevronRight, Download } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, Plus, RefreshCw, X } from 'lucide-react';
 import {
-  LuzFechaCritica, TIPOS_FECHA, TIPO_FECHA_LABEL, TIPO_FECHA_TONO, PRIORIDADES,
-  diasHasta, fmtFecha,
+  LuzFechaCritica, LuzCliente, LuzCups, TIPOS_FECHA, TIPO_FECHA_LABEL, TIPO_FECHA_TONO, PRIORIDADES,
+  diasHasta, fmtFecha, tituloFechaCritica,
 } from '@/lib/luz';
-import { Card, BadgePrioridad, BadgeVencimiento, EstadoCarga, useListaLuz, guardarLuz, btnSecundario, SelectorResponsable } from '../ui';
+import { Card, BadgePrioridad, BadgeVencimiento, EstadoCarga, useListaLuz, guardarLuz, inputCls, labelCls, btnPrimario, btnSecundario, SelectorResponsable } from '../ui';
+
+const FECHA_VACIA = { cliente_id: '', tipo_fecha: 'fin_contrato', fecha: '', descripcion: '', responsable: '' };
 
 const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 const DIAS_SEMANA = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
@@ -25,6 +27,12 @@ function FechasContenido() {
   const [fEstado, setFEstado] = useState('pendiente');
   const [fDias, setFDias] = useState(sp.get('dias') || '');
   const [verD, setVerD] = useState(false);
+  const [generando, setGenerando] = useState(false);
+  const [msgGen, setMsgGen] = useState('');
+  const [mostrarForm, setMostrarForm] = useState(false);
+  const [form, setForm] = useState(FECHA_VACIA);
+  const [errorForm, setErrorForm] = useState('');
+  const clientes = useListaLuz<LuzCliente>('clientes');
 
   const rango = useMemo(() => {
     if (vista === 'listado') {
@@ -64,6 +72,63 @@ function FechasContenido() {
     return [...Array.from({ length: offset }, () => null as number | null), ...Array.from({ length: ultimo }, (_, i) => i + 1)];
   }, [ancla]);
 
+  /** Crea las fechas críticas que falten a partir de las fechas guardadas en los CUPS. */
+  async function generarDesdeCups() {
+    setGenerando(true);
+    setMsgGen('');
+    try {
+      const [cupsRes, fechasRes] = await Promise.all([fetch('/api/luz/cups'), fetch('/api/luz/fechas')]);
+      const cupsList: LuzCups[] = (await cupsRes.json()).datos || [];
+      const fechasList: LuzFechaCritica[] = (await fechasRes.json()).datos || [];
+      const existe = (cupsId: string, tipo: string) => fechasList.some((f) => f.cups_id === cupsId && f.tipo_fecha === tipo);
+      let creadas = 0;
+      for (const c of cupsList) {
+        if (['perdido', 'no_viable'].includes(c.estado_cups)) continue;
+        const pares: [string, string | null][] = [
+          ['fin_contrato', c.fecha_fin_contrato],
+          ['fin_permanencia', c.fecha_fin_permanencia],
+          ['limite_preaviso', c.fecha_limite_preaviso],
+        ];
+        for (const [tipo, fecha] of pares) {
+          if (!fecha || existe(c.id, tipo)) continue;
+          const err = await guardarLuz('fechas', 'POST', {
+            cliente_id: c.cliente_id, cups_id: c.id, tipo_fecha: tipo, fecha,
+            titulo: tituloFechaCritica(c.luz_clientes?.nombre || 'Cliente', c.cups, tipo, c.comercializadora_actual),
+            prioridad: c.prioridad || c.luz_clientes?.prioridad || 'C',
+            responsable: c.responsable,
+          });
+          if (!err) creadas++;
+        }
+      }
+      setMsgGen(creadas > 0 ? `✓ ${creadas} fecha(s) crítica(s) creadas desde los CUPS.` : 'Todo al día: los CUPS con fechas ya tienen su fecha crítica.');
+      recargar();
+    } catch {
+      setMsgGen('Error generando fechas.');
+    } finally {
+      setGenerando(false);
+    }
+  }
+
+  async function crearFecha(e: React.FormEvent) {
+    e.preventDefault();
+    const cliente = clientes.datos.find((c) => c.id === form.cliente_id);
+    if (!cliente) { setErrorForm('Selecciona el cliente.'); return; }
+    if (!form.fecha) { setErrorForm('Indica la fecha.'); return; }
+    setErrorForm('');
+    const err = await guardarLuz('fechas', 'POST', {
+      cliente_id: cliente.id,
+      tipo_fecha: form.tipo_fecha,
+      fecha: form.fecha,
+      titulo: tituloFechaCritica(cliente.nombre, '', form.tipo_fecha, null),
+      descripcion: form.descripcion || null,
+      prioridad: cliente.prioridad || 'C',
+      responsable: form.responsable || cliente.responsable || null,
+    });
+    if (err) { setErrorForm(err); return; }
+    setForm(FECHA_VACIA); setMostrarForm(false);
+    recargar();
+  }
+
   const selCls = 'rounded-lg border border-border/40 bg-background/60 px-2 py-1.5 text-xs font-semibold';
 
   return (
@@ -74,6 +139,12 @@ function FechasContenido() {
           <p className="text-xs text-muted mt-0.5">{eventos.length} evento(s) · fin contrato, permanencias, preavisos, firmas, activaciones y comisiones</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          <button onClick={() => setMostrarForm((v) => !v)} className={btnPrimario}>
+            {mostrarForm ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />} {mostrarForm ? 'Cancelar' : 'Nueva fecha'}
+          </button>
+          <button onClick={generarDesdeCups} disabled={generando} className={btnSecundario} title="Crear fechas críticas desde las fechas de los CUPS">
+            <RefreshCw className={`w-4 h-4 ${generando ? 'animate-spin' : ''}`} /> Generar desde CUPS
+          </button>
           <a href={`/api/luz/exportar?tipo=fechas${fTipo ? `&tipo_fecha=${fTipo}` : ''}${fResp ? `&responsable=${encodeURIComponent(fResp)}` : ''}`} className={btnSecundario} download>
             <Download className="w-4 h-4" />
           </a>
@@ -89,6 +160,38 @@ function FechasContenido() {
           )}
         </div>
       </div>
+
+      {msgGen && <p className="text-xs text-secondary bg-secondary/10 border border-secondary/25 rounded-lg p-2.5">{msgGen}</p>}
+
+      {mostrarForm && (
+        <Card>
+          <form onSubmit={crearFecha} className="space-y-3">
+            <div className="grid md:grid-cols-4 gap-3">
+              <div>
+                <label className={labelCls}>Cliente *</label>
+                <select className={inputCls} value={form.cliente_id} onChange={(e) => setForm({ ...form, cliente_id: e.target.value })}>
+                  <option value="">— Selecciona —</option>
+                  {clientes.datos.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className={labelCls}>Tipo de fecha</label>
+                <select className={inputCls} value={form.tipo_fecha} onChange={(e) => setForm({ ...form, tipo_fecha: e.target.value })}>
+                  {TIPOS_FECHA.map((t) => <option key={t} value={t}>{TIPO_FECHA_LABEL[t]}</option>)}
+                </select>
+              </div>
+              <div><label className={labelCls}>Fecha *</label><input className={inputCls} type="date" value={form.fecha} onChange={(e) => setForm({ ...form, fecha: e.target.value })} /></div>
+              <div>
+                <label className={labelCls}>Responsable</label>
+                <SelectorResponsable valor={form.responsable} onCambio={(v) => setForm((f) => ({ ...f, responsable: v || '' }))} className={inputCls} />
+              </div>
+              <div className="md:col-span-4"><label className={labelCls}>Descripción</label><input className={inputCls} value={form.descripcion} onChange={(e) => setForm({ ...form, descripcion: e.target.value })} placeholder="Detalle opcional..." /></div>
+            </div>
+            {errorForm && <p className="text-xs text-red-400">{errorForm}</p>}
+            <button type="submit" className={btnPrimario}>Crear fecha crítica</button>
+          </form>
+        </Card>
+      )}
 
       <Card className="!p-3">
         <div className="flex gap-2 flex-wrap items-center">

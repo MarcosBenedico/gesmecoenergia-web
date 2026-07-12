@@ -1,75 +1,141 @@
 import Link from "next/link";
 import Image from "next/image";
-import { Button } from "@/components/button";
 import { BulletList } from "@/components/bullet-list";
 import { Container } from "@/components/container";
-import { FeatureCard } from "@/components/feature-card";
 import { SectionHeading } from "@/components/section-heading";
 import { HeroSection } from "@/components/hero-section";
 import { PhotoBanner } from "@/components/photo-banner";
 import { ScrollReveal } from "@/components/scroll-reveal";
-import { Card3D } from "@/components/card-3d";
-import {
-  methodology,
-  sectors,
-  services,
-  valuePillars,
-} from "@/lib/data";
+import { methodology, services } from "@/lib/data";
+
+/* ── Grupo Gesmeco: las tres áreas, protagonistas en la home ── */
+const GRUPO = [
+  {
+    nombre: "Gesmeco Energía",
+    area: "Energía",
+    icono: "⚡",
+    destacada: true,
+    resumen:
+      "El corazón del grupo. Analizamos tu factura de luz y gas línea a línea, negociamos con las comercializadoras y diseñamos tu instalación solar. Ahorros reales del 15–40%.",
+    puntos: ["Análisis de factura gratuito", "Solar fotovoltaica llave en mano", "Seguimiento continuo de tu contrato"],
+    href: "/servicios",
+    borde: "border-accent/40",
+    fondo: "bg-accent/[0.06]",
+    chip: "bg-accent/15 text-accent",
+  },
+  {
+    nombre: "Asesoría Gesmeco",
+    area: "Asesoría",
+    icono: "📋",
+    destacada: false,
+    resumen:
+      "Fiscal, laboral, contable y administrativa. Impuestos, nóminas y trámites resueltos para autónomos y empresas de la comarca.",
+    puntos: ["Fiscal y contable", "Laboral y nóminas", "Trámites y subvenciones"],
+    href: "/grupo",
+    borde: "border-tertiary/30",
+    fondo: "bg-tertiary/[0.05]",
+    chip: "bg-tertiary/15 text-tertiary",
+  },
+  {
+    nombre: "Correbin Asociados",
+    area: "Seguros",
+    icono: "🛡️",
+    destacada: false,
+    resumen:
+      "Correduría de seguros: hogar, vehículos, empresa y sector agrario-ganadero. Revisamos tus pólizas sin coste y buscamos mejores condiciones.",
+    puntos: ["Hogar y vehículos", "Empresa y explotación", "Revisión gratuita de pólizas"],
+    href: "/grupo",
+    borde: "border-secondary/30",
+    fondo: "bg-secondary/[0.05]",
+    chip: "bg-secondary/15 text-secondary",
+  },
+];
 
 export default function HomePage() {
   return (
     <div className="pb-20 relative">
 
-      {/* ── HERO ── */}
+      {/* ── HERO: energía como protagonista ── */}
       <div className="relative z-10">
         <HeroSection />
       </div>
 
-      {/* ── LO QUE NOS DIFERENCIA ── */}
+      {/* ── GRUPO GESMECO: un solo equipo, tres áreas ── */}
       <section className="py-20 relative z-10">
         <Container>
           <ScrollReveal>
             <SectionHeading
-              kicker="Lo que nos diferencia"
-              title="Un asesor que entiende tu realidad. No solo números."
+              kicker="Grupo Gesmeco"
+              title="Energía, asesoría y seguros. Un solo equipo, un solo teléfono."
             >
-              Conocemos Binéfar, el sector ganadero, agrícola y comercial. Analizamos tu factura línea
-              a línea, visitamos tu instalación y recomendamos solo lo que vale la pena.
+              Todo lo que tu casa, tu granja o tu empresa necesita, gestionado desde la misma
+              oficina de Binéfar. Empezamos por la energía y te acompañamos en todo lo demás.
             </SectionHeading>
           </ScrollReveal>
-          <div className="mt-10 grid gap-6 md:grid-cols-3">
-            {valuePillars.map((pillar, i) => (
-              <ScrollReveal key={pillar.title} delay={i * 120}>
-                <Card3D glowColor={['#6366f1', '#06b6d4', '#8b5cf6'][i % 3]} className="!p-6">
-                  <h3 className="text-lg font-bold text-foreground mb-2">{pillar.title}</h3>
-                  <p className="text-sm text-muted">{pillar.description}</p>
-                </Card3D>
+          <div className="mt-10 grid gap-6 lg:grid-cols-3">
+            {GRUPO.map((e, i) => (
+              <ScrollReveal key={e.nombre} delay={i * 120}>
+                <Link
+                  href={e.href}
+                  className={`group flex h-full flex-col rounded-2xl border ${e.borde} ${e.fondo} p-6 transition-all duration-300 hover:-translate-y-1 hover:shadow-lg ${
+                    e.destacada ? "ring-1 ring-accent/30 shadow-[0_10px_40px_rgba(255,51,51,0.10)]" : ""
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-3 mb-3">
+                    <div className="flex items-center gap-3">
+                      <span className="text-3xl">{e.icono}</span>
+                      <div>
+                        <h3 className="text-lg font-black text-foreground leading-tight">{e.nombre}</h3>
+                        <span className={`inline-block mt-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${e.chip}`}>
+                          {e.area}
+                        </span>
+                      </div>
+                    </div>
+                    {e.destacada && (
+                      <span className="rounded-full bg-accent px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-white shrink-0">
+                        Principal
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-sm text-muted leading-relaxed">{e.resumen}</p>
+                  <ul className="mt-4 space-y-1.5 text-sm text-muted">
+                    {e.puntos.map((p) => (
+                      <li key={p} className="flex items-start gap-2">
+                        <span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-current opacity-60 shrink-0" />
+                        {p}
+                      </li>
+                    ))}
+                  </ul>
+                  <span className="mt-auto pt-4 text-sm font-bold text-foreground/70 transition group-hover:text-foreground">
+                    Saber más →
+                  </span>
+                </Link>
               </ScrollReveal>
             ))}
           </div>
         </Container>
       </section>
 
-      {/* ── QUÉ HACEMOS ── */}
+      {/* ── QUÉ HACEMOS EN ENERGÍA ── */}
       <section className="py-4 relative z-10">
         <Container>
           <ScrollReveal>
             <SectionHeading
-              kicker="Qué hacemos"
+              kicker="Qué hacemos en energía"
               title="Análisis honesto, asesor disponible, soluciones que funcionan."
             >
-              Desde revisar tu factura hasta instalar placas solares en tu tejado o en tu granja.
-              Te acompañamos en cada paso, sin presión, sin sorpresas.
+              Viviendas, ganadería, agricultura, comercios y empresas de Binéfar y comarca.
+              Desde revisar tu factura hasta instalar placas solares. Sin presión, sin sorpresas.
             </SectionHeading>
           </ScrollReveal>
           <div className="mt-10 grid gap-6 md:grid-cols-2">
             {services.slice(0, 4).map((service, i) => (
               <ScrollReveal key={service.title} delay={i * 100}>
-                <Card3D glowColor={['#06b6d4', '#8b5cf6', '#6366f1', '#ec4899'][i % 4]} className="!p-6">
+                <div className="h-full rounded-2xl border border-border/50 bg-surface/60 p-6 backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:border-accent/40">
                   <h3 className="text-lg font-bold text-foreground mb-3">{service.title}</h3>
                   <p className="text-sm text-muted mb-3">{service.summary}</p>
                   <BulletList items={service.items} />
-                </Card3D>
+                </div>
               </ScrollReveal>
             ))}
           </div>
@@ -99,32 +165,8 @@ export default function HomePage() {
         </Container>
       </section>
 
-      {/* ── SECTORES ── */}
-      <section className="py-4 relative z-10">
-        <Container>
-          <ScrollReveal>
-            <SectionHeading kicker="Sectores" title="Trabajamos en todos los sectores de Binéfar.">
-              Viviendas, ganadería, agricultura, comercios, empresas. Cada caso es diferente.
-              Por eso no hay soluciones estándar, sino soluciones a medida.
-            </SectionHeading>
-          </ScrollReveal>
-          <div className="mt-8 grid gap-4 md:grid-cols-3">
-            {sectors.map((sector, i) => (
-              <ScrollReveal key={sector.name} delay={i * 80}>
-                <Card3D glowColor={['#06b6d4', '#8b5cf6', '#6366f1'][i % 3]} className="!p-5">
-                  <div className="text-sm font-bold uppercase tracking-[0.16em] text-accent">
-                    {sector.name}
-                  </div>
-                  <p className="mt-2 text-sm text-muted">{sector.description}</p>
-                </Card3D>
-              </ScrollReveal>
-            ))}
-          </div>
-        </Container>
-      </section>
-
       {/* ── CÓMO TRABAJAMOS ── */}
-      <section className="py-4 relative z-10">
+      <section className="py-20 relative z-10">
         <Container>
           <ScrollReveal>
             <SectionHeading kicker="Cómo trabajamos" title="Pasos claros, sin complicaciones.">
@@ -132,10 +174,10 @@ export default function HomePage() {
               Transparencia total en cada fase.
             </SectionHeading>
           </ScrollReveal>
-          <div className="mt-10 grid gap-4 md:grid-cols-4">
+          <div className="mt-10 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             {methodology.map((step, index) => (
               <ScrollReveal key={step.title} delay={index * 100}>
-                <Card3D glowColor={['#06b6d4', '#8b5cf6', '#ec4899', '#6366f1'][index % 4]} className="!p-5">
+                <div className="h-full rounded-2xl border border-border/50 bg-surface/60 p-5 backdrop-blur-sm">
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent/15 text-sm font-black text-accent border border-accent/30">
                       {index + 1}
@@ -146,7 +188,7 @@ export default function HomePage() {
                   </div>
                   <h3 className="text-base font-bold text-foreground">{step.title}</h3>
                   <p className="text-sm text-muted mt-2">{step.detail}</p>
-                </Card3D>
+                </div>
               </ScrollReveal>
             ))}
           </div>
@@ -154,7 +196,7 @@ export default function HomePage() {
       </section>
 
       {/* ── CTA ── */}
-      <section className="mt-16 px-4 relative z-10">
+      <section className="mt-8 px-4 relative z-10">
         <ScrollReveal>
           <Container>
             <div className="cta-bg relative overflow-hidden rounded-3xl px-8 py-14 text-white shadow-[0_0_80px_rgba(255,51,51,0.2)]">

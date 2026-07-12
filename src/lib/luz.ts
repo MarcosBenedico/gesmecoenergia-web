@@ -309,6 +309,7 @@ export interface LuzTarea {
   fecha_limite: string | null;
   estado: string;
   prioridad: string;
+  actualizado_en?: string;
   luz_clientes?: { nombre: string } | null;
 }
 

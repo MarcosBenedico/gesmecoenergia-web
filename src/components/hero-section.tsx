@@ -55,16 +55,6 @@ function AnimatedStat({ stat, started, delay }: { stat: typeof heroStats[0]; sta
   );
 }
 
-/* ── Floating particle ── */
-function Particle({ style }: { style: React.CSSProperties }) {
-  return (
-    <div
-      className="absolute h-1 w-1 rounded-full bg-accent/40"
-      style={style}
-    />
-  );
-}
-
 /* ── Empresas del Grupo Gesmeco (panel derecho del hero) ── */
 const GRUPO_EMPRESAS = [
   {
@@ -111,17 +101,6 @@ const GRUPO_EMPRESAS = [
   },
 ];
 
-const PARTICLES = [
-  { top: '15%', left: '5%', animationDelay: '0s', animationDuration: '6s' },
-  { top: '70%', left: '8%', animationDelay: '1s', animationDuration: '8s' },
-  { top: '40%', left: '92%', animationDelay: '2s', animationDuration: '7s' },
-  { top: '85%', left: '85%', animationDelay: '0.5s', animationDuration: '9s' },
-  { top: '25%', left: '75%', animationDelay: '3s', animationDuration: '5s' },
-  { top: '60%', left: '50%', animationDelay: '1.5s', animationDuration: '10s' },
-  { top: '10%', left: '60%', animationDelay: '4s', animationDuration: '7s' },
-  { top: '90%', left: '30%', animationDelay: '2.5s', animationDuration: '6s' },
-];
-
 export function HeroSection() {
   const [started, setStarted] = useState(false);
 
@@ -155,21 +134,6 @@ export function HeroSection() {
         <div className="hero-orb-cyan absolute" />
         <div className="hero-orb-accent absolute" />
 
-        {/* Scan line */}
-        <div className="hero-scan absolute inset-x-0 h-px bg-gradient-to-r from-transparent via-accent/30 to-transparent" />
-
-        {/* Floating particles */}
-        {PARTICLES.map((p, i) => (
-          <Particle
-            key={i}
-            style={{
-              top: p.top,
-              left: p.left,
-              animation: `particle-float ${p.animationDuration} ease-in-out ${p.animationDelay} infinite`,
-            }}
-          />
-        ))}
-
         {/* Corner accent lines */}
         <div className="absolute left-0 top-0 h-px w-64 bg-gradient-to-r from-accent/60 to-transparent" />
         <div className="absolute left-0 top-0 h-64 w-px bg-gradient-to-b from-accent/60 to-transparent" />
@@ -177,7 +141,7 @@ export function HeroSection() {
         <div className="absolute bottom-0 right-0 h-64 w-px bg-gradient-to-t from-secondary/60 to-transparent" />
       </div>
 
-      <div className="mx-auto w-full max-w-7xl px-6">
+      <div className="mx-auto w-full max-w-[1600px] px-6">
         <div className="grid items-center gap-12 xl:grid-cols-[1.15fr_0.85fr]">
           {/* ── LEFT COLUMN ── */}
           <div
