@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { useState, useEffect } from 'react';
 import { heroStats } from '@/lib/data';
 
@@ -133,8 +134,21 @@ export function HeroSection() {
     <section className="relative flex min-h-screen items-center overflow-hidden pb-16 pt-20">
       {/* ── BACKGROUND ── */}
       <div className="pointer-events-none absolute inset-0 -z-10">
+        {/* Photo backdrop (Higgsfield) */}
+        <Image
+          src="/images/hero-solar.webp"
+          alt="Instalación solar fotovoltaica al atardecer en el campo de Aragón"
+          fill
+          priority
+          sizes="100vw"
+          className="object-cover object-center"
+        />
+        {/* Legibility overlays */}
+        <div className="absolute inset-0 bg-gradient-to-r from-background via-background/85 to-background/35" />
+        <div className="absolute inset-0 bg-gradient-to-b from-background/70 via-transparent to-background" />
+
         {/* Animated grid */}
-        <div className="hero-grid absolute inset-0" />
+        <div className="hero-grid absolute inset-0 opacity-50" />
 
         {/* Glowing orbs */}
         <div className="hero-orb-red absolute" />

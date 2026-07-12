@@ -1,5 +1,6 @@
 import { BulletList } from "@/components/bullet-list";
 import { Container } from "@/components/container";
+import { PhotoBanner } from "@/components/photo-banner";
 import { FeatureCard } from "@/components/feature-card";
 import { SectionHeading } from "@/components/section-heading";
 import { StatCard } from "@/components/stat-card";
@@ -15,6 +16,19 @@ export const metadata = {
 export default function ServicesPage() {
   return (
     <div className="pb-20">
+      <section className="pt-10">
+        <Container>
+          <PhotoBanner
+            src="/images/asesoria.webp"
+            alt="Asesor revisando una factura de luz con un cliente en la oficina"
+            kicker="Servicios"
+            title="Nos sentamos contigo y repasamos tu factura línea a línea."
+            size="md"
+            priority
+          />
+        </Container>
+      </section>
+
       <section className="pt-14">
         <Container>
           <SectionHeading

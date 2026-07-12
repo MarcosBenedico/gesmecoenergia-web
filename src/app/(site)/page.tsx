@@ -1,10 +1,12 @@
 import Link from "next/link";
+import Image from "next/image";
 import { Button } from "@/components/button";
 import { BulletList } from "@/components/bullet-list";
 import { Container } from "@/components/container";
 import { FeatureCard } from "@/components/feature-card";
 import { SectionHeading } from "@/components/section-heading";
 import { HeroSection } from "@/components/hero-section";
+import { PhotoBanner } from "@/components/photo-banner";
 import { ScrollReveal } from "@/components/scroll-reveal";
 import { Card3D } from "@/components/card-3d";
 import {
@@ -79,8 +81,26 @@ export default function HomePage() {
         </Container>
       </section>
 
+      {/* ── BANDA VISUAL: CAMPO Y GANADERÍA ── */}
+      <section className="py-16 relative z-10">
+        <Container>
+          <ScrollReveal>
+            <PhotoBanner
+              src="/images/granja-solar.webp"
+              alt="Nave agrícola con placas solares en el campo de Aragón"
+              kicker="Energía para el campo"
+              title="Solar pensada para granjas, riegos y naves de la comarca."
+              description="Instalaciones robustas, dimensionadas al consumo real de tu explotación. Sin humo, con números."
+              ctaHref="/sectores"
+              ctaLabel="Ver soluciones por sector"
+              size="lg"
+            />
+          </ScrollReveal>
+        </Container>
+      </section>
+
       {/* ── SECTORES ── */}
-      <section className="py-20 relative z-10">
+      <section className="py-4 relative z-10">
         <Container>
           <ScrollReveal>
             <SectionHeading kicker="Sectores" title="Trabajamos en todos los sectores de Binéfar.">
@@ -138,6 +158,16 @@ export default function HomePage() {
         <ScrollReveal>
           <Container>
             <div className="cta-bg relative overflow-hidden rounded-3xl px-8 py-14 text-white shadow-[0_0_80px_rgba(255,51,51,0.2)]">
+              {/* Photo backdrop */}
+              <Image
+                src="/images/asesoria.webp"
+                alt=""
+                fill
+                sizes="(max-width: 1280px) 100vw, 1280px"
+                className="object-cover object-center opacity-25"
+              />
+              <div className="absolute inset-0 bg-gradient-to-r from-background/90 via-background/70 to-background/40" />
+
               {/* Corner decorations */}
               <div className="absolute left-0 top-0 h-px w-48 bg-gradient-to-r from-accent to-transparent" />
               <div className="absolute left-0 top-0 h-48 w-px bg-gradient-to-b from-accent to-transparent" />

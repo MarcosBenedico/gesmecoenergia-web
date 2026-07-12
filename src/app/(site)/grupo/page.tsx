@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { Container } from "@/components/container";
 import { SolutionsSelector } from "@/components/solutions-selector";
 import { ScrollReveal } from "@/components/scroll-reveal";
@@ -112,6 +113,17 @@ export default function GroupPage() {
       {/* ═══════════ HERO DEL GRUPO ═══════════ */}
       <section className="relative overflow-hidden py-20 md:py-28">
         <div className="pointer-events-none absolute inset-0 -z-10">
+          {/* Photo backdrop (Higgsfield) */}
+          <Image
+            src="/images/seguros.webp"
+            alt=""
+            fill
+            priority
+            sizes="100vw"
+            className="object-cover object-center opacity-30"
+          />
+          <div className="absolute inset-0 bg-gradient-to-b from-background/80 via-background/60 to-background" />
+
           <div className="absolute -top-32 -left-32 h-96 w-96 rounded-full bg-accent/10 blur-3xl" />
           <div className="absolute top-1/3 -right-32 h-96 w-96 rounded-full bg-secondary/10 blur-3xl" />
           <div className="absolute bottom-0 left-1/3 h-64 w-64 rounded-full bg-tertiary/8 blur-3xl" />

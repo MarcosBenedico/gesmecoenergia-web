@@ -1,5 +1,6 @@
 import { Container } from "@/components/container";
 import { FeatureCard } from "@/components/feature-card";
+import { PhotoBanner } from "@/components/photo-banner";
 import { SectionHeading } from "@/components/section-heading";
 import { sectors } from "@/lib/data";
 
@@ -47,6 +48,19 @@ const sectorDetails = [
 export default function SectorsPage() {
   return (
     <div className="pb-20">
+      <section className="pt-10">
+        <Container>
+          <PhotoBanner
+            src="/images/granja-solar.webp"
+            alt="Nave agrícola con placas solares entre campos de cereal en Aragón"
+            kicker="Sectores"
+            title="Del tejado de tu casa a la cubierta de tu nave."
+            size="md"
+            priority
+          />
+        </Container>
+      </section>
+
       <section className="pt-14">
         <Container>
           <SectionHeading kicker="Sectores" title="Conocemos cada sector de Binéfar y comarca.">
