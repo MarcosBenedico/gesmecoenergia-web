@@ -81,7 +81,42 @@ const TIPOS: Record<string, { nombre: string; campos: CampoDef[] }> = {
       { clave: 'fecha_entrada', nombre: 'Fecha entrada', alias: ['fecha entrada', 'entrada', 'fecha incorporacion'] },
     ],
   },
+  // Una sola plantilla mensual: emisiones + anulaciones + suplementos + cambios de mediador.
+  // La clase de cada fila se deduce del texto del motivo.
+  movimientos: {
+    nombre: 'Movimientos del mes',
+    campos: [
+      { clave: 'compania', nombre: 'Compañía', obligatorio: true, alias: ['compania', 'compañia', 'aseguradora', 'cia'] },
+      { clave: 'poliza', nombre: 'Nº de póliza', alias: ['poliza', 'nº poliza', 'nº de poliza', 'num poliza', 'numero poliza', 'n poliza', 'contrato'] },
+      { clave: 'cliente', nombre: 'Tomador', obligatorio: true, alias: ['tomador', 'cliente', 'nombre', 'asegurado', 'razon social'] },
+      { clave: 'riesgo', nombre: 'Riesgo', alias: ['riesgo', 'ramo', 'producto', 'descripcion riesgo'] },
+      { clave: 'fecha_efecto', nombre: 'Fecha efecto', obligatorio: true, alias: ['fecha efecto', 'efecto', 'f efecto', 'fecha', 'f. efecto'] },
+      { clave: 'importe', nombre: 'Importe', alias: ['importe', 'prima', 'prima anual', 'prima neta', 'prima total'] },
+      { clave: 'motivo', nombre: 'Motivo', alias: ['motivo', 'causa', 'razon', 'tipo', 'observaciones', 'concepto'] },
+      { clave: 'poliza_relacionada', nombre: 'Póliza relacionada', alias: ['poliza relacionada', 'otra poliza', 'suplemento de', 'poliza origen', 'poliza sustituta', 'sustituta', 'poliza anterior'] },
+    ],
+  },
 };
+
+/** Clase de un movimiento según su motivo (tolerante a variaciones de texto). */
+function clasificarMovimiento(motivo: string): 'emision' | 'anulacion' | 'suplemento' | 'mediador' {
+  const m = norm(motivo);
+  if (!m) return 'emision';
+  if (/mediador/.test(m)) return 'mediador';
+  if (/suplement/.test(m)) return 'suplemento';
+  if (/sustitu|venta|jubilac|hipotec|no lo necesit|no necesit|fallec|impago|anulac|\bbaja\b|cancel|siniestr/.test(m)) return 'anulacion';
+  return 'emision';
+}
+
+const CLASE_MOV_LABEL: Record<string, string> = {
+  emision: 'Emisión', anulacion: 'Anulación', suplemento: 'Suplemento', mediador: 'Cambio de mediador',
+};
+
+/** Busca un nº de póliza citado dentro del texto del motivo ("suplemento de la póliza HG-112233"). */
+function polizaEnMotivo(motivo: string): string {
+  const m = motivo.match(/p[oó]liza\s*(?:n?[ºo°.]?\s*)?([A-Za-z0-9][A-Za-z0-9\-\/.]{3,})/i);
+  return m ? m[1].toUpperCase() : '';
+}
 
 // ── utilidades de celda ──
 const norm = (s: string) =>
@@ -159,7 +194,16 @@ export async function GET(req: NextRequest) {
     vencimientos: ['Ayuntamiento de Binéfar', 'RC', 'Zurich', 18000, '01/09/2026', '974428100', 'Dirección'],
     mediador: ['Ganadería Litera SL', 8500, 'Sí', 'En trámite', ''],
   };
-  ws.addRow(EJEMPLOS[tipo]);
+  if (tipo === 'movimientos') {
+    // Un ejemplo de cada clase para que se vea cómo clasifica el motivo
+    ws.addRow(['Mapfre', 'AU-445566', 'Pérez García, Juan', 'Auto', '01/07/2026', 420, 'Nueva producción', '']);
+    ws.addRow(['Allianz', 'HG-112233', 'López Sanz, María', 'Hogar', '05/07/2026', 310, 'Venta de vivienda', '']);
+    ws.addRow(['Zurich', 'AU-999888', 'Talleres Cinca SL', 'Auto', '10/07/2026', 780, 'Sustitución', 'AU-445566']);
+    ws.addRow(['Catalana', 'MR-777111', 'Ganadería Litera SL', 'Multirriesgo', '12/07/2026', 5400, 'Suplemento de la póliza MR-777000', '']);
+    ws.addRow(['Mapfre', 'VD-222333', 'Casas Aler, Pilar', 'Vida', '15/07/2026', 260, 'Cambio de mediador', '']);
+  } else {
+    ws.addRow(EJEMPLOS[tipo]);
+  }
 
   const buffer = await wb.xlsx.writeBuffer();
   return new NextResponse(buffer, {
@@ -249,6 +293,12 @@ function validarFila(tipo: string, fila: Fila, mapeo: Mapeo, caches: Awaited<Ret
     }
   }
   if (tipo === 'anulaciones' && !val(fila, mapeo, 'motivo')) alertas.push('anulación sin motivo');
+  if (tipo === 'movimientos') {
+    const motivo = val(fila, mapeo, 'motivo');
+    alertas.push(`→ ${CLASE_MOV_LABEL[clasificarMovimiento(motivo)]}`);
+    if (!motivo) alertas.push('sin motivo: se registrará como emisión');
+    if (!aNumero(val(fila, mapeo, 'importe'))) alertas.push('sin importe');
+  }
   if ((tipo === 'cartera' || tipo === 'vencimientos') && !val(fila, mapeo, 'responsable')) alertas.push('sin responsable (queda "sin asignar")');
 
   return {
@@ -473,6 +523,55 @@ export async function POST(req: NextRequest) {
             clienteNombre: g('cliente'), ramo: mapRamo(g('ramo')), prima: aNumero(g('prima')),
             compania: g('compania'), responsable, caches,
           });
+        }
+
+        if (tipo === 'movimientos') {
+          const motivo = g('motivo');
+          const clase = clasificarMovimiento(motivo);
+          const fecha = aFechaISO(g('fecha_efecto'));
+          const importe = aNumero(g('importe'));
+          const ramo = mapRamo(g('riesgo'));
+          const compania = g('compania') || null;
+          const num = g('poliza').toUpperCase();
+          const polizaId = num ? caches.polizasPorClienteNum.get(`${clienteId}|${num}`) || null : null;
+          const rel = (g('poliza_relacionada') || polizaEnMotivo(motivo)).toUpperCase();
+          const relId = rel ? caches.polizasPorClienteNum.get(`${clienteId}|${rel}`) || null : null;
+
+          if (clase === 'mediador') {
+            const { error } = await supabase.from('vct_cambios_mediador').insert([{
+              cliente_id: clienteId, prima: importe, compania, ramo,
+              fecha_solicitud: fecha, estado: 'detectado',
+              observaciones: [num ? `Póliza ${num}` : '', motivo].filter(Boolean).join(' · ') || null,
+            }]);
+            if (error) throw new Error(error.message);
+          } else if (clase === 'anulacion') {
+            const tipoAnul = relId || /sustitu/i.test(motivo) ? 'sustitucion_tecnica' : mapTipoAnul(motivo);
+            const { error } = await supabase.from('vct_anulaciones').insert([{
+              cliente_id: clienteId, poliza_id: polizaId,
+              fecha_anulacion: fecha, prima: importe,
+              motivo: motivo || null, tipo_anulacion: tipoAnul,
+              poliza_sustituta_id: relId,
+              afecta_cartera: ['real', 'impago', 'venta_riesgo'].includes(tipoAnul),
+            }]);
+            if (error) throw new Error(error.message);
+            if (polizaId) {
+              await supabase.from('vct_polizas')
+                .update({ estado: tipoAnul === 'sustitucion_tecnica' ? 'sustituida' : 'anulada' })
+                .eq('id', polizaId);
+            }
+          } else {
+            // Emisión o suplemento → producción
+            const { error } = await supabase.from('vct_produccion').insert([{
+              cliente_id: clienteId, poliza_id: polizaId,
+              fecha_emision: fecha, fecha_efecto: fecha,
+              ramo, compania, prima: importe,
+              tipo_produccion: clase === 'suplemento' ? 'ampliacion' : 'nueva',
+              observaciones: clase === 'suplemento'
+                ? ['Suplemento', rel ? `de póliza ${rel}` : '', motivo].filter(Boolean).join(' ')
+                : motivo || null,
+            }]);
+            if (error) throw new Error(error.message);
+          }
         }
 
         if (tipo === 'mediador') {
