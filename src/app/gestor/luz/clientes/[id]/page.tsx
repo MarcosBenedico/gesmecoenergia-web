@@ -16,6 +16,7 @@ import {
   Card, Badge, BadgePrioridad, BadgeVencimiento, EstadoCarga, useListaLuz, guardarLuz,
   inputCls, labelCls, btnPrimario, btnSecundario, SelectorResponsable,
 } from '../../ui';
+import { ProximaAccion, TareasCliente } from './componentes';
 
 const CUPS_VACIO = {
   cups: '', alias_suministro: '', direccion_suministro: '', tarifa_acceso: '2.0TD',
@@ -41,7 +42,6 @@ export default function FichaClienteLuz() {
   const [formCups, setFormCups] = useState<typeof CUPS_VACIO | null>(null);
   const [editCupsId, setEditCupsId] = useState<string | null>(null);
   const [formEditCups, setFormEditCups] = useState<Record<string, string>>({});
-  const [formTarea, setFormTarea] = useState<{ descripcion: string; tipo_tarea: string; fecha_limite: string } | null>(null);
   const [formOp, setFormOp] = useState<{ tipo_oportunidad: string; comision_potencial: string; proxima_accion: string; fecha_proxima_accion: string } | null>(null);
   const [formFecha, setFormFecha] = useState<{ tipo_fecha: string; fecha: string; descripcion: string } | null>(null);
   const [formContrato, setFormContrato] = useState<{ comercializadora_final: string; estado_contrato: string; fecha_activacion_prevista: string } | null>(null);
@@ -144,19 +144,6 @@ export default function FichaClienteLuz() {
     }
     setEditCupsId(null); setMsg('');
     cups.recargar();
-  }
-
-  async function crearTarea(e: React.FormEvent) {
-    e.preventDefault();
-    if (!formTarea?.descripcion.trim()) return;
-    const err = await guardarLuz('tareas', 'POST', {
-      ...formTarea, cliente_id: clienteId,
-      fecha_limite: formTarea.fecha_limite || null,
-      responsable: cliente?.responsable || null,
-    });
-    if (err) { setMsg(err); return; }
-    setFormTarea(null);
-    tareas.recargar();
   }
 
   async function crearOportunidad(e: React.FormEvent) {
@@ -331,6 +318,13 @@ export default function FichaClienteLuz() {
         )}
       </Card>
 
+      {/* ── Próxima acción (dato único, sincronizado con el Pipeline) ── */}
+      <ProximaAccion
+        cliente={cliente}
+        oportunidades={pipeline.datos}
+        onGuardado={() => { clientes.recargar(); pipeline.recargar(); }}
+      />
+
       {/* CUPS del cliente */}
       <Card>
         <div className="flex items-center justify-between mb-3">
@@ -435,42 +429,8 @@ export default function FichaClienteLuz() {
       </Card>
 
       <div className="grid lg:grid-cols-2 gap-4">
-        {/* Tareas */}
-        <Card>
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="font-bold text-foreground">Tareas ({tareasAbiertas.length})</h3>
-            <button onClick={() => setFormTarea(formTarea ? null : { descripcion: '', tipo_tarea: 'llamar_cliente', fecha_limite: '' })} className={btnSecundario}>
-              {formTarea ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />} Tarea
-            </button>
-          </div>
-          {formTarea && (
-            <form onSubmit={crearTarea} className="mb-3 space-y-2">
-              <div className="grid grid-cols-2 gap-2">
-                <select className={inputCls} value={formTarea.tipo_tarea} onChange={(e) => setFormTarea({ ...formTarea, tipo_tarea: e.target.value })}>
-                  {TIPOS_TAREA.map((t) => <option key={t} value={t}>{TIPO_TAREA_LABEL[t]}</option>)}
-                </select>
-                <input className={inputCls} type="date" value={formTarea.fecha_limite} onChange={(e) => setFormTarea({ ...formTarea, fecha_limite: e.target.value })} />
-              </div>
-              <input className={inputCls} value={formTarea.descripcion} onChange={(e) => setFormTarea({ ...formTarea, descripcion: e.target.value })} placeholder="Descripción *" />
-              <button type="submit" className={btnPrimario}>Crear</button>
-            </form>
-          )}
-          {tareas.datos.length === 0 ? <p className="text-sm text-muted text-center py-3">Sin tareas.</p> : (
-            <div className="space-y-1.5">
-              {tareas.datos.map((t) => (
-                <div key={t.id} className={`flex items-center justify-between gap-2 p-2.5 rounded-lg bg-card/60 ${!TAREAS_ABIERTAS.includes(t.estado) ? 'opacity-40' : ''}`}>
-                  <div className="flex items-center gap-2 min-w-0">
-                    <input type="checkbox" checked={!TAREAS_ABIERTAS.includes(t.estado)}
-                      onChange={async () => { if (TAREAS_ABIERTAS.includes(t.estado)) { await guardarLuz('tareas', 'PUT', { id: t.id, estado: 'completada' }); tareas.recargar(); } }}
-                      className="accent-[#22c55e] w-4 h-4 shrink-0" />
-                    <p className="text-xs font-semibold truncate">{TIPO_TAREA_LABEL[t.tipo_tarea]?.split(' ')[0]} {t.descripcion}</p>
-                  </div>
-                  {t.fecha_limite && TAREAS_ABIERTAS.includes(t.estado) && <BadgeVencimiento fecha={t.fecha_limite} />}
-                </div>
-              ))}
-            </div>
-          )}
-        </Card>
+        {/* Tareas: gestión completa con historial */}
+        <TareasCliente clienteId={clienteId} tareas={tareas.datos} recargar={tareas.recargar} clienteResponsable={cliente.responsable} setMsg={setMsg} />
 
         {/* Pipeline del cliente */}
         <Card>

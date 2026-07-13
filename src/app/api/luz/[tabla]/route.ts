@@ -1,10 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+/**
+ * Cliente Supabase por petición: si llega el token del usuario, se reenvía
+ * para que las políticas RLS se apliquen por usuario (cuando estén activas).
+ */
+function clienteSupabase(req: NextRequest) {
+  const auth = req.headers.get('authorization');
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    auth ? { global: { headers: { Authorization: auth } } } : undefined
+  );
+}
 
 /**
  * CRUD genérico del módulo Gestión Luz. Solo tablas luz_* whitelisteadas.
@@ -77,7 +85,7 @@ const TABLAS: Record<string, DefTabla> = {
   tareas: {
     tabla: 'luz_tareas',
     select: '*, luz_clientes(nombre)',
-    columnas: ['cliente_id', 'cups_id', 'pipeline_id', 'contrato_id', 'comision_id', 'tipo_tarea', 'descripcion', 'responsable', 'fecha_limite', 'estado', 'prioridad'],
+    columnas: ['cliente_id', 'cups_id', 'pipeline_id', 'contrato_id', 'comision_id', 'tipo_tarea', 'descripcion', 'notas', 'responsable', 'fecha_limite', 'estado', 'prioridad'],
     filtros: ['cliente_id', 'cups_id', 'estado', 'responsable', 'tipo_tarea', 'prioridad'],
     orden: { col: 'fecha_limite', asc: true },
     colFecha: 'fecha_limite',
@@ -99,6 +107,8 @@ const TABLAS: Record<string, DefTabla> = {
   },
 };
 
+const PIPELINE_CERRADO_API = ['ganado', 'perdido', 'revisar_adelante'];
+
 const errorTabla = () => NextResponse.json({ error: 'Recurso no válido.' }, { status: 404 });
 const esFaltaTabla = (msg: string) => /relation .* does not exist|Could not find the table/i.test(msg);
 const respuestaError = (msg: string) =>
@@ -118,6 +128,7 @@ function filtrarCampos(def: DefTabla, body: Record<string, unknown>) {
 }
 
 export async function GET(req: NextRequest, ctx: { params: Promise<{ tabla: string }> }) {
+  const supabase = clienteSupabase(req);
   const { tabla } = await ctx.params;
   const def = TABLAS[tabla];
   if (!def) return errorTabla();
@@ -148,6 +159,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ tabla: stri
 }
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ tabla: string }> }) {
+  const supabase = clienteSupabase(req);
   const { tabla } = await ctx.params;
   const def = TABLAS[tabla];
   if (!def) return errorTabla();
@@ -168,6 +180,14 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ tabla: str
       }
       return respuestaError(error.message);
     }
+    // Nueva oportunidad con próxima acción → se refleja en la ficha del cliente
+    if (tabla === 'pipeline' && campos.cliente_id && (campos.proxima_accion || campos.fecha_proxima_accion)) {
+      await supabase.from('luz_clientes').update({
+        proxima_accion: campos.proxima_accion ?? null,
+        fecha_proxima_accion: campos.fecha_proxima_accion ?? null,
+        actualizado_en: new Date().toISOString(),
+      }).eq('id', campos.cliente_id);
+    }
     return NextResponse.json({ ok: true, dato: data }, { status: 201 });
   } catch {
     return NextResponse.json({ error: 'Petición no válida.' }, { status: 400 });
@@ -175,6 +195,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ tabla: str
 }
 
 export async function PUT(req: NextRequest, ctx: { params: Promise<{ tabla: string }> }) {
+  const supabase = clienteSupabase(req);
   const { tabla } = await ctx.params;
   const def = TABLAS[tabla];
   if (!def) return errorTabla();
@@ -233,6 +254,33 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ tabla: stri
       return respuestaError(error.message);
     }
 
+    // ── Sincronización "próxima acción": un solo dato, visible en cliente y pipeline ──
+    // Pipeline → cliente: la próxima acción de una oportunidad abierta se refleja en la ficha.
+    if (tabla === 'pipeline' && ('proxima_accion' in campos || 'fecha_proxima_accion' in campos)) {
+      const { data: op } = await supabase.from('luz_pipeline').select('cliente_id, proxima_accion, fecha_proxima_accion, estado').eq('id', id).single();
+      if (op?.cliente_id && !PIPELINE_CERRADO_API.includes(op.estado)) {
+        await supabase.from('luz_clientes').update({
+          proxima_accion: op.proxima_accion,
+          fecha_proxima_accion: op.fecha_proxima_accion,
+          actualizado_en: new Date().toISOString(),
+        }).eq('id', op.cliente_id);
+      }
+    }
+    // Cliente → pipeline: si el cliente tiene una oportunidad abierta, se actualiza la misma.
+    if (tabla === 'clientes' && ('proxima_accion' in campos || 'fecha_proxima_accion' in campos)) {
+      const { data: ops } = await supabase.from('luz_pipeline')
+        .select('id, estado').eq('cliente_id', id)
+        .not('estado', 'in', '(ganado,perdido,revisar_adelante)')
+        .order('creado_en', { ascending: false }).limit(1);
+      if (ops && ops[0]) {
+        await supabase.from('luz_pipeline').update({
+          ...('proxima_accion' in campos ? { proxima_accion: campos.proxima_accion } : {}),
+          ...('fecha_proxima_accion' in campos ? { fecha_proxima_accion: campos.fecha_proxima_accion } : {}),
+          actualizado_en: new Date().toISOString(),
+        }).eq('id', ops[0].id);
+      }
+    }
+
     // Efecto: contrato activado → CUPS activado
     if (tabla === 'contratos' && campos.estado_contrato === 'activado') {
       const { data: con } = await supabase.from('luz_contratos').select('cups_id, comercializadora_final').eq('id', id).single();
@@ -252,6 +300,7 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ tabla: stri
 }
 
 export async function DELETE(req: NextRequest, ctx: { params: Promise<{ tabla: string }> }) {
+  const supabase = clienteSupabase(req);
   const { tabla } = await ctx.params;
   const def = TABLAS[tabla];
   if (!def) return errorTabla();
