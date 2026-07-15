@@ -8,7 +8,12 @@ export async function loginGestor(usuario: string, password: string) {
   // ── Usuarios con email → Supabase Auth (Marcos, Nicola, David...) ──
   if (usuario.includes('@')) {
     const { data, error } = await supabase.auth.signInWithPassword({ email: usuario.trim(), password });
-    if (error || !data.user) throw new Error('Email o contraseña incorrectos');
+    if (error || !data.user) {
+      if (/email not confirmed/i.test(error?.message || '')) {
+        throw new Error('Tu acceso existe pero está SIN CONFIRMAR. Un administrador debe confirmarlo en Supabase → Authentication → Users → tu email → Confirm email.');
+      }
+      throw new Error('Email o contraseña incorrectos');
+    }
     // Comprobar que el perfil existe y está activo
     const { data: perfil } = await supabase.from('app_usuarios').select('activo, nombre').eq('id', data.user.id).single();
     if (perfil && !perfil.activo) {

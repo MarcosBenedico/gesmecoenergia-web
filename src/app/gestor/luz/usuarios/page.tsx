@@ -68,10 +68,21 @@ export default function UsuariosPage() {
       { auth: { persistSession: false, autoRefreshToken: false } }
     );
     const { data, error: e1 } = await auxiliar.auth.signUp({ email: nuevo.email.trim(), password: nuevo.password });
-    if (e1) { setError(`No se pudo crear el acceso: ${e1.message}`); return; }
-    if (!data.user) { setError('Supabase no devolvió el usuario. ¿Está activada la confirmación por email? Desactívala en Authentication → Providers → Email.'); return; }
+    if (e1) {
+      const m = e1.message || '';
+      setError(
+        /already registered|already been registered/i.test(m)
+          ? `Ese email ya tiene un acceso creado. Si no recuerdas su contraseña: Supabase → Authentication → Users → borra ese usuario y vuelve a crearlo aquí.`
+          : `No se pudo crear el acceso: ${m}`
+      );
+      return;
+    }
+    if (!data.user) { setError('Supabase no devolvió el usuario. ¿Está activada la confirmación por email? Desactívala en Authentication → Sign In / Providers → Email → "Confirm email".'); return; }
+    const sinConfirmar = !data.user.email_confirmed_at && !data.session;
 
-    const { error: e2 } = await supabase.from('app_usuarios').insert([{
+    // Upsert: si quedó un perfil antiguo con ese email (de un intento anterior), se reengancha al acceso nuevo
+    await supabase.from('app_usuarios').delete().eq('email', nuevo.email.trim()).neq('id', data.user.id);
+    const { error: e2 } = await supabase.from('app_usuarios').upsert([{
       id: data.user.id,
       email: nuevo.email.trim(),
       nombre: nuevo.nombre.trim(),
@@ -80,8 +91,13 @@ export default function UsuariosPage() {
       responsable: nuevo.responsable || null,
       permisos: PERMISOS_POR_ROL[nuevo.rol],
       modulos: nuevo.rol === 'admin' ? [...TODOS_MODULOS, 'admin'] : nuevo.modulos,
-    }]);
+    }], { onConflict: 'id' });
     if (e2) { setError(`Acceso creado pero falló el perfil: ${e2.message}`); return; }
+    if (sinConfirmar) {
+      setError(`⚠️ Usuario creado pero PENDIENTE DE CONFIRMAR: no podrá entrar todavía. Desactiva "Confirm email" en Supabase → Authentication → Sign In / Providers → Email, y confirma este usuario en Authentication → Users → ⋯ → Confirm email.`);
+      cargar();
+      return;
+    }
     setMsg(`✓ Usuario ${nuevo.nombre} creado. Ya puede entrar con ${nuevo.email} y su contraseña.`);
     setNuevo({ nombre: '', email: '', password: '', rol: 'estandar', responsable: '', modulos: TODOS_MODULOS });
     setMostrarForm(false);
