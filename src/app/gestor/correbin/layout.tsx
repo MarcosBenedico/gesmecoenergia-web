@@ -7,6 +7,7 @@ import {
   LayoutDashboard, FolderOpen, CalendarDays, Users, TrendingUp, FileX,
   ArrowLeftRight, Target, BellRing, Upload, Download, ChevronLeft, Shield,
 } from 'lucide-react';
+import { GuardiaModulo } from '@/components/guardia-modulo';
 
 const SECCIONES = [
   { href: '/gestor/correbin', icono: LayoutDashboard, nombre: 'Dashboard' },
@@ -82,7 +83,9 @@ export default function CorrebinLayout({ children }: { children: ReactNode }) {
         </nav>
 
         {/* Contenido */}
-        <main className="flex-1 min-w-0">{children}</main>
+        <main className="flex-1 min-w-0">
+          <GuardiaModulo modulo="correbin" nombre="Correbin · Seguros">{children}</GuardiaModulo>
+        </main>
       </div>
     </div>
   );

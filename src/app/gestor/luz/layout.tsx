@@ -7,6 +7,7 @@ import {
   LayoutDashboard, Users, Plug, CalendarClock, Target, FileSignature,
   Euro, BellRing, ArrowDownUp, Settings, ChevronLeft, Zap, UserCog, ShieldCheck, Route,
 } from 'lucide-react';
+import { GuardiaModulo } from '@/components/guardia-modulo';
 
 const SECCIONES = [
   { href: '/gestor/luz', icono: LayoutDashboard, nombre: 'Dashboard Luz' },
@@ -77,7 +78,9 @@ export default function LuzLayout({ children }: { children: ReactNode }) {
             ))}
           </div>
         </nav>
-        <main className="flex-1 min-w-0">{children}</main>
+        <main className="flex-1 min-w-0">
+          <GuardiaModulo modulo="luz" nombre="Gestión Luz · Cartera Energética">{children}</GuardiaModulo>
+        </main>
       </div>
     </div>
   );

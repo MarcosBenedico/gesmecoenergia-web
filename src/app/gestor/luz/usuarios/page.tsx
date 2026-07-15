@@ -35,7 +35,11 @@ export default function UsuariosPage() {
   const [msg, setMsg] = useState('');
   const [error, setError] = useState('');
   const [mostrarForm, setMostrarForm] = useState(false);
-  const [nuevo, setNuevo] = useState({ nombre: '', email: '', password: '', rol: 'estandar' as PerfilUsuario['rol'], responsable: '' });
+  const TODOS_MODULOS = ['luz', 'correbin', 'app_clientes', 'herramientas'];
+  const [nuevo, setNuevo] = useState({ nombre: '', email: '', password: '', rol: 'estandar' as PerfilUsuario['rol'], responsable: '', modulos: TODOS_MODULOS });
+
+  const toggleModuloNuevo = (m: string) =>
+    setNuevo((f) => ({ ...f, modulos: f.modulos.includes(m) ? f.modulos.filter((x) => x !== m) : [...f.modulos, m] }));
 
   const cargar = useCallback(async () => {
     setCargando(true);
@@ -75,11 +79,11 @@ export default function UsuariosPage() {
       activo: true,
       responsable: nuevo.responsable || null,
       permisos: PERMISOS_POR_ROL[nuevo.rol],
-      modulos: nuevo.rol === 'admin' ? ['luz', 'correbin', 'app_clientes', 'herramientas', 'admin'] : ['luz', 'correbin', 'app_clientes', 'herramientas'],
+      modulos: nuevo.rol === 'admin' ? [...TODOS_MODULOS, 'admin'] : nuevo.modulos,
     }]);
     if (e2) { setError(`Acceso creado pero falló el perfil: ${e2.message}`); return; }
     setMsg(`✓ Usuario ${nuevo.nombre} creado. Ya puede entrar con ${nuevo.email} y su contraseña.`);
-    setNuevo({ nombre: '', email: '', password: '', rol: 'estandar', responsable: '' });
+    setNuevo({ nombre: '', email: '', password: '', rol: 'estandar', responsable: '', modulos: TODOS_MODULOS });
     setMostrarForm(false);
     cargar();
   }
@@ -151,6 +155,32 @@ export default function UsuariosPage() {
                 <SelectorResponsable valor={nuevo.responsable} onCambio={(v) => setNuevo((f) => ({ ...f, responsable: v || '' }))} className={inputCls} />
               </div>
             </div>
+            {/* Área de trabajo: qué módulos ve este usuario */}
+            {nuevo.rol !== 'admin' && (
+              <div>
+                <label className={labelCls}>Área de trabajo (módulos que verá)</label>
+                <div className="flex gap-1.5 flex-wrap">
+                  {MODULOS_APP.filter(([m]) => m !== 'admin').map(([m, nombre]) => {
+                    const tiene = nuevo.modulos.includes(m);
+                    return (
+                      <button
+                        key={m}
+                        type="button"
+                        onClick={() => toggleModuloNuevo(m)}
+                        className={`px-2.5 py-1.5 rounded-lg border text-[11px] font-semibold transition ${
+                          tiene ? 'bg-secondary/15 text-secondary border-secondary/30' : 'bg-card/60 text-muted border-border/40'
+                        } hover:border-secondary/50`}
+                      >
+                        {tiene ? '✓ ' : ''}{nombre}
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="text-[10px] text-muted mt-1.5">
+                  Ej.: para un usuario solo de seguros, deja marcado únicamente &quot;Correbin · Seguros&quot;.
+                </p>
+              </div>
+            )}
             <button type="submit" className={btnPrimario}><ShieldCheck className="w-4 h-4" /> Crear usuario</button>
           </form>
         </Card>
