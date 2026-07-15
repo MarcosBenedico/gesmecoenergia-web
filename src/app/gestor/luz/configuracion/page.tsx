@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Save, Loader } from 'lucide-react';
 import { ROL_LABEL } from '@/lib/correbin';
+import { GuardiaAdmin } from '@/components/guardia-modulo';
 import { Card, EstadoCarga, useListaLuz, guardarLuz, inputCls, labelCls, btnPrimario } from '../ui';
 
 interface Config { clave: string; valor: string }
@@ -19,7 +20,15 @@ const CAMPOS: { clave: string; nombre: string; tipo: 'numero' | 'texto' }[] = [
   { clave: 'comercializadoras', nombre: 'Comercializadoras disponibles (separadas por coma)', tipo: 'texto' },
 ];
 
-export default function ConfiguracionLuz() {
+export default function ConfiguracionLuzPage() {
+  return (
+    <GuardiaAdmin nombre="Configuración">
+      <ConfiguracionLuz />
+    </GuardiaAdmin>
+  );
+}
+
+function ConfiguracionLuz() {
   const config = useListaLuz<Config>('config');
   const responsables = useListaLuz<Responsable>('responsables');
   const [valores, setValores] = useState<Record<string, string>>({});

@@ -8,6 +8,7 @@ import {
   Euro, BellRing, ArrowDownUp, Settings, ChevronLeft, Zap, UserCog, ShieldCheck, Route, History,
 } from 'lucide-react';
 import { GuardiaModulo } from '@/components/guardia-modulo';
+import { useUsuario } from '@/lib/usuario';
 
 const SECCIONES = [
   { href: '/gestor/luz', icono: LayoutDashboard, nombre: 'Dashboard Luz' },
@@ -20,14 +21,15 @@ const SECCIONES = [
   { href: '/gestor/luz/tareas', icono: BellRing, nombre: 'Tareas y Alertas' },
   { href: '/gestor/luz/rutas', icono: Route, nombre: 'Rutas de visitas' },
   { href: '/gestor/luz/equipo', icono: UserCog, nombre: 'Equipo y Responsables' },
-  { href: '/gestor/luz/usuarios', icono: ShieldCheck, nombre: 'Usuarios y Permisos' },
-  { href: '/gestor/luz/control', icono: History, nombre: 'Control General' },
+  { href: '/gestor/luz/usuarios', icono: ShieldCheck, nombre: 'Usuarios y Permisos', soloAdmin: true },
+  { href: '/gestor/luz/control', icono: History, nombre: 'Control General', soloAdmin: true },
   { href: '/gestor/luz/importar', icono: ArrowDownUp, nombre: 'Importación / Exportación' },
-  { href: '/gestor/luz/configuracion', icono: Settings, nombre: 'Configuración' },
+  { href: '/gestor/luz/configuracion', icono: Settings, nombre: 'Configuración', soloAdmin: true },
 ];
 
 export default function LuzLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const { esAdmin } = useUsuario();
   const activa = (href: string) =>
     href === '/gestor/luz' ? pathname === href : pathname === href || pathname.startsWith(href + '/');
 
@@ -63,7 +65,7 @@ export default function LuzLayout({ children }: { children: ReactNode }) {
       <div className="mx-auto w-full max-w-[1920px] 2xl:max-w-none px-4 md:px-6 py-5 flex flex-col lg:flex-row gap-5">
         <nav className="lg:w-64 shrink-0">
           <div className="flex lg:flex-col gap-1.5 overflow-x-auto lg:overflow-visible pb-2 lg:pb-0 -mx-1 px-1">
-            {SECCIONES.map(({ href, icono: Icono, nombre }) => (
+            {SECCIONES.filter((s) => !s.soloAdmin || esAdmin).map(({ href, icono: Icono, nombre }) => (
               <Link
                 key={href}
                 href={href}

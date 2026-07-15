@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Lock, History, ChevronLeft, ChevronRight, Plus, Pencil, Trash2, User } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { GuardiaAdmin } from '@/components/guardia-modulo';
 import { Card, Kpi, EstadoCarga, useListaLuz, inputCls, btnPrimario, btnSecundario } from '../ui';
 
 /**
@@ -76,6 +77,14 @@ function resumenCambio(r: RegistroAuditoria): string[] {
 const hoyISO = () => new Date().toISOString().slice(0, 10);
 
 export default function ControlGeneralPage() {
+  return (
+    <GuardiaAdmin nombre="Control General">
+      <ControlGeneral />
+    </GuardiaAdmin>
+  );
+}
+
+function ControlGeneral() {
   // ── Puerta con PIN ──
   const [desbloqueado, setDesbloqueado] = useState(
     typeof window !== 'undefined' && sessionStorage.getItem(CLAVE_SESION) === '1'
