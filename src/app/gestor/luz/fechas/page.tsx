@@ -32,6 +32,9 @@ function FechasContenido() {
   const [mostrarForm, setMostrarForm] = useState(false);
   const [form, setForm] = useState(FECHA_VACIA);
   const [errorForm, setErrorForm] = useState('');
+  const [arrastrando, setArrastrando] = useState<string | null>(null);
+  const [diaActivo, setDiaActivo] = useState<string | null>(null);
+  const [diasExpandidos, setDiasExpandidos] = useState<Set<string>>(new Set());
   const clientes = useListaLuz<LuzCliente>('clientes');
   const cups = useListaLuz<LuzCups>('cups');
 
@@ -152,6 +155,17 @@ function FechasContenido() {
     recargar();
   }
 
+  /** Soltar una fecha crítica en otro día del calendario → se guarda al momento. */
+  function soltarEnDia(fecha: string, e: React.DragEvent) {
+    e.preventDefault();
+    setDiaActivo(null);
+    const id = e.dataTransfer.getData('text/plain') || arrastrando;
+    setArrastrando(null);
+    if (!id) return;
+    const f = datos.find((x) => x.id === id);
+    if (f && f.fecha !== fecha) cambiarFecha(f, { fecha });
+  }
+
   const selCls = 'rounded-lg border border-border/40 bg-background/60 px-2 py-1.5 text-xs font-semibold';
 
   return (
@@ -268,27 +282,57 @@ function FechasContenido() {
               const fecha = `${ancla.getFullYear()}-${String(ancla.getMonth() + 1).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
               const lista = porDia.get(fecha) || [];
               const esHoy = fecha === iso(hoy);
+              const expandido = diasExpandidos.has(fecha);
+              const visibles = expandido ? lista : lista.slice(0, 3);
+              const activo = diaActivo === fecha;
               return (
-                <div key={dia} className={`min-h-24 rounded-lg border p-1.5 ${esHoy ? 'border-accent bg-accent/10' : lista.length ? 'border-border/40 bg-card/40' : 'border-border/20 bg-card/20'}`}>
+                <div
+                  key={dia}
+                  onDragOver={(e) => { e.preventDefault(); setDiaActivo(fecha); }}
+                  onDragLeave={() => setDiaActivo((d) => (d === fecha ? null : d))}
+                  onDrop={(e) => soltarEnDia(fecha, e)}
+                  className={`min-h-24 rounded-lg border p-1.5 transition ${
+                    activo ? 'border-accent bg-accent/15 ring-2 ring-accent/40'
+                    : esHoy ? 'border-accent bg-accent/10'
+                    : lista.length ? 'border-border/40 bg-card/40' : 'border-border/20 bg-card/20'
+                  }`}
+                >
                   <p className={`text-[11px] font-bold ${esHoy ? 'text-accent' : 'text-muted'}`}>{dia}</p>
                   <div className="space-y-1 mt-1">
-                    {lista.slice(0, 3).map((f) => (
+                    {visibles.map((f) => (
                       <Link key={f.id} href={`/gestor/luz/clientes/${f.cliente_id}`}
-                        className={`block text-[10px] leading-tight px-1.5 py-1 rounded border truncate hover:brightness-125 transition ${TIPO_FECHA_TONO[f.tipo_fecha] || 'bg-card/60 text-muted border-border/30'}`}
-                        title={f.titulo}>
+                        draggable
+                        onDragStart={(e) => { e.dataTransfer.setData('text/plain', f.id); e.dataTransfer.effectAllowed = 'move'; setArrastrando(f.id); }}
+                        onDragEnd={() => { setArrastrando(null); setDiaActivo(null); }}
+                        className={`block text-[10px] leading-tight px-1.5 py-1 rounded border truncate hover:brightness-125 transition cursor-grab active:cursor-grabbing ${
+                          TIPO_FECHA_TONO[f.tipo_fecha] || 'bg-card/60 text-muted border-border/30'
+                        } ${arrastrando === f.id ? 'opacity-40' : ''}`}
+                        title={`${f.titulo} — arrastra a otro día para cambiar la fecha`}>
                         {f.titulo.replace(/^LUZ - /, '')}
                       </Link>
                     ))}
-                    {lista.length > 3 && <p className="text-[10px] text-muted px-1">+{lista.length - 3}</p>}
+                    {lista.length > 3 && (
+                      <button
+                        onClick={() => setDiasExpandidos((prev) => {
+                          const s = new Set(prev);
+                          if (s.has(fecha)) s.delete(fecha); else s.add(fecha);
+                          return s;
+                        })}
+                        className="w-full text-left text-[10px] font-bold text-accent hover:underline px-1"
+                      >
+                        {expandido ? '− ver menos' : `+${lista.length - 3} más`}
+                      </button>
+                    )}
                   </div>
                 </div>
               );
             })}
           </div>
-          <div className="flex gap-1.5 flex-wrap mt-3">
+          <div className="flex gap-1.5 flex-wrap mt-3 items-center">
             {TIPOS_FECHA.map((t) => (
               <span key={t} className={`px-2 py-0.5 rounded-full border text-[10px] font-semibold ${TIPO_FECHA_TONO[t]}`}>{TIPO_FECHA_LABEL[t]}</span>
             ))}
+            <span className="text-[10px] text-muted/70 italic ml-auto">💡 Arrastra un evento a otro día para cambiar su fecha</span>
           </div>
         </Card>
       )}
