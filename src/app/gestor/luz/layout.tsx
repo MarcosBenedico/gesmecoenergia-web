@@ -5,13 +5,14 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard, Users, Plug, CalendarClock, Target, FileSignature,
-  Euro, BellRing, ArrowDownUp, Settings, ChevronLeft, Zap, UserCog, ShieldCheck, Route, History,
+  Euro, BellRing, ArrowDownUp, Settings, ChevronLeft, Zap, UserCog, ShieldCheck, Route, History, Sun,
 } from 'lucide-react';
 import { GuardiaModulo } from '@/components/guardia-modulo';
 import { useUsuario } from '@/lib/usuario';
 
 const SECCIONES = [
   { href: '/gestor/luz', icono: LayoutDashboard, nombre: 'Dashboard Luz' },
+  { href: '/gestor/luz/mi-dia', icono: Sun, nombre: 'Mi Día' },
   { href: '/gestor/luz/clientes', icono: Users, nombre: 'Clientes Energía' },
   { href: '/gestor/luz/cups', icono: Plug, nombre: 'CUPS / Suministros' },
   { href: '/gestor/luz/fechas', icono: CalendarClock, nombre: 'Fechas Críticas' },
