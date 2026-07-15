@@ -75,15 +75,12 @@ export default function GestorPage() {
   const [seguimientos, setSeguimientos] = useState<any[]>([]);
 
   useEffect(() => {
-    // Inicializar sesión si no existe
+    // Sin sesión → al login. Ya no se autocrea ningún acceso.
     if (!obtenerUsuarioActual()) {
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('admin_token', 'master_' + Date.now());
-        localStorage.setItem('admin_user', 'UsuarioMaster');
-      }
+      router.replace('/gestor/login');
+      return;
     }
-
-    setUsuarioActual('UsuarioMaster');
+    setUsuarioActual(typeof window !== 'undefined' ? localStorage.getItem('admin_user') || 'Usuario' : 'Usuario');
     cargarDatos();
     cargarClientes();
   }, [router]);

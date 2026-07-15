@@ -1,9 +1,5 @@
 import { supabase } from './supabase';
 
-// Credenciales maestras (simplificadas para panel admin)
-const MASTER_USER = 'UsuarioMaster';
-const MASTER_PASSWORD = '12345678';
-
 export async function loginGestor(usuario: string, password: string) {
   // ── Usuarios con email → Supabase Auth (Marcos, Nicola, David...) ──
   if (usuario.includes('@')) {
@@ -28,15 +24,8 @@ export async function loginGestor(usuario: string, password: string) {
     return { usuario: data.user.email, authenticated: true };
   }
 
-  // ── Acceso maestro (respaldo mientras se migra a usuarios individuales) ──
-  if (usuario !== MASTER_USER || password !== MASTER_PASSWORD) {
-    throw new Error('Usuario o contraseña incorrectos');
-  }
-  if (typeof window !== 'undefined') {
-    localStorage.setItem('admin_token', 'master_' + Date.now());
-    localStorage.setItem('admin_user', usuario);
-  }
-  return { usuario, authenticated: true };
+  // El acceso maestro fue eliminado: solo se entra con usuario individual (email + contraseña).
+  throw new Error('Introduce tu email y contraseña. El acceso maestro ya no existe.');
 }
 
 // Mantener para compatibilidad con código antiguo
