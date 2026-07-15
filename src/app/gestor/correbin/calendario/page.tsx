@@ -112,9 +112,25 @@ export default function CalendarioVct() {
     if (vistaOrigen) { setVista(vistaOrigen); setVistaOrigen(null); }
   }
 
+  const [msgPanel, setMsgPanel] = useState('');
+
   async function cambiarVcto(v: VctVencimiento, campos: Record<string, unknown>) {
     const err = await guardar('vencimientos', 'PUT', { id: v.id, ...campos });
-    if (!err) { recargar(); if (abierto?.id === v.id) setAbierto({ ...abierto, ...campos } as VctVencimiento); }
+    if (err) { setMsgPanel(err.includes('numero_poliza') || err.includes('compania') ? 'Ejecuta la migración supabase_correbin_v3.sql en Supabase para poder editar póliza y compañía.' : err); return; }
+    setMsgPanel('');
+    recargar();
+    if (abierto?.id === v.id) setAbierto({ ...abierto, ...campos } as VctVencimiento);
+  }
+
+  /** Editar el tomador = renombrar el cliente del vencimiento (se refleja en todo el módulo). */
+  async function cambiarTomador(v: VctVencimiento, nombre: string) {
+    const err = await guardar('clientes', 'PUT', { id: v.cliente_id, nombre });
+    if (err) { setMsgPanel(err); return; }
+    setMsgPanel('');
+    recargar();
+    if (abierto?.id === v.id) {
+      setAbierto({ ...abierto, vct_clientes: { ...(abierto.vct_clientes || {}), nombre } } as VctVencimiento);
+    }
   }
 
   async function crearVcto(e: React.FormEvent) {
@@ -434,12 +450,43 @@ export default function CalendarioVct() {
                   onChange={(e) => e.target.value && cambiarVcto(abierto, { fecha_vct: e.target.value })} />
                 <BadgeVencimiento fecha={abierto.fecha_vct} />
               </p>
-              <div className="flex gap-x-4 gap-y-1 flex-wrap mt-2 text-xs">
-                <span><span className="font-bold uppercase text-[10px] text-muted">Tomador:</span> <span className="font-semibold">{infoAbierto.tomador}</span></span>
-                <span><span className="font-bold uppercase text-[10px] text-muted">Nº póliza:</span> <span className="font-semibold tabular-nums">{infoAbierto.poliza}</span></span>
-                <span><span className="font-bold uppercase text-[10px] text-muted">Compañía:</span> <span className="font-semibold">{infoAbierto.compania}</span></span>
-                {abierto.vct_clientes?.tipo && <span><span className="font-bold uppercase text-[10px] text-muted">Tipo empresa:</span> <span className="font-semibold">{abierto.vct_clientes.tipo}</span></span>}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-2">
+                <div>
+                  <p className="text-[10px] font-bold uppercase text-muted mb-0.5">Tomador</p>
+                  <input
+                    key={`tom-${abierto.id}`}
+                    className={`${inputCls} !py-1.5 !text-xs font-semibold`}
+                    defaultValue={abierto.vct_clientes?.nombre || infoAbierto.tomador.replace('—', '')}
+                    onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== (abierto.vct_clientes?.nombre || '')) cambiarTomador(abierto, v); }}
+                    placeholder="Nombre del cliente"
+                    title="Editar tomador (renombra el cliente)"
+                  />
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold uppercase text-muted mb-0.5">Nº póliza</p>
+                  <input
+                    key={`pol-${abierto.id}`}
+                    className={`${inputCls} !py-1.5 !text-xs tabular-nums`}
+                    defaultValue={abierto.numero_poliza || abierto.vct_polizas?.numero_poliza || ''}
+                    onBlur={(e) => { const v = e.target.value.trim(); if (v !== (abierto.numero_poliza || abierto.vct_polizas?.numero_poliza || '')) cambiarVcto(abierto, { numero_poliza: v || null }); }}
+                    placeholder="Ej: 0012-RC-4455"
+                  />
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold uppercase text-muted mb-0.5">Compañía</p>
+                  <input
+                    key={`cia-${abierto.id}`}
+                    className={`${inputCls} !py-1.5 !text-xs`}
+                    defaultValue={abierto.compania || abierto.vct_polizas?.compania || ''}
+                    onBlur={(e) => { const v = e.target.value.trim(); if (v !== (abierto.compania || abierto.vct_polizas?.compania || '')) cambiarVcto(abierto, { compania: v || null }); }}
+                    placeholder="Ej: Zurich"
+                  />
+                </div>
               </div>
+              {abierto.vct_clientes?.tipo && (
+                <p className="text-xs mt-1.5"><span className="font-bold uppercase text-[10px] text-muted">Tipo empresa:</span> <span className="font-semibold">{abierto.vct_clientes.tipo}</span></p>
+              )}
+              {msgPanel && <p className="text-xs text-amber-400 mt-1.5">{msgPanel}</p>}
             </div>
             <div className="flex items-center gap-2 shrink-0">
               <button onClick={() => eliminarVcto(abierto)} className="text-muted hover:text-red-400 transition" title="Eliminar vencimiento">
