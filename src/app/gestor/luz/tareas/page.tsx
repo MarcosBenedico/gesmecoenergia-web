@@ -5,9 +5,11 @@ import Link from 'next/link';
 import { Plus, X, Download, LayoutGrid, List, CalendarDays } from 'lucide-react';
 import {
   LuzTarea, LuzCliente, TIPOS_TAREA, TIPO_TAREA_LABEL, ESTADOS_TAREA, ESTADO_TAREA_LABEL,
-  TAREAS_ABIERTAS, diasHasta,
+  TAREAS_ABIERTAS, TAREAS_ADMINISTRATIVAS, ResponsableEquipo, responsableSugerido,
+  MOTIVOS_BLOQUEO, diasHasta,
 } from '@/lib/luz';
 import { BotonDescarga, Card, Kpi, Badge, BadgeVencimiento, EstadoCarga, useListaLuz, guardarLuz, inputCls, labelCls, btnPrimario, btnSecundario, SelectorResponsable } from '../ui';
+import { PedirMotivo } from '../motivo';
 import { TableroTareas, bucketDeTarea, BucketTarea } from './tablero';
 import { CalendarioTareas } from './calendario';
 
@@ -25,6 +27,11 @@ const iso = (d: Date) => d.toISOString().slice(0, 10);
 export default function TareasLuzPage() {
   const { datos, cargando, error, faltaMigracion, recargar } = useListaLuz<LuzTarea>('tareas');
   const clientes = useListaLuz<LuzCliente>('clientes');
+  const equipo = useListaLuz<ResponsableEquipo>('responsables', { activo: 'true' });
+  // Motivo pendiente al bloquear/cancelar una tarea (movimiento con historia)
+  const [pidiendoMotivo, setPidiendoMotivo] = useState<{ tarea: LuzTarea; estado: string } | null>(null);
+  // ¿El usuario tocó el responsable a mano? Entonces no lo pisamos con la sugerencia
+  const [respManual, setRespManual] = useState(false);
   const [panel, setPanel] = useState('');           // '' = todos · 'marcos' · 'david' · '__sin__'
   const [vista, setVista] = useState<'tablero' | 'calendario' | 'lista'>('tablero');
   const [mostrarForm, setMostrarForm] = useState(false);
@@ -59,6 +66,31 @@ export default function TareasLuzPage() {
   const paraHoy = abiertas.filter((t) => diasHasta(t.fecha_limite) === 0);
 
   const paraTablero = useMemo(() => delPanel.filter((t) => bucketDeTarea(t) !== null), [delPanel]);
+
+  /** Cambio de tipo en el alta: sugiere el responsable según el reparto del equipo. */
+  function cambiarTipoNuevo(tipo: string) {
+    const sugerido = respManual ? null : responsableSugerido(tipo, equipo.datos);
+    setForm((f) => ({ ...f, tipo_tarea: tipo, ...(sugerido ? { responsable: sugerido.nombre } : {}) }));
+  }
+  const sugerenciaActual = !respManual ? responsableSugerido(form.tipo_tarea, equipo.datos) : null;
+
+  /** Cambiar estado: bloquear/cancelar piden el porqué (queda en las notas de la tarea). */
+  function cambiarEstadoTarea(t: LuzTarea, estado: string) {
+    if ((estado === 'bloqueada' || estado === 'cancelada') && t.estado !== estado) {
+      setPidiendoMotivo({ tarea: t, estado });
+      return;
+    }
+    guardarCambios(t.id, { estado, ...(estado === 'completada' ? { hecho_en: new Date().toISOString() } : {}) });
+  }
+
+  async function guardarMotivoEstado(motivo: string) {
+    if (!pidiendoMotivo) return;
+    const { tarea, estado } = pidiendoMotivo;
+    const etiqueta = estado === 'bloqueada' ? 'Bloqueada' : 'Cancelada';
+    const nota = `[${etiqueta} ${new Date().toLocaleDateString('es-ES')}] ${motivo}`;
+    await guardarCambios(tarea.id, { estado, notas: tarea.notas ? `${tarea.notas}\n${nota}` : nota });
+    setPidiendoMotivo(null);
+  }
 
   // ── Acciones (todas persisten en base de datos) ──
   async function guardarCambios(id: string, cambios: Record<string, unknown>) {
@@ -167,9 +199,10 @@ export default function TareasLuzPage() {
         </td>
         <td className="px-3 py-2">
           <select className={selCls} value={t.estado}
-            onChange={(e) => guardarCambios(t.id, { estado: e.target.value })}>
+            onChange={(e) => cambiarEstadoTarea(t, e.target.value)}>
             {ESTADOS_TAREA.map((es) => <option key={es} value={es}>{ESTADO_TAREA_LABEL[es]}</option>)}
           </select>
+          {t.notas && <span className="block text-[10px] text-muted mt-0.5 max-w-40 truncate" title={t.notas}>💬 {t.notas.split('\n').pop()}</span>}
         </td>
         <td className="px-3 py-2 w-8">
           <button onClick={() => borrarTarea(t)} className="text-muted hover:text-red-400 text-xs">✕</button>
@@ -210,7 +243,17 @@ export default function TareasLuzPage() {
           </div>
           <BotonDescarga href="/api/luz/exportar?tipo=tareas" className={btnSecundario}>
             </BotonDescarga>
-          <button onClick={() => setMostrarForm((v) => !v)} className={btnPrimario}>
+          <button
+            onClick={() => {
+              if (!mostrarForm) {
+                setRespManual(false);
+                const sug = responsableSugerido(FORM_VACIO.tipo_tarea, equipo.datos);
+                setForm({ ...FORM_VACIO, ...(sug ? { responsable: sug.nombre } : {}) });
+              }
+              setMostrarForm((v) => !v);
+            }}
+            className={btnPrimario}
+          >
             {mostrarForm ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />} {mostrarForm ? 'Cancelar' : 'Nueva tarea'}
           </button>
         </div>
@@ -251,7 +294,7 @@ export default function TareasLuzPage() {
             <div className="grid md:grid-cols-4 gap-3">
               <div>
                 <label className={labelCls}>Tipo</label>
-                <select className={inputCls} value={form.tipo_tarea} onChange={(e) => setForm({ ...form, tipo_tarea: e.target.value })}>
+                <select className={inputCls} value={form.tipo_tarea} onChange={(e) => cambiarTipoNuevo(e.target.value)}>
                   {TIPOS_TAREA.map((t) => <option key={t} value={t}>{TIPO_TAREA_LABEL[t]}</option>)}
                 </select>
               </div>
@@ -275,7 +318,16 @@ export default function TareasLuzPage() {
               </div>
               <div>
                 <label className={labelCls}>Responsable</label>
-                <SelectorResponsable valor={form.responsable} onCambio={(v) => setForm((f) => ({ ...f, responsable: v || '' }))} className={inputCls} />
+                <SelectorResponsable
+                  valor={form.responsable}
+                  onCambio={(v) => { setRespManual(true); setForm((f) => ({ ...f, responsable: v || '' })); }}
+                  className={inputCls}
+                />
+                {sugerenciaActual && form.responsable === sugerenciaActual.nombre && (
+                  <p className="text-[10px] text-secondary mt-1">
+                    ✨ Asignada a {sugerenciaActual.nombre} ({TAREAS_ADMINISTRATIVAS.includes(form.tipo_tarea) ? 'administración' : 'comercial'}) — cámbialo si lo lleva otra persona
+                  </p>
+                )}
               </div>
             </div>
             {errorForm && <p className="text-xs text-red-400">{errorForm}</p>}
@@ -344,6 +396,17 @@ export default function TareasLuzPage() {
             </div>
           )}
         </>
+      )}
+
+      {/* Motivo amable al bloquear/cancelar (queda en las notas y en el historial) */}
+      {pidiendoMotivo && (
+        <PedirMotivo
+          titulo={pidiendoMotivo.estado === 'bloqueada' ? '¿Qué la tiene parada? 🙂' : '¿Por qué la cancelamos?'}
+          subtitulo={`"${pidiendoMotivo.tarea.descripcion}" — un toque y seguimos; así el historial cuenta la historia completa.`}
+          sugerencias={MOTIVOS_BLOQUEO}
+          onGuardar={guardarMotivoEstado}
+          onCancelar={() => setPidiendoMotivo(null)}
+        />
       )}
     </div>
   );

@@ -6,10 +6,12 @@ import { useSearchParams } from 'next/navigation';
 import { Download, FileSignature, LayoutGrid, Plus, Table2, X } from 'lucide-react';
 import {
   LuzOportunidad, LuzCliente, ESTADOS_PIPELINE, ESTADO_PIPELINE_LABEL, TIPOS_OPORTUNIDAD, TIPO_OPORTUNIDAD_LABEL,
-  PIPELINE_CERRADO, PRIORIDADES, diasHasta, fmtEur, fmtFecha, fmtKwh,
+  PIPELINE_CERRADO, PRIORIDADES, ResponsableEquipo, responsableSugerido, MOTIVOS_PERDIDA,
+  diasHasta, fmtEur, fmtFecha, fmtKwh,
 } from '@/lib/luz';
 import { BotonDescarga, Card, Kpi, Badge, BadgePrioridad, EstadoCarga, useListaLuz, guardarLuz, inputCls, labelCls, btnPrimario, btnSecundario, SelectorResponsable } from '../ui';
 import { TableroPipeline } from './tablero';
+import { PedirMotivo } from '../motivo';
 
 const OP_VACIA = { cliente_id: '', tipo_oportunidad: 'cambio_comercializadora', comision_potencial: '', proxima_accion: '', fecha_proxima_accion: '', responsable: '' };
 
@@ -45,12 +47,15 @@ function PipelineContenido() {
   const comisionPotencial = abiertas.reduce((s, o) => s + (Number(o.comision_potencial) || 0), 0);
   const sinAccion = abiertas.filter((o) => !o.proxima_accion);
 
+  // Motivo pendiente al marcar una oportunidad como perdida (con sugerencias de un toque)
+  const [pidiendoPerdida, setPidiendoPerdida] = useState<LuzOportunidad | null>(null);
+  const equipo = useListaLuz<ResponsableEquipo>('responsables', { activo: 'true' });
+
   async function cambiarEstado(o: LuzOportunidad, estado: string) {
     let extra: Record<string, unknown> = {};
     if (estado === 'perdido' && !o.motivo_perdida) {
-      const motivo = prompt('Motivo de pérdida (obligatorio):');
-      if (!motivo?.trim()) return;
-      extra = { motivo_perdida: motivo.trim() };
+      setPidiendoPerdida(o);
+      return;
     }
     if (estado === 'revisar_adelante' && !o.fecha_revision) {
       const fecha = prompt('Fecha de revisión futura (AAAA-MM-DD):', new Date(Date.now() + 90 * 86400000).toISOString().slice(0, 10));
@@ -63,7 +68,14 @@ function PipelineContenido() {
     recargar();
   }
 
-  /** Ganado → crear contrato */
+  async function guardarPerdida(motivo: string) {
+    if (!pidiendoPerdida) return;
+    const err = await guardarLuz('pipeline', 'PUT', { id: pidiendoPerdida.id, estado: 'perdido', motivo_perdida: motivo });
+    if (err) { setMsg(err); } else { setMsg(''); recargar(); }
+    setPidiendoPerdida(null);
+  }
+
+  /** Ganado → crear contrato + tarea automática para administración (Nicola). */
   async function convertirEnContrato(o: LuzOportunidad) {
     if (!confirm(`¿Crear contrato para "${o.nombre_oportunidad}"?`)) return;
     const err = await guardarLuz('contratos', 'POST', {
@@ -74,7 +86,23 @@ function PipelineContenido() {
     });
     if (err) { setMsg(err); return; }
     await guardarLuz('pipeline', 'PUT', { id: o.id, estado: 'ganado' });
-    setMsg('✓ Contrato creado. Gestión en "Contratos y Activaciones".');
+
+    // El circuito comercial→administración se engrasa solo: tarea de tramitación
+    const admin = responsableSugerido('enviar_contrato', equipo.datos);
+    const enDosDias = new Date(Date.now() + 2 * 86400000).toISOString().slice(0, 10);
+    await guardarLuz('tareas', 'POST', {
+      cliente_id: o.cliente_id,
+      cups_id: o.cups_id,
+      pipeline_id: o.id,
+      tipo_tarea: 'enviar_contrato',
+      descripcion: `Tramitar contrato · ${o.nombre_oportunidad || o.luz_clientes?.nombre || 'oportunidad ganada'}`,
+      responsable: admin?.nombre || o.responsable,
+      fecha_limite: enDosDias,
+      prioridad: 'alta',
+    });
+    setMsg(admin
+      ? `✓ Contrato creado y tarea de tramitación asignada a ${admin.nombre} (para el ${fmtFecha(enDosDias)}).`
+      : '✓ Contrato creado. Gestión en "Contratos y Activaciones".');
     recargar();
   }
 
@@ -280,6 +308,17 @@ function PipelineContenido() {
             </tbody>
           </table>
         </Card>
+      )}
+
+      {/* Motivo amable al marcar una oportunidad como perdida */}
+      {pidiendoPerdida && (
+        <PedirMotivo
+          titulo="Vaya 😕 ¿qué ha pasado con esta?"
+          subtitulo={`"${pidiendoPerdida.nombre_oportunidad || pidiendoPerdida.luz_clientes?.nombre}" — apúntalo y sabremos dónde afinar la próxima vez.`}
+          sugerencias={MOTIVOS_PERDIDA}
+          onGuardar={guardarPerdida}
+          onCancelar={() => setPidiendoPerdida(null)}
+        />
       )}
     </div>
   );

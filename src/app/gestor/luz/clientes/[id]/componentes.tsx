@@ -5,10 +5,10 @@ import { Pencil, Plus, X } from 'lucide-react';
 import {
   LuzCliente, LuzOportunidad, LuzTarea, PRIORIDADES, PRIORIDAD_LABEL,
   ESTADO_PIPELINE_LABEL, TIPOS_TAREA, TIPO_TAREA_LABEL, TAREAS_ABIERTAS,
-  diasHasta, fmtFecha,
+  ResponsableEquipo, responsableSugerido, diasHasta, fmtFecha,
 } from '@/lib/luz';
 import {
-  Card, Badge, BadgePrioridad, BadgeVencimiento, guardarLuz,
+  Card, Badge, BadgePrioridad, BadgeVencimiento, guardarLuz, useListaLuz,
   inputCls, labelCls, btnPrimario, btnSecundario, SelectorResponsable,
 } from '../../ui';
 
@@ -167,6 +167,7 @@ export function TareasCliente({ clienteId, tareas, recargar, clienteResponsable,
   const [editId, setEditId] = useState<string | null>(null);
   const [fEdit, setFEdit] = useState<FormTareaT>(TAREA_NUEVA);
   const [verHistorial, setVerHistorial] = useState(false);
+  const equipo = useListaLuz<ResponsableEquipo>('responsables', { activo: 'true' });
 
   const abiertas = tareas.filter((t) => TAREAS_ABIERTAS.includes(t.estado));
   const historial = tareas.filter((t) => !TAREAS_ABIERTAS.includes(t.estado))
@@ -174,12 +175,15 @@ export function TareasCliente({ clienteId, tareas, recargar, clienteResponsable,
 
   async function guardarTarea(id: string | null, f: FormTareaT) {
     if (!f.descripcion.trim()) { setMsg('Escribe la descripción de la tarea.'); return false; }
+    // Reparto automático: si no se elige responsable, las tareas administrativas
+    // van a administración (Nicola) y las comerciales al comercial del cliente.
+    const sugerido = !id && !f.responsable ? responsableSugerido(f.tipo_tarea, equipo.datos) : null;
     const body = {
       descripcion: f.descripcion.trim(),
       tipo_tarea: f.tipo_tarea,
       fecha_limite: f.fecha_limite || null,
       prioridad: f.prioridad,
-      responsable: f.responsable || clienteResponsable || null,
+      responsable: f.responsable || sugerido?.nombre || clienteResponsable || null,
       notas: f.notas || null,
     };
     const err = id

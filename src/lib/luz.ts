@@ -165,6 +165,36 @@ export const TIPO_TAREA_LABEL: Record<string, string> = {
   enviar_comercializadora: '📮 Enviar a comercializadora', confirmar_activacion: '✅ Confirmar activación',
   revisar_comision: '💶 Revisar comisión', reclamar_comision: '📢 Reclamar comisión', revisar_futuro: '🔮 Revisar en el futuro',
 };
+/**
+ * Reparto automático del trabajo:
+ * - Tareas ADMINISTRATIVAS (papeleo, contratos, cobros) → rol "administracion" (Nicola).
+ * - Tareas COMERCIALES (hablar con el cliente, ofertas) → rol "comercial" (David).
+ * Al crear una tarea se sugiere el responsable según su tipo; siempre se puede cambiar.
+ */
+export const TAREAS_ADMINISTRATIVAS: string[] = [
+  'pedir_autorizacion', 'pedir_documentacion', 'enviar_contrato', 'reclamar_firma',
+  'enviar_comercializadora', 'confirmar_activacion', 'revisar_comision', 'reclamar_comision',
+];
+export const TAREAS_COMERCIALES: string[] = [
+  'llamar_cliente', 'pedir_factura', 'preparar_oferta', 'enviar_oferta', 'seguimiento',
+  'revisar_permanencia', 'revisar_preaviso', 'revisar_futuro',
+];
+
+export interface ResponsableEquipo { id: string; nombre: string; rol: string; activo: boolean }
+
+/** Responsable sugerido para un tipo de tarea según los roles del equipo. */
+export function responsableSugerido(tipoTarea: string, equipo: ResponsableEquipo[]): ResponsableEquipo | null {
+  const rol = TAREAS_ADMINISTRATIVAS.includes(tipoTarea) ? 'administracion'
+    : TAREAS_COMERCIALES.includes(tipoTarea) ? 'comercial'
+    : null;
+  if (!rol) return null;
+  return equipo.find((r) => r.activo && r.rol === rol) || null;
+}
+
+/** Motivos rápidos para cuando algo se bloquea o se pierde (un toque y listo). */
+export const MOTIVOS_BLOQUEO = ['Esperando al cliente', 'Falta documentación', 'Esperando a la comercializadora', 'Pendiente de decisión interna'];
+export const MOTIVOS_PERDIDA = ['Precio no competitivo', 'Permanencia con penalización', 'No contesta', 'Se queda como está', 'Se fue con otro'];
+
 export const ESTADOS_TAREA = ['pendiente', 'en_curso', 'completada', 'bloqueada', 'cancelada'] as const;
 export const ESTADO_TAREA_LABEL: Record<string, string> = {
   pendiente: 'Pendiente', en_curso: 'En curso', completada: 'Completada', bloqueada: 'Bloqueada', cancelada: 'Cancelada',
