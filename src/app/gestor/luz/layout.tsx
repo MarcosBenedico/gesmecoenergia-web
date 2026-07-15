@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard, Users, Plug, CalendarClock, Target, FileSignature,
-  Euro, BellRing, ArrowDownUp, Settings, ChevronLeft, Zap,
+  Euro, BellRing, ArrowDownUp, Settings, ChevronLeft, Zap, UserCog, ShieldCheck, Route,
 } from 'lucide-react';
 
 const SECCIONES = [
@@ -17,6 +17,9 @@ const SECCIONES = [
   { href: '/gestor/luz/contratos', icono: FileSignature, nombre: 'Contratos y Activaciones' },
   { href: '/gestor/luz/comisiones', icono: Euro, nombre: 'Comisiones' },
   { href: '/gestor/luz/tareas', icono: BellRing, nombre: 'Tareas y Alertas' },
+  { href: '/gestor/luz/rutas', icono: Route, nombre: 'Rutas de visitas' },
+  { href: '/gestor/luz/equipo', icono: UserCog, nombre: 'Equipo y Responsables' },
+  { href: '/gestor/luz/usuarios', icono: ShieldCheck, nombre: 'Usuarios y Permisos' },
   { href: '/gestor/luz/importar', icono: ArrowDownUp, nombre: 'Importación / Exportación' },
   { href: '/gestor/luz/configuracion', icono: Settings, nombre: 'Configuración' },
 ];

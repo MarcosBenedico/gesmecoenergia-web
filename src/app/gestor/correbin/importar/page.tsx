@@ -12,6 +12,7 @@ import { Card, btnPrimario, btnSecundario, inputCls } from '../ui';
 
 const TIPOS = [
   { clave: 'cartera', nombre: 'Cartera viva', desc: 'Clientes + pólizas + vencimientos. La base del módulo.' },
+  { clave: 'movimientos', nombre: 'Movimientos del mes', desc: 'Una sola plantilla: emisiones, anulaciones, suplementos y cambios de mediador. Clasifica cada fila por el motivo.' },
   { clave: 'emisiones', nombre: 'Emisiones año', desc: 'Producción emitida, clasificada por tipo.' },
   { clave: 'anulaciones', nombre: 'Anulaciones año', desc: 'Bajas con motivo; distingue real de sustitución.' },
   { clave: 'vencimientos', nombre: 'Vencimientos', desc: 'Solo fechas VCT (si no vienen en la cartera).' },

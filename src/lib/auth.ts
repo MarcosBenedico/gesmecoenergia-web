@@ -5,23 +5,33 @@ const MASTER_USER = 'UsuarioMaster';
 const MASTER_PASSWORD = '12345678';
 
 export async function loginGestor(usuario: string, password: string) {
-  try {
-    // Verificar credenciales maestras
-    if (usuario !== MASTER_USER || password !== MASTER_PASSWORD) {
-      throw new Error('Usuario o contraseña incorrectos');
+  // ── Usuarios con email → Supabase Auth (Marcos, Nicola, David...) ──
+  if (usuario.includes('@')) {
+    const { data, error } = await supabase.auth.signInWithPassword({ email: usuario.trim(), password });
+    if (error || !data.user) throw new Error('Email o contraseña incorrectos');
+    // Comprobar que el perfil existe y está activo
+    const { data: perfil } = await supabase.from('app_usuarios').select('activo, nombre').eq('id', data.user.id).single();
+    if (perfil && !perfil.activo) {
+      await supabase.auth.signOut();
+      throw new Error('Tu usuario está desactivado. Habla con el administrador.');
     }
-
-    // Guardar sesión en localStorage
     if (typeof window !== 'undefined') {
-      localStorage.setItem('admin_token', 'master_' + Date.now());
-      localStorage.setItem('admin_user', usuario);
+      localStorage.setItem('admin_token', 'auth_' + data.user.id);
+      localStorage.setItem('admin_user', perfil?.nombre || data.user.email || 'Usuario');
     }
-
-    return { usuario, authenticated: true };
-  } catch (error) {
-    console.error('Error en login:', error);
-    throw error;
+    await supabase.from('app_usuarios').update({ ultimo_acceso: new Date().toISOString() }).eq('id', data.user.id);
+    return { usuario: data.user.email, authenticated: true };
   }
+
+  // ── Acceso maestro (respaldo mientras se migra a usuarios individuales) ──
+  if (usuario !== MASTER_USER || password !== MASTER_PASSWORD) {
+    throw new Error('Usuario o contraseña incorrectos');
+  }
+  if (typeof window !== 'undefined') {
+    localStorage.setItem('admin_token', 'master_' + Date.now());
+    localStorage.setItem('admin_user', usuario);
+  }
+  return { usuario, authenticated: true };
 }
 
 // Mantener para compatibilidad con código antiguo

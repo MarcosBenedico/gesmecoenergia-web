@@ -16,6 +16,7 @@ import {
   Card, Badge, BadgePrioridad, BadgeVencimiento, EstadoCarga, useListaLuz, guardarLuz,
   inputCls, labelCls, btnPrimario, btnSecundario, SelectorResponsable,
 } from '../../ui';
+import { ProximaAccion, TareasCliente } from './componentes';
 
 const CUPS_VACIO = {
   cups: '', alias_suministro: '', direccion_suministro: '', tarifa_acceso: '2.0TD',
@@ -41,9 +42,8 @@ export default function FichaClienteLuz() {
   const [formCups, setFormCups] = useState<typeof CUPS_VACIO | null>(null);
   const [editCupsId, setEditCupsId] = useState<string | null>(null);
   const [formEditCups, setFormEditCups] = useState<Record<string, string>>({});
-  const [formTarea, setFormTarea] = useState<{ descripcion: string; tipo_tarea: string; fecha_limite: string } | null>(null);
   const [formOp, setFormOp] = useState<{ tipo_oportunidad: string; comision_potencial: string; proxima_accion: string; fecha_proxima_accion: string } | null>(null);
-  const [formFecha, setFormFecha] = useState<{ tipo_fecha: string; fecha: string; descripcion: string } | null>(null);
+  const [formFecha, setFormFecha] = useState<{ tipo_fecha: string; fecha: string; descripcion: string; cups_id: string } | null>(null);
   const [formContrato, setFormContrato] = useState<{ comercializadora_final: string; estado_contrato: string; fecha_activacion_prevista: string } | null>(null);
   const [formCom, setFormCom] = useState<{ comercializadora: string; tipo_comision: string; importe_previsto: string; fecha_prevista_cobro: string } | null>(null);
   const [msg, setMsg] = useState('');
@@ -146,19 +146,6 @@ export default function FichaClienteLuz() {
     cups.recargar();
   }
 
-  async function crearTarea(e: React.FormEvent) {
-    e.preventDefault();
-    if (!formTarea?.descripcion.trim()) return;
-    const err = await guardarLuz('tareas', 'POST', {
-      ...formTarea, cliente_id: clienteId,
-      fecha_limite: formTarea.fecha_limite || null,
-      responsable: cliente?.responsable || null,
-    });
-    if (err) { setMsg(err); return; }
-    setFormTarea(null);
-    tareas.recargar();
-  }
-
   async function crearOportunidad(e: React.FormEvent) {
     e.preventDefault();
     if (!formOp || !cliente) return;
@@ -180,9 +167,11 @@ export default function FichaClienteLuz() {
   async function crearFecha(e: React.FormEvent) {
     e.preventDefault();
     if (!formFecha?.fecha || !cliente) { setMsg('Indica la fecha.'); return; }
+    const cupsSel = cups.datos.find((c) => c.id === formFecha.cups_id);
     const err = await guardarLuz('fechas', 'POST', {
-      cliente_id: clienteId, tipo_fecha: formFecha.tipo_fecha, fecha: formFecha.fecha,
-      titulo: tituloFechaCritica(cliente.nombre, '', formFecha.tipo_fecha, null),
+      cliente_id: clienteId, cups_id: formFecha.cups_id || null,
+      tipo_fecha: formFecha.tipo_fecha, fecha: formFecha.fecha,
+      titulo: tituloFechaCritica(cliente.nombre, cupsSel?.cups || '', formFecha.tipo_fecha, cupsSel?.comercializadora_actual),
       descripcion: formFecha.descripcion || null,
       prioridad: cliente.prioridad || 'C', responsable: cliente.responsable,
     });
@@ -288,6 +277,9 @@ export default function FichaClienteLuz() {
               </p>
               <p>Próxima acción: <b className="text-foreground">{cliente.proxima_accion || '—'}</b>{cliente.fecha_proxima_accion && <span className="text-xs"> ({fmtFecha(cliente.fecha_proxima_accion)})</span>}</p>
               <p>Último contacto: <b className="text-foreground">{fmtFecha(cliente.fecha_ultimo_contacto)}</b></p>
+              <p className="md:col-span-2">📍 Ubicación: <b className="text-foreground">{cliente.direccion_fiscal || '—'}</b>
+                {!cliente.direccion_fiscal && <span className="text-[11px] text-amber-400 ml-2">(sin dirección no sale en las Rutas de visitas)</span>}
+              </p>
             </div>
             {cliente.potencial_comercial && (
               <p className="text-sm text-secondary bg-secondary/10 border border-secondary/25 rounded-lg p-2.5">💡 {cliente.potencial_comercial}</p>
@@ -297,7 +289,7 @@ export default function FichaClienteLuz() {
           <form onSubmit={guardarCliente} className="space-y-3">
             <div className="grid md:grid-cols-3 gap-3">
               {([['nombre', 'Nombre *'], ['nif', 'CIF/NIF'], ['persona_contacto', 'Contacto'], ['telefono', 'Teléfono'],
-                ['email', 'Email'], ['direccion_fiscal', 'Dirección fiscal'], ['origen_cliente', 'Origen'],
+                ['email', 'Email'], ['direccion_fiscal', '📍 Ubicación (calle y población)'], ['origen_cliente', 'Origen'],
                 ['proxima_accion', 'Próxima acción']] as const).map(([k, label]) => (
                 <div key={k}><label className={labelCls}>{label}</label><input className={inputCls} value={formC[k] || ''} onChange={setC(k)} /></div>
               ))}
@@ -330,6 +322,13 @@ export default function FichaClienteLuz() {
           </form>
         )}
       </Card>
+
+      {/* ── Próxima acción (dato único, sincronizado con el Pipeline) ── */}
+      <ProximaAccion
+        cliente={cliente}
+        oportunidades={pipeline.datos}
+        onGuardado={() => { clientes.recargar(); pipeline.recargar(); }}
+      />
 
       {/* CUPS del cliente */}
       <Card>
@@ -435,42 +434,8 @@ export default function FichaClienteLuz() {
       </Card>
 
       <div className="grid lg:grid-cols-2 gap-4">
-        {/* Tareas */}
-        <Card>
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="font-bold text-foreground">Tareas ({tareasAbiertas.length})</h3>
-            <button onClick={() => setFormTarea(formTarea ? null : { descripcion: '', tipo_tarea: 'llamar_cliente', fecha_limite: '' })} className={btnSecundario}>
-              {formTarea ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />} Tarea
-            </button>
-          </div>
-          {formTarea && (
-            <form onSubmit={crearTarea} className="mb-3 space-y-2">
-              <div className="grid grid-cols-2 gap-2">
-                <select className={inputCls} value={formTarea.tipo_tarea} onChange={(e) => setFormTarea({ ...formTarea, tipo_tarea: e.target.value })}>
-                  {TIPOS_TAREA.map((t) => <option key={t} value={t}>{TIPO_TAREA_LABEL[t]}</option>)}
-                </select>
-                <input className={inputCls} type="date" value={formTarea.fecha_limite} onChange={(e) => setFormTarea({ ...formTarea, fecha_limite: e.target.value })} />
-              </div>
-              <input className={inputCls} value={formTarea.descripcion} onChange={(e) => setFormTarea({ ...formTarea, descripcion: e.target.value })} placeholder="Descripción *" />
-              <button type="submit" className={btnPrimario}>Crear</button>
-            </form>
-          )}
-          {tareas.datos.length === 0 ? <p className="text-sm text-muted text-center py-3">Sin tareas.</p> : (
-            <div className="space-y-1.5">
-              {tareas.datos.map((t) => (
-                <div key={t.id} className={`flex items-center justify-between gap-2 p-2.5 rounded-lg bg-card/60 ${!TAREAS_ABIERTAS.includes(t.estado) ? 'opacity-40' : ''}`}>
-                  <div className="flex items-center gap-2 min-w-0">
-                    <input type="checkbox" checked={!TAREAS_ABIERTAS.includes(t.estado)}
-                      onChange={async () => { if (TAREAS_ABIERTAS.includes(t.estado)) { await guardarLuz('tareas', 'PUT', { id: t.id, estado: 'completada' }); tareas.recargar(); } }}
-                      className="accent-[#22c55e] w-4 h-4 shrink-0" />
-                    <p className="text-xs font-semibold truncate">{TIPO_TAREA_LABEL[t.tipo_tarea]?.split(' ')[0]} {t.descripcion}</p>
-                  </div>
-                  {t.fecha_limite && TAREAS_ABIERTAS.includes(t.estado) && <BadgeVencimiento fecha={t.fecha_limite} />}
-                </div>
-              ))}
-            </div>
-          )}
-        </Card>
+        {/* Tareas: gestión completa con historial */}
+        <TareasCliente clienteId={clienteId} tareas={tareas.datos} recargar={tareas.recargar} clienteResponsable={cliente.responsable} setMsg={setMsg} />
 
         {/* Pipeline del cliente */}
         <Card>
@@ -514,7 +479,7 @@ export default function FichaClienteLuz() {
         <Card>
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-bold text-foreground">Fechas críticas</h3>
-            <button onClick={() => setFormFecha(formFecha ? null : { tipo_fecha: 'fin_contrato', fecha: '', descripcion: '' })} className={btnSecundario}>
+            <button onClick={() => setFormFecha(formFecha ? null : { tipo_fecha: 'fin_contrato', fecha: '', descripcion: '', cups_id: '' })} className={btnSecundario}>
               {formFecha ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />} Fecha
             </button>
           </div>
@@ -526,18 +491,34 @@ export default function FichaClienteLuz() {
                 </select>
                 <input className={inputCls} type="date" value={formFecha.fecha} onChange={(e) => setFormFecha({ ...formFecha, fecha: e.target.value })} />
               </div>
+              <select className={inputCls} value={formFecha.cups_id} onChange={(e) => setFormFecha({ ...formFecha, cups_id: e.target.value })}>
+                <option value="">— Todo el cliente (sin CUPS concreto) —</option>
+                {cups.datos.map((c) => <option key={c.id} value={c.id}>{c.alias_suministro || c.cups}</option>)}
+              </select>
               <input className={inputCls} value={formFecha.descripcion} onChange={(e) => setFormFecha({ ...formFecha, descripcion: e.target.value })} placeholder="Descripción opcional" />
               <button type="submit" className={btnPrimario}>Crear</button>
             </form>
           )}
           {fechas.datos.length === 0 ? <p className="text-sm text-muted text-center py-3">Sin fechas críticas pendientes.</p> : (
             <div className="space-y-1.5">
-              {fechas.datos.map((f) => (
-                <div key={f.id} className="flex items-center justify-between gap-2 p-2.5 rounded-lg bg-card/60">
-                  <p className="text-xs font-semibold truncate">{f.titulo}</p>
-                  <BadgeVencimiento fecha={f.fecha} />
-                </div>
-              ))}
+              {fechas.datos.map((f) => {
+                const cupsF = f.cups_id ? cups.datos.find((c) => c.id === f.cups_id) : null;
+                return (
+                  <div key={f.id} className="flex items-center justify-between gap-2 p-2.5 rounded-lg bg-card/60">
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold truncate">{f.titulo}</p>
+                      {cupsF && <p className="text-[10px] text-muted truncate">🔌 {cupsF.alias_suministro || cupsF.cups}</p>}
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <BadgeVencimiento fecha={f.fecha} />
+                      <button
+                        onClick={async () => { if (confirm(`¿Eliminar "${f.titulo}"?`)) { await guardarLuz('fechas', 'DELETE', { id: f.id }); fechas.recargar(); } }}
+                        className="text-muted hover:text-red-400 text-xs" title="Eliminar"
+                      >✕</button>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </Card>

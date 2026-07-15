@@ -2,12 +2,14 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
-import { ChevronLeft, ChevronRight, Plus, Maximize2, Minimize2, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, Trash2, Maximize2, Minimize2, X } from 'lucide-react';
 import {
-  VctVencimiento, SEGMENTOS, SEGMENTO_LABEL, SEGMENTO_COLOR, SEGMENTOS_FUERA_CALENDARIO,
+  VctVencimiento, VctCliente, SEGMENTOS, SEGMENTO_LABEL, SEGMENTO_COLOR, SEGMENTOS_FUERA_CALENDARIO,
   ESTADOS_VENCIMIENTO, ESTADO_VCT_LABEL, PRIORIDADES, VCT_CERRADOS, fmtFecha, infoVencimiento,
 } from '@/lib/correbin';
-import { Card, EstadoCarga, useLista, guardar, btnSecundario, inputCls, SelectorResponsable, BadgeVencimiento, BadgePrioridad } from '../ui';
+import { Card, EstadoCarga, useLista, guardar, btnPrimario, btnSecundario, inputCls, labelCls, SelectorResponsable, BadgeVencimiento, BadgePrioridad } from '../ui';
+
+const VCTO_VACIO = { cliente_id: '', fecha_vct: '', titulo_evento: '', segmento: '', responsable: '', proxima_accion: '' };
 
 const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 const DIAS_SEMANA = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
@@ -87,6 +89,10 @@ export default function CalendarioVct() {
 
   const [abierto, setAbierto] = useState<VctVencimiento | null>(null);
   const [tituloTarea, setTituloTarea] = useState('');
+  const [mostrarForm, setMostrarForm] = useState(false);
+  const [formVcto, setFormVcto] = useState(VCTO_VACIO);
+  const [errorForm, setErrorForm] = useState('');
+  const clientes = useLista<VctCliente>('clientes');
 
   function mover(delta: number) {
     const f = new Date(ancla);
@@ -109,6 +115,35 @@ export default function CalendarioVct() {
   async function cambiarVcto(v: VctVencimiento, campos: Record<string, unknown>) {
     const err = await guardar('vencimientos', 'PUT', { id: v.id, ...campos });
     if (!err) { recargar(); if (abierto?.id === v.id) setAbierto({ ...abierto, ...campos } as VctVencimiento); }
+  }
+
+  async function crearVcto(e: React.FormEvent) {
+    e.preventDefault();
+    const cliente = clientes.datos.find((c) => c.id === formVcto.cliente_id);
+    if (!cliente) { setErrorForm('Selecciona el cliente.'); return; }
+    if (!formVcto.fecha_vct) { setErrorForm('Indica la fecha del vencimiento.'); return; }
+    setErrorForm('');
+    const segmento = formVcto.segmento || cliente.segmento || 'particular_ordinario';
+    const err = await guardar('vencimientos', 'POST', {
+      cliente_id: cliente.id,
+      fecha_vct: formVcto.fecha_vct,
+      titulo_evento: formVcto.titulo_evento.trim() || `VTO - ${cliente.nombre} - ${SEGMENTO_LABEL[segmento] || segmento}`,
+      segmento,
+      color: SEGMENTO_COLOR[segmento]?.hex || '#888888',
+      estado_vencimiento: 'pendiente',
+      responsable: formVcto.responsable || cliente.responsable || null,
+      proxima_accion: formVcto.proxima_accion || null,
+    });
+    if (err) { setErrorForm(err); return; }
+    setFormVcto(VCTO_VACIO); setMostrarForm(false);
+    recargar();
+  }
+
+  async function eliminarVcto(v: VctVencimiento) {
+    if (!confirm(`¿Eliminar el vencimiento "${v.titulo_evento}"?`)) return;
+    await guardar('vencimientos', 'DELETE', { id: v.id });
+    setAbierto(null);
+    recargar();
   }
 
   async function crearTareaDesdeEvento() {
@@ -254,6 +289,9 @@ export default function CalendarioVct() {
           <p className="text-xs text-muted mt-0.5">{eventos.length} vencimiento(s) en el periodo</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          <button onClick={() => setMostrarForm((v) => !v)} className={btnPrimario}>
+            {mostrarForm ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />} {mostrarForm ? 'Cancelar' : 'Nuevo vencimiento'}
+          </button>
           {vistaOrigen && (
             <button onClick={volverAVistaOrigen} className={btnSecundario}>
               <ChevronLeft className="w-4 h-4" /> Volver a {vistaOrigen === '6m' ? '6 meses' : '12 meses'}
@@ -288,6 +326,46 @@ export default function CalendarioVct() {
           </button>
         </div>
       </div>
+
+      {/* Alta de vencimiento */}
+      {mostrarForm && (
+        <Card>
+          <form onSubmit={crearVcto} className="space-y-3">
+            <div className="grid md:grid-cols-3 gap-3">
+              <div>
+                <label className={labelCls}>Cliente *</label>
+                <select className={inputCls} value={formVcto.cliente_id}
+                  onChange={(e) => { const c = clientes.datos.find((x) => x.id === e.target.value); setFormVcto({ ...formVcto, cliente_id: e.target.value, segmento: c?.segmento || '' }); }}>
+                  <option value="">— Selecciona —</option>
+                  {clientes.datos.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                </select>
+              </div>
+              <div><label className={labelCls}>Fecha VCT *</label><input className={inputCls} type="date" value={formVcto.fecha_vct} onChange={(e) => setFormVcto({ ...formVcto, fecha_vct: e.target.value })} /></div>
+              <div>
+                <label className={labelCls}>Segmento</label>
+                <select className={inputCls} value={formVcto.segmento} onChange={(e) => setFormVcto({ ...formVcto, segmento: e.target.value })}>
+                  <option value="">— El del cliente —</option>
+                  {SEGMENTOS.map((s) => <option key={s} value={s}>{SEGMENTO_LABEL[s]}</option>)}
+                </select>
+              </div>
+              <div className="md:col-span-2">
+                <label className={labelCls}>Título del evento (vacío = automático)</label>
+                <input className={inputCls} value={formVcto.titulo_evento} onChange={(e) => setFormVcto({ ...formVcto, titulo_evento: e.target.value })} placeholder="VTO - Cliente - Segmento" />
+              </div>
+              <div>
+                <label className={labelCls}>Responsable</label>
+                <SelectorResponsable valor={formVcto.responsable} onCambio={(v) => setFormVcto((f) => ({ ...f, responsable: v || '' }))} className={inputCls} />
+              </div>
+              <div className="md:col-span-3">
+                <label className={labelCls}>Próxima acción (opcional)</label>
+                <input className={inputCls} value={formVcto.proxima_accion} onChange={(e) => setFormVcto({ ...formVcto, proxima_accion: e.target.value })} placeholder="Pedir propuesta, llamar antes del vencimiento..." />
+              </div>
+            </div>
+            {errorForm && <p className="text-xs text-red-400">{errorForm}</p>}
+            <button type="submit" className={btnPrimario}>Crear vencimiento</button>
+          </form>
+        </Card>
+      )}
 
       {/* Filtros */}
       <Card className="!p-3">
@@ -343,10 +421,18 @@ export default function CalendarioVct() {
       {abierto && infoAbierto && (
         <Card className="border-accent/40 space-y-3">
           <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="font-bold text-sm">{abierto.titulo_evento}</p>
-              <p className="text-xs text-muted mt-0.5">
-                {fmtFecha(abierto.fecha_vct)} · <BadgeVencimiento fecha={abierto.fecha_vct} />
+            <div className="min-w-0">
+              <input
+                className="w-full bg-transparent font-bold text-sm outline-none rounded px-1 py-0.5 hover:bg-background/50 focus:bg-background/70 focus:ring-1 focus:ring-accent/40"
+                defaultValue={abierto.titulo_evento}
+                onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== abierto.titulo_evento) cambiarVcto(abierto, { titulo_evento: v }); }}
+                title="Editar título"
+              />
+              <p className="text-xs text-muted mt-0.5 flex items-center gap-2 flex-wrap px-1">
+                <input type="date" className="rounded-md border border-border/40 bg-background/60 px-1.5 py-0.5 text-[11px]"
+                  value={abierto.fecha_vct}
+                  onChange={(e) => e.target.value && cambiarVcto(abierto, { fecha_vct: e.target.value })} />
+                <BadgeVencimiento fecha={abierto.fecha_vct} />
               </p>
               <div className="flex gap-x-4 gap-y-1 flex-wrap mt-2 text-xs">
                 <span><span className="font-bold uppercase text-[10px] text-muted">Tomador:</span> <span className="font-semibold">{infoAbierto.tomador}</span></span>
@@ -355,7 +441,12 @@ export default function CalendarioVct() {
                 {abierto.vct_clientes?.tipo && <span><span className="font-bold uppercase text-[10px] text-muted">Tipo empresa:</span> <span className="font-semibold">{abierto.vct_clientes.tipo}</span></span>}
               </div>
             </div>
-            <button onClick={() => setAbierto(null)} className="text-muted hover:text-foreground text-sm"><X className="w-4 h-4" /></button>
+            <div className="flex items-center gap-2 shrink-0">
+              <button onClick={() => eliminarVcto(abierto)} className="text-muted hover:text-red-400 transition" title="Eliminar vencimiento">
+                <Trash2 className="w-4 h-4" />
+              </button>
+              <button onClick={() => setAbierto(null)} className="text-muted hover:text-foreground text-sm"><X className="w-4 h-4" /></button>
+            </div>
           </div>
           <div className="grid md:grid-cols-3 gap-2.5">
             <div>

@@ -305,6 +305,7 @@ export interface LuzTarea {
   comision_id: string | null;
   tipo_tarea: string;
   descripcion: string;
+  notas?: string | null;
   responsable: string | null;
   fecha_limite: string | null;
   estado: string;

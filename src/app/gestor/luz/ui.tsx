@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { tokenSesion } from '@/lib/usuario';
 
 /**
  * Kit UI del módulo Gestión Luz.
@@ -27,7 +28,10 @@ export function useListaLuz<T>(recurso: string, params: Record<string, string> =
     setError('');
     try {
       const qs = new URLSearchParams(JSON.parse(claveParams)).toString();
-      const res = await fetch(`/api/luz/${recurso}${qs ? `?${qs}` : ''}`);
+      const token = await tokenSesion();
+      const res = await fetch(`/api/luz/${recurso}${qs ? `?${qs}` : ''}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
       const json = await res.json();
       if (!res.ok) {
         setFaltaMigracion(!!json.falta_migracion);
@@ -51,9 +55,10 @@ export function useListaLuz<T>(recurso: string, params: Record<string, string> =
 /** Guardado genérico contra /api/luz. Devuelve mensaje de error o null. */
 export async function guardarLuz(recurso: string, metodo: 'POST' | 'PUT' | 'DELETE', body: Record<string, unknown>) {
   try {
+    const token = await tokenSesion();
     const res = await fetch(`/api/luz/${recurso}`, {
       method: metodo,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
       body: JSON.stringify(body),
     });
     const json = await res.json();

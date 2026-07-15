@@ -8,7 +8,7 @@ import {
   VctCliente, VctPoliza, VctTarea, VctVencimiento, VctOportunidad, VctProduccion,
   VctAnulacion, VctCambioMediador,
   RAMOS, RAMO_LABEL, PRIORIDADES, PRIORIDAD_LABEL, SEGMENTOS, SEGMENTO_LABEL,
-  ESTADO_POLIZA_LABEL, ESTADOS_CARTERA_VIVA, ESTADO_VCT_LABEL, TIPO_PRODUCCION_LABEL,
+  ESTADO_POLIZA_LABEL, ESTADOS_CARTERA_VIVA, ESTADOS_VENCIMIENTO, ESTADO_VCT_LABEL, SEGMENTO_COLOR, TIPO_PRODUCCION_LABEL,
   TIPO_ANULACION_LABEL, ESTADO_CM_LABEL, ETAPA_LABEL, TIPOS_TAREA, TIPO_TAREA_LABEL,
   ETAPAS_PIPELINE, TAREAS_ABIERTAS, fmtEur0, fmtFecha, diasHasta,
 } from '@/lib/correbin';
@@ -342,28 +342,8 @@ export default function FichaCliente() {
       </Card>
 
       <div className="grid lg:grid-cols-2 gap-4">
-        {/* Vencimientos */}
-        <Card>
-          <h3 className="font-bold text-foreground mb-3">Vencimientos ({vencimientos.datos.length})</h3>
-          {vencimientos.datos.length === 0 ? (
-            <p className="text-sm text-muted text-center py-3">Sin vencimientos.</p>
-          ) : (
-            <div className="space-y-1.5">
-              {vencimientos.datos.map((v) => (
-                <div key={v.id} className="p-2.5 rounded-lg bg-card/60">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-xs font-semibold truncate">{v.titulo_evento}</p>
-                    <BadgeVencimiento fecha={v.fecha_vct} />
-                  </div>
-                  <p className="text-[10px] text-muted mt-0.5">
-                    {ESTADO_VCT_LABEL[v.estado_vencimiento]} · {v.responsable || 'Sin asignar'}
-                    {v.proxima_accion && <> · próx: {v.proxima_accion}</>}
-                  </p>
-                </div>
-              ))}
-            </div>
-          )}
-        </Card>
+        {/* Vencimientos: alta, edición y borrado */}
+        <VencimientosCliente cliente={cliente} vencimientos={vencimientos.datos} recargar={vencimientos.recargar} />
 
         {/* Tareas */}
         <Card>
@@ -484,5 +464,115 @@ export default function FichaCliente() {
         </Card>
       </div>
     </div>
+  );
+}
+
+
+/* ══════════════ Vencimientos del cliente: alta, edición y borrado ══════════════ */
+const VCTO_NUEVO = { fecha_vct: '', titulo_evento: '', segmento: '', proxima_accion: '' };
+
+function VencimientosCliente({ cliente, vencimientos, recargar }: {
+  cliente: VctCliente | null;
+  vencimientos: VctVencimiento[];
+  recargar: () => void;
+}) {
+  const [form, setForm] = useState<typeof VCTO_NUEVO | null>(null);
+  const [err, setErr] = useState('');
+
+  async function crear(e: React.FormEvent) {
+    e.preventDefault();
+    if (!form || !cliente) return;
+    if (!form.fecha_vct) { setErr('Indica la fecha.'); return; }
+    setErr('');
+    const segmento = form.segmento || cliente.segmento || 'particular_ordinario';
+    const error = await guardar('vencimientos', 'POST', {
+      cliente_id: cliente.id,
+      fecha_vct: form.fecha_vct,
+      titulo_evento: form.titulo_evento.trim() || `VTO - ${cliente.nombre} - ${SEGMENTO_LABEL[segmento] || segmento}`,
+      segmento,
+      color: SEGMENTO_COLOR[segmento]?.hex || '#888888',
+      estado_vencimiento: 'pendiente',
+      responsable: cliente.responsable || null,
+      proxima_accion: form.proxima_accion || null,
+    });
+    if (error) { setErr(error); return; }
+    setForm(null);
+    recargar();
+  }
+
+  async function cambiar(v: VctVencimiento, campos: Record<string, unknown>) {
+    const error = await guardar('vencimientos', 'PUT', { id: v.id, ...campos });
+    if (error) { setErr(error); return; }
+    setErr('');
+    recargar();
+  }
+
+  return (
+    <Card>
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="font-bold text-foreground">Vencimientos ({vencimientos.length})</h3>
+        <button onClick={() => setForm(form ? null : { ...VCTO_NUEVO })} className={btnSecundario}>
+          {form ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />} Vencimiento
+        </button>
+      </div>
+
+      {err && <p className="text-xs text-red-400 mb-2">{err}</p>}
+
+      {form && (
+        <form onSubmit={crear} className="mb-3 p-3 rounded-xl bg-background/40 border border-border/30 space-y-2">
+          <div className="grid grid-cols-2 gap-2">
+            <input className={inputCls} type="date" value={form.fecha_vct} onChange={(e) => setForm({ ...form, fecha_vct: e.target.value })} />
+            <select className={inputCls} value={form.segmento} onChange={(e) => setForm({ ...form, segmento: e.target.value })}>
+              <option value="">Segmento: el del cliente</option>
+              {SEGMENTOS.map((s) => <option key={s} value={s}>{SEGMENTO_LABEL[s]}</option>)}
+            </select>
+          </div>
+          <input className={inputCls} value={form.titulo_evento} onChange={(e) => setForm({ ...form, titulo_evento: e.target.value })} placeholder="Título (vacío = automático)" />
+          <input className={inputCls} value={form.proxima_accion} onChange={(e) => setForm({ ...form, proxima_accion: e.target.value })} placeholder="Próxima acción (opcional)" />
+          <button type="submit" className={btnPrimario}>Crear vencimiento</button>
+        </form>
+      )}
+
+      {vencimientos.length === 0 && !form ? (
+        <p className="text-sm text-muted text-center py-3">Sin vencimientos.</p>
+      ) : (
+        <div className="space-y-1.5">
+          {vencimientos.map((v) => (
+            <div key={v.id} className="p-2.5 rounded-lg bg-card/60">
+              <div className="flex items-center justify-between gap-2">
+                <input
+                  className="flex-1 min-w-0 bg-transparent text-xs font-semibold outline-none rounded px-1 py-0.5 hover:bg-background/50 focus:bg-background/70 focus:ring-1 focus:ring-accent/40"
+                  defaultValue={v.titulo_evento}
+                  onBlur={(e) => { const t = e.target.value.trim(); if (t && t !== v.titulo_evento) cambiar(v, { titulo_evento: t }); }}
+                />
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <input type="date" className="rounded-md border border-border/40 bg-background/60 px-1.5 py-0.5 text-[10px] w-28"
+                    value={v.fecha_vct} onChange={(e) => e.target.value && cambiar(v, { fecha_vct: e.target.value })} />
+                  <BadgeVencimiento fecha={v.fecha_vct} />
+                  <button
+                    onClick={async () => { if (confirm(`¿Eliminar "${v.titulo_evento}"?`)) { await guardar('vencimientos', 'DELETE', { id: v.id }); recargar(); } }}
+                    className="text-muted hover:text-red-400 text-xs" title="Eliminar"
+                  >✕</button>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                <select className="rounded-md border border-border/40 bg-background/60 px-1.5 py-0.5 text-[10px] font-semibold"
+                  value={v.estado_vencimiento} onChange={(e) => cambiar(v, { estado_vencimiento: e.target.value })}>
+                  {ESTADOS_VENCIMIENTO.map((s) => <option key={s} value={s}>{ESTADO_VCT_LABEL[s]}</option>)}
+                </select>
+                <SelectorResponsable valor={v.responsable} onCambio={(x) => cambiar(v, { responsable: x })}
+                  className="rounded-md border border-border/40 bg-background/60 px-1.5 py-0.5 text-[10px] font-semibold" />
+                <input
+                  className="flex-1 min-w-32 rounded-md border border-border/40 bg-background/60 px-1.5 py-0.5 text-[10px]"
+                  defaultValue={v.proxima_accion || ''}
+                  placeholder="Próxima acción..."
+                  onBlur={(e) => e.target.value !== (v.proxima_accion || '') && cambiar(v, { proxima_accion: e.target.value || null })}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
   );
 }

@@ -10,7 +10,7 @@ import {
 } from '@/lib/luz';
 import { Card, BadgePrioridad, BadgeVencimiento, EstadoCarga, useListaLuz, guardarLuz, inputCls, labelCls, btnPrimario, btnSecundario, SelectorResponsable } from '../ui';
 
-const FECHA_VACIA = { cliente_id: '', tipo_fecha: 'fin_contrato', fecha: '', descripcion: '', responsable: '' };
+const FECHA_VACIA = { cliente_id: '', cups_id: '', tipo_fecha: 'fin_contrato', fecha: '', descripcion: '', responsable: '' };
 
 const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 const DIAS_SEMANA = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
@@ -32,7 +32,19 @@ function FechasContenido() {
   const [mostrarForm, setMostrarForm] = useState(false);
   const [form, setForm] = useState(FECHA_VACIA);
   const [errorForm, setErrorForm] = useState('');
+  const [arrastrando, setArrastrando] = useState<string | null>(null);
+  const [diaActivo, setDiaActivo] = useState<string | null>(null);
+  const [diasExpandidos, setDiasExpandidos] = useState<Set<string>>(new Set());
   const clientes = useListaLuz<LuzCliente>('clientes');
+  const cups = useListaLuz<LuzCups>('cups');
+
+  /** CUPS de un cliente concreto (para asociar la fecha a un suministro). */
+  const cupsDe = useMemo(() => {
+    const m = new Map<string, LuzCups[]>();
+    for (const c of cups.datos) m.set(c.cliente_id, [...(m.get(c.cliente_id) || []), c]);
+    return m;
+  }, [cups.datos]);
+  const etiquetaCups = (c: LuzCups) => c.alias_suministro || `${c.cups.slice(0, 10)}…`;
 
   const rango = useMemo(() => {
     if (vista === 'listado') {
@@ -115,11 +127,13 @@ function FechasContenido() {
     if (!cliente) { setErrorForm('Selecciona el cliente.'); return; }
     if (!form.fecha) { setErrorForm('Indica la fecha.'); return; }
     setErrorForm('');
+    const cupsSel = cups.datos.find((c) => c.id === form.cups_id);
     const err = await guardarLuz('fechas', 'POST', {
       cliente_id: cliente.id,
+      cups_id: form.cups_id || null,
       tipo_fecha: form.tipo_fecha,
       fecha: form.fecha,
-      titulo: tituloFechaCritica(cliente.nombre, '', form.tipo_fecha, null),
+      titulo: tituloFechaCritica(cliente.nombre, cupsSel?.cups || '', form.tipo_fecha, cupsSel?.comercializadora_actual),
       descripcion: form.descripcion || null,
       prioridad: cliente.prioridad || 'C',
       responsable: form.responsable || cliente.responsable || null,
@@ -127,6 +141,29 @@ function FechasContenido() {
     if (err) { setErrorForm(err); return; }
     setForm(FECHA_VACIA); setMostrarForm(false);
     recargar();
+  }
+
+  async function cambiarFecha(f: LuzFechaCritica, campos: Record<string, unknown>) {
+    const err = await guardarLuz('fechas', 'PUT', { id: f.id, ...campos });
+    if (err) { setMsgGen(err); return; }
+    recargar();
+  }
+
+  async function borrarFecha(f: LuzFechaCritica) {
+    if (!confirm(`¿Eliminar la fecha crítica "${f.titulo}"?`)) return;
+    await guardarLuz('fechas', 'DELETE', { id: f.id });
+    recargar();
+  }
+
+  /** Soltar una fecha crítica en otro día del calendario → se guarda al momento. */
+  function soltarEnDia(fecha: string, e: React.DragEvent) {
+    e.preventDefault();
+    setDiaActivo(null);
+    const id = e.dataTransfer.getData('text/plain') || arrastrando;
+    setArrastrando(null);
+    if (!id) return;
+    const f = datos.find((x) => x.id === id);
+    if (f && f.fecha !== fecha) cambiarFecha(f, { fecha });
   }
 
   const selCls = 'rounded-lg border border-border/40 bg-background/60 px-2 py-1.5 text-xs font-semibold';
@@ -169,9 +206,16 @@ function FechasContenido() {
             <div className="grid md:grid-cols-4 gap-3">
               <div>
                 <label className={labelCls}>Cliente *</label>
-                <select className={inputCls} value={form.cliente_id} onChange={(e) => setForm({ ...form, cliente_id: e.target.value })}>
+                <select className={inputCls} value={form.cliente_id} onChange={(e) => setForm({ ...form, cliente_id: e.target.value, cups_id: '' })}>
                   <option value="">— Selecciona —</option>
                   {clientes.datos.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className={labelCls}>CUPS / Suministro (opcional)</label>
+                <select className={inputCls} value={form.cups_id} onChange={(e) => setForm({ ...form, cups_id: e.target.value })} disabled={!form.cliente_id}>
+                  <option value="">— Todo el cliente —</option>
+                  {(cupsDe.get(form.cliente_id) || []).map((c) => <option key={c.id} value={c.id}>{etiquetaCups(c)}</option>)}
                 </select>
               </div>
               <div>
@@ -238,27 +282,57 @@ function FechasContenido() {
               const fecha = `${ancla.getFullYear()}-${String(ancla.getMonth() + 1).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
               const lista = porDia.get(fecha) || [];
               const esHoy = fecha === iso(hoy);
+              const expandido = diasExpandidos.has(fecha);
+              const visibles = expandido ? lista : lista.slice(0, 3);
+              const activo = diaActivo === fecha;
               return (
-                <div key={dia} className={`min-h-24 rounded-lg border p-1.5 ${esHoy ? 'border-accent bg-accent/10' : lista.length ? 'border-border/40 bg-card/40' : 'border-border/20 bg-card/20'}`}>
+                <div
+                  key={dia}
+                  onDragOver={(e) => { e.preventDefault(); setDiaActivo(fecha); }}
+                  onDragLeave={() => setDiaActivo((d) => (d === fecha ? null : d))}
+                  onDrop={(e) => soltarEnDia(fecha, e)}
+                  className={`min-h-24 rounded-lg border p-1.5 transition ${
+                    activo ? 'border-accent bg-accent/15 ring-2 ring-accent/40'
+                    : esHoy ? 'border-accent bg-accent/10'
+                    : lista.length ? 'border-border/40 bg-card/40' : 'border-border/20 bg-card/20'
+                  }`}
+                >
                   <p className={`text-[11px] font-bold ${esHoy ? 'text-accent' : 'text-muted'}`}>{dia}</p>
                   <div className="space-y-1 mt-1">
-                    {lista.slice(0, 3).map((f) => (
+                    {visibles.map((f) => (
                       <Link key={f.id} href={`/gestor/luz/clientes/${f.cliente_id}`}
-                        className={`block text-[10px] leading-tight px-1.5 py-1 rounded border truncate hover:brightness-125 transition ${TIPO_FECHA_TONO[f.tipo_fecha] || 'bg-card/60 text-muted border-border/30'}`}
-                        title={f.titulo}>
+                        draggable
+                        onDragStart={(e) => { e.dataTransfer.setData('text/plain', f.id); e.dataTransfer.effectAllowed = 'move'; setArrastrando(f.id); }}
+                        onDragEnd={() => { setArrastrando(null); setDiaActivo(null); }}
+                        className={`block text-[10px] leading-tight px-1.5 py-1 rounded border truncate hover:brightness-125 transition cursor-grab active:cursor-grabbing ${
+                          TIPO_FECHA_TONO[f.tipo_fecha] || 'bg-card/60 text-muted border-border/30'
+                        } ${arrastrando === f.id ? 'opacity-40' : ''}`}
+                        title={`${f.titulo} — arrastra a otro día para cambiar la fecha`}>
                         {f.titulo.replace(/^LUZ - /, '')}
                       </Link>
                     ))}
-                    {lista.length > 3 && <p className="text-[10px] text-muted px-1">+{lista.length - 3}</p>}
+                    {lista.length > 3 && (
+                      <button
+                        onClick={() => setDiasExpandidos((prev) => {
+                          const s = new Set(prev);
+                          if (s.has(fecha)) s.delete(fecha); else s.add(fecha);
+                          return s;
+                        })}
+                        className="w-full text-left text-[10px] font-bold text-accent hover:underline px-1"
+                      >
+                        {expandido ? '− ver menos' : `+${lista.length - 3} más`}
+                      </button>
+                    )}
                   </div>
                 </div>
               );
             })}
           </div>
-          <div className="flex gap-1.5 flex-wrap mt-3">
+          <div className="flex gap-1.5 flex-wrap mt-3 items-center">
             {TIPOS_FECHA.map((t) => (
               <span key={t} className={`px-2 py-0.5 rounded-full border text-[10px] font-semibold ${TIPO_FECHA_TONO[t]}`}>{TIPO_FECHA_LABEL[t]}</span>
             ))}
+            <span className="text-[10px] text-muted/70 italic ml-auto">💡 Arrastra un evento a otro día para cambiar su fecha</span>
           </div>
         </Card>
       )}
@@ -269,32 +343,64 @@ function FechasContenido() {
             <thead>
               <tr className="text-left text-[11px] uppercase tracking-wide text-muted border-b border-border/40">
                 <th className="px-3 py-3">Fecha</th><th className="px-3 py-3">Pr.</th><th className="px-3 py-3">Evento</th>
-                <th className="px-3 py-3">Tipo</th><th className="px-3 py-3">Responsable</th><th className="px-3 py-3">Estado</th>
+                <th className="px-3 py-3">CUPS</th><th className="px-3 py-3">Tipo</th>
+                <th className="px-3 py-3">Responsable</th><th className="px-3 py-3">Estado</th><th className="px-3 py-3"></th>
               </tr>
             </thead>
             <tbody>
               {[...eventos].sort((a, b) => a.fecha.localeCompare(b.fecha)).map((f) => (
                 <tr key={f.id} className="border-b border-border/20 hover:bg-card/50 transition">
                   <td className="px-3 py-2 whitespace-nowrap">
-                    <BadgeVencimiento fecha={f.fecha} />
-                    <span className="block text-[10px] text-muted mt-0.5">{fmtFecha(f.fecha)}</span>
+                    <input type="date" className={`${selCls} w-32`} value={f.fecha}
+                      onChange={(e) => e.target.value && cambiarFecha(f, { fecha: e.target.value })} />
+                    <span className="block mt-1"><BadgeVencimiento fecha={f.fecha} /></span>
                   </td>
-                  <td className="px-3 py-2"><BadgePrioridad prioridad={f.prioridad || f.luz_clientes?.prioridad} /></td>
-                  <td className="px-3 py-2 font-semibold text-xs max-w-72 truncate">
-                    <Link href={`/gestor/luz/clientes/${f.cliente_id}`} className="hover:text-accent">{f.titulo}</Link>
-                  </td>
-                  <td className="px-3 py-2"><span className={`px-2 py-0.5 rounded-full border text-[10px] font-semibold ${TIPO_FECHA_TONO[f.tipo_fecha]}`}>{TIPO_FECHA_LABEL[f.tipo_fecha]}</span></td>
                   <td className="px-3 py-2">
-                    <SelectorResponsable valor={f.responsable} onCambio={async (v) => { await guardarLuz('fechas', 'PUT', { id: f.id, responsable: v }); recargar(); }} />
+                    <select value={f.prioridad || f.luz_clientes?.prioridad || 'C'}
+                      onChange={(e) => cambiarFecha(f, { prioridad: e.target.value })}
+                      className={`${selCls} !px-1.5`}>
+                      {PRIORIDADES.map((p) => <option key={p} value={p}>{p}</option>)}
+                    </select>
+                  </td>
+                  <td className="px-3 py-2 min-w-64">
+                    <input
+                      className="w-full bg-transparent text-xs font-semibold outline-none rounded px-1.5 py-1 hover:bg-background/50 focus:bg-background/70 focus:ring-1 focus:ring-accent/40"
+                      defaultValue={f.titulo}
+                      onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== f.titulo) cambiarFecha(f, { titulo: v }); }}
+                    />
+                    <Link href={`/gestor/luz/clientes/${f.cliente_id}`} className="block text-[10px] text-accent hover:underline px-1.5">
+                      {f.luz_clientes?.nombre || 'ver cliente'} →
+                    </Link>
+                  </td>
+                  <td className="px-3 py-2">
+                    <select value={f.cups_id || ''}
+                      onChange={(e) => cambiarFecha(f, { cups_id: e.target.value || null })}
+                      className={`${selCls} max-w-36`}>
+                      <option value="">— Todo el cliente —</option>
+                      {(cupsDe.get(f.cliente_id) || []).map((c) => <option key={c.id} value={c.id}>{etiquetaCups(c)}</option>)}
+                    </select>
+                  </td>
+                  <td className="px-3 py-2">
+                    <select value={f.tipo_fecha}
+                      onChange={(e) => cambiarFecha(f, { tipo_fecha: e.target.value })}
+                      className={`${selCls} max-w-36`}>
+                      {TIPOS_FECHA.map((t) => <option key={t} value={t}>{TIPO_FECHA_LABEL[t]}</option>)}
+                    </select>
+                  </td>
+                  <td className="px-3 py-2">
+                    <SelectorResponsable valor={f.responsable} onCambio={(v) => cambiarFecha(f, { responsable: v })} />
                   </td>
                   <td className="px-3 py-2">
                     <select value={f.estado}
-                      onChange={async (e) => { await guardarLuz('fechas', 'PUT', { id: f.id, estado: e.target.value }); recargar(); }}
+                      onChange={(e) => cambiarFecha(f, { estado: e.target.value })}
                       className={selCls}>
                       <option value="pendiente">Pendiente</option>
                       <option value="gestionada">Gestionada</option>
                       <option value="descartada">Descartada</option>
                     </select>
+                  </td>
+                  <td className="px-3 py-2">
+                    <button onClick={() => borrarFecha(f)} className="text-muted hover:text-red-400 text-xs" title="Eliminar fecha">✕</button>
                   </td>
                 </tr>
               ))}
