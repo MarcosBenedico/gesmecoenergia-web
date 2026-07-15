@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard, Users, Plug, CalendarClock, Target, FileSignature,
-  Euro, BellRing, ArrowDownUp, Settings, ChevronLeft, Zap, UserCog, ShieldCheck, Route,
+  Euro, BellRing, ArrowDownUp, Settings, ChevronLeft, Zap, UserCog, ShieldCheck, Route, History,
 } from 'lucide-react';
 import { GuardiaModulo } from '@/components/guardia-modulo';
 
@@ -21,6 +21,7 @@ const SECCIONES = [
   { href: '/gestor/luz/rutas', icono: Route, nombre: 'Rutas de visitas' },
   { href: '/gestor/luz/equipo', icono: UserCog, nombre: 'Equipo y Responsables' },
   { href: '/gestor/luz/usuarios', icono: ShieldCheck, nombre: 'Usuarios y Permisos' },
+  { href: '/gestor/luz/control', icono: History, nombre: 'Control General' },
   { href: '/gestor/luz/importar', icono: ArrowDownUp, nombre: 'Importación / Exportación' },
   { href: '/gestor/luz/configuracion', icono: Settings, nombre: 'Configuración' },
 ];

@@ -97,6 +97,16 @@ const TABLAS: Record<string, DefTabla> = {
     filtros: ['clave'],
     orden: { col: 'clave', asc: true },
   },
+  // Registro de actividad (app_auditoria): SOLO LECTURA — columnas vacías
+  // para que POST/PUT/DELETE no puedan escribir en él desde la API.
+  auditoria: {
+    tabla: 'app_auditoria',
+    select: '*',
+    columnas: [],
+    filtros: ['tabla', 'usuario', 'accion'],
+    orden: { col: 'creado_en', asc: false },
+    colFecha: 'creado_en',
+  },
   // Responsables compartidos con el módulo Correbin (roles ya preparados)
   responsables: {
     tabla: 'vct_responsables',
