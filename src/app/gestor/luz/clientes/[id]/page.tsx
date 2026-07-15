@@ -277,6 +277,9 @@ export default function FichaClienteLuz() {
               </p>
               <p>Próxima acción: <b className="text-foreground">{cliente.proxima_accion || '—'}</b>{cliente.fecha_proxima_accion && <span className="text-xs"> ({fmtFecha(cliente.fecha_proxima_accion)})</span>}</p>
               <p>Último contacto: <b className="text-foreground">{fmtFecha(cliente.fecha_ultimo_contacto)}</b></p>
+              <p className="md:col-span-2">📍 Ubicación: <b className="text-foreground">{cliente.direccion_fiscal || '—'}</b>
+                {!cliente.direccion_fiscal && <span className="text-[11px] text-amber-400 ml-2">(sin dirección no sale en las Rutas de visitas)</span>}
+              </p>
             </div>
             {cliente.potencial_comercial && (
               <p className="text-sm text-secondary bg-secondary/10 border border-secondary/25 rounded-lg p-2.5">💡 {cliente.potencial_comercial}</p>
@@ -286,7 +289,7 @@ export default function FichaClienteLuz() {
           <form onSubmit={guardarCliente} className="space-y-3">
             <div className="grid md:grid-cols-3 gap-3">
               {([['nombre', 'Nombre *'], ['nif', 'CIF/NIF'], ['persona_contacto', 'Contacto'], ['telefono', 'Teléfono'],
-                ['email', 'Email'], ['direccion_fiscal', 'Dirección fiscal'], ['origen_cliente', 'Origen'],
+                ['email', 'Email'], ['direccion_fiscal', '📍 Ubicación (calle y población)'], ['origen_cliente', 'Origen'],
                 ['proxima_accion', 'Próxima acción']] as const).map(([k, label]) => (
                 <div key={k}><label className={labelCls}>{label}</label><input className={inputCls} value={formC[k] || ''} onChange={setC(k)} /></div>
               ))}
