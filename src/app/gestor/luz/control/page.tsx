@@ -1,7 +1,8 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import { Lock, History, ChevronLeft, ChevronRight, Plus, Pencil, Trash2 } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Lock, History, ChevronLeft, ChevronRight, Plus, Pencil, Trash2, User } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
 import { Card, Kpi, EstadoCarga, useListaLuz, inputCls, btnPrimario, btnSecundario } from '../ui';
 
 /**
@@ -82,8 +83,23 @@ export default function ControlGeneralPage() {
   const [pin, setPin] = useState('');
   const [errorPin, setErrorPin] = useState('');
 
-  // ── Día seleccionado ──
+  // ── Día seleccionado y filtro por usuario ──
   const [dia, setDia] = useState(hoyISO());
+  const [fUsuario, setFUsuario] = useState('');
+
+  // Nombres de usuario (app_usuarios): email → nombre, para mostrar quién hizo cada acción
+  const [nombres, setNombres] = useState<Record<string, string>>({});
+  useEffect(() => {
+    if (!desbloqueado) return;
+    supabase.from('app_usuarios').select('email, nombre').then(({ data }) => {
+      const m: Record<string, string> = {};
+      for (const u of data || []) m[u.email] = u.nombre;
+      setNombres(m);
+    });
+  }, [desbloqueado]);
+
+  const nombreUsuario = (email: string | null) =>
+    !email || email === 'sistema' ? 'Sistema / acceso maestro' : nombres[email] || email;
 
   // Límites del día en hora local convertidos a UTC (la BD guarda en UTC)
   const { desdeUTC, hastaUTC } = useMemo(() => {
@@ -97,17 +113,28 @@ export default function ControlGeneralPage() {
     desbloqueado ? { desde: desdeUTC, hasta: hastaUTC, limite: '2000' } : { limite: '0' }
   );
 
-  const porHora = useMemo(
-    () => [...datos].sort((a, b) => b.creado_en.localeCompare(a.creado_en)),
+  // Usuarios con actividad en el día (para el filtro)
+  const usuariosDia = useMemo(
+    () => Array.from(new Set(datos.map((r) => r.usuario || 'sistema'))).sort(),
     [datos]
   );
 
+  const filtrados = useMemo(
+    () => (fUsuario ? datos.filter((r) => (r.usuario || 'sistema') === fUsuario) : datos),
+    [datos, fUsuario]
+  );
+
+  const porHora = useMemo(
+    () => [...filtrados].sort((a, b) => b.creado_en.localeCompare(a.creado_en)),
+    [filtrados]
+  );
+
   const resumenDia = useMemo(() => ({
-    total: datos.length,
-    creados: datos.filter((r) => r.accion === 'INSERT').length,
-    cambios: datos.filter((r) => r.accion === 'UPDATE').length,
-    borrados: datos.filter((r) => r.accion === 'DELETE').length,
-  }), [datos]);
+    total: filtrados.length,
+    creados: filtrados.filter((r) => r.accion === 'INSERT').length,
+    cambios: filtrados.filter((r) => r.accion === 'UPDATE').length,
+    borrados: filtrados.filter((r) => r.accion === 'DELETE').length,
+  }), [filtrados]);
 
   function comprobarPin(e: React.FormEvent) {
     e.preventDefault();
@@ -185,6 +212,15 @@ export default function ControlGeneralPage() {
           />
           <button onClick={() => moverDia(1)} disabled={esHoy} className={btnSecundario}><ChevronRight className="w-4 h-4" /></button>
           {!esHoy && <button onClick={() => setDia(hoyISO())} className={btnSecundario}>Hoy</button>}
+          {/* Filtro por usuario */}
+          <select
+            className={`${inputCls} !w-auto !py-1.5 !text-xs font-semibold`}
+            value={fUsuario}
+            onChange={(e) => setFUsuario(e.target.value)}
+          >
+            <option value="">Usuario: todos</option>
+            {usuariosDia.map((u) => <option key={u} value={u}>{nombreUsuario(u)}</option>)}
+          </select>
         </div>
       </div>
 
@@ -228,7 +264,9 @@ export default function ControlGeneralPage() {
                     </p>
                   )}
                 </div>
-                <span className="shrink-0 text-[10px] text-muted/70 pt-0.5">{r.usuario || 'sistema'}</span>
+                <span className="shrink-0 inline-flex items-center gap-1 text-[10px] font-semibold text-secondary/90 pt-0.5" title={r.usuario || 'sistema'}>
+                  <User className="w-3 h-3" /> {nombreUsuario(r.usuario)}
+                </span>
               </div>
             );
           })}
