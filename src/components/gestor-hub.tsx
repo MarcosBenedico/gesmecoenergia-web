@@ -39,7 +39,9 @@ async function api(url: string): Promise<any[] | null> {
 }
 
 export function GestorHub({ onIr }: { onIr: (seccion: string) => void }) {
-  const { veModulo } = useUsuario();
+  const { veModulo, cargando: cargandoPerfil } = useUsuario();
+  // Hasta conocer el perfil no se muestra ningún módulo (evita el destello de opciones prohibidas)
+  const ve = (m: string) => !cargandoPerfil && veModulo(m);
   const [app, setApp] = useState<KpisModulo>(SIN_CARGAR);
   const [correbin, setCorrebin] = useState<KpisModulo>(SIN_CARGAR);
   const [luz, setLuz] = useState<KpisModulo>(SIN_CARGAR);
@@ -202,7 +204,7 @@ export function GestorHub({ onIr }: { onIr: (seccion: string) => void }) {
           Áreas de negocio
         </p>
         <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {MODULOS.filter((mod) => veModulo(mod.modulo)).map((mod) => {
+          {MODULOS.filter((mod) => ve(mod.modulo)).map((mod) => {
             const Icono = mod.icono;
             return (
               <div
@@ -277,7 +279,7 @@ export function GestorHub({ onIr }: { onIr: (seccion: string) => void }) {
       </div>
 
       {/* ── Herramientas de energía (clásicas) ── */}
-      <div className={veModulo('herramientas') ? '' : 'hidden'}>
+      <div className={ve('herramientas') ? '' : 'hidden'}>
         <p className="text-[11px] font-bold uppercase tracking-[0.25em] text-muted mb-3">
           Herramientas de energía
         </p>
