@@ -12,7 +12,7 @@ import { tokenSesion } from '@/lib/usuario';
 // Componentes visuales compartidos (mismo estilo del panel)
 export {
   Card, Kpi, Badge, BadgeVencimiento, BadgePrioridad, EstadoCarga, SelectorResponsable,
-  inputCls, labelCls, btnPrimario, btnSecundario,
+  BotonDescarga, inputCls, labelCls, btnPrimario, btnSecundario,
 } from '../correbin/ui';
 
 /** Carga de un recurso del módulo Luz. */

@@ -6,10 +6,14 @@ import {
   ETAPA_LABEL, ESTADO_VCT_LABEL, SEGMENTO_LABEL, TIPO_TAREA_LABEL, diasHasta, enVentanaAlerta,
 } from '@/lib/correbin';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+function clienteSupabase(req: NextRequest) {
+  const auth = req.headers.get('authorization');
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    auth ? { global: { headers: { Authorization: auth } } } : undefined
+  );
+}
 
 /**
  * Exportaciones Excel. Respetan los filtros pasados como query params.
@@ -25,6 +29,7 @@ const cab = (ws: ExcelJS.Worksheet, anchos: number[]) => {
 };
 
 export async function GET(req: NextRequest) {
+  const supabase = clienteSupabase(req);
   const p = req.nextUrl.searchParams;
   const tipo = p.get('tipo') || 'cartera';
   const wb = new ExcelJS.Workbook();

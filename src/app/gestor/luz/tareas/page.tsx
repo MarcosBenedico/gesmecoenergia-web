@@ -7,7 +7,7 @@ import {
   LuzTarea, LuzCliente, TIPOS_TAREA, TIPO_TAREA_LABEL, ESTADOS_TAREA, ESTADO_TAREA_LABEL,
   TAREAS_ABIERTAS, diasHasta,
 } from '@/lib/luz';
-import { Card, Kpi, Badge, BadgeVencimiento, EstadoCarga, useListaLuz, guardarLuz, inputCls, labelCls, btnPrimario, btnSecundario, SelectorResponsable } from '../ui';
+import { BotonDescarga, Card, Kpi, Badge, BadgeVencimiento, EstadoCarga, useListaLuz, guardarLuz, inputCls, labelCls, btnPrimario, btnSecundario, SelectorResponsable } from '../ui';
 import { TableroTareas, bucketDeTarea, BucketTarea } from './tablero';
 import { CalendarioTareas } from './calendario';
 
@@ -208,9 +208,8 @@ export default function TareasLuzPage() {
               </button>
             ))}
           </div>
-          <a href="/api/luz/exportar?tipo=tareas" className={btnSecundario} download>
-            <Download className="w-4 h-4" />
-          </a>
+          <BotonDescarga href="/api/luz/exportar?tipo=tareas" className={btnSecundario}>
+            </BotonDescarga>
           <button onClick={() => setMostrarForm((v) => !v)} className={btnPrimario}>
             {mostrarForm ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />} {mostrarForm ? 'Cancelar' : 'Nueva tarea'}
           </button>

@@ -7,7 +7,7 @@ import {
   VctAnulacion, VctCliente, TIPOS_ANULACION, TIPO_ANULACION_LABEL, ANULACION_RESTA_CARTERA,
   fmtEur0, fmtFecha,
 } from '@/lib/correbin';
-import { Card, Kpi, Badge, EstadoCarga, useLista, guardar, inputCls, labelCls, btnPrimario, btnSecundario } from '../ui';
+import { BotonDescarga, Card, Kpi, Badge, EstadoCarga, useLista, guardar, inputCls, labelCls, btnPrimario, btnSecundario } from '../ui';
 
 const FORM_VACIO = {
   cliente_id: '', fecha_anulacion: new Date().toISOString().slice(0, 10),
@@ -57,9 +57,7 @@ export default function AnulacionesPage() {
           </p>
         </div>
         <div className="flex gap-2">
-          <a href={`/api/correbin/exportar?tipo=anulaciones${fTipo ? `&tipo_anulacion=${fTipo}` : ''}`} className={btnSecundario} download>
-            <Download className="w-4 h-4" /> Exportar
-          </a>
+          <BotonDescarga href={`/api/correbin/exportar?tipo=anulaciones${fTipo ? `&tipo_anulacion=${fTipo}` : ''}`} className={btnSecundario}>Exportar</BotonDescarga>
           <button onClick={() => setMostrarForm((v) => !v)} className={btnPrimario}>
             {mostrarForm ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />} {mostrarForm ? 'Cancelar' : 'Registrar'}
           </button>

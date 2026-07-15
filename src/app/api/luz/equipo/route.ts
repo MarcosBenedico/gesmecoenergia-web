@@ -1,10 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+function clienteSupabase(req: NextRequest) {
+  const auth = req.headers.get('authorization');
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    auth ? { global: { headers: { Authorization: auth } } } : undefined
+  );
+}
+type Supa = ReturnType<typeof clienteSupabase>;
 
 /**
  * Gestión del equipo (responsables) del grupo.
@@ -46,7 +51,7 @@ function reemplazar(responsable: string, origen: string, destino: string): strin
 }
 
 /** Cuenta y actualiza referencias de un nombre en todas las tablas. */
-async function procesarNombre(origen: string, destino: string | null): Promise<Record<string, number>> {
+async function procesarNombre(supabase: Supa, origen: string, destino: string | null): Promise<Record<string, number>> {
   const resultado: Record<string, number> = {};
   for (const tabla of TABLAS_CON_RESPONSABLE) {
     const { data, error } = await supabase.from(tabla).select('id, responsable').ilike('responsable', `%${origen}%`).limit(10000);
@@ -62,7 +67,8 @@ async function procesarNombre(origen: string, destino: string | null): Promise<R
   return resultado;
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const supabase = clienteSupabase(req);
   const { data: responsables, error } = await supabase.from('vct_responsables').select('*').order('nombre');
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
@@ -81,13 +87,14 @@ export async function GET() {
     });
   }
   for (const nombre of nombresEnDatos) {
-    usoPorNombre[nombre] = await procesarNombre(nombre, null);
+    usoPorNombre[nombre] = await procesarNombre(supabase, nombre, null);
   }
 
   return NextResponse.json({ ok: true, responsables: responsables || [], uso: usoPorNombre });
 }
 
 export async function POST(req: NextRequest) {
+  const supabase = clienteSupabase(req);
   try {
     const body = await req.json();
     const { accion } = body;
@@ -102,7 +109,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Origen y destino son el mismo.' }, { status: 400 });
       }
 
-      const cambios = await procesarNombre(origen, destino);
+      const cambios = await procesarNombre(supabase, origen, destino);
       const total = Object.values(cambios).reduce((s, n) => s + n, 0);
 
       if (accion === 'fusionar') {
@@ -126,7 +133,7 @@ export async function POST(req: NextRequest) {
       if (!id) return NextResponse.json({ error: 'Falta el id.' }, { status: 400 });
       // Bloquear si tiene registros vinculados
       if (nombre) {
-        const uso = await procesarNombre(nombre, null);
+        const uso = await procesarNombre(supabase, nombre, null);
         const total = Object.values(uso).reduce((s, n) => s + n, 0);
         if (total > 0) {
           return NextResponse.json({

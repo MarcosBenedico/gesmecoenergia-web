@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint .",
     "verify:supabase": "node scripts/check-supabase.mjs",
-    "setup:supabase": "echo 'Lee el archivo SUPABASE_SETUP.md para instrucciones' && cat SUPABASE_SETUP.md"
+    "setup:supabase": "echo 'Lee el archivo SUPABASE_SETUP.md para instrucciones' && cat SUPABASE_SETUP.md",
+    "smoke": "node scripts/smoke.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.110.0",

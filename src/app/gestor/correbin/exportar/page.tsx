@@ -5,7 +5,7 @@ import {
   Download, FolderOpen, CalendarDays, Users, TrendingUp, FileX, ArrowLeftRight,
   Target, BellRing, AlertTriangle, Crown, FlaskConical, Trash2, Loader,
 } from 'lucide-react';
-import { Card, btnPrimario, btnSecundario } from '../ui';
+import { BotonDescarga, Card, btnPrimario, btnSecundario } from '../ui';
 
 const EXPORTACIONES = [
   { tipo: 'cartera', icono: FolderOpen, nombre: 'Cartera viva', desc: 'Todas las pólizas vivas con prima, comisión, vencimiento, responsable y prioridad.' },
@@ -60,9 +60,9 @@ export default function ExportarPage() {
                   <p className="text-[11px] text-muted mt-0.5">{desc}</p>
                 </div>
               </div>
-              <a href={`/api/correbin/exportar?tipo=${tipo}`} className={`${btnSecundario} shrink-0 !px-3`} download title={`Descargar ${nombre}`}>
-                <Download className="w-4 h-4" />
-              </a>
+              <BotonDescarga href={`/api/correbin/exportar?tipo=${tipo}`} className={`${btnSecundario} shrink-0 !px-3`}>
+                Excel
+              </BotonDescarga>
             </div>
           </Card>
         ))}

@@ -8,7 +8,7 @@ import {
   LuzContrato, LuzCliente, LuzCups, ESTADOS_CONTRATO, ESTADO_CONTRATO_LABEL, CONTRATO_EN_CURSO,
   TARIFAS_ACCESO, diasHasta, fmtFecha,
 } from '@/lib/luz';
-import { Card, Kpi, Badge, EstadoCarga, useListaLuz, guardarLuz, inputCls, labelCls, btnPrimario, btnSecundario, SelectorResponsable } from '../ui';
+import { BotonDescarga, Card, Kpi, Badge, EstadoCarga, useListaLuz, guardarLuz, inputCls, labelCls, btnPrimario, btnSecundario, SelectorResponsable } from '../ui';
 
 const CONTRATO_VACIO = { cliente_id: '', cups_id: '', comercializadora_final: '', tarifa_acceso: '2.0TD', estado_contrato: 'pendiente_preparar', fecha_activacion_prevista: '', responsable: '' };
 
@@ -89,9 +89,7 @@ function ContratosContenido() {
           <p className="text-xs text-muted mt-0.5">Que ninguna venta se pierda después del sí: firma → envío → validación → activación.</p>
         </div>
         <div className="flex gap-2">
-          <a href={`/api/luz/exportar?tipo=contratos${fEstado ? `&estado_contrato=${fEstado}` : ''}`} className={btnSecundario} download>
-            <Download className="w-4 h-4" /> Exportar
-          </a>
+          <BotonDescarga href={`/api/luz/exportar?tipo=contratos${fEstado ? `&estado_contrato=${fEstado}` : ''}`} className={btnSecundario}>Exportar</BotonDescarga>
           <button onClick={() => setMostrarForm((v) => !v)} className={btnPrimario}>
             {mostrarForm ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />} {mostrarForm ? 'Cancelar' : 'Nuevo contrato'}
           </button>

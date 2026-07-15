@@ -7,7 +7,7 @@ import {
   VctProduccion, VctCliente, RAMOS, RAMO_LABEL, TIPOS_PRODUCCION, TIPO_PRODUCCION_LABEL,
   PRODUCCION_REAL, fmtEur0, fmtFecha,
 } from '@/lib/correbin';
-import { Card, Kpi, Badge, EstadoCarga, useLista, guardar, inputCls, labelCls, btnPrimario, btnSecundario, SelectorResponsable } from '../ui';
+import { BotonDescarga, Card, Kpi, Badge, EstadoCarga, useLista, guardar, inputCls, labelCls, btnPrimario, btnSecundario, SelectorResponsable } from '../ui';
 
 const FORM_VACIO = {
   cliente_id: '', fecha_emision: new Date().toISOString().slice(0, 10), fecha_efecto: '',
@@ -57,9 +57,7 @@ export default function ProduccionPage() {
           <p className="text-xs text-muted mt-0.5">Solo &quot;nueva&quot; y &quot;ampliación&quot; suman cartera real; el resto es movimiento técnico.</p>
         </div>
         <div className="flex gap-2">
-          <a href={`/api/correbin/exportar?tipo=produccion${fTipo ? `&tipo_produccion=${fTipo}` : ''}`} className={btnSecundario} download>
-            <Download className="w-4 h-4" /> Exportar
-          </a>
+          <BotonDescarga href={`/api/correbin/exportar?tipo=produccion${fTipo ? `&tipo_produccion=${fTipo}` : ''}`} className={btnSecundario}>Exportar</BotonDescarga>
           <button onClick={() => setMostrarForm((v) => !v)} className={btnPrimario}>
             {mostrarForm ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />} {mostrarForm ? 'Cancelar' : 'Registrar'}
           </button>

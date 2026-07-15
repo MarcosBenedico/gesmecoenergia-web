@@ -8,7 +8,7 @@ import {
   LuzOportunidad, LuzCliente, ESTADOS_PIPELINE, ESTADO_PIPELINE_LABEL, TIPOS_OPORTUNIDAD, TIPO_OPORTUNIDAD_LABEL,
   PIPELINE_CERRADO, PRIORIDADES, diasHasta, fmtEur, fmtFecha, fmtKwh,
 } from '@/lib/luz';
-import { Card, Kpi, Badge, BadgePrioridad, EstadoCarga, useListaLuz, guardarLuz, inputCls, labelCls, btnPrimario, btnSecundario, SelectorResponsable } from '../ui';
+import { BotonDescarga, Card, Kpi, Badge, BadgePrioridad, EstadoCarga, useListaLuz, guardarLuz, inputCls, labelCls, btnPrimario, btnSecundario, SelectorResponsable } from '../ui';
 import { TableroPipeline } from './tablero';
 
 const OP_VACIA = { cliente_id: '', tipo_oportunidad: 'cambio_comercializadora', comision_potencial: '', proxima_accion: '', fecha_proxima_accion: '', responsable: '' };
@@ -123,9 +123,7 @@ function PipelineContenido() {
               <Table2 className="w-3.5 h-3.5" /> Tabla
             </button>
           </div>
-          <a href={`/api/luz/exportar?tipo=pipeline${fEstado ? `&estado=${fEstado}` : ''}${fResp ? `&responsable=${encodeURIComponent(fResp)}` : ''}`} className={btnSecundario} download>
-            <Download className="w-4 h-4" /> Exportar
-          </a>
+          <BotonDescarga href={`/api/luz/exportar?tipo=pipeline${fEstado ? `&estado=${fEstado}` : ''}${fResp ? `&responsable=${encodeURIComponent(fResp)}` : ''}`} className={btnSecundario}>Exportar</BotonDescarga>
           <button onClick={() => setMostrarForm((v) => !v)} className={btnPrimario}>
             {mostrarForm ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />} {mostrarForm ? 'Cancelar' : 'Nueva oportunidad'}
           </button>

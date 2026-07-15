@@ -4,6 +4,13 @@ import { useCallback, useEffect, useState } from 'react';
 import { Plus, RefreshCw, Trash2, GitMerge, Pencil, X } from 'lucide-react';
 import { ROL_LABEL } from '@/lib/correbin';
 import { Card, guardarLuz, inputCls, labelCls, btnPrimario, btnSecundario } from '../ui';
+import { tokenSesion } from '@/lib/usuario';
+
+async function cabeceraSesion(): Promise<Record<string, string>> {
+  const token = await tokenSesion();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 
 interface Responsable { id: string; nombre: string; rol: string; activo: boolean }
 type Uso = Record<string, Record<string, number>>;
@@ -30,7 +37,7 @@ export default function EquipoPage() {
   const cargar = useCallback(async () => {
     setCargando(true);
     try {
-      const res = await fetch('/api/luz/equipo');
+      const res = await fetch('/api/luz/equipo', { headers: await cabeceraSesion() });
       const json = await res.json();
       if (!res.ok) { setError(json.error || 'Error cargando equipo.'); return; }
       setResponsables(json.responsables);
@@ -50,7 +57,7 @@ export default function EquipoPage() {
   async function accion(body: Record<string, unknown>, exito: string) {
     setOcupado(true); setMsg(''); setError('');
     try {
-      const res = await fetch('/api/luz/equipo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const res = await fetch('/api/luz/equipo', { method: 'POST', headers: { 'Content-Type': 'application/json', ...(await cabeceraSesion()) }, body: JSON.stringify(body) });
       const json = await res.json();
       if (!res.ok) { setError(json.error || 'Error.'); return false; }
       setMsg(exito + (json.registros_actualizados != null ? ` (${json.registros_actualizados} registro(s) actualizados)` : ''));

@@ -7,7 +7,7 @@ import {
   VctOportunidad, VctCliente, ETAPAS_PIPELINE, ETAPA_LABEL, RAMOS, RAMO_LABEL,
   PIPELINE_CERRADO, fmtEur0, fmtFecha,
 } from '@/lib/correbin';
-import { Card, Kpi, Badge, EstadoCarga, useLista, guardar, inputCls, labelCls, btnPrimario, btnSecundario, SelectorResponsable } from '../ui';
+import { BotonDescarga, Card, Kpi, Badge, EstadoCarga, useLista, guardar, inputCls, labelCls, btnPrimario, btnSecundario, SelectorResponsable } from '../ui';
 
 const COLOR_ETAPA: Record<string, string> = {
   prospecto: 'border-border/40', doc_solicitada: 'border-secondary/40', doc_recibida: 'border-blue-500/40',
@@ -87,7 +87,7 @@ export default function PipelinePage() {
           <p className="text-xs text-muted mt-0.5">Oportunidades vivas — NO es producción cerrada. Al ganar, se convierte en producción.</p>
         </div>
         <div className="flex gap-2">
-          <a href="/api/correbin/exportar?tipo=pipeline" className={btnSecundario} download><Download className="w-4 h-4" /> Exportar</a>
+          <BotonDescarga href="/api/correbin/exportar?tipo=pipeline" className={btnSecundario}>Exportar</BotonDescarga>
           <button onClick={() => setMostrarForm((v) => !v)} className={btnPrimario}>
             {mostrarForm ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />} {mostrarForm ? 'Cancelar' : 'Nueva oportunidad'}
           </button>

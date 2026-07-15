@@ -2,7 +2,14 @@
 
 import { useState } from 'react';
 import { Download, Upload, Loader, CheckCircle2, AlertCircle, ChevronRight, ChevronLeft, FlaskConical, Trash2 } from 'lucide-react';
-import { Card, btnPrimario, btnSecundario, inputCls } from '../ui';
+import { BotonDescarga, Card, btnPrimario, btnSecundario, inputCls } from '../ui';
+import { tokenSesion } from '@/lib/usuario';
+
+async function cabeceraSesion(): Promise<Record<string, string>> {
+  const token = await tokenSesion();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 
 /**
  * Importación / Exportación del módulo Luz.
@@ -50,7 +57,7 @@ export default function ImportarLuzPage() {
 
   async function llamar(body: Record<string, unknown>) {
     const res = await fetch('/api/luz/importar', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+      method: 'POST', headers: { 'Content-Type': 'application/json', ...(await cabeceraSesion()) }, body: JSON.stringify(body),
     });
     const json = await res.json();
     if (!res.ok) throw new Error(json.error || 'Error');
@@ -259,9 +266,9 @@ export default function ImportarLuzPage() {
         <p className="text-[11px] text-muted mb-3">En cada pantalla, el botón &quot;Exportar&quot; respeta los filtros aplicados. Aquí tienes los listados completos:</p>
         <div className="flex gap-2 flex-wrap">
           {EXPORTS.map(([t, n]) => (
-            <a key={t} href={`/api/luz/exportar?tipo=${t}`} className={`${btnSecundario} !text-xs`} download>
-              <Download className="w-3.5 h-3.5" /> {n}
-            </a>
+            <BotonDescarga key={t} href={`/api/luz/exportar?tipo=${t}`} className={`${btnSecundario} !text-xs`}>
+              {n}
+            </BotonDescarga>
           ))}
         </div>
       </Card>

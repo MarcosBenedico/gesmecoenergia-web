@@ -1,10 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+/** Cliente por petición: reenvía el token del usuario para que RLS aplique sus permisos. */
+function clienteSupabase(req: NextRequest) {
+  const auth = req.headers.get('authorization');
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    auth ? { global: { headers: { Authorization: auth } } } : undefined
+  );
+}
 
 /**
  * CRUD genérico del módulo Vencimientos y Cartera (Correbin).
@@ -142,6 +147,7 @@ function filtrarCampos(def: DefTabla, body: Record<string, unknown>) {
 }
 
 export async function GET(req: NextRequest, ctx: { params: Promise<{ tabla: string }> }) {
+  const supabase = clienteSupabase(req);
   const { tabla } = await ctx.params;
   const def = TABLAS[tabla];
   if (!def) return errorTabla();
@@ -179,6 +185,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ tabla: stri
 }
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ tabla: string }> }) {
+  const supabase = clienteSupabase(req);
   const { tabla } = await ctx.params;
   const def = TABLAS[tabla];
   if (!def) return errorTabla();
@@ -198,6 +205,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ tabla: str
 }
 
 export async function PUT(req: NextRequest, ctx: { params: Promise<{ tabla: string }> }) {
+  const supabase = clienteSupabase(req);
   const { tabla } = await ctx.params;
   const def = TABLAS[tabla];
   if (!def) return errorTabla();
@@ -228,6 +236,7 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ tabla: stri
 }
 
 export async function DELETE(req: NextRequest, ctx: { params: Promise<{ tabla: string }> }) {
+  const supabase = clienteSupabase(req);
   const { tabla } = await ctx.params;
   const def = TABLAS[tabla];
   if (!def) return errorTabla();

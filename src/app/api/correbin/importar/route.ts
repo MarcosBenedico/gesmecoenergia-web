@@ -4,10 +4,15 @@ import ExcelJS from 'exceljs';
 import { normalizarNombre, tituloVencimiento, SEGMENTO_COLOR } from '@/lib/correbin';
 import { leerExcel } from '@/lib/excel-lectura';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+function clienteSupabase(req: NextRequest) {
+  const auth = req.headers.get('authorization');
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    auth ? { global: { headers: { Authorization: auth } } } : undefined
+  );
+}
+type Supa = ReturnType<typeof clienteSupabase>;
 
 /**
  * Importación Excel del módulo Vencimientos y Cartera (manual, sin integración Avant/iSegur).
@@ -234,11 +239,11 @@ interface FilaAnotada {
   alertas: string[];
 }
 
-async function cargarCaches() {
-  const { data: clientes, error } = await supabase
+async function cargarCaches(sb: Supa) {
+  const { data: clientes, error } = await sb
     .from('vct_clientes').select('id, nombre, nif, segmento, prioridad, responsable');
   if (error) throw new Error(error.message);
-  const { data: polizas } = await supabase
+  const { data: polizas } = await sb
     .from('vct_polizas').select('id, cliente_id, numero_poliza, compania, ramo, fecha_vencimiento');
 
   const porNif = new Map<string, string>();
@@ -257,7 +262,7 @@ async function cargarCaches() {
   const polizasPorClienteNum = new Map(
     (polizas || []).filter((p) => p.numero_poliza).map((p) => [`${p.cliente_id}|${String(p.numero_poliza).trim().toUpperCase()}`, p.id])
   );
-  return { porNif, porNombre, infoCliente, clavesPoliza, polizasPorClienteNum };
+  return { sb, porNif, porNombre, infoCliente, clavesPoliza, polizasPorClienteNum };
 }
 
 function validarFila(tipo: string, fila: Fila, mapeo: Mapeo, caches: Awaited<ReturnType<typeof cargarCaches>>, vistasEnExcel: Set<string>): FilaAnotada {
@@ -324,7 +329,7 @@ async function resolverOCrearCliente(
   const existente = (nifNorm && caches.porNif.get(nifNorm)) || caches.porNombre.get(nombreNorm);
   if (existente) return { id: existente, creado: false };
 
-  const { data, error } = await supabase
+  const { data, error } = await caches.sb
     .from('vct_clientes')
     .insert([{
       nombre: nombre.trim(),
@@ -366,18 +371,19 @@ async function crearVencimiento(params: {
     ? { onConflict: 'poliza_id,fecha_vct' as const, ignoreDuplicates: true }
     : { ignoreDuplicates: true };
   // v3: nº de póliza (como texto) y compañía en el propio vencimiento
-  const { error } = await supabase.from('vct_vencimientos').upsert(
+  const { error } = await params.caches.sb.from('vct_vencimientos').upsert(
     { ...base, numero_poliza: params.numeroPoliza?.trim() || null, compania: params.compania?.trim() || null },
     opciones
   );
   // Compatibilidad: si las columnas v3 aún no existen (migración pendiente), guardar sin ellas
   if (error && /numero_poliza|compania|column/i.test(error.message)) {
-    await supabase.from('vct_vencimientos').upsert(base, opciones);
+    await params.caches.sb.from('vct_vencimientos').upsert(base, opciones);
   }
 }
 
 // ── POST: analizar / validar / importar ──
 export async function POST(req: NextRequest) {
+  const sb = clienteSupabase(req);
   try {
     const body = await req.json();
     const { accion, tipo } = body;
@@ -427,7 +433,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const caches = await cargarCaches();
+    const caches = await cargarCaches(sb);
     const vistasEnExcel = new Set<string>();
     const anotadas = filas.map((f) => validarFila(tipo, f, mapeo, caches, vistasEnExcel));
 
@@ -482,7 +488,7 @@ export async function POST(req: NextRequest) {
           const prima = aNumero(g('prima'));
           const venc = aFechaISO(g('vencimiento'));
           const ramo = mapRamo(g('ramo'));
-          const { data: pol, error: errPol } = await supabase.from('vct_polizas').insert([{
+          const { data: pol, error: errPol } = await sb.from('vct_polizas').insert([{
             cliente_id: clienteId,
             numero_poliza: g('poliza') || null,
             compania: g('compania'),
@@ -507,7 +513,7 @@ export async function POST(req: NextRequest) {
         }
 
         if (tipo === 'emisiones') {
-          const { error } = await supabase.from('vct_produccion').insert([{
+          const { error } = await sb.from('vct_produccion').insert([{
             cliente_id: clienteId,
             fecha_emision: aFechaISO(g('fecha_emision')),
             fecha_efecto: aFechaISO(g('fecha_efecto')),
@@ -527,7 +533,7 @@ export async function POST(req: NextRequest) {
           const numSust = g('poliza_sustituta').toUpperCase();
           const sustId = numSust ? caches.polizasPorClienteNum.get(`${clienteId}|${numSust}`) || null : null;
           const tipoAnul = sustId ? 'sustitucion_tecnica' : mapTipoAnul(g('motivo'));
-          const { error } = await supabase.from('vct_anulaciones').insert([{
+          const { error } = await sb.from('vct_anulaciones').insert([{
             cliente_id: clienteId,
             poliza_id: polizaId,
             fecha_anulacion: aFechaISO(g('fecha_anulacion')),
@@ -539,7 +545,7 @@ export async function POST(req: NextRequest) {
           }]);
           if (error) throw new Error(error.message);
           if (polizaId) {
-            await supabase.from('vct_polizas')
+            await sb.from('vct_polizas')
               .update({ estado: tipoAnul === 'sustitucion_tecnica' ? 'sustituida' : 'anulada' })
               .eq('id', polizaId);
           }
@@ -570,7 +576,7 @@ export async function POST(req: NextRequest) {
           const relId = rel ? caches.polizasPorClienteNum.get(`${clienteId}|${rel}`) || null : null;
 
           if (clase === 'mediador') {
-            const { error } = await supabase.from('vct_cambios_mediador').insert([{
+            const { error } = await sb.from('vct_cambios_mediador').insert([{
               cliente_id: clienteId, prima: importe, compania, ramo,
               fecha_solicitud: fecha, estado: 'detectado',
               observaciones: [num ? `Póliza ${num}` : '', motivo].filter(Boolean).join(' · ') || null,
@@ -578,7 +584,7 @@ export async function POST(req: NextRequest) {
             if (error) throw new Error(error.message);
           } else if (clase === 'anulacion') {
             const tipoAnul = relId || /sustitu/i.test(motivo) ? 'sustitucion_tecnica' : mapTipoAnul(motivo);
-            const { error } = await supabase.from('vct_anulaciones').insert([{
+            const { error } = await sb.from('vct_anulaciones').insert([{
               cliente_id: clienteId, poliza_id: polizaId,
               fecha_anulacion: fecha, prima: importe,
               motivo: motivo || null, tipo_anulacion: tipoAnul,
@@ -587,13 +593,13 @@ export async function POST(req: NextRequest) {
             }]);
             if (error) throw new Error(error.message);
             if (polizaId) {
-              await supabase.from('vct_polizas')
+              await sb.from('vct_polizas')
                 .update({ estado: tipoAnul === 'sustitucion_tecnica' ? 'sustituida' : 'anulada' })
                 .eq('id', polizaId);
             }
           } else {
             // Emisión o suplemento → producción
-            const { error } = await supabase.from('vct_produccion').insert([{
+            const { error } = await sb.from('vct_produccion').insert([{
               cliente_id: clienteId, poliza_id: polizaId,
               fecha_emision: fecha, fecha_efecto: fecha,
               ramo, compania, prima: importe,
@@ -609,7 +615,7 @@ export async function POST(req: NextRequest) {
         if (tipo === 'mediador') {
           const firmada = esSi(g('carta_firmada'));
           const entrada = aFechaISO(g('fecha_entrada'));
-          const { error } = await supabase.from('vct_cambios_mediador').insert([{
+          const { error } = await sb.from('vct_cambios_mediador').insert([{
             cliente_id: clienteId,
             prima: aNumero(g('prima')),
             carta_firmada: firmada,
@@ -628,13 +634,13 @@ export async function POST(req: NextRequest) {
 
     // Recalcular prima/comisión total de los clientes tocados
     if (tipo === 'cartera' && clientesTocados.size > 0) {
-      const { data: pols } = await supabase
+      const { data: pols } = await sb
         .from('vct_polizas')
         .select('cliente_id, prima_anual, comision, estado')
         .in('cliente_id', [...clientesTocados]);
       for (const cid of clientesTocados) {
         const vivas = (pols || []).filter((p) => p.cliente_id === cid && ['activa', 'viva', 'pendiente_revision', 'sin_datos'].includes(p.estado));
-        await supabase.from('vct_clientes').update({
+        await sb.from('vct_clientes').update({
           prima_total: vivas.reduce((s, p) => s + (Number(p.prima_anual) || 0), 0),
           comision_total: vivas.reduce((s, p) => s + (Number(p.comision) || 0), 0),
         }).eq('id', cid);

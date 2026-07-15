@@ -4,10 +4,15 @@ import ExcelJS from 'exceljs';
 import { normalizarNombre, normCups, tituloFechaCritica } from '@/lib/luz';
 import { leerExcel } from '@/lib/excel-lectura';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+function clienteSupabase(req: NextRequest) {
+  const auth = req.headers.get('authorization');
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    auth ? { global: { headers: { Authorization: auth } } } : undefined
+  );
+}
+type Supa = ReturnType<typeof clienteSupabase>;
 
 /**
  * Importación Excel del módulo Gestión Luz (manual, sin integración con comercializadoras).
@@ -225,10 +230,10 @@ interface Mapeo { [clave: string]: number }
 const val = (fila: Fila, mapeo: Mapeo, clave: string) =>
   mapeo[clave] != null && mapeo[clave] >= 0 ? (fila[mapeo[clave]] || '').trim() : '';
 
-async function cargarCaches() {
-  const { data: clientes, error } = await supabase.from('luz_clientes').select('id, nombre, nif, prioridad, responsable');
+async function cargarCaches(sb: Supa) {
+  const { data: clientes, error } = await sb.from('luz_clientes').select('id, nombre, nif, prioridad, responsable');
   if (error) throw new Error(error.message);
-  const { data: cupsList } = await supabase.from('luz_cups').select('id, cups, cliente_id');
+  const { data: cupsList } = await sb.from('luz_cups').select('id, cups, cliente_id');
 
   const porNif = new Map<string, string>();
   const porNombre = new Map<string, string>();
@@ -239,7 +244,7 @@ async function cargarCaches() {
     prioridadCliente.set(c.id, c.prioridad || 'C');
   }
   const cupsExistentes = new Map((cupsList || []).map((c) => [normCups(c.cups), { id: c.id, cliente_id: c.cliente_id }]));
-  return { porNif, porNombre, prioridadCliente, cupsExistentes };
+  return { sb, porNif, porNombre, prioridadCliente, cupsExistentes };
 }
 
 interface FilaAnotada { estado: 'ok' | 'incompleta' | 'duplicada' | 'error'; motivo: string; alertas: string[] }
@@ -301,7 +306,7 @@ async function resolverOCrearCliente(
   const existente = (nifNorm && caches.porNif.get(nifNorm)) || caches.porNombre.get(nombreNorm);
   if (existente) return { id: existente, creado: false };
 
-  const { data, error } = await supabase.from('luz_clientes')
+  const { data, error } = await caches.sb.from('luz_clientes')
     .insert([{ nombre: nombre.trim(), nif: nifNorm || null, ...extras }])
     .select('id, prioridad').single();
   if (error || !data) throw new Error(`No se pudo crear el cliente ${nombre}: ${error?.message}`);
@@ -312,11 +317,12 @@ async function resolverOCrearCliente(
 }
 
 async function crearFechaCritica(params: {
+  sb: Supa;
   cliente_id: string; cups_id: string | null; tipo: string; fecha: string;
   clienteNombre: string; cups: string; comercializadora: string | null;
   prioridad: string; responsable: string | null;
 }) {
-  await supabase.from('luz_fechas_criticas').upsert({
+  await params.sb.from('luz_fechas_criticas').upsert({
     cliente_id: params.cliente_id,
     cups_id: params.cups_id,
     tipo_fecha: params.tipo,
@@ -329,6 +335,7 @@ async function crearFechaCritica(params: {
 
 // ── POST ──
 export async function POST(req: NextRequest) {
+  const sb = clienteSupabase(req);
   try {
     const body = await req.json();
     const { accion, tipo } = body;
@@ -370,7 +377,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const caches = await cargarCaches();
+    const caches = await cargarCaches(sb);
     const vistas = new Set<string>();
     const anotadas = filas.map((f) => validarFila(tipo, f, mapeo, caches, vistas));
     const resumen = {
@@ -423,12 +430,12 @@ export async function POST(req: NextRequest) {
           if (existenteId) {
             clienteId = existenteId;
             if (Object.keys(datosCliente).length) {
-              await supabase.from('luz_clientes')
+              await sb.from('luz_clientes')
                 .update({ ...datosCliente, actualizado_en: new Date().toISOString() })
                 .eq('id', clienteId);
             }
           } else {
-            const { data: nuevo, error: errC } = await supabase.from('luz_clientes')
+            const { data: nuevo, error: errC } = await sb.from('luz_clientes')
               .insert([{ nombre: g('cliente').trim(), nif: nifNorm || null, ...datosCliente }])
               .select('id').single();
             if (errC || !nuevo) throw new Error(errC?.message || 'no se pudo crear el cliente');
@@ -442,7 +449,7 @@ export async function POST(req: NextRequest) {
 
           // Próxima acción → tarea de seguimiento
           if (g('proxima_accion')) {
-            await supabase.from('luz_tareas').insert([{
+            await sb.from('luz_tareas').insert([{
               cliente_id: clienteId, tipo_tarea: 'seguimiento',
               descripcion: g('proxima_accion'), responsable,
               fecha_limite: aFechaISO(g('fecha_accion')),
@@ -485,11 +492,11 @@ export async function POST(req: NextRequest) {
             const existenteCups = caches.cupsExistentes.get(cups);
             if (existenteCups) {
               cupsId = existenteCups.id;
-              await supabase.from('luz_cups')
+              await sb.from('luz_cups')
                 .update({ ...datosCups, actualizado_en: new Date().toISOString() })
                 .eq('id', cupsId);
             } else {
-              const { data: nuevoCups, error: errCups } = await supabase.from('luz_cups')
+              const { data: nuevoCups, error: errCups } = await sb.from('luz_cups')
                 .insert([{ cliente_id: clienteId, cups, estado_cups: 'factura_recibida', ...datosCups }])
                 .select('id').single();
               if (errCups) throw new Error(errCups.message);
@@ -501,14 +508,14 @@ export async function POST(req: NextRequest) {
               cliente_id: clienteId, cups_id: cupsId, clienteNombre: g('cliente'), cups,
               comercializadora: g('comercializadora') || null, prioridad, responsable,
             };
-            if (finContrato) await crearFechaCritica({ ...base, tipo: 'fin_contrato', fecha: finContrato });
-            if (finPermanencia) await crearFechaCritica({ ...base, tipo: 'fin_permanencia', fecha: finPermanencia });
-            if (fechaLimitePreaviso) await crearFechaCritica({ ...base, tipo: 'limite_preaviso', fecha: fechaLimitePreaviso });
+            if (finContrato) await crearFechaCritica({ ...base, sb, tipo: 'fin_contrato', fecha: finContrato });
+            if (finPermanencia) await crearFechaCritica({ ...base, sb, tipo: 'fin_permanencia', fecha: finPermanencia });
+            if (fechaLimitePreaviso) await crearFechaCritica({ ...base, sb, tipo: 'limite_preaviso', fecha: fechaLimitePreaviso });
           }
 
           // Comisión prevista
           if (aNumero(g('comision_prevista')) > 0) {
-            await supabase.from('luz_comisiones').insert([{
+            await sb.from('luz_comisiones').insert([{
               cliente_id: clienteId, cups_id: cupsId,
               comercializadora: g('comercializadora_final') || g('comercializadora') || null,
               importe_previsto: aNumero(g('comision_prevista')),
@@ -520,13 +527,13 @@ export async function POST(req: NextRequest) {
           // Activación (contrato activado + CUPS a "activado")
           const fechaAct = aFechaISO(g('fecha_activacion'));
           if (fechaAct) {
-            await supabase.from('luz_contratos').insert([{
+            await sb.from('luz_contratos').insert([{
               cliente_id: clienteId, cups_id: cupsId,
               comercializadora_final: g('comercializadora_final') || null,
               fecha_activacion_real: fechaAct, estado_contrato: 'activado', responsable,
             }]);
             if (cupsId) {
-              await supabase.from('luz_cups').update({
+              await sb.from('luz_cups').update({
                 estado_cups: 'activado',
                 ...(g('comercializadora_final') ? { comercializadora_actual: g('comercializadora_final') } : {}),
               }).eq('id', cupsId);
@@ -566,7 +573,7 @@ export async function POST(req: NextRequest) {
             : null;
           const consumo = aNumero(g('consumo'));
 
-          const { data: nuevo, error: errCups } = await supabase.from('luz_cups').insert([{
+          const { data: nuevo, error: errCups } = await sb.from('luz_cups').insert([{
             cliente_id: clienteId,
             cups,
             direccion_suministro: g('direccion') || null,
@@ -597,16 +604,16 @@ export async function POST(req: NextRequest) {
             cliente_id: clienteId, cups_id: nuevo!.id, clienteNombre: g('cliente'), cups,
             comercializadora: g('comercializadora') || null, prioridad, responsable,
           };
-          if (finContrato) await crearFechaCritica({ ...base, tipo: 'fin_contrato', fecha: finContrato });
-          if (finPermanencia) await crearFechaCritica({ ...base, tipo: 'fin_permanencia', fecha: finPermanencia });
-          if (fechaLimitePreaviso) await crearFechaCritica({ ...base, tipo: 'limite_preaviso', fecha: fechaLimitePreaviso });
+          if (finContrato) await crearFechaCritica({ ...base, sb, tipo: 'fin_contrato', fecha: finContrato });
+          if (finPermanencia) await crearFechaCritica({ ...base, sb, tipo: 'fin_permanencia', fecha: finPermanencia });
+          if (fechaLimitePreaviso) await crearFechaCritica({ ...base, sb, tipo: 'limite_preaviso', fecha: fechaLimitePreaviso });
           anot.alertas.forEach((a) => alertasGeneradas.push(`${g('cliente')} (${cups}): ${a}`));
         }
 
         if (tipo === 'pipeline') {
           const cupsRef = g('cups') ? caches.cupsExistentes.get(normCups(g('cups'))) : null;
           const proximaAccion = g('proxima_accion') || null;
-          const { data: op, error } = await supabase.from('luz_pipeline').insert([{
+          const { data: op, error } = await sb.from('luz_pipeline').insert([{
             cliente_id: clienteId,
             cups_id: cupsRef?.id || null,
             nombre_oportunidad: `${g('cliente')} · ${g('tipo_oportunidad') || 'oportunidad'}`,
@@ -622,7 +629,7 @@ export async function POST(req: NextRequest) {
           if (error) throw new Error(error.message);
           // Tarea automática si hay próxima acción
           if (proximaAccion && op) {
-            await supabase.from('luz_tareas').insert([{
+            await sb.from('luz_tareas').insert([{
               cliente_id: clienteId, pipeline_id: op.id, tipo_tarea: 'seguimiento',
               descripcion: proximaAccion, responsable, fecha_limite: aFechaISO(g('fecha_accion')),
             }]);
@@ -632,7 +639,7 @@ export async function POST(req: NextRequest) {
 
         if (tipo === 'contratos') {
           const cupsRef = g('cups') ? caches.cupsExistentes.get(normCups(g('cups'))) : null;
-          const { error } = await supabase.from('luz_contratos').insert([{
+          const { error } = await sb.from('luz_contratos').insert([{
             cliente_id: clienteId,
             cups_id: cupsRef?.id || null,
             comercializadora_final: g('comercializadora'),
@@ -651,7 +658,7 @@ export async function POST(req: NextRequest) {
           const cupsRef = g('cups') ? caches.cupsExistentes.get(normCups(g('cups'))) : null;
           const previsto = aNumero(g('importe_previsto'));
           const cobrado = aNumero(g('importe_cobrado'));
-          const { error } = await supabase.from('luz_comisiones').insert([{
+          const { error } = await sb.from('luz_comisiones').insert([{
             cliente_id: clienteId,
             cups_id: cupsRef?.id || null,
             comercializadora: g('comercializadora') || null,

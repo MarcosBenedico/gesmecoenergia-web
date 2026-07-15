@@ -3,6 +3,13 @@
 import { useState } from 'react';
 import { Download, Upload, Loader, CheckCircle2, AlertCircle, ChevronRight, ChevronLeft } from 'lucide-react';
 import { Card, btnPrimario, btnSecundario, inputCls } from '../ui';
+import { tokenSesion } from '@/lib/usuario';
+
+async function cabeceraSesion(): Promise<Record<string, string>> {
+  const token = await tokenSesion();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 
 /**
  * Asistente de importación Excel (manual, exportado desde Avant/iSegur):
@@ -68,7 +75,7 @@ export default function ImportarPage() {
       });
       const res = await fetch('/api/correbin/importar', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(await cabeceraSesion()) },
         body: JSON.stringify({ accion: 'analizar', tipo, archivo_base64: base64 }),
       });
       const json = await res.json();
@@ -92,7 +99,7 @@ export default function ImportarPage() {
     try {
       const res = await fetch('/api/correbin/importar', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(await cabeceraSesion()) },
         body: JSON.stringify({ accion: 'validar', tipo, mapeo, filas: analisis.filas }),
       });
       const json = await res.json();
@@ -113,7 +120,7 @@ export default function ImportarPage() {
     try {
       const res = await fetch('/api/correbin/importar', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(await cabeceraSesion()) },
         body: JSON.stringify({ accion: 'importar', tipo, mapeo, filas: analisis.filas }),
       });
       const json = await res.json();

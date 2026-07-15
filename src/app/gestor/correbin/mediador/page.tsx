@@ -6,7 +6,7 @@ import { Plus, X, Download } from 'lucide-react';
 import {
   VctCambioMediador, VctCliente, ESTADOS_CAMBIO_MEDIADOR, ESTADO_CM_LABEL, fmtEur0, fmtFecha,
 } from '@/lib/correbin';
-import { Card, Kpi, Badge, EstadoCarga, useLista, guardar, inputCls, labelCls, btnPrimario, btnSecundario, SelectorResponsable } from '../ui';
+import { BotonDescarga, Card, Kpi, Badge, EstadoCarga, useLista, guardar, inputCls, labelCls, btnPrimario, btnSecundario, SelectorResponsable } from '../ui';
 
 const FORM_VACIO = {
   cliente_id: '', prima: '', compania: '', ramo: '', carta_firmada: false,
@@ -50,9 +50,7 @@ export default function CambiosMediadorPage() {
           <p className="text-xs text-muted mt-0.5">Qué prima está pendiente de entrar a código Correbin y cuál ya está dentro.</p>
         </div>
         <div className="flex gap-2">
-          <a href={`/api/correbin/exportar?tipo=mediador${fEstado ? `&estado=${fEstado}` : ''}`} className={btnSecundario} download>
-            <Download className="w-4 h-4" /> Exportar
-          </a>
+          <BotonDescarga href={`/api/correbin/exportar?tipo=mediador${fEstado ? `&estado=${fEstado}` : ''}`} className={btnSecundario}>Exportar</BotonDescarga>
           <button onClick={() => setMostrarForm((v) => !v)} className={btnPrimario}>
             {mostrarForm ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />} {mostrarForm ? 'Cancelar' : 'Registrar'}
           </button>

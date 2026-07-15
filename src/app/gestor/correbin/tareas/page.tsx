@@ -7,7 +7,7 @@ import {
   VctCliente, VctTarea, TIPOS_TAREA, TIPO_TAREA_LABEL, ESTADOS_TAREA, ESTADO_TAREA_LABEL,
   TAREAS_ABIERTAS, estadoTareaCanonico, diasHasta,
 } from '@/lib/correbin';
-import { Card, Kpi, Badge, BadgeVencimiento, EstadoCarga, useLista, guardar, inputCls, labelCls, btnPrimario, btnSecundario, SelectorResponsable } from '../ui';
+import { BotonDescarga, Card, Kpi, Badge, BadgeVencimiento, EstadoCarga, useLista, guardar, inputCls, labelCls, btnPrimario, btnSecundario, SelectorResponsable } from '../ui';
 
 const FORM_VACIO = { titulo: '', descripcion: '', cliente_id: '', tipo_tarea: 'llamar_cliente', fecha_limite: '', prioridad: 'media', responsable: '', estado: 'pendiente' };
 
@@ -89,9 +89,7 @@ export default function TareasPage() {
           <p className="text-xs text-muted mt-0.5">Que ningún vencimiento importante se quede sin acción.</p>
         </div>
         <div className="flex gap-2">
-          <a href={`/api/correbin/exportar?tipo=tareas${fResp ? `&responsable=${encodeURIComponent(fResp)}` : ''}`} className={btnSecundario} download>
-            <Download className="w-4 h-4" /> Exportar abiertas
-          </a>
+          <BotonDescarga href={`/api/correbin/exportar?tipo=tareas${fResp ? `&responsable=${encodeURIComponent(fResp)}` : ''}`} className={btnSecundario}>Exportar abiertas</BotonDescarga>
           <button onClick={() => setMostrarForm((v) => !v)} className={btnPrimario}>
             {mostrarForm ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />} {mostrarForm ? 'Cancelar' : 'Nueva tarea'}
           </button>

@@ -8,7 +8,7 @@ import {
   LuzComision, LuzCliente, ESTADOS_COMISION, ESTADO_COMISION_LABEL, TIPOS_COMISION,
   TIPO_COMISION_LABEL, COMISION_PENDIENTE, diasHasta, fmtEur, fmtFecha,
 } from '@/lib/luz';
-import { Card, Kpi, Badge, EstadoCarga, useListaLuz, guardarLuz, inputCls, labelCls, btnPrimario, btnSecundario } from '../ui';
+import { BotonDescarga, Card, Kpi, Badge, EstadoCarga, useListaLuz, guardarLuz, inputCls, labelCls, btnPrimario, btnSecundario } from '../ui';
 
 const FORM_VACIO = {
   cliente_id: '', comercializadora: '', tipo_comision: 'desconocida',
@@ -64,9 +64,7 @@ function ComisionesContenido() {
           <p className="text-xs text-muted mt-0.5">Dinero previsto y cobrado de la cartera energética.</p>
         </div>
         <div className="flex gap-2">
-          <a href={`/api/luz/exportar?tipo=${fEspecial === 'pendientes' ? 'comisiones_pendientes' : 'comisiones'}${fEstado ? `&estado_comision=${fEstado}` : ''}${fCia ? `&comercializadora=${encodeURIComponent(fCia)}` : ''}`} className={btnSecundario} download>
-            <Download className="w-4 h-4" /> Exportar
-          </a>
+          <BotonDescarga href={`/api/luz/exportar?tipo=${fEspecial === 'pendientes' ? 'comisiones_pendientes' : 'comisiones'}${fEstado ? `&estado_comision=${fEstado}` : ''}${fCia ? `&comercializadora=${encodeURIComponent(fCia)}` : ''}`} className={btnSecundario}>Exportar</BotonDescarga>
           <button onClick={() => setMostrarForm((v) => !v)} className={btnPrimario}>
             {mostrarForm ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />} {mostrarForm ? 'Cancelar' : 'Registrar'}
           </button>

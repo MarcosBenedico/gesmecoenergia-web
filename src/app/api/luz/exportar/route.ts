@@ -8,10 +8,14 @@ import {
   COMISION_PENDIENTE, CONTRATO_EN_CURSO, TAREAS_ABIERTAS, diasHasta,
 } from '@/lib/luz';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+function clienteSupabase(req: NextRequest) {
+  const auth = req.headers.get('authorization');
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    auth ? { global: { headers: { Authorization: auth } } } : undefined
+  );
+}
 
 /**
  * Exportaciones Excel del módulo Luz. Respetan filtros por query params.
@@ -26,6 +30,7 @@ const cab = (ws: ExcelJS.Worksheet, anchos: number[]) => {
 };
 
 export async function GET(req: NextRequest) {
+  const supabase = clienteSupabase(req);
   const p = req.nextUrl.searchParams;
   const tipo = p.get('tipo') || 'cups';
   const f = (k: string) => p.get(k) || '';

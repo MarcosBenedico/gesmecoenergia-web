@@ -8,7 +8,7 @@ import {
   LuzFechaCritica, LuzCliente, LuzCups, TIPOS_FECHA, TIPO_FECHA_LABEL, TIPO_FECHA_TONO, PRIORIDADES,
   diasHasta, fmtFecha, tituloFechaCritica,
 } from '@/lib/luz';
-import { Card, BadgePrioridad, BadgeVencimiento, EstadoCarga, useListaLuz, guardarLuz, inputCls, labelCls, btnPrimario, btnSecundario, SelectorResponsable } from '../ui';
+import { BotonDescarga, Card, BadgePrioridad, BadgeVencimiento, EstadoCarga, useListaLuz, guardarLuz, inputCls, labelCls, btnPrimario, btnSecundario, SelectorResponsable } from '../ui';
 
 const FECHA_VACIA = { cliente_id: '', cups_id: '', tipo_fecha: 'fin_contrato', fecha: '', descripcion: '', responsable: '' };
 
@@ -182,9 +182,7 @@ function FechasContenido() {
           <button onClick={generarDesdeCups} disabled={generando} className={btnSecundario} title="Crear fechas críticas desde las fechas de los CUPS">
             <RefreshCw className={`w-4 h-4 ${generando ? 'animate-spin' : ''}`} /> Generar desde CUPS
           </button>
-          <a href={`/api/luz/exportar?tipo=fechas${fTipo ? `&tipo_fecha=${fTipo}` : ''}${fResp ? `&responsable=${encodeURIComponent(fResp)}` : ''}`} className={btnSecundario} download>
-            <Download className="w-4 h-4" />
-          </a>
+          <BotonDescarga href={`/api/luz/exportar?tipo=fechas${fTipo ? `&tipo_fecha=${fTipo}` : ''}${fResp ? `&responsable=${encodeURIComponent(fResp)}` : ''}`} className={btnSecundario}></BotonDescarga>
           {(['calendario', 'listado'] as const).map((v) => (
             <button key={v} onClick={() => setVista(v)} className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase ${vista === v ? 'bg-accent text-white' : 'bg-card/80 text-muted border border-border/50'}`}>{v}</button>
           ))}

@@ -1,7 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { AlertCircle, Loader } from 'lucide-react';
+import { AlertCircle, Loader, Download } from 'lucide-react';
+import { tokenSesion } from '@/lib/usuario';
 import {
   diasHasta, urgenciaVencimiento, PRIORIDAD_TONO, SEGMENTO_COLOR, SEGMENTO_LABEL,
   VctResponsable, Prioridad,
@@ -131,7 +132,10 @@ export function useLista<T>(recurso: string, params: Record<string, string> = {}
     setError('');
     try {
       const qs = new URLSearchParams(JSON.parse(claveParams)).toString();
-      const res = await fetch(`/api/correbin/${recurso}${qs ? `?${qs}` : ''}`);
+      const token = await tokenSesion();
+      const res = await fetch(`/api/correbin/${recurso}${qs ? `?${qs}` : ''}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
       const json = await res.json();
       if (!res.ok) {
         setFaltaMigracion(!!json.falta_migracion);
@@ -151,6 +155,37 @@ export function useLista<T>(recurso: string, params: Record<string, string> = {}
   useEffect(() => { recargar(); }, [recargar]);
 
   return { datos, cargando, error, faltaMigracion, recargar };
+}
+
+/** Botón de descarga de Excel autenticada (los <a href> no pueden enviar el token de sesión). */
+export function BotonDescarga({ href, children, className }: {
+  href: string;
+  children?: React.ReactNode;
+  className?: string;
+}) {
+  const [bajando, setBajando] = useState(false);
+  async function descargar() {
+    setBajando(true);
+    try {
+      const token = await tokenSesion();
+      const res = await fetch(href, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+      if (!res.ok) { alert('No se pudo generar el Excel. ¿Has iniciado sesión?'); return; }
+      const blob = await res.blob();
+      const nombre = res.headers.get('content-disposition')?.match(/filename="?([^";]+)/)?.[1] || 'exportacion.xlsx';
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = nombre; a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setBajando(false);
+    }
+  }
+  return (
+    <button onClick={descargar} disabled={bajando} className={className || btnSecundario}>
+      {bajando ? <Loader className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+      {children}
+    </button>
+  );
 }
 
 /** Badge de prioridad A/B/C/D del cliente. */
@@ -200,9 +235,10 @@ export function SelectorResponsable({ valor, onCambio, className }: {
 /** Guardado genérico contra la API del módulo. Devuelve mensaje de error o null si fue bien. */
 export async function guardar(recurso: string, metodo: 'POST' | 'PUT' | 'DELETE', body: Record<string, unknown>) {
   try {
+    const token = await tokenSesion();
     const res = await fetch(`/api/correbin/${recurso}`, {
       method: metodo,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
       body: JSON.stringify(body),
     });
     const json = await res.json();

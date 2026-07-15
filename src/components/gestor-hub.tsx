@@ -8,7 +8,7 @@ import {
   ClipboardList, CalendarDays, Loader,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { useUsuario } from '@/lib/usuario';
+import { useUsuario, tokenSesion } from '@/lib/usuario';
 
 /**
  * Hub de inicio del Panel de Gestión: las tres áreas de negocio con KPIs en vivo
@@ -28,7 +28,8 @@ const SIN_CARGAR: KpisModulo = { cargado: false, activo: false, lineas: [] };
 
 async function api(url: string): Promise<any[] | null> {
   try {
-    const res = await fetch(url);
+    const token = await tokenSesion();
+    const res = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
     if (!res.ok) return null;
     const json = await res.json();
     return json.datos || json.clientes || [];
