@@ -5,11 +5,11 @@ import Link from 'next/link';
 import { Plus, X, Download } from 'lucide-react';
 import {
   VctCliente, VctTarea, TIPOS_TAREA, TIPO_TAREA_LABEL, ESTADOS_TAREA, ESTADO_TAREA_LABEL,
-  TAREAS_ABIERTAS, diasHasta,
+  TAREAS_ABIERTAS, estadoTareaCanonico, diasHasta,
 } from '@/lib/correbin';
 import { Card, Kpi, Badge, BadgeVencimiento, EstadoCarga, useLista, guardar, inputCls, labelCls, btnPrimario, btnSecundario, SelectorResponsable } from '../ui';
 
-const FORM_VACIO = { titulo: '', descripcion: '', cliente_id: '', tipo_tarea: 'llamar_cliente', fecha_limite: '', prioridad: 'media', responsable: '' };
+const FORM_VACIO = { titulo: '', descripcion: '', cliente_id: '', tipo_tarea: 'llamar_cliente', fecha_limite: '', prioridad: 'media', responsable: '', estado: 'pendiente' };
 
 export default function TareasPage() {
   const { datos, cargando, error, faltaMigracion, recargar } = useLista<VctTarea>('tareas');
@@ -17,6 +17,8 @@ export default function TareasPage() {
 
   const [fEstado, setFEstado] = useState('abiertas');
   const [fResp, setFResp] = useState('');
+  const [fCliente, setFCliente] = useState('');
+  const [buscarCliente, setBuscarCliente] = useState('');
   const [mostrarForm, setMostrarForm] = useState(false);
   const [form, setForm] = useState(FORM_VACIO);
   const [errorForm, setErrorForm] = useState('');
@@ -33,12 +35,23 @@ export default function TareasPage() {
   const vencidas = abiertas.filter((t) => { const d = diasHasta(t.fecha_limite); return d != null && d < 0; });
   const paraHoy = abiertas.filter((t) => diasHasta(t.fecha_limite) === 0);
 
+  // Clientes con tareas (para el filtro por cliente), filtrados por el buscador
+  const clientesConTarea = useMemo(() => {
+    const ids = new Set(datos.map((t) => t.cliente_id).filter(Boolean));
+    const lista = clientes.datos.filter((c) => ids.has(c.id));
+    const q = buscarCliente.trim().toLowerCase();
+    return q ? lista.filter((c) => c.nombre.toLowerCase().includes(q)) : lista;
+  }, [datos, clientes.datos, buscarCliente]);
+
   const filtradas = useMemo(() => datos.filter((t) => {
+    // El filtro de estado compara sobre el estado equivalente actual (los históricos
+    // en_curso/completada/cancelada cuentan como pendiente/emitido/exclusión).
     if (fEstado === 'abiertas' && !TAREAS_ABIERTAS.includes(t.estado)) return false;
-    if (fEstado !== 'abiertas' && fEstado && t.estado !== fEstado) return false;
+    if (fEstado !== 'abiertas' && fEstado && estadoTareaCanonico(t.estado) !== fEstado) return false;
     if (fResp && t.responsable !== fResp) return false;
+    if (fCliente && t.cliente_id !== fCliente) return false;
     return true;
-  }).sort((a, b) => (a.fecha_limite || '9999').localeCompare(b.fecha_limite || '9999')), [datos, fEstado, fResp]);
+  }).sort((a, b) => (a.fecha_limite || '9999').localeCompare(b.fecha_limite || '9999')), [datos, fEstado, fResp, fCliente]);
 
   async function crear(e: React.FormEvent) {
     e.preventDefault();
@@ -123,6 +136,12 @@ export default function TareasPage() {
                 <label className={labelCls}>Responsable</label>
                 <SelectorResponsable valor={form.responsable} onCambio={(v) => setForm((f) => ({ ...f, responsable: v || '' }))} className={inputCls} />
               </div>
+              <div>
+                <label className={labelCls}>Estado</label>
+                <select className={inputCls} value={form.estado} onChange={set('estado')}>
+                  {ESTADOS_TAREA.map((es) => <option key={es} value={es}>{ESTADO_TAREA_LABEL[es]}</option>)}
+                </select>
+              </div>
             </div>
             {errorForm && <p className="text-xs text-red-400">{errorForm}</p>}
             <button type="submit" className={btnPrimario}>Crear tarea</button>
@@ -140,6 +159,25 @@ export default function TareasPage() {
           <option value="">Responsable: todos</option>
           {responsables.map((r) => <option key={r} value={r}>{r}</option>)}
         </select>
+        {/* Filtro por cliente (buscador + selector) */}
+        <input
+          className={`${selCls} w-36`}
+          value={buscarCliente}
+          onChange={(e) => setBuscarCliente(e.target.value)}
+          placeholder="Buscar cliente..."
+        />
+        <select className={`${selCls} max-w-52`} value={fCliente} onChange={(e) => setFCliente(e.target.value)}>
+          <option value="">Cliente: todos</option>
+          {fCliente && !clientesConTarea.some((c) => c.id === fCliente) && (
+            <option value={fCliente}>{clientes.datos.find((c) => c.id === fCliente)?.nombre || 'Cliente'}</option>
+          )}
+          {clientesConTarea.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+        </select>
+        {fCliente && (
+          <button onClick={() => { setFCliente(''); setBuscarCliente(''); }} className="text-xs font-semibold text-accent hover:text-accent-light">
+            ✕ Quitar cliente
+          </button>
+        )}
       </div>
 
       <EstadoCarga cargando={cargando} error={error} faltaMigracion={faltaMigracion}
@@ -154,12 +192,12 @@ export default function TareasPage() {
                 <div className="flex items-center gap-3 min-w-0">
                   <input
                     type="checkbox"
-                    checked={!abierta && t.estado === 'completada'}
-                    onChange={() => abierta && cambiar(t, { estado: 'completada', hecho_en: new Date().toISOString() })}
+                    checked={!abierta && estadoTareaCanonico(t.estado) === 'emitido'}
+                    onChange={() => abierta && cambiar(t, { estado: 'emitido', hecho_en: new Date().toISOString() })}
                     className="accent-[#22c55e] w-4 h-4 shrink-0"
                   />
                   <div className="min-w-0">
-                    <p className={`text-sm font-semibold truncate ${t.estado === 'completada' ? 'line-through' : ''}`}>
+                    <p className={`text-sm font-semibold truncate ${estadoTareaCanonico(t.estado) === 'emitido' ? 'line-through' : ''}`}>
                       {TIPO_TAREA_LABEL[t.tipo_tarea]?.split(' ')[0] || '📌'} {t.titulo}
                     </p>
                     <p className="text-[11px] text-muted truncate">
@@ -174,8 +212,8 @@ export default function TareasPage() {
                   {abierta && t.prioridad === 'alta' && <Badge tono="rojo">alta</Badge>}
                   {abierta && <BadgeVencimiento fecha={t.fecha_limite} />}
                   <select
-                    value={t.estado}
-                    onChange={(e) => cambiar(t, { estado: e.target.value, ...(e.target.value === 'completada' ? { hecho_en: new Date().toISOString() } : {}) })}
+                    value={estadoTareaCanonico(t.estado)}
+                    onChange={(e) => cambiar(t, { estado: e.target.value, ...(e.target.value === 'emitido' ? { hecho_en: new Date().toISOString() } : {}) })}
                     className={selCls}
                   >
                     {ESTADOS_TAREA.map((es) => <option key={es} value={es}>{ESTADO_TAREA_LABEL[es]}</option>)}

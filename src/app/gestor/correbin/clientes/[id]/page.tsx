@@ -397,7 +397,7 @@ export default function FichaCliente() {
                       checked={!TAREAS_ABIERTAS.includes(t.estado)}
                       onChange={async () => {
                         if (TAREAS_ABIERTAS.includes(t.estado)) {
-                          await guardar('tareas', 'PUT', { id: t.id, estado: 'completada', hecho_en: new Date().toISOString() });
+                          await guardar('tareas', 'PUT', { id: t.id, estado: 'emitido', hecho_en: new Date().toISOString() });
                           tareas.recargar();
                         }
                       }}

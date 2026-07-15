@@ -26,7 +26,8 @@ const TIPOS: Record<string, { nombre: string; campos: CampoDef[] }> = {
     campos: [
       { clave: 'cliente', nombre: 'Cliente', obligatorio: true, alias: ['cliente', 'nombre', 'tomador', 'asegurado', 'razon social'] },
       { clave: 'nif', nombre: 'CIF/NIF', alias: ['nif', 'cif', 'cif/nif', 'dni', 'documento'] },
-      { clave: 'poliza', nombre: 'Póliza', alias: ['poliza', 'nº poliza', 'num poliza', 'numero poliza', 'n poliza', 'contrato'] },
+      { clave: 'tipo_empresa', nombre: 'Tipo de empresa', alias: ['tipo de empresa', 'tipo empresa', 'tipo cliente'] },
+      { clave: 'poliza', nombre: 'Número de póliza', alias: ['numero de poliza', 'poliza', 'nº poliza', 'num poliza', 'numero poliza', 'n poliza', 'contrato'] },
       { clave: 'compania', nombre: 'Compañía', obligatorio: true, alias: ['compania', 'compañia', 'aseguradora', 'cia'] },
       { clave: 'ramo', nombre: 'Ramo', alias: ['ramo', 'producto', 'riesgo'] },
       { clave: 'prima', nombre: 'Prima', alias: ['prima', 'prima anual', 'prima neta', 'prima total', 'importe'] },
@@ -63,6 +64,8 @@ const TIPOS: Record<string, { nombre: string; campos: CampoDef[] }> = {
     nombre: 'Vencimientos',
     campos: [
       { clave: 'cliente', nombre: 'Cliente', obligatorio: true, alias: ['cliente', 'nombre', 'tomador', 'asegurado'] },
+      { clave: 'tipo_empresa', nombre: 'Tipo de empresa', alias: ['tipo de empresa', 'tipo empresa', 'tipo cliente', 'tipo'] },
+      { clave: 'poliza', nombre: 'Número de póliza', alias: ['numero de poliza', 'numero poliza', 'nº poliza', 'num poliza', 'poliza', 'n poliza', 'contrato'] },
       { clave: 'ramo', nombre: 'Ramo', alias: ['ramo', 'producto', 'riesgo'] },
       { clave: 'compania', nombre: 'Compañía', alias: ['compania', 'compañia', 'aseguradora', 'cia'] },
       { clave: 'prima', nombre: 'Prima', alias: ['prima', 'prima anual', 'importe'] },
@@ -153,13 +156,16 @@ export async function GET(req: NextRequest) {
   ws.columns.forEach((c) => { c.width = 20; });
 
   const EJEMPLOS: Record<string, (string | number)[]> = {
-    cartera: ['IBS Trans SL', 'B22001122', 'FL-778899', 'Allianz', 'Flota', 60000, '01/06/2026', 'Activa', 'Dirección'],
+    cartera: ['IBS Trans SL', 'B22001122', 'Pyme', 'FL-778899', 'Allianz', 'Flota', 60000, '01/06/2026', 'Activa', 'Dirección'],
     emisiones: ['Talleres Cinca SL', '15/02/2026', '01/03/2026', 'Multirriesgo', 'Mapfre', 4200, 630, 'Nueva'],
     anulaciones: ['Pérez García, Juan', 'HG-112233', '10/01/2026', 320, 'Cambio a banco', ''],
-    vencimientos: ['Ayuntamiento de Binéfar', 'RC', 'Zurich', 18000, '01/09/2026', '974428100', 'Dirección'],
+    vencimientos: ['Ayuntamiento de Binéfar', 'Institución', '0012-RC-4455', 'RC', 'Zurich', 18000, '01/09/2026', '974428100', 'Dirección'],
     mediador: ['Ganadería Litera SL', 8500, 'Sí', 'En trámite', ''],
   };
   ws.addRow(EJEMPLOS[tipo]);
+  // El nº de póliza siempre como texto (conserva ceros iniciales y guiones)
+  const idxPoliza = def.campos.findIndex((c) => c.clave === 'poliza');
+  if (idxPoliza >= 0) ws.getColumn(idxPoliza + 1).numFmt = '@';
 
   const buffer = await wb.xlsx.writeBuffer();
   return new NextResponse(buffer, {
@@ -260,7 +266,8 @@ function validarFila(tipo: string, fila: Fila, mapeo: Mapeo, caches: Awaited<Ret
 
 async function resolverOCrearCliente(
   nombre: string, nif: string, telefono: string, responsable: string,
-  caches: Awaited<ReturnType<typeof cargarCaches>>
+  caches: Awaited<ReturnType<typeof cargarCaches>>,
+  tipoEmpresa?: string
 ): Promise<{ id: string; creado: boolean }> {
   const nifNorm = nif.toUpperCase().replace(/[\s-]/g, '');
   const nombreNorm = normalizarNombre(nombre);
@@ -276,6 +283,8 @@ async function resolverOCrearCliente(
       responsable: responsable || null,
       prioridad: 'C',
       segmento: 'particular_ordinario',
+      // "Tipo de empresa" se guarda en el campo existente vct_clientes.tipo
+      ...(tipoEmpresa ? { tipo: tipoEmpresa.trim() } : {}),
     }])
     .select('id')
     .single();
@@ -289,22 +298,32 @@ async function resolverOCrearCliente(
 async function crearVencimiento(params: {
   cliente_id: string; poliza_id: string | null; fecha: string; clienteNombre: string;
   ramo: string; prima: number; compania: string; responsable: string | null;
+  numeroPoliza?: string;
   caches: Awaited<ReturnType<typeof cargarCaches>>;
 }) {
   const info = params.caches.infoCliente.get(params.cliente_id);
   const segmento = info?.segmento || 'particular_ordinario';
-  await supabase.from('vct_vencimientos').upsert(
-    {
-      cliente_id: params.cliente_id,
-      poliza_id: params.poliza_id,
-      fecha_vct: params.fecha,
-      titulo_evento: tituloVencimiento(params.clienteNombre, params.ramo, params.prima, params.compania),
-      segmento,
-      color: SEGMENTO_COLOR[segmento]?.nombre || 'gris',
-      responsable: params.responsable,
-    },
-    params.poliza_id ? { onConflict: 'poliza_id,fecha_vct', ignoreDuplicates: true } : { ignoreDuplicates: true }
+  const base = {
+    cliente_id: params.cliente_id,
+    poliza_id: params.poliza_id,
+    fecha_vct: params.fecha,
+    titulo_evento: tituloVencimiento(params.clienteNombre, params.ramo, params.prima, params.compania),
+    segmento,
+    color: SEGMENTO_COLOR[segmento]?.nombre || 'gris',
+    responsable: params.responsable,
+  };
+  const opciones = params.poliza_id
+    ? { onConflict: 'poliza_id,fecha_vct' as const, ignoreDuplicates: true }
+    : { ignoreDuplicates: true };
+  // v3: nº de póliza (como texto) y compañía en el propio vencimiento
+  const { error } = await supabase.from('vct_vencimientos').upsert(
+    { ...base, numero_poliza: params.numeroPoliza?.trim() || null, compania: params.compania?.trim() || null },
+    opciones
   );
+  // Compatibilidad: si las columnas v3 aún no existen (migración pendiente), guardar sin ellas
+  if (error && /numero_poliza|compania|column/i.test(error.message)) {
+    await supabase.from('vct_vencimientos').upsert(base, opciones);
+  }
 }
 
 // ── POST: analizar / validar / importar ──
@@ -385,6 +404,16 @@ export async function POST(req: NextRequest) {
     const erroresImport: string[] = [];
     const clientesTocados = new Set<string>();
 
+    // Plantillas antiguas: si faltan las columnas nuevas, se importa igual con aviso
+    if (tipo === 'cartera' || tipo === 'vencimientos') {
+      if ((mapeo['tipo_empresa'] ?? -1) < 0) {
+        alertasGeneradas.push('Plantilla sin columna "Tipo de empresa": el campo queda vacío en los registros importados.');
+      }
+      if ((mapeo['poliza'] ?? -1) < 0) {
+        alertasGeneradas.push('Plantilla sin columna "Número de póliza": el campo queda vacío en los registros importados.');
+      }
+    }
+
     for (let i = 0; i < filas.length; i++) {
       const anot = anotadas[i];
       if (anot.estado === 'duplicada' || anot.estado === 'error') continue;
@@ -393,7 +422,7 @@ export async function POST(req: NextRequest) {
 
       try {
         const { id: clienteId, creado } = await resolverOCrearCliente(
-          g('cliente'), g('nif'), g('contacto'), g('responsable'), caches
+          g('cliente'), g('nif'), g('contacto'), g('responsable'), caches, g('tipo_empresa')
         );
         if (creado) clientesCreados++;
         clientesTocados.add(clienteId);
@@ -421,7 +450,7 @@ export async function POST(req: NextRequest) {
           if (venc) {
             await crearVencimiento({
               cliente_id: clienteId, poliza_id: pol!.id, fecha: venc, clienteNombre: g('cliente'),
-              ramo, prima, compania: g('compania'), responsable, caches,
+              ramo, prima, compania: g('compania'), responsable, numeroPoliza: g('poliza'), caches,
             });
           }
           anot.alertas.forEach((a) => alertasGeneradas.push(`${g('cliente')}: ${a}`));
@@ -468,10 +497,13 @@ export async function POST(req: NextRequest) {
         }
 
         if (tipo === 'vencimientos') {
+          // Si viene nº de póliza, intentar vincular con una póliza existente del cliente
+          const numPol = g('poliza');
+          const polizaId = numPol ? caches.polizasPorClienteNum.get(`${clienteId}|${numPol.toUpperCase()}`) || null : null;
           await crearVencimiento({
-            cliente_id: clienteId, poliza_id: null, fecha: aFechaISO(g('fecha_vct'))!,
+            cliente_id: clienteId, poliza_id: polizaId, fecha: aFechaISO(g('fecha_vct'))!,
             clienteNombre: g('cliente'), ramo: mapRamo(g('ramo')), prima: aNumero(g('prima')),
-            compania: g('compania'), responsable, caches,
+            compania: g('compania'), responsable, numeroPoliza: numPol, caches,
           });
         }
 

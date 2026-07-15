@@ -47,8 +47,8 @@ const TABLAS: Record<string, DefTabla> = {
   },
   vencimientos: {
     tabla: 'vct_vencimientos',
-    select: '*, vct_clientes(nombre, prioridad)',
-    columnas: ['cliente_id', 'poliza_id', 'fecha_vct', 'titulo_evento', 'segmento', 'color', 'estado_vencimiento', 'responsable', 'fecha_ultimo_contacto', 'proxima_accion', 'fecha_proxima_accion', 'observaciones'],
+    select: '*, vct_clientes(nombre, prioridad, tipo), vct_polizas(numero_poliza, compania)',
+    columnas: ['cliente_id', 'poliza_id', 'fecha_vct', 'titulo_evento', 'segmento', 'color', 'estado_vencimiento', 'responsable', 'fecha_ultimo_contacto', 'proxima_accion', 'fecha_proxima_accion', 'observaciones', 'numero_poliza', 'compania'],
     filtros: ['cliente_id', 'poliza_id', 'segmento', 'estado_vencimiento', 'responsable'],
     orden: { col: 'fecha_vct', asc: true },
     conActualizado: true,

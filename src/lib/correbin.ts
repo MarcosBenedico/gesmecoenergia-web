@@ -239,11 +239,17 @@ export const TIPO_TAREA_LABEL: Record<string, string> = {
   derivar_asesoria: '📋 Derivar a asesoría',
 };
 
-export const ESTADOS_TAREA = ['pendiente', 'en_curso', 'completada', 'bloqueada', 'cancelada'] as const;
+export const ESTADOS_TAREA = ['pendiente', 'emitido', 'bloqueada', 'exclusion'] as const;
 export const ESTADO_TAREA_LABEL: Record<string, string> = {
-  pendiente: 'Pendiente', en_curso: 'En curso', completada: 'Completada',
-  bloqueada: 'Bloqueada', cancelada: 'Cancelada', hecha: 'Completada',
+  pendiente: 'Pendiente', emitido: 'Emitido', bloqueada: 'Bloqueada', exclusion: 'Exclusión',
+  // Estados históricos (registros anteriores): se muestran con su equivalente actual
+  en_curso: 'Pendiente', completada: 'Emitido', hecha: 'Emitido', cancelada: 'Exclusión',
 };
+/** Equivalencia de estados históricos → estado actual (no se tocan los datos guardados). */
+export const TAREA_ESTADO_EQUIVALENTE: Record<string, string> = {
+  en_curso: 'pendiente', completada: 'emitido', hecha: 'emitido', cancelada: 'exclusion',
+};
+export const estadoTareaCanonico = (e: string): string => TAREA_ESTADO_EQUIVALENTE[e] || e;
 export const TAREAS_ABIERTAS: string[] = ['pendiente', 'en_curso', 'bloqueada'];
 
 // ─────────────────────────────────────────────
@@ -319,7 +325,22 @@ export interface VctVencimiento {
   proxima_accion: string | null;
   fecha_proxima_accion: string | null;
   observaciones: string | null;
-  vct_clientes?: { nombre: string; prioridad?: string } | null;
+  /** v3: guardados en el propio vencimiento (importación directa) */
+  numero_poliza?: string | null;
+  compania?: string | null;
+  vct_clientes?: { nombre: string; prioridad?: string; tipo?: string | null } | null;
+  vct_polizas?: { numero_poliza: string | null; compania: string | null } | null;
+}
+
+/** Tomador, nº de póliza y compañía de un vencimiento (campo propio → póliza vinculada → título). */
+export function infoVencimiento(v: VctVencimiento): { tomador: string; poliza: string; compania: string } {
+  // El título automático tiene la forma: "VTO - Cliente - Ramo - Prima - Compañía"
+  const partes = (v.titulo_evento || '').split(' - ');
+  return {
+    tomador: v.vct_clientes?.nombre || (partes.length >= 2 ? partes[1] : '') || '—',
+    poliza: v.numero_poliza || v.vct_polizas?.numero_poliza || '—',
+    compania: v.compania || v.vct_polizas?.compania || (partes.length >= 5 ? partes[partes.length - 1] : '') || '—',
+  };
 }
 
 export interface VctProduccion {
