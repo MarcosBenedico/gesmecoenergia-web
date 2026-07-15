@@ -43,7 +43,7 @@ export default function FichaClienteLuz() {
   const [editCupsId, setEditCupsId] = useState<string | null>(null);
   const [formEditCups, setFormEditCups] = useState<Record<string, string>>({});
   const [formOp, setFormOp] = useState<{ tipo_oportunidad: string; comision_potencial: string; proxima_accion: string; fecha_proxima_accion: string } | null>(null);
-  const [formFecha, setFormFecha] = useState<{ tipo_fecha: string; fecha: string; descripcion: string } | null>(null);
+  const [formFecha, setFormFecha] = useState<{ tipo_fecha: string; fecha: string; descripcion: string; cups_id: string } | null>(null);
   const [formContrato, setFormContrato] = useState<{ comercializadora_final: string; estado_contrato: string; fecha_activacion_prevista: string } | null>(null);
   const [formCom, setFormCom] = useState<{ comercializadora: string; tipo_comision: string; importe_previsto: string; fecha_prevista_cobro: string } | null>(null);
   const [msg, setMsg] = useState('');
@@ -167,9 +167,11 @@ export default function FichaClienteLuz() {
   async function crearFecha(e: React.FormEvent) {
     e.preventDefault();
     if (!formFecha?.fecha || !cliente) { setMsg('Indica la fecha.'); return; }
+    const cupsSel = cups.datos.find((c) => c.id === formFecha.cups_id);
     const err = await guardarLuz('fechas', 'POST', {
-      cliente_id: clienteId, tipo_fecha: formFecha.tipo_fecha, fecha: formFecha.fecha,
-      titulo: tituloFechaCritica(cliente.nombre, '', formFecha.tipo_fecha, null),
+      cliente_id: clienteId, cups_id: formFecha.cups_id || null,
+      tipo_fecha: formFecha.tipo_fecha, fecha: formFecha.fecha,
+      titulo: tituloFechaCritica(cliente.nombre, cupsSel?.cups || '', formFecha.tipo_fecha, cupsSel?.comercializadora_actual),
       descripcion: formFecha.descripcion || null,
       prioridad: cliente.prioridad || 'C', responsable: cliente.responsable,
     });
@@ -474,7 +476,7 @@ export default function FichaClienteLuz() {
         <Card>
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-bold text-foreground">Fechas críticas</h3>
-            <button onClick={() => setFormFecha(formFecha ? null : { tipo_fecha: 'fin_contrato', fecha: '', descripcion: '' })} className={btnSecundario}>
+            <button onClick={() => setFormFecha(formFecha ? null : { tipo_fecha: 'fin_contrato', fecha: '', descripcion: '', cups_id: '' })} className={btnSecundario}>
               {formFecha ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />} Fecha
             </button>
           </div>
@@ -486,18 +488,34 @@ export default function FichaClienteLuz() {
                 </select>
                 <input className={inputCls} type="date" value={formFecha.fecha} onChange={(e) => setFormFecha({ ...formFecha, fecha: e.target.value })} />
               </div>
+              <select className={inputCls} value={formFecha.cups_id} onChange={(e) => setFormFecha({ ...formFecha, cups_id: e.target.value })}>
+                <option value="">— Todo el cliente (sin CUPS concreto) —</option>
+                {cups.datos.map((c) => <option key={c.id} value={c.id}>{c.alias_suministro || c.cups}</option>)}
+              </select>
               <input className={inputCls} value={formFecha.descripcion} onChange={(e) => setFormFecha({ ...formFecha, descripcion: e.target.value })} placeholder="Descripción opcional" />
               <button type="submit" className={btnPrimario}>Crear</button>
             </form>
           )}
           {fechas.datos.length === 0 ? <p className="text-sm text-muted text-center py-3">Sin fechas críticas pendientes.</p> : (
             <div className="space-y-1.5">
-              {fechas.datos.map((f) => (
-                <div key={f.id} className="flex items-center justify-between gap-2 p-2.5 rounded-lg bg-card/60">
-                  <p className="text-xs font-semibold truncate">{f.titulo}</p>
-                  <BadgeVencimiento fecha={f.fecha} />
-                </div>
-              ))}
+              {fechas.datos.map((f) => {
+                const cupsF = f.cups_id ? cups.datos.find((c) => c.id === f.cups_id) : null;
+                return (
+                  <div key={f.id} className="flex items-center justify-between gap-2 p-2.5 rounded-lg bg-card/60">
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold truncate">{f.titulo}</p>
+                      {cupsF && <p className="text-[10px] text-muted truncate">🔌 {cupsF.alias_suministro || cupsF.cups}</p>}
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <BadgeVencimiento fecha={f.fecha} />
+                      <button
+                        onClick={async () => { if (confirm(`¿Eliminar "${f.titulo}"?`)) { await guardarLuz('fechas', 'DELETE', { id: f.id }); fechas.recargar(); } }}
+                        className="text-muted hover:text-red-400 text-xs" title="Eliminar"
+                      >✕</button>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </Card>
