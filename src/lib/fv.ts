@@ -180,6 +180,134 @@ export function repartoIntervalo(consumo: number, generacion: number) {
   };
 }
 
+/* ═══════════ FRANJA DE CONSUMO Y OPTIMIZACIÓN PLACAS/BATERÍA ═══════════ */
+
+/**
+ * Franja del consumo FUERTE del cliente. No es todo su consumo, pero sí dónde
+ * se concentra: determina cuánta producción solar se aprovecha directamente
+ * (coincidencia) y cuánto valor añade una batería (trasladar el sol del
+ * mediodía a las horas de consumo).
+ */
+export const FRANJAS_CONSUMO = ['manana', 'mediodia', 'tarde', 'diurno', 'noche', 'todo_dia'] as const;
+export type FranjaConsumo = (typeof FRANJAS_CONSUMO)[number];
+
+export const FRANJA_LABEL: Record<string, string> = {
+  manana: '🌅 Por la mañana', mediodia: '☀️ A mediodía', tarde: '🌇 Por la tarde',
+  diurno: '🌤️ Durante el día', noche: '🌙 Por la noche', todo_dia: '🔄 Todo el día',
+};
+
+/**
+ * Perfil solar de cada franja:
+ *  - coincidencia: % de la producción que se autoconsume SIN batería (el sol produce
+ *    ~70 % de su energía entre las 11h y las 17h; cuanto más lejos el consumo de ese
+ *    pico, menor coincidencia).
+ *  - utilBateria: cuánto sentido tiene desplazar energía con batería en esa franja.
+ * Valores orientativos de diseño, ajustables con la curva real del cliente.
+ */
+export const PERFIL_FRANJA: Record<string, { coincidencia: number; utilBateria: 'baja' | 'media' | 'alta'; explicacion: string }> = {
+  mediodia: { coincidencia: 75, utilBateria: 'baja', explicacion: 'El consumo fuerte coincide con el pico solar (11h–17h): la mayoría de la producción se aprovecha al momento y la batería aporta poco.' },
+  diurno: { coincidencia: 65, utilBateria: 'media', explicacion: 'Consumo repartido en horas de sol: buena coincidencia directa; una batería pequeña rescata el excedente del mediodía para primera y última hora.' },
+  manana: { coincidencia: 50, utilBateria: 'media', explicacion: 'El sol de primera hora es más débil: parte del pico de mediodía sobra. La batería puede guardarlo para la mañana siguiente o la tarde.' },
+  tarde: { coincidencia: 40, utilBateria: 'alta', explicacion: 'El pico solar es a mediodía y el consumo por la tarde: sin batería gran parte se vierte a red a precio bajo; con batería esa energía se traslada a la tarde.' },
+  noche: { coincidencia: 25, utilBateria: 'alta', explicacion: 'De noche no hay sol: casi toda la producción sobraría. La batería es la pieza clave — guarda el día para consumirlo de noche.' },
+  todo_dia: { coincidencia: 55, utilBateria: 'media', explicacion: 'Consumo continuo (frío industrial, granja...): coincidencia media de forma natural y batería útil para las horas sin sol.' },
+};
+
+/** Capacidad útil (kWh) de las baterías del catálogo de Óscar (~90 % de profundidad de descarga). */
+export const CAPACIDAD_BATERIA: Record<string, number> = { 'BAT-FEL-16': 14.4, 'BAT-EVE-32': 28.8 };
+
+/** Una línea de justificación: qué, cómo se calcula, cuánto da y de dónde sale. */
+export interface LineaJustificacion { concepto: string; formula: string; valor: string; fuente: string }
+
+export interface OpcionBateria {
+  codigo: string | null;          // null = sin batería
+  nombre: string;
+  capacidad_util: number;         // kWh
+  coste: number;                  // € sin IVA (0 si no hay)
+  pct_auto_efectivo: number;      // coincidencia + aporte batería
+  aporte_anual_kwh: number;       // energía desplazada por la batería al año
+  inversion: number;
+  ahorro_neto_anual: number;
+  amortizacion: number | null;
+  elegida: boolean;
+}
+
+/**
+ * ALGORITMO placas/batería: para un dimensionado dado, prueba cada opción de
+ * batería del catálogo (incluida "sin batería"), calcula cuánta producción
+ * extra aprovecha, su ahorro y su amortización, y elige la de MENOR
+ * amortización (la más rentable para el cliente). Todo queda justificado.
+ */
+export function optimizarBateria(e: {
+  produccion_anual_kwh: number;
+  coincidencia_pct: number;           // autoconsumo directo sin batería (por franja)
+  inversion_placas: number;           // € sin IVA del sistema sin batería
+  precio_kwh: number; precio_compensacion: number; mantenimiento_anual: number;
+  baterias: { codigo: string; nombre: string; coste: number }[];
+}): { opciones: OpcionBateria[]; elegida: OpcionBateria } {
+  const excedenteAnual = e.produccion_anual_kwh * (1 - e.coincidencia_pct / 100);
+  const excedenteDiario = excedenteAnual / 365;
+
+  const opciones: OpcionBateria[] = [
+    { codigo: null, nombre: 'Sin batería', capacidad_util: 0, coste: 0 },
+    ...e.baterias.map((b) => ({ codigo: b.codigo, nombre: b.nombre, capacidad_util: CAPACIDAD_BATERIA[b.codigo] || 10, coste: b.coste })),
+  ].map((b) => {
+    // La batería desplaza como mucho un ciclo diario: min(capacidad útil, excedente del día)
+    const aporteDiario = Math.min(b.capacidad_util, excedenteDiario);
+    const aporteAnual = r2(aporteDiario * 365);
+    const pctEfectivo = Math.min(e.coincidencia_pct + (e.produccion_anual_kwh > 0 ? (aporteAnual / e.produccion_anual_kwh) * 100 : 0), 95);
+    const inversion = r2(e.inversion_placas + b.coste);
+    const a = ahorroSimple({
+      produccion_anual_kwh: e.produccion_anual_kwh, pct_autoconsumo: r2(pctEfectivo),
+      precio_kwh_evitado: e.precio_kwh, precio_compensacion: e.precio_compensacion,
+      mantenimiento_anual: e.mantenimiento_anual, inversion,
+    });
+    return {
+      codigo: b.codigo, nombre: b.nombre, capacidad_util: b.capacidad_util, coste: b.coste,
+      pct_auto_efectivo: r2(pctEfectivo), aporte_anual_kwh: aporteAnual,
+      inversion, ahorro_neto_anual: a.ahorro_neto_anual, amortizacion: a.amortizacion_anios, elegida: false,
+    };
+  });
+
+  // La más rentable = menor amortización (empate → menor inversión). Sin ahorro positivo → sin batería.
+  const validas = opciones.filter((o) => o.amortizacion != null);
+  const elegida = (validas.length ? validas : opciones).reduce((mejor, o) =>
+    (o.amortizacion ?? Infinity) < (mejor.amortizacion ?? Infinity) - 0.05
+    || ((Math.abs((o.amortizacion ?? Infinity) - (mejor.amortizacion ?? Infinity)) <= 0.05) && o.inversion < mejor.inversion)
+      ? o : mejor
+  );
+  elegida.elegida = true;
+  return { opciones, elegida };
+}
+
+/**
+ * ¿Dónde rinde más el siguiente euro: en más placas o en más batería?
+ * Compara el ahorro marginal por € invertido de ambas ampliaciones.
+ */
+export function siguienteEuro(e: {
+  produccion_anual_kwh: number; coincidencia_pct: number; pct_auto_efectivo: number;
+  precio_kwh: number; precio_compensacion: number; coste_por_kwp: number; coste_por_kwh_bateria: number;
+  prod_especifica: number;
+}): { mejor: 'placas' | 'bateria' | 'ninguna'; retorno_placas: number; retorno_bateria: number; texto: string } {
+  // +1 kWp de placas: produce prod_especifica kWh más, aprovechados según el % efectivo actual
+  const ahorroKwpExtra = e.prod_especifica * ((e.pct_auto_efectivo / 100) * e.precio_kwh + (1 - e.pct_auto_efectivo / 100) * e.precio_compensacion);
+  const retornoPlacas = e.coste_por_kwp > 0 ? ahorroKwpExtra / e.coste_por_kwp : 0;
+
+  // +1 kWh de batería: convierte excedente (compensado) en autoconsumo (evitado), un ciclo/día
+  const excedenteDiario = (e.produccion_anual_kwh * (1 - e.pct_auto_efectivo / 100)) / 365;
+  const ciclosUtiles = Math.min(1, Math.max(excedenteDiario, 0)); // si no sobra energía, la batería no carga
+  const ahorroKwhBateria = ciclosUtiles * 365 * (e.precio_kwh - e.precio_compensacion);
+  const retornoBateria = e.coste_por_kwh_bateria > 0 ? ahorroKwhBateria / e.coste_por_kwh_bateria : 0;
+
+  const mejor = retornoPlacas <= 0 && retornoBateria <= 0 ? 'ninguna' : retornoBateria > retornoPlacas ? 'bateria' : 'placas';
+  const texto =
+    mejor === 'ninguna' ? 'Con estas hipótesis, ampliar el sistema no mejora la rentabilidad.'
+    : mejor === 'bateria'
+      ? `El siguiente euro rinde más en BATERÍA: ${r2(retornoBateria * 100)} céntimos/año por € invertido, frente a ${r2(retornoPlacas * 100)} en placas (el excedente barato pasa a ser consumo evitado caro).`
+      : `El siguiente euro rinde más en PLACAS: ${r2(retornoPlacas * 100)} céntimos/año por € invertido, frente a ${r2(retornoBateria * 100)} en batería (todavía se aprovecha bien la producción directa).`;
+  return { mejor, retorno_placas: r2(retornoPlacas), retorno_bateria: r2(retornoBateria), texto };
+}
+
 /** Ahorro anual y amortización simple (estimación orientativa). */
 export function ahorroSimple(e: {
   produccion_anual_kwh: number; pct_autoconsumo: number;   // 0-100

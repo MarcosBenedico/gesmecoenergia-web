@@ -8,7 +8,7 @@ import {
   calcularFV, validarEntradaFV, advertenciasFV, margenPorDefecto,
   INGENIERIA_DEFECTO, LIMITE_KW, ESTADOS_FV, ESTADO_FV_LABEL, ESTADOS_FV_PROTEGIDOS,
   PartidaFV, importePartida, precioAjustado, costeDirecto, numeroPaneles, confianzaGlobal,
-  CONFIANZA_LABEL, POTENCIA_PANEL_W, fmtEur2,
+  CONFIANZA_LABEL, POTENCIA_PANEL_W, fmtEur2, r2, PERFIL_FRANJA, FRANJA_LABEL,
 } from '@/lib/fv';
 import { Card, EstadoCarga, useListaLuz, inputCls, labelCls, btnPrimario, btnSecundario, SelectorResponsable } from '../ui';
 import { tokenSesion } from '@/lib/usuario';
@@ -278,21 +278,34 @@ function CalculadoraFV() {
     const logo = `${window.location.origin}/logo-gesmeco.png`;
     const entrada60 = fmtEur2(resultado.precio_con_iva * 0.6);
     const resto40 = fmtEur2(resultado.precio_con_iva * 0.4);
-    // Bloque de producción y ahorro (solo si hay hipótesis con sentido)
+    // Bloque de producción y ahorro CON JUSTIFICACIÓN (solo si hay hipótesis con sentido)
     let bloqueAhorro = '';
     if (potencia > 0 && hipotesis.prod_especifica > 0) {
+      const franja = energia.franja || null;
+      const perfil = franja ? PERFIL_FRANJA[franja] : null;
+      const pctAuto = perfil ? perfil.coincidencia : hipotesis.pct_autoconsumo;
       const prod = potencia * hipotesis.prod_especifica;
-      const auto = prod * (hipotesis.pct_autoconsumo / 100);
-      const ahorroAnual = auto * hipotesis.precio_kwh + (prod - auto) * hipotesis.precio_compensacion - hipotesis.mantenimiento_anual;
+      const auto = prod * (pctAuto / 100);
+      const exc = prod - auto;
+      const ahorroAuto = auto * hipotesis.precio_kwh;
+      const ahorroExc = exc * hipotesis.precio_compensacion;
+      const ahorroAnual = ahorroAuto + ahorroExc - hipotesis.mantenimiento_anual;
       const inv = hipotesis.analisis_con_iva ? resultado.precio_con_iva : resultado.precio_sin_iva;
       const amort = ahorroAnual > 0 ? (inv / ahorroAnual).toFixed(1) : null;
-      bloqueAhorro = `<h2>Producción y ahorro estimados</h2>
-<table><tbody>
-<tr><td>Producción anual estimada</td><td class="num">${Math.round(prod).toLocaleString('es-ES')} kWh</td></tr>
-<tr><td>Ahorro anual estimado</td><td class="num">${fmtEur2(Math.round(ahorroAnual * 100) / 100)}</td></tr>
-${amort ? `<tr><td>Amortización orientativa</td><td class="num">${amort} años</td></tr>` : ''}
+      const kwhTxt = (n: number) => Math.round(n).toLocaleString('es-ES');
+      bloqueAhorro = `<h2>Producción y ahorro estimados — cómo lo calculamos</h2>
+${franja ? `<p style="font-size:.9rem">Su consumo principal se concentra <b>${(PERFIL_FRANJA[franja] && FRANJA_LABEL[franja].replace(/^\S+\s/, '').toLowerCase()) || ''}</b>: ${perfil?.explicacion}</p>` : ''}
+<table><thead><tr><th>Concepto</th><th>Cálculo</th><th class="num">Resultado</th></tr></thead><tbody>
+<tr><td>Producción anual</td><td>${potencia.toLocaleString('es-ES')} kW × ${hipotesis.prod_especifica} kWh/kW·año <span style="color:#888">(irradiación de la zona, ref. PVGIS)</span></td><td class="num">${kwhTxt(prod)} kWh</td></tr>
+<tr><td>Energía autoconsumida</td><td>${pctAuto} % de la producción <span style="color:#888">(${franja ? 'según su franja de consumo' : 'estimación general'})</span></td><td class="num">${kwhTxt(auto)} kWh</td></tr>
+<tr><td>Ahorro por autoconsumo</td><td>${kwhTxt(auto)} kWh × ${hipotesis.precio_kwh} €/kWh <span style="color:#888">(precio que deja de pagar)</span></td><td class="num">${fmtEur2(r2(ahorroAuto))}/año</td></tr>
+<tr><td>Compensación de excedentes</td><td>${kwhTxt(exc)} kWh × ${hipotesis.precio_compensacion} €/kWh <span style="color:#888">(energía vertida a red)</span></td><td class="num">${fmtEur2(r2(ahorroExc))}/año</td></tr>
+<tr><td>Mantenimiento</td><td>revisión y monitorización anual</td><td class="num">−${fmtEur2(hipotesis.mantenimiento_anual)}/año</td></tr>
+<tr><td><b>Ahorro neto anual</b></td><td>autoconsumo + excedentes − mantenimiento</td><td class="num"><b>${fmtEur2(r2(ahorroAnual))}</b></td></tr>
+${amort ? `<tr><td><b>Amortización orientativa</b></td><td>inversión ${fmtEur2(r2(inv))} ÷ ahorro anual</td><td class="num"><b>${amort} años</b></td></tr>` : ''}
 </tbody></table>
-<p class="muted">Estimación orientativa según los datos de consumo facilitados; pendiente de validación técnica del instalador.</p>`;
+<p class="muted">A partir del año de amortización, el ahorro anual es beneficio neto durante el resto de la vida útil de la instalación (≈25 años los módulos).
+Estimación orientativa según los datos de consumo facilitados; pendiente de validación técnica del instalador. No incluye posibles bonificaciones municipales (IBI/ICIO) ni subvenciones.</p>`;
     }
     const w = window.open('', '_blank');
     if (!w) return;
