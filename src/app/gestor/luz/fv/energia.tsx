@@ -115,8 +115,8 @@ export function EnergiaEscenarios({ energia, setEnergia, hipotesis, setHipotesis
   function setGasoil(campos: Partial<NonNullable<EnergiaFV['gasoil']>>) {
     const g = { gasto_mensual: 0, precio_litro: GASOIL_PRECIO_LITRO, kwh_litro: GASOIL_KWH_LITRO, ...(energia.gasoil || {}), ...campos };
     const est = estimarGasoil({ gastoMensual: g.gasto_mensual, precioLitro: g.precio_litro, kwhLitro: g.kwh_litro });
-    // La energía anual sale del gasoil; el precio del kWh evitado es el coste real del gasoil (caro)
-    setEnergia({ ...energia, gasoil: g, consumo_anual: est.kwh_anio, mensual: produccionMensual(est.kwh_anio), origen: 'gasoil' });
+    // La energía anual sale del gasoil; el consumo mensual se reparte plano (no imita la curva solar)
+    setEnergia({ ...energia, gasoil: g, consumo_anual: est.kwh_anio, mensual: Array(12).fill(r2(est.kwh_anio / 12)), origen: 'gasoil' });
     if (est.coste_kwh > 0) setHipotesis({ ...hipotesis, precio_kwh: est.coste_kwh, precio_compensacion: 0, pct_autoconsumo: 90 });
   }
   const gasoilEst = energia.gasoil ? estimarGasoil({ gastoMensual: energia.gasoil.gasto_mensual, precioLitro: energia.gasoil.precio_litro, kwhLitro: energia.gasoil.kwh_litro }) : null;
