@@ -5,9 +5,9 @@ import { Download, Upload } from 'lucide-react';
 import {
   ahorroSimple, numeroPaneles, r2, fmtEur2, POTENCIA_PANEL_W,
   FRANJAS_CONSUMO, FRANJA_LABEL, PERFIL_FRANJA, CAPACIDAD_BATERIA,
-  optimizarBateria, siguienteEuro, LineaJustificacion, OpcionBateria,
+  optimizarBateria, siguienteEuro, LineaJustificacion, OpcionBateria, estimarAyudas, IRPF_PCT_DEDUCCION,
 } from '@/lib/fv';
-import { Card, inputCls, labelCls, btnSecundario } from '../ui';
+import { Card, inputCls, labelCls, btnSecundario, btnPrimario } from '../ui';
 
 /**
  * FASE 2 y 3 del Presupuestador FV:
@@ -85,7 +85,7 @@ export function recomendarEquipos(kwp: number, paneles: number, consumoAnual: nu
   };
 }
 
-export function EnergiaEscenarios({ energia, setEnergia, hipotesis, setHipotesis, potenciaActual, precioSinIva, precioConIva, onAplicarPotencia, catalogo, onMontarPresupuesto }: {
+export function EnergiaEscenarios({ energia, setEnergia, hipotesis, setHipotesis, potenciaActual, precioSinIva, precioConIva, onAplicarPotencia, catalogo, onMontarPresupuesto, clienteNombre, proyecto }: {
   energia: EnergiaFV;
   setEnergia: (e: EnergiaFV) => void;
   hipotesis: HipotesisFV;
@@ -96,6 +96,8 @@ export function EnergiaEscenarios({ energia, setEnergia, hipotesis, setHipotesis
   onAplicarPotencia: (kw: number) => void;
   catalogo: RefCatMin[];
   onMontarPresupuesto: (kwp: number, codigos: { codigo: string; cantidad: number; confianza?: string; nota?: string }[]) => void;
+  clienteNombre?: string;
+  proyecto?: string;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [errImport, setErrImport] = useState('');
@@ -252,6 +254,63 @@ export function EnergiaEscenarios({ energia, setEnergia, hipotesis, setHipotesis
     onMontarPresupuesto(e.kwp, codigos);
   }
 
+  /** Imprime una comparativa de los 3 escenarios para presentársela al cliente. */
+  function imprimirComparativa() {
+    if (escenarios.length === 0) return;
+    const hoy = new Date().toLocaleDateString('es-ES');
+    const franjaTxt = franja ? FRANJA_LABEL[franja] : null;
+    const col = (e: (typeof escenarios)[number]) =>
+      `<td><div class="nom">${e.nombre}</div><div class="cob">cubre el ${Math.round(e.factor * 100)} % de su consumo</div></td>`;
+    const fila = (etiqueta: string, val: (e: (typeof escenarios)[number]) => string, destacar = false) =>
+      `<tr class="${destacar ? 'dest' : ''}"><th>${etiqueta}</th>${escenarios.map((e) => `<td class="num">${val(e)}</td>`).join('')}</tr>`;
+    const w = window.open('', '_blank');
+    if (!w) return;
+    w.document.write(`<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><title>Comparativa de opciones · ${clienteNombre || 'Cliente'}</title>
+<style>
+  *{box-sizing:border-box} body{font-family:'Segoe UI',Arial,sans-serif;color:#1a1a2e;margin:0;padding:0 0 2rem}
+  .banda{background:#131322;color:#fff;padding:1.4rem 2rem;display:flex;justify-content:space-between;align-items:center}
+  .banda b{font-size:1.1rem;letter-spacing:.05em} .banda span{font-size:.8rem;color:#c9c9d6}
+  .franja{height:5px;background:linear-gradient(90deg,#e11d48,#ff7a45,#00b7d9)}
+  .hoja{max-width:900px;margin:0 auto;padding:1.4rem 2rem}
+  h1{font-size:1.2rem;margin:.2rem 0} .sub{color:#5c5c6e;font-size:.9rem;margin:0 0 1rem}
+  table{width:100%;border-collapse:collapse;margin:1rem 0}
+  th,td{padding:.6rem .8rem;text-align:left;font-size:.9rem;border-bottom:1px solid #eee}
+  thead td{background:#f8f8fa;text-align:center;vertical-align:top}
+  .nom{font-weight:800;font-size:1.05rem;color:#e11d48} .cob{font-size:.75rem;color:#5c5c6e}
+  tbody th{font-weight:600;color:#3a3a4a;width:34%} .num{text-align:right;font-variant-numeric:tabular-nums}
+  thead td .num{text-align:center}
+  tr.dest td,tr.dest th{background:#eafaf0;font-weight:800}
+  .nota{background:#f8f8fa;border-left:3px solid #e11d48;border-radius:0 8px 8px 0;padding:.7rem .9rem;font-size:.85rem;color:#3a3a4a;margin:1rem 0}
+  .pie{margin-top:1.5rem;padding-top:.7rem;border-top:1px solid #eee;font-size:.72rem;color:#5c5c6e;text-align:center}
+  @media print{.noprint{display:none} .banda,.franja,thead td,tr.dest td,tr.dest th{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+</style></head><body>
+<div class="banda"><b>Gesmeco Energía</b><span>Comparativa de opciones · ${hoy}</span></div>
+<div class="franja"></div>
+<div class="hoja">
+<h1>${proyecto || 'Instalación solar fotovoltaica'}</h1>
+<p class="sub">Cliente: <b>${clienteNombre || '—'}</b>${franjaTxt ? ` · consumo principal ${franjaTxt.replace(/^\S+\s/, '').toLowerCase()}` : ''} · consumo anual analizado: <b>${anual.toLocaleString('es-ES')} kWh</b></p>
+<p>Le presentamos <b>tres formas de dimensionar</b> su instalación para que elija la que mejor encaja con usted. Todas son llave en mano: nos encargamos de la ingeniería, la legalización y los trámites.</p>
+<table>
+<thead><tr><td></td>${escenarios.map(col).join('')}</tr></thead>
+<tbody>
+${fila('Potencia', (e) => `${e.kwp} kWp`)}
+${fila('Nº de paneles', (e) => `${e.paneles}`)}
+${fila('Batería', (e) => e.opt.elegida.codigo ? 'Sí, incluida' : 'No necesaria')}
+${fila('Producción anual', (e) => `${Math.round(e.produccion).toLocaleString('es-ES')} kWh`)}
+${fila('Cobertura de su consumo', (e) => `≈ ${e.cobertura} %`)}
+${fila('Inversión estimada', (e) => fmtEur2(e.inversion))}
+${fila('Deducción IRPF (hasta)', (e) => fmtEur2(estimarAyudas(e.inversion).deduccion_irpf))}
+${fila('Ahorro estimado / año', (e) => fmtEur2(e.ahorro), true)}
+${fila('Se amortiza en', (e) => e.amortizacion != null ? `${e.amortizacion} años` : '—', true)}
+</tbody></table>
+<div class="nota">🤝 <b>Nosotros nos encargamos de todo.</b> Ingeniería, legalización, boletines, permisos de conexión, alta de autoconsumo y compensación de excedentes, y la tramitación de su deducción de IRPF y bonificaciones municipales. Usted solo elige la opción y disfruta del ahorro.</div>
+<p style="font-size:.78rem;color:#888">Estimaciones orientativas con una producción de ${hipotesis.prod_especifica} kWh/kWp·año (irradiación de la zona) y su perfil de consumo. La deducción de IRPF (${IRPF_PCT_DEDUCCION} %) depende de su situación fiscal. Pendiente de validación técnica del instalador. No incluye subvenciones que pudieran estar abiertas.</p>
+<div class="pie">Gesmeco Energía · Avenida de Aragón, 50 · 22500 Binéfar (Huesca) · www.gesmecoenergia.com</div>
+<p class="noprint" style="text-align:center;margin-top:1.2rem"><button onclick="window.print()" style="padding:.7rem 1.6rem;font-weight:bold;font-size:1rem;background:#e11d48;color:#fff;border:none;border-radius:8px;cursor:pointer">🖨️ Imprimir / Guardar como PDF</button></p>
+</div></body></html>`);
+    w.document.close();
+  }
+
   /** Fase 3: ahorro con la potencia y el precio REAL del presupuesto actual (usa la franja si está indicada). */
   const analisis = useMemo(() => {
     if (potenciaActual <= 0) return null;
@@ -353,7 +412,12 @@ export function EnergiaEscenarios({ energia, setEnergia, hipotesis, setHipotesis
       {/* ── FASE 2 · Escenarios ── */}
       {escenarios.length > 0 && (
         <Card className="space-y-2">
-          <h3 className="font-bold text-sm">📊 Escenarios de dimensionado</h3>
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <h3 className="font-bold text-sm">📊 Escenarios de dimensionado</h3>
+            <button type="button" onClick={imprimirComparativa} className={`${btnPrimario} !py-1.5 !text-xs`}>
+              🖨️ Imprimir comparativa de las 3 opciones
+            </button>
+          </div>
           <div className="grid md:grid-cols-3 gap-3">
             {escenarios.map((e) => (
               <div key={e.nombre} className="rounded-xl border border-border/40 bg-card/50 p-3 space-y-1 text-xs">

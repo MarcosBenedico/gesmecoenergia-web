@@ -308,6 +308,40 @@ export function siguienteEuro(e: {
   return { mejor, retorno_placas: r2(retornoPlacas), retorno_bateria: r2(retornoBateria), texto };
 }
 
+/* ═══════════ AYUDAS, BONIFICACIONES Y DEDUCCIONES ═══════════ */
+
+/**
+ * Estimación orientativa de las ayudas típicas para autoconsumo en vivienda.
+ * NO es asesoramiento fiscal: los importes dependen de la situación de cada cliente
+ * y de las ordenanzas de su municipio. Gesmeco (asesoría) lo confirma caso a caso.
+ *
+ * - Deducción IRPF por mejora de eficiencia energética (RD-ley 19/2021):
+ *   40 % del importe cuando reduce ≥30 % el consumo de energía primaria no renovable,
+ *   con base máxima de 7.500 € → hasta 3.000 € de deducción. Requiere certificado
+ *   energético antes y después y tener cuota de IRPF suficiente.
+ * - Bonificación IBI: los ayuntamientos pueden bonificar hasta el 50 % durante varios
+ *   años (ordenanza municipal; en la comarca es habitual 30–50 % · 3–5 años).
+ * - Bonificación ICIO: hasta el 95 % del impuesto de construcciones de la licencia.
+ */
+export const IRPF_PCT_DEDUCCION = 40;      // % sobre la inversión (caso autoconsumo vivienda)
+export const IRPF_BASE_MAXIMA = 7500;      // € base máxima deducible
+export const IBI_PCT_ORIENTATIVO = 40;     // % de bonificación (orientativo comarcal)
+export const IBI_ANIOS_ORIENTATIVO = 4;    // años de bonificación (orientativo)
+
+export function estimarAyudas(precioConIva: number, ibiAnual = 0) {
+  const baseIrpf = Math.min(precioConIva, IRPF_BASE_MAXIMA);
+  const deduccionIrpf = r2(baseIrpf * (IRPF_PCT_DEDUCCION / 100));
+  const bonifIbiAnual = ibiAnual > 0 ? r2(ibiAnual * (IBI_PCT_ORIENTATIVO / 100)) : 0;
+  const bonifIbiTotal = r2(bonifIbiAnual * IBI_ANIOS_ORIENTATIVO);
+  return {
+    base_irpf: baseIrpf,
+    deduccion_irpf: deduccionIrpf,
+    bonif_ibi_anual: bonifIbiAnual,
+    bonif_ibi_total: bonifIbiTotal,
+    ahorro_fiscal_estimado: r2(deduccionIrpf + bonifIbiTotal),
+  };
+}
+
 /** Ahorro anual y amortización simple (estimación orientativa). */
 export function ahorroSimple(e: {
   produccion_anual_kwh: number; pct_autoconsumo: number;   // 0-100

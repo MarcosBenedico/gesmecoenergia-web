@@ -9,6 +9,7 @@ import {
   INGENIERIA_DEFECTO, LIMITE_KW, ESTADOS_FV, ESTADO_FV_LABEL, ESTADOS_FV_PROTEGIDOS,
   PartidaFV, importePartida, precioAjustado, costeDirecto, numeroPaneles, confianzaGlobal,
   CONFIANZA_LABEL, POTENCIA_PANEL_W, fmtEur2, r2, PERFIL_FRANJA, FRANJA_LABEL,
+  estimarAyudas, IRPF_PCT_DEDUCCION, IRPF_BASE_MAXIMA, IBI_PCT_ORIENTATIVO, IBI_ANIOS_ORIENTATIVO,
 } from '@/lib/fv';
 import { Card, EstadoCarga, useListaLuz, inputCls, labelCls, btnPrimario, btnSecundario, SelectorResponsable } from '../ui';
 import { tokenSesion } from '@/lib/usuario';
@@ -273,7 +274,8 @@ function CalculadoraFV() {
   function generarVistaCliente() {
     const clienteNombre = clientes.datos.find((c) => c.id === form.cliente_id)?.nombre || '';
     const hoy = new Date().toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' });
-    const validez = new Date(Date.now() + 30 * 86400000).toLocaleDateString('es-ES');
+    const validez = new Date(Date.now() + 15 * 86400000).toLocaleDateString('es-ES');
+    const conIngenieria = potencia > LIMITE_KW;
     const ref = `FV-${new Date().getFullYear()}-${(editandoId && editandoId !== 'nuevo' ? editandoId : Date.now().toString(16)).slice(0, 6).toUpperCase()}`;
     const logo = `${window.location.origin}/logo-gesmeco.png`;
     const entrada60 = fmtEur2(resultado.precio_con_iva * 0.6);
@@ -338,6 +340,43 @@ ${filas.join('\n')}
 </tbody></table>`;
     }
 
+    // ── Ayudas, bonificaciones y deducciones (con calculadora para el cliente) ──
+    const ay = estimarAyudas(resultado.precio_con_iva);
+    const netoTrasAyudas = fmtEur2(r2(resultado.precio_con_iva - ay.deduccion_irpf));
+    const bloqueAyudas = `<h2>Ayudas, bonificaciones y deducciones</h2>
+<p style="font-size:.9rem;color:#3a3a4a">Una instalación de autoconsumo da derecho a varias ventajas fiscales. Estas son las habituales; el importe exacto depende de su situación, y <b>nosotros se lo calculamos y tramitamos</b> (somos también asesoría).</p>
+<table><thead><tr><th>Ayuda</th><th>Cómo funciona</th><th class="num">Estimación</th></tr></thead><tbody>
+<tr><td><b>Deducción en el IRPF</b></td><td>Hasta el <b>${IRPF_PCT_DEDUCCION} %</b> de la inversión (sobre una base máxima de ${fmtEur2(IRPF_BASE_MAXIMA)}) por mejora de la eficiencia energética de la vivienda. Se resta de su declaración de la renta. Requiere certificado energético y tener cuota suficiente.</td><td class="num"><b>hasta ${fmtEur2(ay.deduccion_irpf)}</b></td></tr>
+<tr><td><b>Bonificación del IBI</b></td><td>Su ayuntamiento puede bonificar parte del recibo del IBI durante varios años (habitual: ${IBI_PCT_ORIENTATIVO} % · ${IBI_ANIOS_ORIENTATIVO} años). Depende de la ordenanza municipal.</td><td class="num">según municipio</td></tr>
+<tr><td><b>Bonificación del ICIO</b></td><td>Reducción de hasta el 95 % del impuesto de construcciones de la licencia de obra.</td><td class="num">según municipio</td></tr>
+<tr><td><b>Subvenciones</b></td><td>Según convocatorias autonómicas y europeas vigentes en cada momento. Le avisamos si hay alguna abierta que encaje.</td><td class="num">variable</td></tr>
+</tbody></table>
+
+<div class="calc noprint">
+  <p style="font-weight:800;margin:0 0 .5rem">🧮 Calcule su deducción de IRPF en 10 segundos</p>
+  <p style="font-size:.85rem;color:#3a3a4a;margin:.2rem 0 .7rem">La deducción es el ${IRPF_PCT_DEDUCCION} % de lo que invierte (con un máximo de ${fmtEur2(IRPF_BASE_MAXIMA)} de base), y solo se aplica hasta donde llegue la cuota de IRPF que le sale a pagar. Ajuste su cuota y lo verá al instante:</p>
+  <div style="display:flex;gap:1rem;flex-wrap:wrap;align-items:flex-end">
+    <label style="font-size:.82rem">Importe de su instalación (€)<br><input id="inv" type="number" value="${Math.round(resultado.precio_con_iva)}" style="width:150px;padding:.4rem;font-size:1rem;border:1.5px solid #ccc;border-radius:6px"></label>
+    <label style="font-size:.82rem">Su cuota de IRPF del año (€)<br><input id="cuota" type="number" value="3000" style="width:150px;padding:.4rem;font-size:1rem;border:1.5px solid #ccc;border-radius:6px"></label>
+  </div>
+  <p style="margin:.8rem 0 0;font-size:1.05rem">Deducción estimada: <b id="resDed" style="color:#e11d48">${fmtEur2(ay.deduccion_irpf)}</b> · le costaría realmente <b id="resNeto" style="color:#0a8a4a">${netoTrasAyudas}</b></p>
+  <p style="font-size:.72rem;color:#888;margin:.4rem 0 0">Cálculo orientativo: deducción = mín(${IRPF_PCT_DEDUCCION} % × mín(inversión, ${fmtEur2(IRPF_BASE_MAXIMA)}), su cuota de IRPF). Confírmelo con nosotros: cada declaración es distinta.</p>
+  <script>
+    (function(){
+      var inv=document.getElementById('inv'),cuota=document.getElementById('cuota'),rD=document.getElementById('resDed'),rN=document.getElementById('resNeto');
+      var eur=function(n){return n.toLocaleString('es-ES',{minimumFractionDigits:2,maximumFractionDigits:2})+' €';};
+      function calc(){
+        var i=parseFloat(inv.value)||0, c=parseFloat(cuota.value)||0;
+        var base=Math.min(i, ${IRPF_BASE_MAXIMA});
+        var ded=Math.min(base*${IRPF_PCT_DEDUCCION / 100}, c);
+        rD.textContent=eur(ded); rN.textContent=eur(Math.max(i-ded,0));
+      }
+      inv.addEventListener('input',calc); cuota.addEventListener('input',calc);
+    })();
+  </script>
+</div>
+<p class="muted">Gesmeco Energía y Asesoría Gesmeco tramitan por usted la deducción del IRPF y las bonificaciones municipales que le correspondan. Estimaciones orientativas sujetas a la normativa vigente y a su situación fiscal.</p>`;
+
     const w = window.open('', '_blank');
     if (!w) return;
     w.document.write(`<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><title>Presupuesto ${ref} · ${form.nombre_proyecto}</title>
@@ -368,12 +407,13 @@ ${filas.join('\n')}
   ul{margin:.4rem 0;padding-left:1.2rem} li{margin:.25rem 0;font-size:.88rem;color:#3a3a4a}
   .firma{margin-top:2.6rem;display:flex;gap:2.5rem}
   .firma div{flex:1;border-top:1.5px solid var(--oscuro);padding-top:.45rem;font-size:.82rem;color:var(--gris)}
+  .calc{background:#fff8f9;border:1.5px solid #f3c9d2;border-radius:12px;padding:1rem 1.2rem;margin:.8rem 0}
   .pie{margin-top:2rem;padding-top:.8rem;border-top:1px solid #eee;font-size:.75rem;color:var(--gris);text-align:center}
   @media print{.noprint{display:none} .banda{-webkit-print-color-adjust:exact;print-color-adjust:exact} thead th,.total td,.franja{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
 </style></head><body>
 <div class="banda">
   <img src="${logo}" alt="Gesmeco Energía">
-  <div class="ref"><b>PRESUPUESTO ${ref}</b>Fecha: ${hoy}<br>Validez: 30 días (hasta ${validez})</div>
+  <div class="ref"><b>PRESUPUESTO ${ref}</b>Fecha: ${hoy}<br>Validez: 15 días (hasta ${validez})</div>
 </div>
 <div class="franja"></div>
 <div class="hoja">
@@ -385,12 +425,17 @@ ${filas.join('\n')}
 
 <h2>Proyecto</h2>
 <p><b style="font-size:1.05rem">${form.nombre_proyecto || 'Instalación fotovoltaica'}</b><br>
-Instalación solar fotovoltaica de <b>${potencia.toLocaleString('es-ES')} kW</b>, llave en mano: suministro e instalación de módulos
-fotovoltaicos, inversor, estructura, cableado y protecciones eléctricas, ingeniería, legalización, tramitación de boletines
+Instalación solar fotovoltaica de <b>${potencia.toLocaleString('es-ES')} kW</b> <b>llave en mano</b>: suministro e instalación de módulos
+fotovoltaicos, inversor, estructura, cableado y protecciones eléctricas, ${conIngenieria ? 'ingeniería, ' : ''}legalización, tramitación de boletines
 y puesta en marcha de la instalación.</p>
+<p style="background:#f8f8fa;border-left:3px solid #e11d48;border-radius:0 8px 8px 0;padding:.7rem .9rem;font-size:.9rem;color:#3a3a4a">
+🤝 <b>Usted no se preocupa de nada.</b> Nos encargamos de todos los trámites que la ley nos permite gestionar en su nombre —
+${conIngenieria ? 'proyecto de ingeniería, ' : ''}legalización, boletines, permisos de acceso y conexión, alta de autoconsumo y solicitud de compensación de excedentes—
+para que usted solo tenga que disfrutar del ahorro. Estamos en Binéfar, a un teléfono de distancia, antes, durante y después de la instalación.</p>
 
 ${bloqueTecnico}
 ${bloqueAhorro}
+${bloqueAyudas}
 <h2>Oferta económica</h2>
 <table>
 <thead><tr><th>Concepto</th><th class="num">Importe</th></tr></thead>
@@ -409,9 +454,9 @@ ${bloqueAhorro}
 
 <h2>Condiciones</h2>
 <ul>
-<li>Presupuesto válido durante 30 días desde la fecha de emisión.</li>
+<li>Presupuesto válido durante 15 días desde la fecha de emisión.</li>
 <li>Plazo de ejecución a acordar tras la aceptación del presupuesto.</li>
-<li>Incluye ingeniería, legalización y tramitación de boletines. No incluye trabajos no descritos en este documento.</li>
+<li>Instalación llave en mano: incluye ${conIngenieria ? 'ingeniería, ' : ''}legalización y tramitación de boletines. No incluye trabajos no descritos en este documento.</li>
 <li>Garantías de fabricante en módulos e inversor; garantía de instalación según normativa vigente.</li>
 </ul>
 
@@ -577,6 +622,8 @@ ${form.observaciones ? `<p class="muted">Observaciones: ${form.observaciones}</p
       precioConIva={resultado.precio_con_iva}
       onAplicarPotencia={(kw) => setForm((f) => ({ ...f, potencia_kw: String(kw) }))}
       catalogo={catalogo}
+      clienteNombre={clientes.datos.find((c) => c.id === form.cliente_id)?.nombre || ''}
+      proyecto={form.nombre_proyecto}
       onMontarPresupuesto={(kwp, codigos) => {
         const partidas = codigos
           .map((c) => {
