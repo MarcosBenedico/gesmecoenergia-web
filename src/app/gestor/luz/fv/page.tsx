@@ -11,6 +11,12 @@ import {
 } from '@/lib/fv';
 import { Card, EstadoCarga, useListaLuz, inputCls, labelCls, btnPrimario, btnSecundario, SelectorResponsable } from '../ui';
 import { tokenSesion } from '@/lib/usuario';
+import { supabase } from '@/lib/supabase';
+
+const BUCKET_FV = 'documentos_fv';
+
+/** Documento adjunto: archivo subido al almacén (path) o enlace externo (url). */
+interface DocFV { nombre: string; path?: string; url?: string; tipo?: string; subido_en?: string }
 
 /** Llamada autenticada a la API de la calculadora. */
 async function apiFV(metodo: string, body?: Record<string, unknown>, qs = '') {
@@ -30,7 +36,7 @@ interface PresupuestoFV {
   coste_base: number; margen_pct: number; motivo_margen: string | null; margen_importe: number;
   precio_sin_iva: number; iva_pct: number; iva_importe: number; precio_con_iva: number;
   estado: string; responsable: string | null; observaciones: string | null;
-  documentos: { nombre: string; url: string }[]; creado_por: string | null; modificado_por: string | null;
+  documentos: DocFV[]; creado_por: string | null; modificado_por: string | null;
   aprobado_por: string | null; creado_en: string; actualizado_en: string;
 }
 
@@ -61,8 +67,51 @@ function CalculadoraFV() {
   const [editandoId, setEditandoId] = useState<string | null>(null); // null = lista · 'nuevo' = alta
   const [form, setForm] = useState(FORM_VACIO);
   const [conceptos, setConceptos] = useState<ConceptoFV[]>([]);
-  const [docs, setDocs] = useState<{ nombre: string; url: string }[]>([]);
+  const [docs, setDocs] = useState<DocFV[]>([]);
   const [docNuevo, setDocNuevo] = useState({ nombre: '', url: '' });
+  const [subiendo, setSubiendo] = useState(false);
+
+  /** Sube un archivo al almacén privado y lo apunta en la lista de documentos. */
+  async function subirArchivo(archivo: File) {
+    if (!editandoId || editandoId === 'nuevo') { setError('Guarda primero el presupuesto para poder adjuntar archivos.'); return; }
+    if (archivo.size > 25 * 1024 * 1024) { setError('El archivo supera los 25 MB.'); return; }
+    setSubiendo(true); setError('');
+    const limpio = archivo.name.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-zA-Z0-9._-]/g, '_');
+    const path = `${editandoId}/${Date.now()}_${limpio}`;
+    const { error: e } = await supabase.storage.from(BUCKET_FV).upload(path, archivo, { upsert: false });
+    setSubiendo(false);
+    if (e) {
+      setError(/bucket/i.test(e.message)
+        ? 'Falta el almacén de documentos: ejecuta supabase_fv_storage.sql en el SQL Editor de Supabase.'
+        : `No se pudo subir: ${e.message}`);
+      return;
+    }
+    const nuevos = [...docs, { nombre: archivo.name, path, tipo: archivo.type || 'archivo', subido_en: new Date().toISOString() }];
+    setDocs(nuevos);
+    // Persistir la lista al momento (sin esperar al botón Guardar)
+    await apiFV('PUT', { id: editandoId, archivado: false, documentos: nuevos, solo_documentos: true });
+    setMsg(`✓ "${archivo.name}" subido y guardado.`);
+  }
+
+  /** Descarga segura: enlace firmado de 1 hora (el bucket es privado). */
+  async function descargarDoc(d: DocFV) {
+    if (d.url) { window.open(d.url, '_blank'); return; }
+    if (!d.path) return;
+    const { data, error: e } = await supabase.storage.from(BUCKET_FV).createSignedUrl(d.path, 3600, { download: d.nombre });
+    if (e || !data?.signedUrl) { setError('No se pudo generar la descarga: ' + (e?.message || 'error')); return; }
+    window.open(data.signedUrl, '_blank');
+  }
+
+  async function eliminarDoc(i: number) {
+    const d = docs[i];
+    if (!confirm(`¿Quitar "${d.nombre}" del presupuesto?${d.path ? ' El archivo se borrará del almacén.' : ''}`)) return;
+    if (d.path) await supabase.storage.from(BUCKET_FV).remove([d.path]);
+    const nuevos = docs.filter((_, j) => j !== i);
+    setDocs(nuevos);
+    if (editandoId && editandoId !== 'nuevo') {
+      await apiFV('PUT', { id: editandoId, archivado: false, documentos: nuevos, solo_documentos: true });
+    }
+  }
   const [margenTocado, setMargenTocado] = useState(false);
   const [guardando, setGuardando] = useState(false);
 
@@ -174,43 +223,93 @@ function CalculadoraFV() {
     const clienteNombre = clientes.datos.find((c) => c.id === form.cliente_id)?.nombre || '';
     const hoy = new Date().toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' });
     const validez = new Date(Date.now() + 30 * 86400000).toLocaleDateString('es-ES');
+    const ref = `FV-${new Date().getFullYear()}-${(editandoId && editandoId !== 'nuevo' ? editandoId : Date.now().toString(16)).slice(0, 6).toUpperCase()}`;
+    const logo = `${window.location.origin}/logo-gesmeco.png`;
+    const entrada60 = fmtEur2(resultado.precio_con_iva * 0.6);
+    const resto40 = fmtEur2(resultado.precio_con_iva * 0.4);
     const w = window.open('', '_blank');
     if (!w) return;
-    w.document.write(`<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><title>Presupuesto · ${form.nombre_proyecto}</title>
+    w.document.write(`<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><title>Presupuesto ${ref} · ${form.nombre_proyecto}</title>
 <style>
-  body{font-family:Arial,Helvetica,sans-serif;color:#1a1a2e;max-width:760px;margin:2rem auto;padding:0 1.5rem;line-height:1.5}
-  h1{font-size:1.3rem;border-bottom:3px solid #e11d48;padding-bottom:.5rem} h2{font-size:1rem;margin-top:1.6rem}
-  table{width:100%;border-collapse:collapse;margin:.8rem 0} td,th{padding:.5rem .7rem;border-bottom:1px solid #ddd;text-align:left}
-  .num{text-align:right;font-variant-numeric:tabular-nums} .total{font-size:1.15rem;font-weight:bold;background:#fdf2f4}
-  .cab{display:flex;justify-content:space-between;align-items:flex-start;gap:1rem}
-  .muted{color:#666;font-size:.85rem} .firma{margin-top:3rem;display:flex;gap:3rem}
-  .firma div{flex:1;border-top:1px solid #999;padding-top:.4rem;font-size:.85rem;color:#444}
-  @media print{.noprint{display:none}}
+  :root{--rojo:#e11d48;--oscuro:#131322;--gris:#5c5c6e}
+  *{box-sizing:border-box} body{font-family:'Segoe UI',Arial,Helvetica,sans-serif;color:#1a1a2e;margin:0;background:#fff}
+  .hoja{max-width:800px;margin:0 auto;padding:0 2.2rem 2.5rem}
+  .banda{background:var(--oscuro);color:#fff;padding:1.6rem 2.2rem;display:flex;justify-content:space-between;align-items:center;gap:1.5rem}
+  .banda img{height:52px;width:auto;display:block}
+  .banda .ref{text-align:right;font-size:.8rem;color:#c9c9d6;line-height:1.6}
+  .banda .ref b{color:#fff;font-size:1rem;display:block;letter-spacing:.06em}
+  .franja{height:5px;background:linear-gradient(90deg,var(--rojo),#ff7a45,#00b7d9)}
+  h2{font-size:.78rem;letter-spacing:.22em;text-transform:uppercase;color:var(--rojo);margin:1.9rem 0 .5rem;border-bottom:1px solid #eee;padding-bottom:.35rem}
+  .dos{display:flex;gap:2rem} .dos>div{flex:1}
+  .caja{background:#f8f8fa;border:1px solid #ececf1;border-radius:10px;padding:.9rem 1.1rem;font-size:.92rem;line-height:1.55}
+  .caja b{display:block;font-size:1rem}
+  p{line-height:1.6}
+  table{width:100%;border-collapse:collapse;margin:.6rem 0}
+  td,th{padding:.65rem .9rem;text-align:left;font-size:.95rem}
+  thead th{background:var(--oscuro);color:#fff;font-size:.72rem;letter-spacing:.14em;text-transform:uppercase}
+  tbody td{border-bottom:1px solid #eee}
+  .num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .total td{background:var(--rojo);color:#fff;font-weight:800;font-size:1.15rem;border:none}
+  .pago{display:flex;gap:1rem;margin:.6rem 0}
+  .pago>div{flex:1;border:1.5px solid var(--oscuro);border-radius:10px;padding:.8rem 1rem;text-align:center}
+  .pago .pct{font-size:1.5rem;font-weight:900;color:var(--rojo)} .pago .cuando{font-size:.78rem;color:var(--gris);text-transform:uppercase;letter-spacing:.06em}
+  .pago .imp{font-weight:700;margin-top:.2rem}
+  ul{margin:.4rem 0;padding-left:1.2rem} li{margin:.25rem 0;font-size:.88rem;color:#3a3a4a}
+  .firma{margin-top:2.6rem;display:flex;gap:2.5rem}
+  .firma div{flex:1;border-top:1.5px solid var(--oscuro);padding-top:.45rem;font-size:.82rem;color:var(--gris)}
+  .pie{margin-top:2rem;padding-top:.8rem;border-top:1px solid #eee;font-size:.75rem;color:var(--gris);text-align:center}
+  @media print{.noprint{display:none} .banda{-webkit-print-color-adjust:exact;print-color-adjust:exact} thead th,.total td,.franja{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
 </style></head><body>
-<div class="cab">
-  <div><h1>⚡ Gesmeco Energía</h1><p class="muted">Avenida de Aragón, 50 · 22500 Binéfar (Huesca)<br>www.gesmecoenergia.com</p></div>
-  <div class="muted" style="text-align:right">Presupuesto<br><b>${hoy}</b><br>Validez: 30 días (hasta ${validez})</div>
+<div class="banda">
+  <img src="${logo}" alt="Gesmeco Energía">
+  <div class="ref"><b>PRESUPUESTO ${ref}</b>Fecha: ${hoy}<br>Validez: 30 días (hasta ${validez})</div>
 </div>
-<h2>Cliente</h2><p>${clienteNombre || '—'}</p>
+<div class="franja"></div>
+<div class="hoja">
+
+<div class="dos">
+  <div><h2>Cliente</h2><div class="caja"><b>${clienteNombre || '—'}</b></div></div>
+  <div><h2>Emitido por</h2><div class="caja"><b>Gesmeco Energía</b>Avenida de Aragón, 50 · 22500 Binéfar (Huesca)<br>www.gesmecoenergia.com</div></div>
+</div>
+
 <h2>Proyecto</h2>
-<p><b>${form.nombre_proyecto || 'Instalación fotovoltaica'}</b><br>
+<p><b style="font-size:1.05rem">${form.nombre_proyecto || 'Instalación fotovoltaica'}</b><br>
 Instalación solar fotovoltaica de <b>${potencia.toLocaleString('es-ES')} kW</b>, llave en mano: suministro e instalación de módulos
-fotovoltaicos, inversor, estructura, protecciones eléctricas, ingeniería, legalización y puesta en marcha.</p>
+fotovoltaicos, inversor, estructura, cableado y protecciones eléctricas, ingeniería, legalización, tramitación de boletines
+y puesta en marcha de la instalación.</p>
+
 <h2>Oferta económica</h2>
 <table>
-<tr><td>Instalación fotovoltaica ${potencia.toLocaleString('es-ES')} kW · llave en mano</td><td class="num">${fmtEur2(resultado.precio_sin_iva)}</td></tr>
+<thead><tr><th>Concepto</th><th class="num">Importe</th></tr></thead>
+<tbody>
+<tr><td>Instalación fotovoltaica de ${potencia.toLocaleString('es-ES')} kW · llave en mano</td><td class="num">${fmtEur2(resultado.precio_sin_iva)}</td></tr>
 <tr><td>IVA (${ivaUsado.toLocaleString('es-ES')} %)</td><td class="num">${fmtEur2(resultado.iva_importe)}</td></tr>
+</tbody>
 <tr class="total"><td>TOTAL</td><td class="num">${fmtEur2(resultado.precio_con_iva)}</td></tr>
 </table>
+
+<h2>Forma de pago</h2>
+<div class="pago">
+  <div><div class="pct">60 %</div><div class="cuando">A la aceptación · compra de materiales</div><div class="imp">${entrada60}</div></div>
+  <div><div class="pct">40 %</div><div class="cuando">Al finalizar el montaje</div><div class="imp">${resto40}</div></div>
+</div>
+
 <h2>Condiciones</h2>
-<ul class="muted">
-<li>Forma de pago: 40 % a la aceptación · 50 % al inicio de la instalación · 10 % a la puesta en marcha.</li>
-<li>Plazo de ejecución a acordar tras la aceptación del presupuesto.</li>
-<li>Incluye tramitación de legalización y boletines. No incluye trabajos no descritos.</li>
+<ul>
 <li>Presupuesto válido durante 30 días desde la fecha de emisión.</li>
+<li>Plazo de ejecución a acordar tras la aceptación del presupuesto.</li>
+<li>Incluye ingeniería, legalización y tramitación de boletines. No incluye trabajos no descritos en este documento.</li>
+<li>Garantías de fabricante en módulos e inversor; garantía de instalación según normativa vigente.</li>
 </ul>
-<div class="firma"><div>Aceptado por el cliente<br>Fecha y firma</div><div>Gesmeco Energía<br>Fecha y firma</div></div>
-<p class="noprint" style="margin-top:2rem"><button onclick="window.print()" style="padding:.6rem 1.4rem;font-weight:bold">🖨️ Imprimir / Guardar PDF</button></p>
+
+<div class="firma">
+  <div><b>Aceptado por el cliente</b><br>Nombre, fecha y firma</div>
+  <div><b>Gesmeco Energía</b><br>Fecha y firma</div>
+</div>
+
+<div class="pie">Gesmeco Energía · Avenida de Aragón, 50 · 22500 Binéfar (Huesca) · www.gesmecoenergia.com</div>
+<p class="noprint" style="margin-top:1.4rem;text-align:center"><button onclick="window.print()" style="padding:.7rem 1.6rem;font-weight:bold;font-size:1rem;background:#e11d48;color:#fff;border:none;border-radius:8px;cursor:pointer">🖨️ Imprimir / Guardar como PDF</button></p>
+</div>
 </body></html>`);
     w.document.close();
   }
@@ -416,18 +515,52 @@ fotovoltaicos, inversor, estructura, protecciones eléctricas, ingeniería, lega
           </Card>
 
           {/* Documentación (enlaces) */}
-          <Card className="space-y-2">
-            <h3 className="font-bold text-sm">Documentación</h3>
-            <p className="text-[11px] text-muted">Enlaces a los documentos (Drive, correo…): presupuesto original de Óscar, ingeniería, planos, memoria, facturas, oferta final, contrato firmado…</p>
+          <Card className="space-y-2.5">
+            <h3 className="font-bold text-sm">📁 Documentación</h3>
+            <p className="text-[11px] text-muted">
+              Presupuesto original de Óscar, ingeniería, planos, memoria técnica, facturas, fotografías, oferta final, contrato firmado…
+              Los archivos se guardan en un almacén privado: solo el administrador puede verlos y descargarlos.
+            </p>
+
+            {/* Subir archivo */}
+            {editandoId === 'nuevo' ? (
+              <p className="text-[11px] text-amber-300 bg-amber-500/10 border border-amber-500/25 rounded-lg p-2">
+                💾 Guarda el presupuesto primero para poder adjuntar archivos.
+              </p>
+            ) : (
+              <label className={`flex items-center justify-center gap-2 rounded-xl border-2 border-dashed px-4 py-4 cursor-pointer transition text-xs font-semibold ${
+                subiendo ? 'border-border/40 text-muted' : 'border-accent/40 text-accent hover:bg-accent/5 hover:border-accent/70'
+              }`}>
+                <input
+                  type="file"
+                  className="hidden"
+                  disabled={subiendo}
+                  onChange={(e) => { const f = e.target.files?.[0]; if (f) subirArchivo(f); e.target.value = ''; }}
+                />
+                {subiendo ? <><RefreshCw className="w-4 h-4 animate-spin" /> Subiendo…</> : <>⬆️ Subir archivo (PDF, imagen, Excel… máx. 25 MB)</>}
+              </label>
+            )}
+
+            {/* Enlace externo (Drive, correo...) como alternativa */}
             <div className="flex gap-2">
-              <input className={`${inputCls} !text-xs`} value={docNuevo.nombre} onChange={(e) => setDocNuevo({ ...docNuevo, nombre: e.target.value })} placeholder="Nombre (ej: Presupuesto Óscar)" />
+              <input className={`${inputCls} !text-xs`} value={docNuevo.nombre} onChange={(e) => setDocNuevo({ ...docNuevo, nombre: e.target.value })} placeholder="…o añade un enlace: nombre" />
               <input className={`${inputCls} !text-xs flex-1`} value={docNuevo.url} onChange={(e) => setDocNuevo({ ...docNuevo, url: e.target.value })} placeholder="https://..." />
               <button onClick={() => { if (docNuevo.nombre.trim() && docNuevo.url.trim()) { setDocs((d) => [...d, { ...docNuevo }]); setDocNuevo({ nombre: '', url: '' }); } }} className={btnSecundario}><Plus className="w-4 h-4" /></button>
             </div>
+
             {docs.map((d, i) => (
-              <div key={i} className="flex items-center justify-between gap-2 p-2 rounded-lg bg-card/60 text-xs">
-                <a href={d.url} target="_blank" rel="noopener noreferrer" className="text-accent hover:underline truncate">📎 {d.nombre}</a>
-                <button onClick={() => setDocs((arr) => arr.filter((_, j) => j !== i))} className="text-muted hover:text-red-400"><X className="w-3.5 h-3.5" /></button>
+              <div key={i} className="flex items-center justify-between gap-2 p-2.5 rounded-lg bg-card/60 text-xs">
+                <span className="flex items-center gap-2 min-w-0">
+                  <span className="shrink-0">{d.path ? (d.tipo?.includes('pdf') ? '📄' : d.tipo?.includes('image') ? '🖼️' : '📎') : '🔗'}</span>
+                  <span className="truncate font-semibold">{d.nombre}</span>
+                  {d.subido_en && <span className="text-[10px] text-muted shrink-0">{d.subido_en.slice(0, 10)}</span>}
+                </span>
+                <span className="flex items-center gap-2 shrink-0">
+                  <button onClick={() => descargarDoc(d)} className="text-accent font-bold hover:underline">
+                    {d.path ? '⬇️ Descargar' : 'Abrir'}
+                  </button>
+                  <button onClick={() => eliminarDoc(i)} className="text-muted hover:text-red-400"><X className="w-3.5 h-3.5" /></button>
+                </span>
               </div>
             ))}
             {docs.length === 0 && <p className="text-[11px] text-amber-300">⚠️ Sin documentos adjuntos todavía.</p>}

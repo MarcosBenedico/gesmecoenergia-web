@@ -182,6 +182,16 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ ok: true });
     }
 
+    // ── Solo actualizar la lista de documentos (subidas/borrados del almacén) ──
+    if ((body as Record<string, unknown>).solo_documentos) {
+      const { error } = await supabase.from('fv_presupuestos').update({
+        documentos: Array.isArray(body.documentos) ? body.documentos : [],
+        modificado_por: email, actualizado_en: new Date().toISOString(),
+      }).eq('id', body.id);
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ ok: true });
+    }
+
     // ── Archivado lógico ──
     if (body.archivado != null && Object.keys(body).length <= 2) {
       const { error } = await supabase.from('fv_presupuestos').update({
