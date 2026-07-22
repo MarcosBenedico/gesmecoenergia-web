@@ -403,10 +403,10 @@ export function estimarGasoil(e: { gastoMensual: number; precioLitro?: number; k
 /* ═══════════ REFERENCIA DE MERCADO: BATERÍAS E INVERSORES ═══════════ */
 
 /**
- * Precios ORIENTATIVOS de material (sin IVA, sin instalación) en el mercado
- * español, marcas fiables y con garantía. Sirven para comparar con los precios
- * de Óscar y decidir. Los precios de equipos fluctúan: confírmalos con el
- * distribuidor antes de cerrar un presupuesto. (Referencia ~2025.)
+ * Precios de material (PVP orientativo, con IVA) en tiendas españolas fiables
+ * — Autosolar, Damia Solar, Efecto Solar, Leroy Merlin, Suministros del Sol —
+ * verificados en enero de 2026. Los precios de equipos fluctúan: confírmalos con
+ * tu distribuidor antes de cerrar un presupuesto. No incluyen instalación.
  */
 export interface RefMercado {
   marca: string;
@@ -418,19 +418,19 @@ export interface RefMercado {
 
 /** Baterías LiFePO4 de marcas muy valoradas (capacidad útil aprox. en kWh). */
 export const BATERIAS_MERCADO: RefMercado[] = [
-  { marca: 'Pylontech', modelo: 'US3000C', medida: 3.5, precio: 1150, detalle: '48 V · 10 años · miles de instalaciones' },
-  { marca: 'Pylontech', modelo: 'US5000', medida: 4.8, precio: 1500, detalle: '48 V · 10 años · gran relación calidad-precio' },
-  { marca: 'Huawei', modelo: 'LUNA2000-5', medida: 5.0, precio: 2500, detalle: 'Alta tensión · modular · 10 años garantía' },
-  { marca: 'BYD', modelo: 'Battery-Box HVS 5.1', medida: 5.1, precio: 2900, detalle: 'Alta tensión · modular · 10 años garantía' },
-  { marca: 'Huawei', modelo: 'LUNA2000-7', medida: 6.9, precio: 3200, detalle: 'Alta tensión · modular · 10 años garantía' },
-  { marca: 'BYD', modelo: 'Battery-Box HVM 8.3', medida: 8.3, precio: 4300, detalle: 'Alta tensión · modular · 10 años garantía' },
-  { marca: 'Sungrow', modelo: 'SBR096', medida: 9.6, precio: 4200, detalle: 'Alta tensión · modular · 10 años garantía' },
+  { marca: 'Pylontech', modelo: 'US3000C', medida: 3.5, precio: 800, detalle: '48 V · 10 años · miles de instalaciones' },
+  { marca: 'Pylontech', modelo: 'US5000', medida: 4.8, precio: 1050, detalle: '48 V · 10 años · gran relación calidad-precio' },
+  { marca: 'Huawei', modelo: 'LUNA2000-5', medida: 5.0, precio: 2300, detalle: 'Alta tensión · modular · 10 años garantía' },
+  { marca: 'BYD', modelo: 'Battery-Box HVS 5.1', medida: 5.1, precio: 2800, detalle: 'Alta tensión · modular · 10 años garantía' },
+  { marca: 'Huawei', modelo: 'LUNA2000-7', medida: 6.9, precio: 3000, detalle: 'Alta tensión · modular · 10 años garantía' },
+  { marca: 'BYD', modelo: 'Battery-Box HVM 8.3', medida: 8.3, precio: 4000, detalle: 'Alta tensión · modular · 10 años garantía' },
+  { marca: 'Sungrow', modelo: 'SBR096', medida: 9.6, precio: 3800, detalle: 'Alta tensión · modular · 10 años garantía' },
   { marca: 'Pylontech', modelo: 'Force-H2', medida: 10.6, precio: 2900, detalle: 'Alta tensión · modular · 10 años garantía' },
-  { marca: 'Growatt', modelo: 'ARK 10.24H-A1', medida: 10.2, precio: 3800, detalle: 'Alta tensión · modular · 10 años garantía' },
-  { marca: 'Fox ESS', modelo: 'ECS4100 (x3)', medida: 10.4, precio: 3600, detalle: 'Alta tensión · modular · 10 años garantía' },
-  { marca: 'Huawei', modelo: 'LUNA2000-10', medida: 10.0, precio: 4500, detalle: 'Alta tensión · modular · 10 años garantía' },
-  { marca: 'Sungrow', modelo: 'SBR128', medida: 12.8, precio: 5400, detalle: 'Alta tensión · modular · 10 años garantía' },
-  { marca: 'Huawei', modelo: 'LUNA2000-15', medida: 15.0, precio: 6300, detalle: 'Alta tensión · modular · 10 años garantía' },
+  { marca: 'Growatt', modelo: 'ARK 10.24H-A1', medida: 10.2, precio: 3500, detalle: 'Alta tensión · modular · 10 años garantía' },
+  { marca: 'Fox ESS', modelo: 'ECS4100 (x3)', medida: 10.4, precio: 3300, detalle: 'Alta tensión · modular · 10 años garantía' },
+  { marca: 'Huawei', modelo: 'LUNA2000-10', medida: 10.0, precio: 4200, detalle: 'Alta tensión · modular · 10 años garantía' },
+  { marca: 'Sungrow', modelo: 'SBR128', medida: 12.8, precio: 5000, detalle: 'Alta tensión · modular · 10 años garantía' },
+  { marca: 'Huawei', modelo: 'LUNA2000-15', medida: 15.0, precio: 6000, detalle: 'Alta tensión · modular · 10 años garantía' },
 ];
 
 /**
@@ -439,25 +439,25 @@ export const BATERIAS_MERCADO: RefMercado[] = [
  * baterías; trifásico string = solo placas.
  */
 export const INVERSORES_MERCADO: RefMercado[] = [
-  { marca: 'Huawei', modelo: 'SUN2000-3KTL-L1', medida: 3, precio: 950, detalle: 'Monofásico híbrido · 10 años garantía' },
-  { marca: 'Huawei', modelo: 'SUN2000-5KTL-L1', medida: 5, precio: 1150, detalle: 'Monofásico híbrido · 10 años garantía' },
-  { marca: 'Sungrow', modelo: 'SH5.0RS', medida: 5, precio: 1250, detalle: 'Monofásico híbrido · 10 años garantía' },
-  { marca: 'Victron', modelo: 'MultiPlus-II 48/5000', medida: 5, precio: 1400, detalle: 'Híbrido/aislada · ideal off-grid · 5 años garantía' },
-  { marca: 'Huawei', modelo: 'SUN2000-6KTL-M1', medida: 6, precio: 1450, detalle: 'Trifásico híbrido · 10 años garantía' },
-  { marca: 'Sungrow', modelo: 'SH8.0RS', medida: 8, precio: 1750, detalle: 'Monofásico híbrido · 10 años garantía' },
-  { marca: 'GoodWe', modelo: 'GW8K-ET', medida: 8, precio: 1900, detalle: 'Trifásico híbrido · muy valorado · 10 años garantía' },
-  { marca: 'Huawei', modelo: 'SUN2000-10KTL-M1', medida: 10, precio: 1900, detalle: 'Trifásico híbrido · 10 años garantía' },
-  { marca: 'Sungrow', modelo: 'SH10RS', medida: 10, precio: 2050, detalle: 'Trifásico híbrido · 10 años garantía' },
-  { marca: 'SMA', modelo: 'Sunny Tripower 10.0', medida: 10, precio: 1950, detalle: 'Trifásico string · fiabilidad alemana · 5 años garantía' },
-  { marca: 'Fronius', modelo: 'Symo GEN24 10.0 Plus', medida: 10, precio: 2800, detalle: 'Trifásico híbrido · calidad premium · 10 años garantía' },
-  { marca: 'Huawei', modelo: 'SUN2000-12KTL-M2', medida: 12, precio: 2000, detalle: 'Trifásico string · 10 años garantía' },
-  { marca: 'GoodWe', modelo: 'GW15K-ET', medida: 15, precio: 2400, detalle: 'Trifásico híbrido · muy valorado · 10 años garantía' },
-  { marca: 'Huawei', modelo: 'SUN2000-15KTL-M2', medida: 15, precio: 2300, detalle: 'Trifásico string · 10 años garantía' },
-  { marca: 'Fronius', modelo: 'Symo 15.0-3-M', medida: 15, precio: 2400, detalle: 'Trifásico string · calidad premium · 5 años garantía' },
-  { marca: 'Sungrow', modelo: 'SG20RT', medida: 20, precio: 2100, detalle: 'Trifásico string · 10 años garantía' },
-  { marca: 'Huawei', modelo: 'SUN2000-20KTL-M2', medida: 20, precio: 2600, detalle: 'Trifásico string · 10 años garantía' },
-  { marca: 'Sungrow', modelo: 'SG25RT', medida: 25, precio: 2500, detalle: 'Trifásico string · 10 años garantía' },
-  { marca: 'Sungrow', modelo: 'SG33RT', medida: 33, precio: 2900, detalle: 'Trifásico string · 10 años garantía' },
+  { marca: 'Huawei', modelo: 'SUN2000-3KTL-L1', medida: 3, precio: 790, detalle: 'Monofásico híbrido · 10 años garantía' },
+  { marca: 'Huawei', modelo: 'SUN2000-5KTL-L1', medida: 5, precio: 850, detalle: 'Monofásico híbrido · 10 años garantía' },
+  { marca: 'Sungrow', modelo: 'SH5.0RS', medida: 5, precio: 1000, detalle: 'Monofásico híbrido · 10 años garantía' },
+  { marca: 'Victron', modelo: 'MultiPlus-II 48/5000', medida: 5, precio: 1300, detalle: 'Híbrido/aislada · ideal off-grid · 5 años garantía' },
+  { marca: 'Huawei', modelo: 'SUN2000-6KTL-M1', medida: 6, precio: 1100, detalle: 'Trifásico híbrido · 10 años garantía' },
+  { marca: 'Sungrow', modelo: 'SH8.0RS', medida: 8, precio: 1400, detalle: 'Monofásico híbrido · 10 años garantía' },
+  { marca: 'GoodWe', modelo: 'GW8K-ET', medida: 8, precio: 1500, detalle: 'Trifásico híbrido · muy valorado · 10 años garantía' },
+  { marca: 'Huawei', modelo: 'SUN2000-10KTL-M1', medida: 10, precio: 1250, detalle: 'Trifásico híbrido · 10 años garantía' },
+  { marca: 'Sungrow', modelo: 'SH10RS', medida: 10, precio: 1500, detalle: 'Trifásico híbrido · 10 años garantía' },
+  { marca: 'SMA', modelo: 'Sunny Tripower 10.0', medida: 10, precio: 1900, detalle: 'Trifásico string · fiabilidad alemana · 5 años garantía' },
+  { marca: 'Fronius', modelo: 'Symo GEN24 10.0 Plus', medida: 10, precio: 2400, detalle: 'Trifásico híbrido · calidad premium · 10 años garantía' },
+  { marca: 'Huawei', modelo: 'SUN2000-12KTL-M2', medida: 12, precio: 1600, detalle: 'Trifásico string · 10 años garantía' },
+  { marca: 'GoodWe', modelo: 'GW15K-ET', medida: 15, precio: 2000, detalle: 'Trifásico híbrido · muy valorado · 10 años garantía' },
+  { marca: 'Huawei', modelo: 'SUN2000-15KTL-M2', medida: 15, precio: 1700, detalle: 'Trifásico string · 10 años garantía' },
+  { marca: 'Fronius', modelo: 'Symo 15.0-3-M', medida: 15, precio: 2100, detalle: 'Trifásico string · calidad premium · 5 años garantía' },
+  { marca: 'Sungrow', modelo: 'SG20RT', medida: 20, precio: 1700, detalle: 'Trifásico string · 10 años garantía' },
+  { marca: 'Huawei', modelo: 'SUN2000-20KTL-M2', medida: 20, precio: 1900, detalle: 'Trifásico string · 10 años garantía' },
+  { marca: 'Sungrow', modelo: 'SG25RT', medida: 25, precio: 2100, detalle: 'Trifásico string · 10 años garantía' },
+  { marca: 'Sungrow', modelo: 'SG33RT', medida: 33, precio: 2500, detalle: 'Trifásico string · 10 años garantía' },
 ];
 
 /* ═══════════ ALGORITMO: COMBINACIÓN MÁS ECONÓMICA ═══════════ */
