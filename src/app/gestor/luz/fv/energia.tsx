@@ -102,7 +102,7 @@ export function EnergiaEscenarios({ energia, setEnergia, hipotesis, setHipotesis
   precioConIva: number;
   onAplicarPotencia: (kw: number) => void;
   catalogo: RefCatMin[];
-  onMontarPresupuesto: (kwp: number, codigos: { codigo: string; cantidad: number; confianza?: string; nota?: string }[]) => void;
+  onMontarPresupuesto: (kwp: number, codigos: { codigo: string; cantidad: number; confianza?: string; nota?: string }[], pctAutoEfectivo?: number) => void;
   clienteNombre?: string;
   proyecto?: string;
   perfil?: string;
@@ -279,7 +279,8 @@ export function EnergiaEscenarios({ energia, setEnergia, hipotesis, setHipotesis
     if (e.rec.monitorizacion) codigos.push({ codigo: e.rec.monitorizacion.codigo, cantidad: 1 });
     if (e.rec.instalacion) codigos.push({ codigo: e.rec.instalacion.codigo, cantidad: 1, confianza: e.rec.instalacionConfianza, nota: e.rec.instalacionNota || undefined });
     if (e.rec.tramites) codigos.push({ codigo: e.rec.tramites.codigo, cantidad: 1 });
-    onMontarPresupuesto(e.kwp, codigos);
+    // Pasa el autoconsumo EFECTIVO (con batería): así la oferta al cliente cuadra con el escenario
+    onMontarPresupuesto(e.kwp, codigos, e.pctAuto);
   }
 
   /** Imprime una comparativa de los 3 escenarios para presentársela al cliente. */
@@ -339,17 +340,18 @@ ${fila('Se amortiza en', (e) => e.amortizacion != null ? `${e.amortizacion} año
     w.document.close();
   }
 
-  /** Fase 3: ahorro con la potencia y el precio REAL del presupuesto actual (usa la franja si está indicada). */
+  /** Fase 3: ahorro con la potencia y el precio REAL del presupuesto actual.
+   *  Usa hipotesis.pct_autoconsumo como fuente única (ya incluye la batería si se montó un escenario). */
   const analisis = useMemo(() => {
     if (potenciaActual <= 0) return null;
     const produccion = r2(potenciaActual * hipotesis.prod_especifica);
     const inversion = hipotesis.analisis_con_iva ? precioConIva : precioSinIva;
-    const pctUsado = perfilFranja ? perfilFranja.coincidencia : hipotesis.pct_autoconsumo;
+    const pctUsado = hipotesis.pct_autoconsumo;
     return {
       produccion,
       inversion,
       pctUsado,
-      fuentePct: perfilFranja ? `coincidencia de la franja ${FRANJA_LABEL[franja!]}` : 'hipótesis % autoconsumo',
+      fuentePct: 'autoconsumo efectivo aplicado',
       ...ahorroSimple({
         produccion_anual_kwh: produccion, pct_autoconsumo: pctUsado,
         precio_kwh_evitado: hipotesis.precio_kwh, precio_compensacion: hipotesis.precio_compensacion,
@@ -437,7 +439,12 @@ ${fila('Se amortiza en', (e) => e.amortizacion != null ? `${e.amortizacion} año
           <div className="flex gap-1.5 flex-wrap">
             {FRANJAS_CONSUMO.map((f) => (
               <button key={f} type="button"
-                onClick={() => setEnergia({ ...energia, franja: energia.franja === f ? null : f })}
+                onClick={() => {
+                  const nueva = energia.franja === f ? null : f;
+                  setEnergia({ ...energia, franja: nueva });
+                  // Al elegir franja, el autoconsumo directo (sin batería) pasa a ser la hipótesis base
+                  if (nueva && PERFIL_FRANJA[nueva]) setHipotesis({ ...hipotesis, pct_autoconsumo: PERFIL_FRANJA[nueva].coincidencia });
+                }}
                 className={`px-2.5 py-1.5 rounded-lg border text-[11px] font-semibold transition ${
                   energia.franja === f ? 'bg-amber-400/20 text-amber-300 border-amber-400/50 ring-1 ring-amber-400/40' : 'bg-card/60 text-muted border-border/40 hover:border-amber-400/40'
                 }`}>

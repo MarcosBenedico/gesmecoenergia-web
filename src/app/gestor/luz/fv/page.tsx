@@ -306,8 +306,7 @@ function CalculadoraFV() {
     let bloqueEstacional = '';
     if (potencia > 0) {
       const prodMes = produccionMensual(potencia * hipotesis.prod_especifica);
-      const franjaE = energia.franja || null;
-      const pctAutoE = franjaE && PERFIL_FRANJA[franjaE] ? PERFIL_FRANJA[franjaE].coincidencia : hipotesis.pct_autoconsumo;
+      const pctAutoE = hipotesis.pct_autoconsumo; // autoconsumo efectivo (incluye batería si se montó escenario)
       const hayConsumo = energia.mensual.some((v) => v > 0);
       const consMes = hayConsumo ? energia.mensual : prodMes.map(() => 0);
 
@@ -380,7 +379,7 @@ ${hayConsumo ? `<table><thead><tr><th>Qué hará su energía en un año</th><th 
       const consumoAnual = energia.consumo_anual || 0;
       const prodAnual = potencia * hipotesis.prod_especifica;
       const franjaT = energia.franja || null;
-      const pctAutoT = franjaT && PERFIL_FRANJA[franjaT] ? PERFIL_FRANJA[franjaT].coincidencia : hipotesis.pct_autoconsumo;
+      const pctAutoT = hipotesis.pct_autoconsumo; // autoconsumo efectivo (incluye batería si se montó escenario)
       const coberturaT = consumoAnual > 0 ? Math.min(r2((prodAnual * (pctAutoT / 100)) / consumoAnual * 100), 100) : null;
       const partidaCat = (cats: string[]) => conceptos.find((c) => c.incluido && cats.includes((c.concepto || '').toLowerCase()));
       const inversorP = partidaCat(['inversores', 'inversor']);
@@ -689,7 +688,7 @@ ${form.observaciones ? `<p class="muted">Observaciones: ${form.observaciones}</p
       clienteNombre={clientes.datos.find((c) => c.id === form.cliente_id)?.nombre || ''}
       proyecto={form.nombre_proyecto}
       perfil={form.perfil}
-      onMontarPresupuesto={(kwp, codigos) => {
+      onMontarPresupuesto={(kwp, codigos, pctAutoEfectivo) => {
         const partidas = codigos
           .map((c) => {
             const pt = partidaDesdeCatalogo(c.codigo, c.cantidad);
@@ -700,6 +699,8 @@ ${form.observaciones ? `<p class="muted">Observaciones: ${form.observaciones}</p
         setModo('partidas');
         setForm((f) => ({ ...f, potencia_kw: String(kwp) }));
         setConceptos(partidas);
+        // Autoconsumo efectivo (con batería) → fuente única para que la oferta cuadre con el escenario
+        if (pctAutoEfectivo != null) setHipotesis((h) => ({ ...h, pct_autoconsumo: r2(pctAutoEfectivo) }));
         setMsg('🪄 Presupuesto montado con la recomendación: revisa inversor, batería e instalación antes de aprobar.');
       }}
     />
@@ -859,52 +860,46 @@ ${form.observaciones ? `<p class="muted">Observaciones: ${form.observaciones}</p
             {modo === 'simple' && <p className="text-[11px] text-muted">El presupuesto de Óscar y la ingeniería ya cuentan arriba. Aquí van extras (baterías, obra civil…). Lo «incluido» suma al coste base.</p>}
 
             {conceptos.length > 0 && (
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="text-left text-[10px] uppercase text-muted border-b border-border/40">
-                      <th className="px-2 py-2">Código</th><th className="px-2 py-2">Descripción</th>
-                      <th className="px-2 py-2 text-right">Cant.</th><th className="px-2 py-2 text-right">€ base</th>
-                      <th className="px-2 py-2 text-right">Ajuste %</th><th className="px-2 py-2 text-right">Ajuste €</th>
-                      <th className="px-2 py-2 text-right">€ ajustado</th><th className="px-2 py-2 text-right">Importe</th>
-                      <th className="px-2 py-2 text-center">Incl.</th><th className="px-2 py-2 text-center">Opc.</th>
-                      <th className="px-2 py-2">Conf.</th><th></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {conceptos.map((c, i) => {
-                      const set = (k: keyof PartidaFV, v: unknown) => setConceptos((arr) => arr.map((x, j) => (j === i ? { ...x, [k]: v } : x)));
-                      return (
-                        <tr key={i} className={`border-b border-border/20 ${!c.incluido ? 'opacity-50' : ''}`}>
-                          <td className="px-2 py-1.5 font-mono text-[10px] text-muted">{c.codigo_catalogo || 'manual'}</td>
-                          <td className="px-2 py-1.5">
-                            <input className={`${selCls} w-full min-w-40`} value={c.descripcion} onChange={(e) => set('descripcion', e.target.value)} placeholder="Descripción" />
-                            {c.fuente && <span className="block text-[9px] text-muted mt-0.5">{c.fuente}</span>}
-                          </td>
-                          <td className="px-2 py-1.5"><input className={`${selCls} w-16 text-right`} type="number" min="0" step="0.01" value={c.cantidad} onChange={(e) => set('cantidad', parseFloat(e.target.value) || 0)} /></td>
-                          <td className="px-2 py-1.5"><input className={`${selCls} w-20 text-right`} type="number" min="0" step="0.01" value={c.precio_unitario} onChange={(e) => set('precio_unitario', parseFloat(e.target.value) || 0)} /></td>
-                          <td className="px-2 py-1.5"><input className={`${selCls} w-16 text-right`} type="number" step="0.5" value={c.ajuste_pct} onChange={(e) => set('ajuste_pct', parseFloat(e.target.value) || 0)} /></td>
-                          <td className="px-2 py-1.5"><input className={`${selCls} w-16 text-right`} type="number" step="1" value={c.ajuste_fijo} onChange={(e) => set('ajuste_fijo', parseFloat(e.target.value) || 0)} /></td>
-                          <td className="px-2 py-1.5 text-right tabular-nums">{fmtEur2(precioAjustado(c))}</td>
-                          <td className="px-2 py-1.5 text-right tabular-nums font-bold">{fmtEur2(importePartida(c))}</td>
-                          <td className="px-2 py-1.5 text-center"><input type="checkbox" checked={c.incluido} onChange={(e) => set('incluido', e.target.checked)} className="accent-[#22c55e] w-4 h-4" /></td>
-                          <td className="px-2 py-1.5 text-center"><input type="checkbox" checked={c.opcional} onChange={(e) => set('opcional', e.target.checked)} className="accent-[#f59e0b] w-4 h-4" title="Opcional para el cliente" /></td>
-                          <td className="px-2 py-1.5">
-                            <select className={`${selCls} !px-1`} value={c.confianza || 'media'} onChange={(e) => set('confianza', e.target.value)}>
-                              {Object.entries(CONFIANZA_LABEL).map(([v]) => <option key={v} value={v}>{v}</option>)}
-                            </select>
-                          </td>
-                          <td className="px-2 py-1.5"><button onClick={() => setConceptos((arr) => arr.filter((_, j) => j !== i))} className="text-muted hover:text-red-400"><X className="w-3.5 h-3.5" /></button></td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-                {(conceptos.some((c) => (c.ajuste_pct || 0) !== 0 || (c.ajuste_fijo || 0) !== 0)) && (
-                  <input className={`${inputCls} !text-xs mt-2`} placeholder="Justificación de los ajustes aplicados (queda guardada)"
-                    value={conceptos.find((c) => c.motivo_ajuste)?.motivo_ajuste || ''}
-                    onChange={(e) => setConceptos((arr) => arr.map((x, j) => (j === 0 ? { ...x, motivo_ajuste: e.target.value } : x)))} />
-                )}
+              <div className="space-y-2">
+                {conceptos.map((c, i) => {
+                  const set = (k: keyof PartidaFV, v: unknown) => setConceptos((arr) => arr.map((x, j) => (j === i ? { ...x, [k]: v } : x)));
+                  return (
+                    <div key={i} className={`rounded-xl border p-2.5 ${c.incluido ? 'border-border/40 bg-card/40' : 'border-border/20 bg-card/20 opacity-55'}`}>
+                      <div className="flex items-start gap-2.5">
+                        {/* Incluir / no incluir de un vistazo */}
+                        <button type="button" onClick={() => set('incluido', !c.incluido)}
+                          className={`mt-1 shrink-0 w-6 h-6 rounded-md border flex items-center justify-center text-xs font-black transition ${c.incluido ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40' : 'bg-card/60 text-muted border-border/50'}`}
+                          title={c.incluido ? 'Incluida en el presupuesto' : 'No incluida'}>
+                          {c.incluido ? '✓' : ''}
+                        </button>
+                        <div className="min-w-0 flex-1">
+                          {/* Nombre de la pieza */}
+                          <input className={`${selCls} w-full font-semibold !text-sm`} value={c.descripcion} onChange={(e) => set('descripcion', e.target.value)} placeholder="Nombre de la pieza (ej: Inversor Huawei 10 kW)" />
+                          <div className="flex items-center gap-2 mt-1 flex-wrap text-[10px] text-muted">
+                            <span className="font-mono">{c.codigo_catalogo || 'manual'}</span>
+                            {c.marca && <span>· {c.marca}</span>}
+                            {c.fuente && <span>· {c.fuente}</span>}
+                          </div>
+                        </div>
+                        {/* Importe grande a la derecha */}
+                        <div className="text-right shrink-0">
+                          <p className="font-black text-sm tabular-nums">{fmtEur2(importePartida(c))}</p>
+                          <button onClick={() => setConceptos((arr) => arr.filter((_, j) => j !== i))} className="text-[10px] text-muted hover:text-red-400">quitar ✕</button>
+                        </div>
+                      </div>
+                      {/* Controles: cantidad · precio · opcional · confianza */}
+                      <div className="flex items-end gap-3 mt-2 flex-wrap pl-8">
+                        <label className="text-[10px] text-muted">Cantidad<br /><input className={`${selCls} w-20 text-right`} type="number" min="0" step="1" value={c.cantidad} onChange={(e) => set('cantidad', parseFloat(e.target.value) || 0)} /></label>
+                        <label className="text-[10px] text-muted">Precio/ud (€)<br /><input className={`${selCls} w-24 text-right`} type="number" min="0" step="0.01" value={c.precio_unitario} onChange={(e) => set('precio_unitario', parseFloat(e.target.value) || 0)} /></label>
+                        <label className="text-[10px] text-muted">Confianza<br /><select className={`${selCls} !px-1.5`} value={c.confianza || 'media'} onChange={(e) => set('confianza', e.target.value)}>{Object.entries(CONFIANZA_LABEL).map(([v, n]) => <option key={v} value={v}>{n}</option>)}</select></label>
+                        <label className="flex items-center gap-1.5 text-[10px] text-muted cursor-pointer pb-1.5">
+                          <input type="checkbox" checked={c.opcional} onChange={(e) => set('opcional', e.target.checked)} className="accent-[#f59e0b] w-4 h-4" />
+                          Opcional para el cliente
+                        </label>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
             {modo === 'partidas' && (
