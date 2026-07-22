@@ -2,9 +2,9 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
-import { Map as MapIcon, Navigation, Loader, ExternalLink, X } from 'lucide-react';
+import { Map as MapIcon, Navigation, Loader, ExternalLink, X, Pencil, Check } from 'lucide-react';
 import { LuzCliente, LuzCups } from '@/lib/luz';
-import { Card, Badge, BadgePrioridad, EstadoCarga, useListaLuz, inputCls, labelCls, btnPrimario } from '../ui';
+import { Card, Badge, BadgePrioridad, EstadoCarga, useListaLuz, guardarLuz, inputCls, labelCls, btnPrimario } from '../ui';
 
 /**
  * Planificador de rutas de visitas: elige clientes y CUPS con dirección,
@@ -60,6 +60,34 @@ export default function RutasPage() {
     }
     return lista.sort((a, b) => a.nombre.localeCompare(b.nombre));
   }, [clientes.datos, cups.datos, buscar, fResp]);
+
+  // Edición de ubicación en línea: dirección escrita a mano o enlace de Google Maps pegado
+  const [editando, setEditando] = useState<{ id: string; valor: string } | null>(null);
+  const [verSinUbicacion, setVerSinUbicacion] = useState(false);
+
+  /** Clientes del filtro actual que aún no tienen ubicación. */
+  const sinUbicacion = useMemo(() => {
+    const q = buscar.trim().toLowerCase();
+    return clientes.datos.filter((c) =>
+      !c.direccion_fiscal?.trim() &&
+      (!fResp || (c.responsable || '').toLowerCase().includes(fResp.toLowerCase())) &&
+      (!q || c.nombre.toLowerCase().includes(q))
+    );
+  }, [clientes.datos, buscar, fResp]);
+
+  async function guardarUbicacion(p: { id: string; cliente_id: string }, valor: string) {
+    const v = valor.trim();
+    if (!v) return;
+    const err = p.id.startsWith('s-')
+      ? await guardarLuz('cups', 'PUT', { id: p.id.slice(2), direccion_suministro: v })
+      : await guardarLuz('clientes', 'PUT', { id: p.cliente_id, direccion_fiscal: v });
+    if (err) { setError(err); return; }
+    setError('');
+    setEditando(null);
+    setResultado(null);
+    clientes.recargar();
+    cups.recargar();
+  }
 
   function alternar(p: Parada) {
     setResultado(null);
@@ -135,12 +163,72 @@ export default function RutasPage() {
                       <BadgePrioridad prioridad={p.prioridad} />
                       <div className="min-w-0 flex-1">
                         <p className="text-xs font-bold truncate">{p.nombre}</p>
-                        <p className="text-[10px] text-muted truncate">📍 {p.direccion}</p>
+                        {editando?.id === p.id ? (
+                          <span className="flex items-center gap-1 mt-0.5" onClick={(e) => e.preventDefault()}>
+                            <input
+                              className="flex-1 rounded-md border border-accent/40 bg-background/80 px-1.5 py-1 text-[10px]"
+                              value={editando.valor}
+                              onChange={(e) => setEditando({ id: p.id, valor: e.target.value })}
+                              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); guardarUbicacion(p, editando.valor); } }}
+                              placeholder="Dirección o enlace de Google Maps"
+                              autoFocus
+                            />
+                            <button type="button" onClick={() => guardarUbicacion(p, editando.valor)} className="text-emerald-400 hover:text-emerald-300"><Check className="w-3.5 h-3.5" /></button>
+                            <button type="button" onClick={() => setEditando(null)} className="text-muted hover:text-foreground"><X className="w-3.5 h-3.5" /></button>
+                          </span>
+                        ) : (
+                          <p className="text-[10px] text-muted truncate">
+                            📍 {p.direccion}
+                            <button
+                              type="button"
+                              onClick={(e) => { e.preventDefault(); setEditando({ id: p.id, valor: p.direccion }); }}
+                              className="ml-1.5 text-muted/60 hover:text-accent align-middle" title="Cambiar ubicación (dirección o enlace de Google Maps)"
+                            >
+                              <Pencil className="w-3 h-3 inline" />
+                            </button>
+                          </p>
+                        )}
                       </div>
                       <Badge tono={p.tipo === 'cups' ? 'accent' : 'muted'}>{p.tipo === 'cups' ? 'CUPS' : 'Cliente'}</Badge>
                     </label>
                   );
                 })}
+              </div>
+            )}
+
+            {/* Clientes sin ubicación: se les puede poner aquí mismo (dirección o enlace de Maps) */}
+            {sinUbicacion.length > 0 && (
+              <div className="mt-3 pt-2 border-t border-border/30">
+                <button onClick={() => setVerSinUbicacion((v) => !v)} className="text-xs font-bold text-amber-300 hover:underline">
+                  {verSinUbicacion ? '▾' : '▸'} Sin ubicación ({sinUbicacion.length}) — añádela aquí
+                </button>
+                {verSinUbicacion && (
+                  <div className="space-y-1.5 mt-2 max-h-64 overflow-y-auto pr-1">
+                    {sinUbicacion.slice(0, 50).map((c) => (
+                      <div key={c.id} className="flex items-center gap-2 p-2 rounded-lg bg-card/40 border border-border/20">
+                        <p className="text-xs font-semibold truncate flex-1 min-w-0">{c.nombre}</p>
+                        {editando?.id === `c-${c.id}` ? (
+                          <span className="flex items-center gap-1 flex-1">
+                            <input
+                              className="flex-1 rounded-md border border-accent/40 bg-background/80 px-1.5 py-1 text-[10px]"
+                              value={editando.valor}
+                              onChange={(e) => setEditando({ id: `c-${c.id}`, valor: e.target.value })}
+                              onKeyDown={(e) => { if (e.key === 'Enter') guardarUbicacion({ id: `c-${c.id}`, cliente_id: c.id }, editando.valor); }}
+                              placeholder="Dirección o enlace de Google Maps"
+                              autoFocus
+                            />
+                            <button onClick={() => guardarUbicacion({ id: `c-${c.id}`, cliente_id: c.id }, editando.valor)} className="text-emerald-400"><Check className="w-3.5 h-3.5" /></button>
+                            <button onClick={() => setEditando(null)} className="text-muted"><X className="w-3.5 h-3.5" /></button>
+                          </span>
+                        ) : (
+                          <button onClick={() => setEditando({ id: `c-${c.id}`, valor: '' })} className="text-[10px] font-bold text-accent hover:underline shrink-0">
+                            + ubicación
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </Card>

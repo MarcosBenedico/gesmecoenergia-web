@@ -203,7 +203,7 @@ export default function AltaGuiadaPage() {
               <input className={inputCls} value={fCliente.telefono} onChange={(e) => setFCliente({ ...fCliente, telefono: e.target.value })} /></div>
             <div><label className={labelCls}>Persona de contacto</label>
               <input className={inputCls} value={fCliente.persona_contacto} onChange={(e) => setFCliente({ ...fCliente, persona_contacto: e.target.value })} /></div>
-            <div className="md:col-span-2"><label className={labelCls}>📍 Ubicación (calle y población — para las rutas de visitas)</label>
+            <div className="md:col-span-2"><label className={labelCls}>📍 Ubicación (dirección o enlace de Google Maps — para las rutas)</label>
               <input className={inputCls} value={fCliente.direccion_fiscal} onChange={(e) => setFCliente({ ...fCliente, direccion_fiscal: e.target.value })} placeholder="Ej: Carretera Alta 43, Esplús" /></div>
             <div><label className={labelCls}>Tipo</label>
               <select className={inputCls} value={fCliente.tipo_cliente} onChange={(e) => setFCliente({ ...fCliente, tipo_cliente: e.target.value })}>

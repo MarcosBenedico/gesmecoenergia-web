@@ -5,12 +5,13 @@ import { Pencil, Plus, X } from 'lucide-react';
 import {
   LuzCliente, LuzOportunidad, LuzTarea, PRIORIDADES, PRIORIDAD_LABEL,
   ESTADO_PIPELINE_LABEL, TIPOS_TAREA, TIPO_TAREA_LABEL, TAREAS_ABIERTAS,
-  ResponsableEquipo, responsableSugerido, diasHasta, fmtFecha,
+  ResponsableEquipo, responsableSugerido, MOTIVOS_ELIMINACION, diasHasta, fmtFecha,
 } from '@/lib/luz';
 import {
   Card, Badge, BadgePrioridad, BadgeVencimiento, guardarLuz, useListaLuz,
   inputCls, labelCls, btnPrimario, btnSecundario, SelectorResponsable,
 } from '../../ui';
+import { PedirMotivo } from '../../motivo';
 
 /* ══════════════ Próxima acción: dato único sincronizado con el Pipeline ══════════════ */
 export function ProximaAccion({ cliente, oportunidades, onGuardado }: {
@@ -173,6 +174,20 @@ export function TareasCliente({ clienteId, tareas, recargar, clienteResponsable,
   const historial = tareas.filter((t) => !TAREAS_ABIERTAS.includes(t.estado))
     .sort((a, b) => (b.actualizado_en || '').localeCompare(a.actualizado_en || ''));
 
+  // Eliminar con motivo: queda registrado en el Control General
+  const [pidiendoBorrado, setPidiendoBorrado] = useState<LuzTarea | null>(null);
+
+  async function confirmarBorrado(motivo: string) {
+    if (!pidiendoBorrado) return;
+    const t = pidiendoBorrado;
+    const nota = `[Eliminada ${new Date().toLocaleDateString('es-ES')}] Motivo: ${motivo}`;
+    await guardarLuz('tareas', 'PUT', { id: t.id, notas: t.notas ? `${t.notas}\n${nota}` : nota });
+    const err = await guardarLuz('tareas', 'DELETE', { id: t.id });
+    if (err) setMsg(err);
+    setPidiendoBorrado(null);
+    recargar();
+  }
+
   async function guardarTarea(id: string | null, f: FormTareaT) {
     if (!f.descripcion.trim()) { setMsg('Escribe la descripción de la tarea.'); return false; }
     // Reparto automático: si no se elige responsable, las tareas administrativas
@@ -244,7 +259,7 @@ export function TareasCliente({ clienteId, tareas, recargar, clienteResponsable,
                   <Pencil className="w-3.5 h-3.5" />
                 </button>
                 <button
-                  onClick={async () => { if (confirm('¿Eliminar esta tarea definitivamente?')) { await guardarLuz('tareas', 'DELETE', { id: t.id }); recargar(); } }}
+                  onClick={() => setPidiendoBorrado(t)}
                   className="text-muted hover:text-red-400 text-xs transition" title="Eliminar"
                 >✕</button>
               </div>
@@ -282,6 +297,16 @@ export function TareasCliente({ clienteId, tareas, recargar, clienteResponsable,
             </div>
           )}
         </div>
+      )}
+
+      {pidiendoBorrado && (
+        <PedirMotivo
+          titulo="¿Por qué se elimina esta tarea?"
+          subtitulo={`"${pidiendoBorrado.descripcion}" — el motivo queda registrado en el Control General.`}
+          sugerencias={MOTIVOS_ELIMINACION}
+          onGuardar={confirmarBorrado}
+          onCancelar={() => setPidiendoBorrado(null)}
+        />
       )}
     </Card>
   );

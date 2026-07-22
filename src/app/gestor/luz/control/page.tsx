@@ -76,6 +76,14 @@ function resumenCambio(r: RegistroAuditoria): string[] {
 
 const hoyISO = () => new Date().toISOString().slice(0, 10);
 
+/** Motivo apuntado justo antes de eliminar (viaja en las notas del registro borrado). */
+function motivoEliminacion(r: RegistroAuditoria): string | null {
+  if (r.accion !== 'DELETE') return null;
+  const notas = String((r.antes as Record<string, unknown> | null)?.notas || '');
+  const m = notas.match(/\[Eliminada[^\]]*\]\s*Motivo:\s*(.+)$/m);
+  return m ? m[1].trim() : null;
+}
+
 export default function ControlGeneralPage() {
   return (
     <GuardiaAdmin nombre="Control General">
@@ -95,6 +103,7 @@ function ControlGeneral() {
   // ── Día seleccionado y filtro por usuario ──
   const [dia, setDia] = useState(hoyISO());
   const [fUsuario, setFUsuario] = useState('');
+  const [soloBorrados, setSoloBorrados] = useState(false);
 
   // Nombres de usuario (app_usuarios): email → nombre, para mostrar quién hizo cada acción
   const [nombres, setNombres] = useState<Record<string, string>>({});
@@ -129,8 +138,11 @@ function ControlGeneral() {
   );
 
   const filtrados = useMemo(
-    () => (fUsuario ? datos.filter((r) => (r.usuario || 'sistema') === fUsuario) : datos),
-    [datos, fUsuario]
+    () => datos.filter((r) =>
+      (!fUsuario || (r.usuario || 'sistema') === fUsuario) &&
+      (!soloBorrados || r.accion === 'DELETE')
+    ),
+    [datos, fUsuario, soloBorrados]
   );
 
   const porHora = useMemo(
@@ -230,6 +242,14 @@ function ControlGeneral() {
             <option value="">Usuario: todos</option>
             {usuariosDia.map((u) => <option key={u} value={u}>{nombreUsuario(u)}</option>)}
           </select>
+          <button
+            onClick={() => setSoloBorrados((v) => !v)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition ${
+              soloBorrados ? 'bg-red-500/15 text-red-400 border-red-500/40' : 'bg-card/80 text-muted border-border/50 hover:text-foreground'
+            }`}
+          >
+            🗑️ Solo eliminaciones
+          </button>
         </div>
       </div>
 
@@ -253,8 +273,9 @@ function ControlGeneral() {
             const ui = ACCION_UI[r.accion] || ACCION_UI.UPDATE;
             const cambios = resumenCambio(r);
             const nombre = nombreRegistro(r);
+            const motivo = motivoEliminacion(r);
             return (
-              <div key={r.id} className="flex items-start gap-3 px-4 py-2.5">
+              <div key={r.id} className={`flex items-start gap-3 px-4 py-2.5 ${r.accion === 'DELETE' ? 'bg-red-500/5' : ''}`}>
                 <span className="shrink-0 text-[11px] font-bold tabular-nums text-muted w-12 pt-0.5">
                   {new Date(r.creado_en).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
                 </span>
@@ -270,6 +291,11 @@ function ControlGeneral() {
                     <p className="text-[11px] text-muted mt-0.5 leading-relaxed">
                       {cambios.slice(0, 4).join(' · ')}
                       {cambios.length > 4 && <span className="text-muted/60"> · +{cambios.length - 4} cambios más</span>}
+                    </p>
+                  )}
+                  {r.accion === 'DELETE' && (
+                    <p className={`text-[11px] mt-0.5 font-semibold ${motivo ? 'text-red-300' : 'text-amber-400'}`}>
+                      {motivo ? `Motivo: ${motivo}` : '⚠️ Eliminado sin motivo apuntado'}
                     </p>
                   )}
                 </div>

@@ -16,9 +16,44 @@ const ORIGEN_DEFECTO = 'Avenida de Aragón 50, Binéfar, Huesca, España';
 // Caché en memoria del proceso (las direcciones no cambian entre peticiones)
 const cacheGeo = new Map<string, { lat: number; lon: number } | null>();
 
+/** Coordenadas escritas a mano ("41.85, 0.29") o dentro de un enlace de Google Maps. */
+function coordsDirectas(texto: string): { lat: number; lon: number } | null {
+  const t = texto.trim();
+  // Enlace de Google Maps: .../@41.85,0.29,15z · ?q=41.85,0.29 · !3d41.85!4d0.29
+  const patrones = [
+    /@(-?\d{1,2}\.\d+),(-?\d{1,3}\.\d+)/,
+    /[?&]q=(-?\d{1,2}\.\d+),(-?\d{1,3}\.\d+)/,
+    /!3d(-?\d{1,2}\.\d+)!4d(-?\d{1,3}\.\d+)/,
+    /^(-?\d{1,2}\.\d+)\s*,\s*(-?\d{1,3}\.\d+)$/, // "lat, lon" a pelo
+  ];
+  for (const re of patrones) {
+    const m = t.match(re);
+    if (m) {
+      const lat = parseFloat(m[1]);
+      const lon = parseFloat(m[2]);
+      if (Math.abs(lat) <= 90 && Math.abs(lon) <= 180) return { lat, lon };
+    }
+  }
+  return null;
+}
+
 async function geocodificar(direccion: string): Promise<{ lat: number; lon: number } | null> {
+  const directas = coordsDirectas(direccion);
+  if (directas) return directas;
   const clave = direccion.trim().toLowerCase();
   if (cacheGeo.has(clave)) return cacheGeo.get(clave)!;
+  // Enlace corto de Google Maps → seguir la redirección para sacar las coordenadas
+  if (/maps\.app\.goo\.gl|goo\.gl\/maps/i.test(direccion)) {
+    try {
+      const res = await fetch(direccion.trim(), { redirect: 'follow' });
+      const r = coordsDirectas(res.url) || coordsDirectas(await res.text().then((t) => t.slice(0, 5000)).catch(() => ''));
+      cacheGeo.set(clave, r);
+      return r;
+    } catch {
+      cacheGeo.set(clave, null);
+      return null;
+    }
+  }
   try {
     const q = /españa|spain/i.test(direccion) ? direccion : `${direccion}, España`;
     const res = await fetch(

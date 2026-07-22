@@ -6,7 +6,7 @@ import { Plus, X, Download, LayoutGrid, List, CalendarDays } from 'lucide-react'
 import {
   LuzTarea, LuzCliente, TIPOS_TAREA, TIPO_TAREA_LABEL, ESTADOS_TAREA, ESTADO_TAREA_LABEL,
   TAREAS_ABIERTAS, TAREAS_ADMINISTRATIVAS, ResponsableEquipo, responsableSugerido,
-  MOTIVOS_BLOQUEO, diasHasta,
+  MOTIVOS_BLOQUEO, MOTIVOS_ELIMINACION, diasHasta,
 } from '@/lib/luz';
 import { BotonDescarga, Card, Kpi, Badge, BadgeVencimiento, EstadoCarga, useListaLuz, guardarLuz, inputCls, labelCls, btnPrimario, btnSecundario, SelectorResponsable } from '../ui';
 import { PedirMotivo } from '../motivo';
@@ -116,9 +116,22 @@ export default function TareasLuzPage() {
     await guardarCambios(t.id, cambios);
   }
 
-  async function borrarTarea(t: LuzTarea) {
-    if (!confirm('¿Borrar tarea definitivamente?')) return;
-    await guardarLuz('tareas', 'DELETE', { id: t.id });
+  // Eliminar siempre con motivo: queda grabado en el Control General (quién, cuándo y por qué)
+  const [pidiendoBorrado, setPidiendoBorrado] = useState<LuzTarea | null>(null);
+
+  function borrarTarea(t: LuzTarea) {
+    setPidiendoBorrado(t);
+  }
+
+  async function confirmarBorrado(motivo: string) {
+    if (!pidiendoBorrado) return;
+    const t = pidiendoBorrado;
+    const nota = `[Eliminada ${new Date().toLocaleDateString('es-ES')}] Motivo: ${motivo}`;
+    // Primero se apunta el motivo (queda en la auditoría) y después se elimina
+    await guardarLuz('tareas', 'PUT', { id: t.id, notas: t.notas ? `${t.notas}\n${nota}` : nota });
+    const err = await guardarLuz('tareas', 'DELETE', { id: t.id });
+    if (err) setMsg(err);
+    setPidiendoBorrado(null);
     recargar();
   }
 
@@ -406,6 +419,17 @@ export default function TareasLuzPage() {
           sugerencias={MOTIVOS_BLOQUEO}
           onGuardar={guardarMotivoEstado}
           onCancelar={() => setPidiendoMotivo(null)}
+        />
+      )}
+
+      {/* Motivo obligatorio al eliminar: queda registrado en el Control General */}
+      {pidiendoBorrado && (
+        <PedirMotivo
+          titulo="¿Por qué se elimina esta tarea?"
+          subtitulo={`"${pidiendoBorrado.descripcion}" — el motivo queda registrado en el Control General.`}
+          sugerencias={MOTIVOS_ELIMINACION}
+          onGuardar={confirmarBorrado}
+          onCancelar={() => setPidiendoBorrado(null)}
         />
       )}
     </div>

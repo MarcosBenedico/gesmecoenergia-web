@@ -195,6 +195,7 @@ export function responsableSugerido(tipoTarea: string, equipo: ResponsableEquipo
 /** Motivos rápidos para cuando algo se bloquea o se pierde (un toque y listo). */
 export const MOTIVOS_BLOQUEO = ['Esperando al cliente', 'Falta documentación', 'Esperando a la comercializadora', 'Pendiente de decisión interna'];
 export const MOTIVOS_PERDIDA = ['Precio no competitivo', 'Permanencia con penalización', 'No contesta', 'Se queda como está', 'Se fue con otro'];
+export const MOTIVOS_ELIMINACION = ['Tarea duplicada', 'Creada por error', 'Ya no aplica', 'Se hizo por otra vía'];
 
 export const ESTADOS_TAREA = ['pendiente', 'en_curso', 'completada', 'bloqueada', 'cancelada'] as const;
 export const ESTADO_TAREA_LABEL: Record<string, string> = {

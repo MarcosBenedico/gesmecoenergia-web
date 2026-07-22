@@ -289,7 +289,7 @@ export default function FichaClienteLuz() {
           <form onSubmit={guardarCliente} className="space-y-3">
             <div className="grid md:grid-cols-3 gap-3">
               {([['nombre', 'Nombre *'], ['nif', 'CIF/NIF'], ['persona_contacto', 'Contacto'], ['telefono', 'Teléfono'],
-                ['email', 'Email'], ['direccion_fiscal', '📍 Ubicación (calle y población)'], ['origen_cliente', 'Origen'],
+                ['email', 'Email'], ['direccion_fiscal', '📍 Ubicación (dirección o enlace de Google Maps)'], ['origen_cliente', 'Origen'],
                 ['proxima_accion', 'Próxima acción']] as const).map(([k, label]) => (
                 <div key={k}><label className={labelCls}>{label}</label><input className={inputCls} value={formC[k] || ''} onChange={setC(k)} /></div>
               ))}
