@@ -10,6 +10,7 @@ import {
   PartidaFV, importePartida, precioAjustado, costeDirecto, numeroPaneles, confianzaGlobal,
   CONFIANZA_LABEL, POTENCIA_PANEL_W, fmtEur2, r2, PERFIL_FRANJA, FRANJA_LABEL,
   estimarAyudas, IRPF_PCT_DEDUCCION, IRPF_BASE_MAXIMA, IBI_PCT_ORIENTATIVO, IBI_ANIOS_ORIENTATIVO,
+  PERFILES_CLIENTE, PERFIL_LABEL, PERFIL_TEXTO, produccionMensual, MESES_CORTO, estimarGasoil,
 } from '@/lib/fv';
 import { Card, EstadoCarga, useListaLuz, inputCls, labelCls, btnPrimario, btnSecundario, SelectorResponsable } from '../ui';
 import { tokenSesion } from '@/lib/usuario';
@@ -52,7 +53,7 @@ const PARTIDA_NUEVA: PartidaFV = {
 interface RefCat { id: string; codigo: string; categoria: string; descripcion: string; marca: string | null; unidad: string; precio_base: number; confianza: string; advertencia: string | null; num_referencias: number; activo: boolean }
 
 const FORM_VACIO = {
-  cliente_id: '', nombre_proyecto: '', potencia_kw: '', presupuesto_instalador: '',
+  cliente_id: '', nombre_proyecto: '', perfil: 'residencial', potencia_kw: '', presupuesto_instalador: '',
   coste_ingenieria: String(INGENIERIA_DEFECTO), margen_pct: '', motivo_margen: '',
   iva_pct: '21', iva_otro: '', responsable: '', observaciones: '',
 };
@@ -205,6 +206,7 @@ function CalculadoraFV() {
     const d: PresupuestoFV = json.dato;
     setForm({
       cliente_id: d.cliente_id || '', nombre_proyecto: d.nombre_proyecto,
+      perfil: (d as unknown as { dimensionado?: { perfil?: string } }).dimensionado?.perfil || 'residencial',
       potencia_kw: String(d.potencia_kw), presupuesto_instalador: String(d.presupuesto_instalador),
       coste_ingenieria: String(d.coste_ingenieria),
       margen_pct: String(d.margen_pct), motivo_margen: d.motivo_margen || '',
@@ -240,7 +242,7 @@ function CalculadoraFV() {
       observaciones: form.observaciones || null,
       documentos: docs,
       modo,
-      dimensionado: { num_paneles: paneles, potencia_panel_w: POTENCIA_PANEL_W, energia, hipotesis },
+      dimensionado: { num_paneles: paneles, potencia_panel_w: POTENCIA_PANEL_W, perfil: form.perfil, energia, hipotesis },
       conceptos: conceptos.filter((c) => c.concepto.trim()),
     };
     const { ok, json } = await apiFV(editandoId === 'nuevo' ? 'POST' : 'PUT', body);
@@ -308,6 +310,41 @@ ${amort ? `<tr><td><b>Amortización orientativa</b></td><td>inversión ${fmtEur2
 </tbody></table>
 <p class="muted">A partir del año de amortización, el ahorro anual es beneficio neto durante el resto de la vida útil de la instalación (≈25 años los módulos).
 Estimación orientativa según los datos de consumo facilitados; pendiente de validación técnica del instalador. No incluye posibles bonificaciones municipales (IBI/ICIO) ni subvenciones.</p>`;
+    }
+
+    // ── Intro adaptada al perfil del cliente (residencial, empresa, granja...) ──
+    const pf = PERFIL_TEXTO[form.perfil] || PERFIL_TEXTO.residencial;
+    const bloqueIntro = `<h2>${pf.titular}</h2>
+<p style="font-size:.98rem">${pf.intro}</p>
+<ul>${pf.puntos.map((p) => `<li>${p}</li>`).join('')}</ul>`;
+
+    // ── Granja aislada: comparación con el grupo de gasoil ──
+    let bloqueGasoil = '';
+    if (form.perfil === 'granja_aislada' && energia.gasoil && energia.gasoil.gasto_mensual > 0) {
+      const g = estimarGasoil({ gastoMensual: energia.gasoil.gasto_mensual, precioLitro: energia.gasoil.precio_litro, kwhLitro: energia.gasoil.kwh_litro });
+      bloqueGasoil = `<h2>Su situación actual: grupo de gasoil</h2>
+<table><thead><tr><th>Concepto</th><th>Cálculo</th><th class="num">Valor</th></tr></thead><tbody>
+<tr><td>Gasto de gasoil</td><td>${fmtEur2(energia.gasoil.gasto_mensual)}/mes × 12</td><td class="num">${fmtEur2(g.gasto_anual)}/año</td></tr>
+<tr><td>Litros consumidos</td><td>${fmtEur2(g.gasto_anual)} ÷ ${energia.gasoil.precio_litro} €/L</td><td class="num">${g.litros_anio.toLocaleString('es-ES')} L/año</td></tr>
+<tr><td>Energía equivalente</td><td>${g.litros_anio.toLocaleString('es-ES')} L × ${energia.gasoil.kwh_litro} kWh/L</td><td class="num">${g.kwh_anio.toLocaleString('es-ES')} kWh/año</td></tr>
+<tr class="total"><td>Coste real de su energía hoy</td><td></td><td class="num">${g.coste_kwh} €/kWh</td></tr>
+</tbody></table>
+<p class="muted">El gasoil le cuesta <b>${g.coste_kwh} €/kWh</b> —además del ruido, el mantenimiento del grupo y los rellenos—. Cada kWh que produzca el sol es gasoil que deja de quemar. Por eso en una explotación aislada la instalación se amortiza mucho antes que conectada a red.</p>`;
+    }
+
+    // ── Gráfico de estacionalidad (producción mes a mes) en barras CSS ──
+    let bloqueEstacional = '';
+    if (potencia > 0) {
+      const prodMes = produccionMensual(potencia * hipotesis.prod_especifica);
+      const maxP = Math.max(...prodMes, 1);
+      const barras = prodMes.map((v, i) => `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px">
+        <div style="width:100%;height:90px;display:flex;align-items:flex-end"><div style="width:100%;background:linear-gradient(180deg,#ffb347,#ff9500);border-radius:3px 3px 0 0;height:${(v / maxP) * 100}%" title="${Math.round(v)} kWh"></div></div>
+        <div style="font-size:.62rem;color:#5c5c6e">${MESES_CORTO[i]}</div>
+      </div>`).join('');
+      bloqueEstacional = `<h2>Su instalación a lo largo del año</h2>
+<p style="font-size:.9rem;color:#3a3a4a">El sol no produce igual todo el año: en verano genera más del doble que en invierno. Así se reparte la producción estimada de su instalación mes a mes:</p>
+<div style="display:flex;gap:4px;align-items:flex-end;margin:.6rem 0">${barras}</div>
+<p class="muted">En los meses de más sol es habitual tener excedente (que se acumula en batería o se vierte a red); en invierno se completa con red o grupo. El dimensionado busca el mejor equilibrio anual para usted.</p>`;
     }
 
     // ── Ficha técnica: consumo medido, dimensionado, equipos y por qué de cada uno ──
@@ -433,7 +470,10 @@ y puesta en marcha de la instalación.</p>
 ${conIngenieria ? 'proyecto de ingeniería, ' : ''}legalización, boletines, permisos de acceso y conexión, alta de autoconsumo y solicitud de compensación de excedentes—
 para que usted solo tenga que disfrutar del ahorro. Estamos en Binéfar, a un teléfono de distancia, antes, durante y después de la instalación.</p>
 
+${bloqueIntro}
+${bloqueGasoil}
 ${bloqueTecnico}
+${bloqueEstacional}
 ${bloqueAhorro}
 ${bloqueAyudas}
 <h2>Oferta económica</h2>
@@ -624,6 +664,7 @@ ${form.observaciones ? `<p class="muted">Observaciones: ${form.observaciones}</p
       catalogo={catalogo}
       clienteNombre={clientes.datos.find((c) => c.id === form.cliente_id)?.nombre || ''}
       proyecto={form.nombre_proyecto}
+      perfil={form.perfil}
       onMontarPresupuesto={(kwp, codigos) => {
         const partidas = codigos
           .map((c) => {
@@ -677,6 +718,13 @@ ${form.observaciones ? `<p class="muted">Observaciones: ${form.observaciones}</p
               </div>
               <div><label className={labelCls}>Nombre del proyecto *</label>
                 <input className={inputCls} value={form.nombre_proyecto} onChange={(e) => setForm({ ...form, nombre_proyecto: e.target.value })} placeholder="Instalación fotovoltaica granja Perlag" /></div>
+              <div className="md:col-span-2">
+                <label className={labelCls}>Tipo de cliente (adapta el lenguaje de la propuesta)</label>
+                <select className={inputCls} value={form.perfil} onChange={(e) => setForm({ ...form, perfil: e.target.value })}>
+                  {PERFILES_CLIENTE.map((p) => <option key={p} value={p}>{PERFIL_LABEL[p]}</option>)}
+                </select>
+                <p className="text-[10px] text-muted mt-0.5">{PERFIL_TEXTO[form.perfil]?.intro}</p>
+              </div>
               <div>
                 <label className={labelCls}>Potencia (kW) *</label>
                 <input className={inputCls} type="number" min="0.01" step="0.01" value={form.potencia_kw} onChange={(e) => setForm({ ...form, potencia_kw: e.target.value })} />

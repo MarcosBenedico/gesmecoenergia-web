@@ -6,6 +6,7 @@ import {
   ahorroSimple, numeroPaneles, r2, fmtEur2, POTENCIA_PANEL_W,
   FRANJAS_CONSUMO, FRANJA_LABEL, PERFIL_FRANJA, CAPACIDAD_BATERIA,
   optimizarBateria, siguienteEuro, LineaJustificacion, OpcionBateria, estimarAyudas, IRPF_PCT_DEDUCCION,
+  estimarGasoil, produccionMensual, MESES_CORTO, GASOIL_PRECIO_LITRO, GASOIL_KWH_LITRO,
 } from '@/lib/fv';
 import { Card, inputCls, labelCls, btnSecundario, btnPrimario } from '../ui';
 
@@ -20,10 +21,12 @@ import { Card, inputCls, labelCls, btnSecundario, btnPrimario } from '../ui';
 export interface EnergiaFV {
   mensual: number[];              // 12 consumos en kWh (ene..dic)
   consumo_anual: number;
-  origen: 'manual' | 'plantilla' | 'curva' | null;
+  origen: 'manual' | 'plantilla' | 'curva' | 'gasoil' | null;
   aviso_curva?: string | null;
   /** Franja del consumo FUERTE (mañana/mediodía/tarde/diurno/noche/todo el día). */
   franja?: string | null;
+  /** Modo granja aislada: gasto mensual de gasoil y parámetros del grupo electrógeno. */
+  gasoil?: { gasto_mensual: number; precio_litro: number; kwh_litro: number } | null;
 }
 export interface HipotesisFV {
   prod_especifica: number;        // kWh/kWp/año
@@ -85,7 +88,7 @@ export function recomendarEquipos(kwp: number, paneles: number, consumoAnual: nu
   };
 }
 
-export function EnergiaEscenarios({ energia, setEnergia, hipotesis, setHipotesis, potenciaActual, precioSinIva, precioConIva, onAplicarPotencia, catalogo, onMontarPresupuesto, clienteNombre, proyecto }: {
+export function EnergiaEscenarios({ energia, setEnergia, hipotesis, setHipotesis, potenciaActual, precioSinIva, precioConIva, onAplicarPotencia, catalogo, onMontarPresupuesto, clienteNombre, proyecto, perfil }: {
   energia: EnergiaFV;
   setEnergia: (e: EnergiaFV) => void;
   hipotesis: HipotesisFV;
@@ -98,10 +101,22 @@ export function EnergiaEscenarios({ energia, setEnergia, hipotesis, setHipotesis
   onMontarPresupuesto: (kwp: number, codigos: { codigo: string; cantidad: number; confianza?: string; nota?: string }[]) => void;
   clienteNombre?: string;
   proyecto?: string;
+  perfil?: string;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [errImport, setErrImport] = useState('');
   const anual = energia.consumo_anual;
+  const esGasoil = perfil === 'granja_aislada';
+
+  /** Modo gasoil: al cambiar el gasto/parámetros, deriva el consumo anual equivalente y el €/kWh evitado. */
+  function setGasoil(campos: Partial<NonNullable<EnergiaFV['gasoil']>>) {
+    const g = { gasto_mensual: 0, precio_litro: GASOIL_PRECIO_LITRO, kwh_litro: GASOIL_KWH_LITRO, ...(energia.gasoil || {}), ...campos };
+    const est = estimarGasoil({ gastoMensual: g.gasto_mensual, precioLitro: g.precio_litro, kwhLitro: g.kwh_litro });
+    // La energía anual sale del gasoil; el precio del kWh evitado es el coste real del gasoil (caro)
+    setEnergia({ ...energia, gasoil: g, consumo_anual: est.kwh_anio, mensual: produccionMensual(est.kwh_anio), origen: 'gasoil' });
+    if (est.coste_kwh > 0) setHipotesis({ ...hipotesis, precio_kwh: est.coste_kwh, precio_compensacion: 0, pct_autoconsumo: 90 });
+  }
+  const gasoilEst = energia.gasoil ? estimarGasoil({ gastoMensual: energia.gasoil.gasto_mensual, precioLitro: energia.gasoil.precio_litro, kwhLitro: energia.gasoil.kwh_litro }) : null;
 
   function setMes(i: number, v: number) {
     const mensual = energia.mensual.map((x, j) => (j === i ? Math.max(v, 0) : x));
@@ -338,32 +353,70 @@ ${fila('Se amortiza en', (e) => e.amortizacion != null ? `${e.amortizacion} año
       {/* ── FASE 2 · Consumo del cliente ── */}
       <Card className="space-y-3">
         <div className="flex items-center justify-between gap-2 flex-wrap">
-          <h3 className="font-bold text-sm">⚡ Consumo del cliente</h3>
-          <div className="flex gap-2">
-            <button type="button" onClick={descargarPlantilla} className={btnSecundario}><Download className="w-4 h-4" /> Plantilla</button>
-            <button type="button" onClick={() => fileRef.current?.click()} className={btnSecundario}><Upload className="w-4 h-4" /> Importar CSV / curva</button>
-            <input ref={fileRef} type="file" accept=".csv,.txt" className="hidden"
-              onChange={(e) => { const f = e.target.files?.[0]; if (f) importar(f); e.target.value = ''; }} />
-          </div>
-        </div>
-        <p className="text-[11px] text-muted">Escribe los consumos mes a mes, o descarga la plantilla, rellénala en Excel y súbela. También acepta una curva horaria o cuarto-horaria (fecha;hora;kWh): se agrega por meses.</p>
-        {errImport && <p className="text-[11px] text-red-400">{errImport}</p>}
-        {energia.aviso_curva && <p className="text-[11px] text-amber-300">⚠️ {energia.aviso_curva}</p>}
-
-        <div className="grid grid-cols-4 md:grid-cols-6 lg:grid-cols-12 gap-1.5">
-          {MESES.map((m, i) => (
-            <div key={m}>
-              <p className="text-[9px] font-bold uppercase text-muted text-center">{m}</p>
-              <input
-                className="w-full rounded-md border border-border/40 bg-background/60 px-1 py-1 text-[11px] text-right tabular-nums"
-                type="number" min="0" value={energia.mensual[i] || ''}
-                onChange={(e) => setMes(i, num(e.target.value))} placeholder="0"
-              />
-              <div className="h-8 flex items-end mt-0.5"><div className="w-full bg-amber-400/60 rounded-t" style={{ height: `${(energia.mensual[i] / maxMes) * 100}%` }} /></div>
+          <h3 className="font-bold text-sm">{esGasoil ? '⛽ Gasto actual de gasoil (explotación aislada)' : '⚡ Consumo del cliente'}</h3>
+          {!esGasoil && (
+            <div className="flex gap-2">
+              <button type="button" onClick={descargarPlantilla} className={btnSecundario}><Download className="w-4 h-4" /> Plantilla</button>
+              <button type="button" onClick={() => fileRef.current?.click()} className={btnSecundario}><Upload className="w-4 h-4" /> Importar CSV / curva</button>
+              <input ref={fileRef} type="file" accept=".csv,.txt" className="hidden"
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) importar(f); e.target.value = ''; }} />
             </div>
-          ))}
+          )}
         </div>
-        <p className="text-xs font-bold text-right">Consumo anual: <span className="tabular-nums">{anual.toLocaleString('es-ES')} kWh</span>{energia.origen && <span className="text-muted font-normal"> · origen: {energia.origen}</span>}</p>
+
+        {/* MODO GASOIL: el consumo se deduce del gasto de gasoil del grupo electrógeno */}
+        {esGasoil ? (
+          <div className="space-y-2.5">
+            <p className="text-[11px] text-muted">Esta explotación no está conectada a red: funciona con un grupo de gasoil. Indica su gasto y calculamos cuánta energía consume y a qué precio real por kWh, para dimensionar el solar + baterías que lo sustituye.</p>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+              <div>
+                <label className={labelCls}>Gasto de gasoil al mes (€)</label>
+                <input className={inputCls} type="number" min="0" value={energia.gasoil?.gasto_mensual || ''} onChange={(e) => setGasoil({ gasto_mensual: num(e.target.value) })} placeholder="Ej: 600" />
+              </div>
+              <div>
+                <label className={labelCls}>Precio del litro (€)</label>
+                <input className={inputCls} type="number" min="0" step="0.01" value={energia.gasoil?.precio_litro ?? GASOIL_PRECIO_LITRO} onChange={(e) => setGasoil({ precio_litro: num(e.target.value) })} />
+              </div>
+              <div>
+                <label className={labelCls}>kWh por litro (grupo)</label>
+                <input className={inputCls} type="number" min="0" step="0.1" value={energia.gasoil?.kwh_litro ?? GASOIL_KWH_LITRO} onChange={(e) => setGasoil({ kwh_litro: num(e.target.value) })} />
+              </div>
+            </div>
+            {gasoilEst && gasoilEst.kwh_anio > 0 && (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-center">
+                {[['Gasto anual gasoil', fmtEur2(gasoilEst.gasto_anual)], ['Litros/año', `${gasoilEst.litros_anio.toLocaleString('es-ES')} L`],
+                  ['Energía equivalente', `${gasoilEst.kwh_anio.toLocaleString('es-ES')} kWh`], ['Coste real', `${gasoilEst.coste_kwh} €/kWh`]].map(([n, v]) => (
+                  <div key={n} className="rounded-lg bg-amber-500/5 border border-amber-500/20 p-2">
+                    <p className="text-sm font-black tabular-nums text-amber-300">{v}</p>
+                    <p className="text-[9px] uppercase font-bold text-muted">{n}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+            <p className="text-[10px] text-secondary">💡 El gasoil sale a <b>{gasoilEst?.coste_kwh || '—'} €/kWh</b> — 2 o 3 veces más caro que la red. Por eso en aislada el solar se amortiza mucho antes.</p>
+          </div>
+        ) : (
+          <>
+            <p className="text-[11px] text-muted">Escribe los consumos mes a mes, o descarga la plantilla, rellénala en Excel y súbela. También acepta una curva horaria o cuarto-horaria (fecha;hora;kWh): se agrega por meses.</p>
+            {errImport && <p className="text-[11px] text-red-400">{errImport}</p>}
+            {energia.aviso_curva && <p className="text-[11px] text-amber-300">⚠️ {energia.aviso_curva}</p>}
+
+            <div className="grid grid-cols-4 md:grid-cols-6 lg:grid-cols-12 gap-1.5">
+              {MESES.map((m, i) => (
+                <div key={m}>
+                  <p className="text-[9px] font-bold uppercase text-muted text-center">{m}</p>
+                  <input
+                    className="w-full rounded-md border border-border/40 bg-background/60 px-1 py-1 text-[11px] text-right tabular-nums"
+                    type="number" min="0" value={energia.mensual[i] || ''}
+                    onChange={(e) => setMes(i, num(e.target.value))} placeholder="0"
+                  />
+                  <div className="h-8 flex items-end mt-0.5"><div className="w-full bg-amber-400/60 rounded-t" style={{ height: `${(energia.mensual[i] / maxMes) * 100}%` }} /></div>
+                </div>
+              ))}
+            </div>
+            <p className="text-xs font-bold text-right">Consumo anual: <span className="tabular-nums">{anual.toLocaleString('es-ES')} kWh</span>{energia.origen && <span className="text-muted font-normal"> · origen: {energia.origen}</span>}</p>
+          </>
+        )}
 
         {/* ¿Cuándo es el consumo FUERTE? — ajusta la coincidencia solar y el algoritmo de batería */}
         <div className="pt-2 border-t border-border/30 space-y-1.5">
@@ -387,6 +440,33 @@ ${fila('Se amortiza en', (e) => e.amortizacion != null ? `${e.amortizacion} año
             <p className="text-[10px] text-muted">Sin franja indicada, los escenarios usan el «% autoconsumo» de las hipótesis. Elegirla afina la coincidencia solar y el cálculo de batería.</p>
           )}
         </div>
+
+        {/* Estacionalidad: producción mes a mes vs consumo (en verano se produce el doble que en invierno) */}
+        {potenciaActual > 0 && (() => {
+          const prodMes = produccionMensual(potenciaActual * hipotesis.prod_especifica);
+          const consMes = anual > 0 && !esGasoil ? energia.mensual : produccionMensual(anual).map(() => anual / 12); // consumo real, o plano si viene de gasoil
+          const maxV = Math.max(...prodMes, ...consMes, 1);
+          return (
+            <div className="pt-2 border-t border-border/30 space-y-1.5">
+              <div className="flex items-center justify-between flex-wrap gap-1">
+                <p className="text-[11px] font-bold uppercase tracking-wide text-muted">📅 Producción mes a mes vs consumo</p>
+                <p className="text-[10px] text-muted"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-amber-400/70 align-middle"></span> producción solar · <span className="inline-block w-2.5 h-2.5 rounded-sm bg-secondary/60 align-middle"></span> {esGasoil ? 'consumo (estimado)' : 'consumo'}</p>
+              </div>
+              <div className="grid grid-cols-12 gap-1">
+                {MESES_CORTO.map((m, i) => (
+                  <div key={m} className="flex flex-col items-center gap-0.5">
+                    <div className="w-full h-20 flex items-end justify-center gap-0.5">
+                      <div className="w-1/2 bg-amber-400/70 rounded-t" style={{ height: `${(prodMes[i] / maxV) * 100}%` }} title={`Producción ${m}: ${Math.round(prodMes[i]).toLocaleString('es-ES')} kWh`} />
+                      <div className="w-1/2 bg-secondary/60 rounded-t" style={{ height: `${(consMes[i] / maxV) * 100}%` }} title={`Consumo ${m}: ${Math.round(consMes[i]).toLocaleString('es-ES')} kWh`} />
+                    </div>
+                    <p className="text-[8px] text-muted">{m}</p>
+                  </div>
+                ))}
+              </div>
+              <p className="text-[10px] text-muted">☀️ En verano se produce más del doble que en invierno. Donde la barra amarilla supera a la azul hay <b>excedente</b> (batería o vertido a red); donde no llega, se completa con red{esGasoil ? ' o grupo' : ''}.</p>
+            </div>
+          );
+        })()}
       </Card>
 
       {/* ── Hipótesis (visibles y editables) ── */}

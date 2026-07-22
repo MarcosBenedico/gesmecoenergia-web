@@ -308,6 +308,98 @@ export function siguienteEuro(e: {
   return { mejor, retorno_placas: r2(retornoPlacas), retorno_bateria: r2(retornoBateria), texto };
 }
 
+/* ═══════════ PERFIL DE CLIENTE ═══════════ */
+
+/**
+ * Cada tipo de cliente entiende la luz de forma distinta. El perfil adapta el
+ * lenguaje y el enfoque de la propuesta (una granja no piensa en "confort" sino
+ * en coste por cabeza y en no parar la ventilación/ordeño).
+ */
+export const PERFILES_CLIENTE = ['residencial', 'empresa', 'granja_porcina', 'granja_vacuno', 'granja_avicola', 'granja_aislada', 'otro'] as const;
+export type PerfilCliente = (typeof PERFILES_CLIENTE)[number];
+
+export const PERFIL_LABEL: Record<string, string> = {
+  residencial: '🏠 Vivienda / residencial', empresa: '🏢 Empresa / comercio',
+  granja_porcina: '🐷 Granja porcina', granja_vacuno: '🐄 Granja de vacuno',
+  granja_avicola: '🐔 Granja avícola', granja_aislada: '🔌 Explotación aislada (grupo gasoil)',
+  otro: '⚙️ Otro',
+};
+
+/** Textos por defecto de la propuesta según el perfil (editables antes de imprimir). */
+export const PERFIL_TEXTO: Record<string, { titular: string; intro: string; puntos: string[] }> = {
+  residencial: {
+    titular: 'Su casa, produciendo su propia energía',
+    intro: 'Le proponemos una instalación pensada para su vivienda: producir durante el día la energía que consume, reducir la factura desde el primer mes y ganar independencia frente a las subidas de la luz.',
+    puntos: ['Ahorro real en su factura mensual', 'Revalorización de su vivienda', 'Energía limpia y silenciosa'],
+  },
+  empresa: {
+    titular: 'Energía para que su negocio gaste menos',
+    intro: 'La luz es uno de sus costes fijos. Esta instalación convierte parte de ese gasto en una inversión que se amortiza y luego produce ahorro puro, con la tranquilidad de un suministro más estable.',
+    puntos: ['Reducción de un coste fijo del negocio', 'Amortización y deducción fiscal', 'Imagen de empresa sostenible'],
+  },
+  granja_porcina: {
+    titular: 'Menos coste de luz por cabeza, sin parar la explotación',
+    intro: 'En una granja la luz no descansa: ventilación, calefacción de lechones, silos y agua funcionan todo el día. Esta instalación cubre buena parte de ese consumo con el sol y baja su coste energético por plaza, sin tocar su operativa.',
+    puntos: ['Cubre el consumo constante de ventilación y clima', 'Menor coste energético por cabeza', 'Con acumulación, respaldo si falla la red'],
+  },
+  granja_vacuno: {
+    titular: 'El sol para el ordeño, el frío de la leche y el agua',
+    intro: 'El ordeño, el tanque de frío y el bombeo de agua consumen luz a diario y a horas concretas. Dimensionamos la instalación para cubrir ese consumo y, si interesa, guardamos energía para los ordeños de primera y última hora.',
+    puntos: ['Cubre ordeño, tanque de frío y bombeo', 'Batería para los ordeños sin sol', 'Coste de la leche más competitivo'],
+  },
+  granja_avicola: {
+    titular: 'Ventilación y clima asegurados, gastando menos',
+    intro: 'En avicultura la ventilación y la temperatura no pueden fallar y consumen luz de forma continua. La instalación cubre ese consumo con energía solar y, con batería, añade respaldo para que las naves nunca se queden sin clima.',
+    puntos: ['Cubre el consumo continuo de ventilación', 'Respaldo ante cortes de red', 'Menor coste por ave'],
+  },
+  granja_aislada: {
+    titular: 'Deje de depender del grupo de gasoil',
+    intro: 'Su explotación funciona hoy con un grupo electrógeno: cada hora de funcionamiento es gasoil quemado, ruido y mantenimiento. Con solar y baterías produce su energía de día, la guarda para la noche y reduce drásticamente —o elimina— el gasto de gasoil.',
+    puntos: ['Menos litros de gasoil cada mes', 'Energía de día y de noche con baterías', 'Sin ruido ni mantenimiento del grupo'],
+  },
+  otro: {
+    titular: 'Su instalación solar a medida',
+    intro: 'Le proponemos una instalación fotovoltaica dimensionada para su consumo, con el objetivo de reducir su factura y amortizar la inversión.',
+    puntos: ['Ahorro en la factura', 'Amortización clara', 'Energía limpia'],
+  },
+};
+
+/* ═══════════ ESTACIONALIDAD (producción mes a mes) ═══════════ */
+
+/**
+ * Reparto típico de la producción solar a lo largo del año en el interior de
+ * Aragón (% de la producción anual por mes). En verano se produce más del doble
+ * que en invierno: esto es clave para explicar bien el autoconsumo y la batería.
+ * Fuente de referencia: perfiles PVGIS para la zona; ajustable.
+ */
+export const PRODUCCION_MENSUAL_PCT = [5.2, 6.4, 8.6, 9.4, 10.6, 11.2, 11.8, 10.8, 9.0, 7.0, 5.2, 4.8];
+export const MESES_CORTO = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+
+/** Producción mensual (kWh) a partir de la producción anual y el reparto estacional. */
+export const produccionMensual = (anualKwh: number): number[] =>
+  PRODUCCION_MENSUAL_PCT.map((p) => r2((anualKwh * p) / 100));
+
+/* ═══════════ GRANJA AISLADA CON GRUPO DE GASOIL ═══════════ */
+
+export const GASOIL_PRECIO_LITRO = 1.10;   // €/L gasóleo B (agrícola), editable
+export const GASOIL_KWH_LITRO = 3.2;       // kWh eléctricos por litro en un grupo electrógeno
+export const GASOIL_MANT_HORA = 0.6;       // € de mantenimiento por hora de grupo (aceite, filtros, desgaste)
+
+/**
+ * Convierte el gasto mensual de gasoil en su equivalente eléctrico y su coste
+ * real por kWh. En aislada, cada kWh solar sustituye gasoil caro: por eso la
+ * amortización es mucho más rápida que conectado a red.
+ */
+export function estimarGasoil(e: { gastoMensual: number; precioLitro?: number; kwhLitro?: number }) {
+  const precio = e.precioLitro || GASOIL_PRECIO_LITRO;
+  const kwhL = e.kwhLitro || GASOIL_KWH_LITRO;
+  const gastoAnual = r2(e.gastoMensual * 12);
+  const litrosAnio = precio > 0 ? r2(gastoAnual / precio) : 0;
+  const kwhAnio = r2(litrosAnio * kwhL);
+  const costeKwh = kwhAnio > 0 ? r2(gastoAnual / kwhAnio) : 0; // €/kWh real del gasoil
+  return { gasto_anual: gastoAnual, litros_anio: litrosAnio, kwh_anio: kwhAnio, coste_kwh: costeKwh };
+}
+
 /* ═══════════ AYUDAS, BONIFICACIONES Y DEDUCCIONES ═══════════ */
 
 /**
