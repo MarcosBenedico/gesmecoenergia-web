@@ -307,6 +307,37 @@ ${amort ? `<tr><td><b>Amortización orientativa</b></td><td>inversión ${fmtEur2
 <p class="muted">A partir del año de amortización, el ahorro anual es beneficio neto durante el resto de la vida útil de la instalación (≈25 años los módulos).
 Estimación orientativa según los datos de consumo facilitados; pendiente de validación técnica del instalador. No incluye posibles bonificaciones municipales (IBI/ICIO) ni subvenciones.</p>`;
     }
+
+    // ── Ficha técnica: consumo medido, dimensionado, equipos y por qué de cada uno ──
+    let bloqueTecnico = '';
+    if (potencia > 0) {
+      const nPaneles = paneles || numeroPaneles(potencia);
+      const kwpReal = r2((nPaneles * POTENCIA_PANEL_W) / 1000);
+      const consumoAnual = energia.consumo_anual || 0;
+      const prodAnual = potencia * hipotesis.prod_especifica;
+      const franjaT = energia.franja || null;
+      const pctAutoT = franjaT && PERFIL_FRANJA[franjaT] ? PERFIL_FRANJA[franjaT].coincidencia : hipotesis.pct_autoconsumo;
+      const coberturaT = consumoAnual > 0 ? Math.min(r2((prodAnual * (pctAutoT / 100)) / consumoAnual * 100), 100) : null;
+      const partidaCat = (cats: string[]) => conceptos.find((c) => c.incluido && cats.includes((c.concepto || '').toLowerCase()));
+      const inversorP = partidaCat(['inversores', 'inversor']);
+      const bateriaP = partidaCat(['baterias', 'batería', 'bateria']);
+      const kwhT = (n: number) => Math.round(n).toLocaleString('es-ES');
+      const filas: string[] = [
+        consumoAnual > 0 ? `<tr><td>Consumo anual analizado</td><td>Suma de los 12 meses de su factura eléctrica</td><td class="num">${kwhT(consumoAnual)} kWh</td></tr>` : '',
+        `<tr><td>Potencia pico propuesta</td><td>Dimensionado para su perfil de consumo</td><td class="num">${potencia.toLocaleString('es-ES')} kWp</td></tr>`,
+        `<tr><td>Módulos fotovoltaicos</td><td>⌈${potencia.toLocaleString('es-ES')} kWp × 1000 ÷ ${POTENCIA_PANEL_W} W⌉ · paneles de ${POTENCIA_PANEL_W} W</td><td class="num">${nPaneles} paneles (${kwpReal} kWp)</td></tr>`,
+        `<tr><td>Inversor</td><td>${inversorP ? inversorP.descripcion : `Dimensionado para ${potencia.toLocaleString('es-ES')} kWp`} · instalación ${potencia > LIMITE_KW ? 'trifásica con ingeniería' : 'monofásica'}</td><td class="num">${inversorP ? '✓' : 'a confirmar'}</td></tr>`,
+        bateriaP ? `<tr><td>Acumulación (batería)</td><td>${bateriaP.descripcion} · traslada el sol a sus horas de consumo</td><td class="num">✓</td></tr>` : `<tr><td>Acumulación (batería)</td><td>No incluida${franjaT ? ` (su consumo ${FRANJA_LABEL[franjaT].replace(/^\S+\s/, '').toLowerCase()} se aprovecha en directo)` : ''}</td><td class="num">—</td></tr>`,
+        `<tr><td>Producción anual estimada</td><td>${potencia.toLocaleString('es-ES')} kWp × ${hipotesis.prod_especifica} kWh/kWp·año · irradiación de Binéfar (ref. PVGIS)</td><td class="num">${kwhT(prodAnual)} kWh</td></tr>`,
+        coberturaT != null ? `<tr><td>Cobertura de su consumo</td><td>Energía solar autoconsumida ÷ su consumo anual</td><td class="num">≈ ${coberturaT} %</td></tr>` : '',
+      ].filter(Boolean);
+      bloqueTecnico = `<h2>Configuración técnica y dimensionado</h2>
+<p style="font-size:.9rem;color:#3a3a4a">Cada dato de esta propuesta está calculado a partir de ${consumoAnual > 0 ? 'su consumo real' : 'la potencia acordada'} y de la irradiación solar de la zona: así sabe exactamente qué se instala y por qué.</p>
+<table><thead><tr><th>Parámetro</th><th>Justificación</th><th class="num">Valor</th></tr></thead><tbody>
+${filas.join('\n')}
+</tbody></table>`;
+    }
+
     const w = window.open('', '_blank');
     if (!w) return;
     w.document.write(`<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><title>Presupuesto ${ref} · ${form.nombre_proyecto}</title>
@@ -358,6 +389,7 @@ Instalación solar fotovoltaica de <b>${potencia.toLocaleString('es-ES')} kW</b>
 fotovoltaicos, inversor, estructura, cableado y protecciones eléctricas, ingeniería, legalización, tramitación de boletines
 y puesta en marcha de la instalación.</p>
 
+${bloqueTecnico}
 ${bloqueAhorro}
 <h2>Oferta económica</h2>
 <table>
