@@ -7,7 +7,8 @@ import { LuzCliente } from '@/lib/luz';
 import {
   calcularFV, validarEntradaFV, advertenciasFV, margenPorDefecto,
   INGENIERIA_DEFECTO, LIMITE_KW, ESTADOS_FV, ESTADO_FV_LABEL, ESTADOS_FV_PROTEGIDOS,
-  CONCEPTOS_FV, ConceptoFV, fmtEur2,
+  PartidaFV, importePartida, precioAjustado, costeDirecto, numeroPaneles, confianzaGlobal,
+  CONFIANZA_LABEL, POTENCIA_PANEL_W, fmtEur2,
 } from '@/lib/fv';
 import { Card, EstadoCarga, useListaLuz, inputCls, labelCls, btnPrimario, btnSecundario, SelectorResponsable } from '../ui';
 import { tokenSesion } from '@/lib/usuario';
@@ -40,7 +41,13 @@ interface PresupuestoFV {
   aprobado_por: string | null; creado_en: string; actualizado_en: string;
 }
 
-const CONCEPTO_NUEVO: ConceptoFV = { concepto: 'Baterías', proveedor: '', descripcion: '', cantidad: 1, precio_unitario: 0, incluido: true, observaciones: '' };
+const PARTIDA_NUEVA: PartidaFV = {
+  concepto: 'Otros', proveedor: '', descripcion: '', cantidad: 1, precio_unitario: 0, incluido: true, observaciones: '',
+  codigo_catalogo: null, marca: null, ajuste_pct: 0, ajuste_fijo: 0, opcional: false, visible_cliente: true,
+  fuente: null, confianza: 'media', motivo_ajuste: null,
+};
+
+interface RefCat { id: string; codigo: string; categoria: string; descripcion: string; marca: string | null; unidad: string; precio_base: number; confianza: string; advertencia: string | null; num_referencias: number; activo: boolean }
 
 const FORM_VACIO = {
   cliente_id: '', nombre_proyecto: '', potencia_kw: '', presupuesto_instalador: '',
@@ -66,7 +73,33 @@ function CalculadoraFV() {
 
   const [editandoId, setEditandoId] = useState<string | null>(null); // null = lista · 'nuevo' = alta
   const [form, setForm] = useState(FORM_VACIO);
-  const [conceptos, setConceptos] = useState<ConceptoFV[]>([]);
+  const [conceptos, setConceptos] = useState<PartidaFV[]>([]);
+  const [modo, setModo] = useState<'simple' | 'partidas'>('simple');
+  const [catalogo, setCatalogo] = useState<RefCat[]>([]);
+  const [avisoCat, setAvisoCat] = useState('');
+
+  // Catálogo de precios (para el selector de partidas)
+  useEffect(() => {
+    (async () => {
+      const token = await tokenSesion();
+      const res = await fetch('/api/fv/catalogo', { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+      const json = await res.json().catch(() => ({}));
+      if (res.ok) setCatalogo((json.datos || []).filter((c: RefCat) => c.activo));
+    })();
+  }, []);
+
+  /** Partida desde una referencia del catálogo (precio, fuente y confianza vienen de ahí). */
+  function partidaDesdeCatalogo(codigo: string, cantidad = 1): PartidaFV | null {
+    const c = catalogo.find((x) => x.codigo === codigo);
+    if (!c) return null;
+    if (c.advertencia) setAvisoCat(`⚠️ ${c.codigo}: ${c.advertencia}`);
+    return {
+      ...PARTIDA_NUEVA,
+      concepto: c.categoria, codigo_catalogo: c.codigo, descripcion: c.descripcion, marca: c.marca || '',
+      cantidad, precio_unitario: Number(c.precio_base),
+      fuente: `Catálogo · ${c.num_referencias} presupuesto(s) de Óscar`, confianza: c.confianza,
+    };
+  }
   const [docs, setDocs] = useState<DocFV[]>([]);
   const [docNuevo, setDocNuevo] = useState({ nombre: '', url: '' });
   const [subiendo, setSubiendo] = useState(false);
@@ -128,23 +161,25 @@ function CalculadoraFV() {
   const margenDefecto = margenPorDefecto(potencia);
   const margenUsado = form.margen_pct === '' ? margenDefecto : parseFloat(form.margen_pct) || 0;
   const ivaUsado = form.iva_pct === 'otro' ? (parseFloat(form.iva_otro) || 0) : parseFloat(form.iva_pct);
-  const otros = useMemo(
-    () => conceptos.filter((c) => c.incluido && c.concepto.trim()).reduce((s, c) => s + (Number(c.cantidad) || 0) * (Number(c.precio_unitario) || 0), 0),
-    [conceptos]
-  );
+  const otros = useMemo(() => costeDirecto(conceptos), [conceptos]);
   const conceptosFuera = conceptos.filter((c) => !c.incluido && c.concepto.trim()).length;
+  // Ingeniería duplicada: si ya está como partida, la regla no la vuelve a sumar
+  const ingenieriaEnPartidas = conceptos.some((c) => c.incluido && (c.codigo_catalogo === 'ING-EXT' || /ingenier/i.test(c.concepto)));
   const entrada = {
     potencia_kw: potencia,
-    presupuesto_instalador: parseFloat(form.presupuesto_instalador) || 0,
-    coste_ingenieria: parseFloat(form.coste_ingenieria) || 0,
+    presupuesto_instalador: modo === 'partidas' ? 0 : parseFloat(form.presupuesto_instalador) || 0,
+    coste_ingenieria: ingenieriaEnPartidas ? 0 : parseFloat(form.coste_ingenieria) || 0,
     margen_pct: margenUsado,
     iva_pct: ivaUsado,
     otros_costes: otros,
   };
   const resultado = useMemo(() => calcularFV(entrada), [entrada.potencia_kw, entrada.presupuesto_instalador, entrada.coste_ingenieria, entrada.margen_pct, entrada.iva_pct, entrada.otros_costes]); // eslint-disable-line react-hooks/exhaustive-deps
-  const erroresEntrada = validarEntradaFV(entrada);
+  const erroresEntrada = validarEntradaFV(entrada).filter((e) => !(modo === 'partidas' && e.includes('presupuesto del instalador')))
+    .concat(modo === 'partidas' && otros <= 0 ? ['Añade al menos una partida incluida en el coste base.'] : []);
   const avisos = advertenciasFV(entrada);
   const margenModificado = margenUsado !== margenDefecto;
+  const confianza = confianzaGlobal(conceptos);
+  const paneles = numeroPaneles(potencia);
 
   // Al cambiar la potencia de tramo, el margen vuelve al predeterminado salvo que se haya tocado a mano
   useEffect(() => {
@@ -152,7 +187,7 @@ function CalculadoraFV() {
   }, [potencia > LIMITE_KW]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function abrirNuevo() {
-    setForm(FORM_VACIO); setConceptos([]); setDocs([]); setMargenTocado(false); setEditandoId('nuevo'); setMsg(''); setError('');
+    setForm(FORM_VACIO); setConceptos([]); setDocs([]); setMargenTocado(false); setModo('simple'); setAvisoCat(''); setEditandoId('nuevo'); setMsg(''); setError('');
   }
 
   async function abrirExistente(p: PresupuestoFV) {
@@ -168,7 +203,8 @@ function CalculadoraFV() {
       iva_otro: [21, 10].includes(Number(d.iva_pct)) ? '' : String(d.iva_pct),
       responsable: d.responsable || '', observaciones: d.observaciones || '',
     });
-    setConceptos((json.conceptos || []).map((c: ConceptoFV) => ({ ...c })));
+    setConceptos((json.conceptos || []).map((c: PartidaFV) => ({ ...PARTIDA_NUEVA, ...c })));
+    setModo(((d as unknown as { modo?: string }).modo === 'partidas') ? 'partidas' : 'simple');
     setDocs(d.documentos || []);
     setMargenTocado(true);
     setEditandoId(p.id); setMsg(''); setError('');
@@ -189,6 +225,8 @@ function CalculadoraFV() {
       responsable: form.responsable || null,
       observaciones: form.observaciones || null,
       documentos: docs,
+      modo,
+      dimensionado: { num_paneles: paneles, potencia_panel_w: POTENCIA_PANEL_W },
       conceptos: conceptos.filter((c) => c.concepto.trim()),
     };
     const { ok, json } = await apiFV(editandoId === 'nuevo' ? 'POST' : 'PUT', body);
@@ -314,6 +352,34 @@ y puesta en marcha de la instalación.</p>
     w.document.close();
   }
 
+  /** Solicitud de presupuesto al instalador: resumen técnico imprimible (interno, sin margen). */
+  function generarSolicitudOscar() {
+    const clienteNombre = clientes.datos.find((c) => c.id === form.cliente_id)?.nombre || '—';
+    const w = window.open('', '_blank');
+    if (!w) return;
+    const filas = conceptos.filter((c) => c.incluido && c.concepto.trim())
+      .map((c) => `<tr><td>${c.codigo_catalogo || '—'}</td><td>${c.descripcion}</td><td class="num">${Number(c.cantidad)}</td></tr>`).join('');
+    w.document.write(`<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><title>Solicitud de presupuesto · ${form.nombre_proyecto}</title>
+<style>body{font-family:Arial,sans-serif;max-width:720px;margin:2rem auto;padding:0 1.5rem;color:#1a1a2e;line-height:1.55}
+h1{font-size:1.15rem;border-bottom:3px solid #e11d48;padding-bottom:.4rem}h2{font-size:.85rem;text-transform:uppercase;letter-spacing:.15em;color:#e11d48;margin-top:1.4rem}
+table{width:100%;border-collapse:collapse}td,th{padding:.4rem .6rem;border-bottom:1px solid #ddd;font-size:.9rem;text-align:left}.num{text-align:right}
+.muted{color:#666;font-size:.85rem}@media print{.noprint{display:none}}</style></head><body>
+<h1>Solicitud de presupuesto al instalador · Gesmeco Energía</h1>
+<p class="muted">Documento interno para Óscar — ${new Date().toLocaleDateString('es-ES')}</p>
+<h2>Proyecto</h2>
+<p><b>${form.nombre_proyecto || '—'}</b> · Cliente: ${clienteNombre}</p>
+<p>Potencia propuesta: <b>${potencia.toLocaleString('es-ES')} kWp</b> · ${paneles} paneles de ${POTENCIA_PANEL_W} W</p>
+${form.observaciones ? `<p class="muted">Observaciones: ${form.observaciones}</p>` : ''}
+<h2>Configuración prevista (a confirmar por el instalador)</h2>
+<table><thead><tr><th>Código</th><th>Concepto</th><th class="num">Cant.</th></tr></thead><tbody>${filas || '<tr><td colspan="3">Sin partidas definidas</td></tr>'}</tbody></table>
+<h2>Se solicita</h2>
+<ul class="muted"><li>Presupuesto detallado por partidas, sin IVA.</li><li>Confirmación de inversor y batería propuestos.</li>
+<li>Alcance de trámites incluidos.</li><li>Necesidades de elevación, línea adicional u obra no contempladas.</li></ul>
+<p class="noprint"><button onclick="window.print()" style="padding:.6rem 1.4rem;font-weight:bold">🖨️ Imprimir / PDF</button></p>
+</body></html>`);
+    w.document.close();
+  }
+
   const selCls = 'rounded-lg border border-border/40 bg-background/60 px-2 py-1.5 text-xs font-semibold';
 
   // ═══════════ LISTA ═══════════
@@ -327,6 +393,7 @@ y puesta en marcha de la instalación.</p>
           </div>
           <div className="flex gap-2">
             <button onClick={cargar} className={btnSecundario}><RefreshCw className={`w-4 h-4 ${cargando ? 'animate-spin' : ''}`} /></button>
+            <a href="/gestor/luz/fv/catalogo" className={btnSecundario}>📚 Catálogo de precios</a>
             <button onClick={abrirNuevo} className={btnPrimario}><Plus className="w-4 h-4" /> Nuevo presupuesto</button>
           </div>
         </div>
@@ -398,7 +465,10 @@ y puesta en marcha de la instalación.</p>
         </div>
         <div className="flex gap-2">
           <button onClick={generarVistaCliente} disabled={erroresEntrada.length > 0} className={btnSecundario} title="Documento sin costes internos ni márgenes">
-            <FileText className="w-4 h-4" /> Generar presupuesto para el cliente
+            <FileText className="w-4 h-4" /> Generar propuesta orientativa
+          </button>
+          <button onClick={generarSolicitudOscar} className={btnSecundario} title="Resumen técnico interno para pedir presupuesto a Óscar">
+            📨 Solicitud a Óscar
           </button>
           <button onClick={guardar} disabled={guardando} className={btnPrimario}>{guardando ? 'Guardando…' : 'Guardar'}</button>
         </div>
@@ -432,8 +502,21 @@ y puesta en marcha de la instalación.</p>
                   </p>
                 )}
               </div>
-              <div><label className={labelCls}>Presupuesto instalador Óscar (€, sin IVA) *</label>
-                <input className={inputCls} type="number" min="0.01" step="0.01" value={form.presupuesto_instalador} onChange={(e) => setForm({ ...form, presupuesto_instalador: e.target.value })} /></div>
+              <div className="md:col-span-2">
+                <label className={labelCls}>Modo de cálculo del coste</label>
+                <div className="inline-flex rounded-lg border border-border/50 bg-card/60 p-0.5">
+                  {([['simple', 'Importe único de Óscar'], ['partidas', 'Presupuesto por partidas (catálogo)']] as const).map(([v, n]) => (
+                    <button key={v} type="button" onClick={() => setModo(v)}
+                      className={`px-3 py-1.5 rounded-md text-xs font-semibold transition ${modo === v ? 'bg-accent text-white' : 'text-muted hover:text-foreground'}`}>
+                      {n}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {modo === 'simple' && (
+                <div><label className={labelCls}>Presupuesto instalador Óscar (€, sin IVA) *</label>
+                  <input className={inputCls} type="number" min="0.01" step="0.01" value={form.presupuesto_instalador} onChange={(e) => setForm({ ...form, presupuesto_instalador: e.target.value })} /></div>
+              )}
               <div>
                 <label className={labelCls}>Coste de ingeniería (€, sin IVA)</label>
                 <input className={inputCls} type="number" min="0" step="0.01" value={form.coste_ingenieria} onChange={(e) => setForm({ ...form, coste_ingenieria: e.target.value })} disabled={potencia > 0 && potencia <= LIMITE_KW} />
@@ -471,46 +554,92 @@ y puesta en marcha de la instalación.</p>
             </div>
           </Card>
 
-          {/* Desglose de conceptos */}
+          {/* Dimensionado + partidas desde el catálogo */}
           <Card className="space-y-2">
-            <div className="flex items-center justify-between">
-              <h3 className="font-bold text-sm">Desglose de costes adicionales</h3>
-              <button onClick={() => setConceptos((c) => [...c, { ...CONCEPTO_NUEVO }])} className={btnSecundario}><Plus className="w-4 h-4" /> Concepto</button>
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <h3 className="font-bold text-sm">{modo === 'partidas' ? '🧮 Presupuesto por partidas' : 'Desglose de costes adicionales'}</h3>
+              <div className="flex gap-2 flex-wrap">
+                <select className={selCls} value="" onChange={(e) => { const p = partidaDesdeCatalogo(e.target.value); if (p) setConceptos((c) => [...c, p]); }}>
+                  <option value="">+ Desde catálogo…</option>
+                  {catalogo.map((c) => <option key={c.codigo} value={c.codigo}>{c.codigo} · {fmtEur2(Number(c.precio_base))}</option>)}
+                </select>
+                <button onClick={() => setConceptos((c) => [...c, { ...PARTIDA_NUEVA }])} className={btnSecundario}><Plus className="w-4 h-4" /> Manual</button>
+              </div>
             </div>
-            <p className="text-[11px] text-muted">El presupuesto de Óscar y la ingeniería ya cuentan arriba. Aquí van baterías, obra civil, legalización extra… Lo marcado como «incluido» suma al coste base.</p>
+
+            {/* Dimensionado: nº paneles desde la potencia */}
+            {potencia > 0 && (
+              <div className="flex items-center gap-3 flex-wrap text-[11px] rounded-lg bg-secondary/5 border border-secondary/25 p-2.5">
+                <span>☀️ <b>{paneles} paneles</b> de {POTENCIA_PANEL_W} W para {potencia.toLocaleString('es-ES')} kWp (⌈kWp×1000/{POTENCIA_PANEL_W}⌉)</span>
+                {modo === 'partidas' && (
+                  <button
+                    onClick={() => {
+                      const nuevas = [partidaDesdeCatalogo('PAN-JIN-515', paneles), partidaDesdeCatalogo('EST-SUN-STD', paneles)].filter(Boolean) as PartidaFV[];
+                      setConceptos((c) => [...c.filter((x) => !['PAN-JIN-515', 'EST-SUN-STD'].includes(x.codigo_catalogo || '')), ...nuevas]);
+                    }}
+                    className="px-2.5 py-1 rounded-lg bg-accent text-white font-bold hover:bg-accent/90 transition"
+                  >
+                    + Añadir paneles y estructura ({paneles} ud)
+                  </button>
+                )}
+                <span className="text-muted">Inversor, batería e instalación: elígelos del catálogo (no se autoseleccionan).</span>
+              </div>
+            )}
+
+            {avisoCat && <p className="text-[11px] text-amber-300 bg-amber-500/10 border border-amber-500/25 rounded-lg p-2">{avisoCat}</p>}
+            {modo === 'simple' && <p className="text-[11px] text-muted">El presupuesto de Óscar y la ingeniería ya cuentan arriba. Aquí van extras (baterías, obra civil…). Lo «incluido» suma al coste base.</p>}
+
             {conceptos.length > 0 && (
               <div className="overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead>
                     <tr className="text-left text-[10px] uppercase text-muted border-b border-border/40">
-                      <th className="px-2 py-2">Concepto</th><th className="px-2 py-2">Proveedor</th><th className="px-2 py-2">Descripción</th>
-                      <th className="px-2 py-2 text-right">Cant.</th><th className="px-2 py-2 text-right">€/ud (sin IVA)</th>
-                      <th className="px-2 py-2 text-right">Importe</th><th className="px-2 py-2 text-center">Incluido</th><th></th>
+                      <th className="px-2 py-2">Código</th><th className="px-2 py-2">Descripción</th>
+                      <th className="px-2 py-2 text-right">Cant.</th><th className="px-2 py-2 text-right">€ base</th>
+                      <th className="px-2 py-2 text-right">Ajuste %</th><th className="px-2 py-2 text-right">Ajuste €</th>
+                      <th className="px-2 py-2 text-right">€ ajustado</th><th className="px-2 py-2 text-right">Importe</th>
+                      <th className="px-2 py-2 text-center">Incl.</th><th className="px-2 py-2 text-center">Opc.</th>
+                      <th className="px-2 py-2">Conf.</th><th></th>
                     </tr>
                   </thead>
                   <tbody>
                     {conceptos.map((c, i) => {
-                      const set = (k: keyof ConceptoFV, v: unknown) => setConceptos((arr) => arr.map((x, j) => (j === i ? { ...x, [k]: v } : x)));
+                      const set = (k: keyof PartidaFV, v: unknown) => setConceptos((arr) => arr.map((x, j) => (j === i ? { ...x, [k]: v } : x)));
                       return (
-                        <tr key={i} className="border-b border-border/20">
+                        <tr key={i} className={`border-b border-border/20 ${!c.incluido ? 'opacity-50' : ''}`}>
+                          <td className="px-2 py-1.5 font-mono text-[10px] text-muted">{c.codigo_catalogo || 'manual'}</td>
                           <td className="px-2 py-1.5">
-                            <select className={selCls} value={c.concepto} onChange={(e) => set('concepto', e.target.value)}>
-                              {CONCEPTOS_FV.map((x) => <option key={x} value={x}>{x}</option>)}
+                            <input className={`${selCls} w-full min-w-40`} value={c.descripcion} onChange={(e) => set('descripcion', e.target.value)} placeholder="Descripción" />
+                            {c.fuente && <span className="block text-[9px] text-muted mt-0.5">{c.fuente}</span>}
+                          </td>
+                          <td className="px-2 py-1.5"><input className={`${selCls} w-16 text-right`} type="number" min="0" step="0.01" value={c.cantidad} onChange={(e) => set('cantidad', parseFloat(e.target.value) || 0)} /></td>
+                          <td className="px-2 py-1.5"><input className={`${selCls} w-20 text-right`} type="number" min="0" step="0.01" value={c.precio_unitario} onChange={(e) => set('precio_unitario', parseFloat(e.target.value) || 0)} /></td>
+                          <td className="px-2 py-1.5"><input className={`${selCls} w-16 text-right`} type="number" step="0.5" value={c.ajuste_pct} onChange={(e) => set('ajuste_pct', parseFloat(e.target.value) || 0)} /></td>
+                          <td className="px-2 py-1.5"><input className={`${selCls} w-16 text-right`} type="number" step="1" value={c.ajuste_fijo} onChange={(e) => set('ajuste_fijo', parseFloat(e.target.value) || 0)} /></td>
+                          <td className="px-2 py-1.5 text-right tabular-nums">{fmtEur2(precioAjustado(c))}</td>
+                          <td className="px-2 py-1.5 text-right tabular-nums font-bold">{fmtEur2(importePartida(c))}</td>
+                          <td className="px-2 py-1.5 text-center"><input type="checkbox" checked={c.incluido} onChange={(e) => set('incluido', e.target.checked)} className="accent-[#22c55e] w-4 h-4" /></td>
+                          <td className="px-2 py-1.5 text-center"><input type="checkbox" checked={c.opcional} onChange={(e) => set('opcional', e.target.checked)} className="accent-[#f59e0b] w-4 h-4" title="Opcional para el cliente" /></td>
+                          <td className="px-2 py-1.5">
+                            <select className={`${selCls} !px-1`} value={c.confianza || 'media'} onChange={(e) => set('confianza', e.target.value)}>
+                              {Object.entries(CONFIANZA_LABEL).map(([v]) => <option key={v} value={v}>{v}</option>)}
                             </select>
                           </td>
-                          <td className="px-2 py-1.5"><input className={`${selCls} w-24`} value={c.proveedor} onChange={(e) => set('proveedor', e.target.value)} /></td>
-                          <td className="px-2 py-1.5"><input className={`${selCls} w-full min-w-28`} value={c.descripcion} onChange={(e) => set('descripcion', e.target.value)} /></td>
-                          <td className="px-2 py-1.5"><input className={`${selCls} w-16 text-right`} type="number" min="0" step="0.01" value={c.cantidad} onChange={(e) => set('cantidad', parseFloat(e.target.value) || 0)} /></td>
-                          <td className="px-2 py-1.5"><input className={`${selCls} w-24 text-right`} type="number" min="0" step="0.01" value={c.precio_unitario} onChange={(e) => set('precio_unitario', parseFloat(e.target.value) || 0)} /></td>
-                          <td className="px-2 py-1.5 text-right tabular-nums font-bold">{fmtEur2((Number(c.cantidad) || 0) * (Number(c.precio_unitario) || 0))}</td>
-                          <td className="px-2 py-1.5 text-center"><input type="checkbox" checked={c.incluido} onChange={(e) => set('incluido', e.target.checked)} className="accent-[#22c55e] w-4 h-4" /></td>
                           <td className="px-2 py-1.5"><button onClick={() => setConceptos((arr) => arr.filter((_, j) => j !== i))} className="text-muted hover:text-red-400"><X className="w-3.5 h-3.5" /></button></td>
                         </tr>
                       );
                     })}
                   </tbody>
                 </table>
+                {(conceptos.some((c) => (c.ajuste_pct || 0) !== 0 || (c.ajuste_fijo || 0) !== 0)) && (
+                  <input className={`${inputCls} !text-xs mt-2`} placeholder="Justificación de los ajustes aplicados (queda guardada)"
+                    value={conceptos.find((c) => c.motivo_ajuste)?.motivo_ajuste || ''}
+                    onChange={(e) => setConceptos((arr) => arr.map((x, j) => (j === 0 ? { ...x, motivo_ajuste: e.target.value } : x)))} />
+                )}
               </div>
+            )}
+            {modo === 'partidas' && (
+              <p className="text-[11px] font-bold text-right">Coste directo (partidas incluidas): <span className="tabular-nums">{fmtEur2(otros)}</span> · Confianza global: {CONFIANZA_LABEL[confianza]}</p>
             )}
           </Card>
 
@@ -573,7 +702,7 @@ y puesta en marcha de la instalación.</p>
             <p className="px-4 pt-3 pb-2 text-[11px] font-black uppercase tracking-wide text-muted">Resumen económico (interno)</p>
             <div className="px-4 pb-2 space-y-1.5 text-sm">
               {([
-                ['Presupuesto Óscar', fmtEur2(entrada.presupuesto_instalador)],
+                [modo === 'partidas' ? 'Coste directo (partidas)' : 'Presupuesto Óscar', fmtEur2(modo === 'partidas' ? otros : entrada.presupuesto_instalador)],
                 ['Ingeniería' + (resultado.aplica_ingenieria ? '' : ' (no aplica ≤10 kW)'), fmtEur2(resultado.coste_ingenieria_aplicado)],
                 ...(otros > 0 ? [['Otros costes incluidos', fmtEur2(otros)] as [string, string]] : []),
                 ['Coste base', fmtEur2(resultado.coste_base)],

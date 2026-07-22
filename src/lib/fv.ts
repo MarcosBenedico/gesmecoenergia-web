@@ -123,3 +123,77 @@ export function advertenciasFV(e: EntradaCalculoFV): string[] {
 
 export const fmtEur2 = (n: number) =>
   n.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+
+/* ═══════════ PRESUPUESTADOR: partidas, dimensionado y confianza ═══════════ */
+
+export const POTENCIA_PANEL_W = 515; // Jinko 515 W (panel inicial de referencia)
+
+export const NIVELES_CONFIANZA = ['alta', 'media', 'baja', 'pendiente'] as const;
+export const CONFIANZA_LABEL: Record<string, string> = {
+  alta: '🟢 Alta', media: '🟡 Media', baja: '🔴 Baja', pendiente: '⚪ Pendiente de visita',
+};
+
+export interface PartidaFV extends ConceptoFV {
+  codigo_catalogo?: string | null;
+  marca?: string | null;
+  ajuste_pct: number;      // % sobre el precio base (p. ej. 10 = +10 %)
+  ajuste_fijo: number;     // € añadidos tras el porcentaje
+  opcional: boolean;
+  visible_cliente: boolean;
+  fuente?: string | null;      // de qué presupuesto/catálogo sale el precio
+  confianza?: string | null;   // alta | media | baja | pendiente
+  motivo_ajuste?: string | null;
+}
+
+/** precio_ajustado = precio_base × (1 + ajuste_pct/100) + ajuste_fijo */
+export const precioAjustado = (p: PartidaFV): number =>
+  Number(p.precio_unitario) * (1 + (Number(p.ajuste_pct) || 0) / 100) + (Number(p.ajuste_fijo) || 0);
+
+export const importePartida = (p: PartidaFV): number =>
+  (Number(p.cantidad) || 0) * precioAjustado(p);
+
+/** Coste directo = suma de partidas incluidas (las opcionales no incluidas no suman). */
+export const costeDirecto = (partidas: PartidaFV[]): number =>
+  r2(partidas.filter((p) => p.incluido && p.concepto?.trim()).reduce((s, p) => s + importePartida(p), 0));
+
+/** nº paneles = redondear hacia arriba(kWp × 1000 / W panel) — nunca por consumo/producción. */
+export const numeroPaneles = (kwp: number, potenciaPanelW = POTENCIA_PANEL_W): number =>
+  kwp > 0 ? Math.ceil((kwp * 1000) / potenciaPanelW) : 0;
+
+/** Confianza global del presupuesto: la peor de las partidas incluidas. */
+export function confianzaGlobal(partidas: PartidaFV[]): string {
+  const orden = ['alta', 'media', 'baja', 'pendiente'];
+  let peor = 0;
+  for (const p of partidas.filter((x) => x.incluido && x.concepto?.trim())) {
+    const i = orden.indexOf(p.confianza || 'media');
+    if (i > peor) peor = i;
+  }
+  return orden[peor];
+}
+
+/** Reparto por intervalos (curva de carga) — base para las fases siguientes. */
+export function repartoIntervalo(consumo: number, generacion: number) {
+  return {
+    autoconsumo: Math.min(consumo, generacion),
+    excedente: Math.max(generacion - consumo, 0),
+    consumo_red: Math.max(consumo - generacion, 0),
+  };
+}
+
+/** Ahorro anual y amortización simple (estimación orientativa). */
+export function ahorroSimple(e: {
+  produccion_anual_kwh: number; pct_autoconsumo: number;   // 0-100
+  precio_kwh_evitado: number; precio_compensacion: number; mantenimiento_anual: number;
+  inversion: number;
+}) {
+  const auto = e.produccion_anual_kwh * (e.pct_autoconsumo / 100);
+  const exc = e.produccion_anual_kwh - auto;
+  const bruto = auto * e.precio_kwh_evitado + exc * e.precio_compensacion;
+  const neto = bruto - e.mantenimiento_anual;
+  return {
+    ahorro_autoconsumo: r2(auto * e.precio_kwh_evitado),
+    valor_excedentes: r2(exc * e.precio_compensacion),
+    ahorro_neto_anual: r2(neto),
+    amortizacion_anios: neto > 0 ? r2(e.inversion / neto) : null,  // nunca dividir entre cero
+  };
+}

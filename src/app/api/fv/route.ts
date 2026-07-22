@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import {
   calcularFV, validarEntradaFV, margenPorDefecto, INGENIERIA_DEFECTO,
-  ESTADOS_FV, ESTADOS_FV_PROTEGIDOS, ConceptoFV, r2,
+  ESTADOS_FV, ESTADOS_FV_PROTEGIDOS, ConceptoFV, PartidaFV, importePartida, r2,
 } from '@/lib/fv';
 
 /**
@@ -47,6 +47,8 @@ interface CuerpoFV {
   documentos?: unknown[];
   archivado?: boolean;
   conceptos?: ConceptoFV[];
+  modo?: 'simple' | 'partidas';
+  dimensionado?: Record<string, unknown>;
 }
 
 /** Valida y calcula en servidor. Devuelve { error } o los campos listos para guardar. */
@@ -57,18 +59,26 @@ function prepararCampos(b: CuerpoFV, clienteNombre: string | null) {
   const margen = b.margen_pct == null ? margenPorDefecto(potencia) : Number(b.margen_pct);
   const iva = b.iva_pct == null ? 21 : Number(b.iva_pct);
 
-  // Otros costes: solo conceptos marcados como incluidos, sin cantidades/importes negativos
-  const conceptos = (b.conceptos || []).filter((c) => c.concepto?.trim());
+  const modo = b.modo === 'partidas' ? 'partidas' : 'simple';
+
+  // Partidas: cálculo con ajustes (precio_base × (1+pct) + fijo); sin negativos
+  const conceptos = (b.conceptos || []).filter((c) => c.concepto?.trim()) as PartidaFV[];
   for (const c of conceptos) {
-    if (Number(c.cantidad) < 0 || Number(c.precio_unitario) < 0) {
+    if (Number(c.cantidad) < 0 || Number(c.precio_unitario) < 0 || Number(c.ajuste_fijo || 0) < -Number(c.precio_unitario)) {
       return { error: 'Los conceptos no admiten cantidades ni precios negativos.' };
     }
   }
-  const otros = r2(conceptos.filter((c) => c.incluido)
-    .reduce((s, c) => s + Number(c.cantidad) * Number(c.precio_unitario), 0));
+  const otros = r2(conceptos.filter((c) => c.incluido).reduce((s, c) => s + importePartida(c), 0));
 
-  const entrada = { potencia_kw: potencia, presupuesto_instalador: instalador, coste_ingenieria: ingenieria, margen_pct: margen, iva_pct: iva, otros_costes: otros };
-  const errores = validarEntradaFV(entrada);
+  // Evitar ingeniería duplicada: si ya hay una partida de ingeniería incluida, la regla no la suma otra vez
+  const ingenieriaEnPartidas = conceptos.some((c) => c.incluido && (c.codigo_catalogo === 'ING-EXT' || /ingenier/i.test(c.concepto)));
+  const ingenieriaEfectiva = ingenieriaEnPartidas ? 0 : ingenieria;
+
+  const entrada = { potencia_kw: potencia, presupuesto_instalador: modo === 'partidas' ? 0 : instalador, coste_ingenieria: ingenieriaEfectiva, margen_pct: margen, iva_pct: iva, otros_costes: otros };
+  const errores = validarEntradaFV(entrada).filter((e) =>
+    // En modo partidas el coste base sale de las partidas, no del importe único de Óscar
+    !(modo === 'partidas' && e.includes('presupuesto del instalador')));
+  if (modo === 'partidas' && otros <= 0) errores.push('Añade al menos una partida incluida en el coste base.');
   if (!b.nombre_proyecto?.trim()) errores.push('El nombre del proyecto es obligatorio.');
   if (!b.cliente_id) errores.push('Selecciona el cliente.');
 
@@ -85,9 +95,11 @@ function prepararCampos(b: CuerpoFV, clienteNombre: string | null) {
       cliente_id: b.cliente_id,
       cliente_nombre: clienteNombre,
       nombre_proyecto: b.nombre_proyecto!.trim(),
+      modo,
+      dimensionado: b.dimensionado || {},
       potencia_kw: potencia,
-      presupuesto_instalador: r2(instalador),
-      coste_ingenieria: r2(ingenieria),
+      presupuesto_instalador: modo === 'partidas' ? 0 : r2(instalador),
+      coste_ingenieria: r2(ingenieriaEfectiva),
       ingenieria_modificada: ingenieria !== INGENIERIA_DEFECTO,
       otros_costes: r.otros_costes,
       coste_base: r.coste_base,
