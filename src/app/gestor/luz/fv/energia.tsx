@@ -7,6 +7,7 @@ import {
   FRANJAS_CONSUMO, FRANJA_LABEL, PERFIL_FRANJA, CAPACIDAD_BATERIA,
   optimizarBateria, siguienteEuro, LineaJustificacion, OpcionBateria, estimarAyudas, IRPF_PCT_DEDUCCION,
   estimarGasoil, produccionMensual, MESES_CORTO, GASOIL_PRECIO_LITRO, GASOIL_KWH_LITRO,
+  bateriaEconomica, inversorEconomico, ComboEquipo,
 } from '@/lib/fv';
 import { Card, inputCls, labelCls, btnSecundario, btnPrimario } from '../ui';
 
@@ -540,6 +541,45 @@ ${fila('Se amortiza en', (e) => e.amortizacion != null ? `${e.amortizacion} año
                   <p>🔧 {e.rec.instalacion?.descripcion || 'Instalación a valorar'}</p>
                   {e.rec.instalacionNota && <p className="text-amber-300">⚠️ {e.rec.instalacionNota}</p>}
                 </div>
+
+                {/* Algoritmo: combinación más económica del mercado para la potencia y capacidad de este escenario */}
+                {(() => {
+                  const invOps = inversorEconomico(e.kwp);
+                  const capBat = e.opt.elegida.codigo ? e.opt.elegida.capacidad_util : 0;
+                  const batOps = bateriaEconomica(capBat);
+                  if (invOps.length === 0 && batOps.length === 0) return null;
+                  const totalMin = (invOps[0]?.coste || 0) + (batOps[0]?.coste || 0);
+                  return (
+                    <details className="mt-1 rounded-lg bg-emerald-500/5 border border-emerald-500/25">
+                      <summary className="px-2 py-1.5 text-[11px] font-bold cursor-pointer select-none text-emerald-400">💰 Combinación más económica del mercado{totalMin > 0 ? ` · ${fmtEur2(totalMin)}` : ''}</summary>
+                      <div className="px-2 pb-2 space-y-1.5 text-[10px]">
+                        {invOps.length > 0 && (
+                          <div>
+                            <p className="font-bold text-foreground">⚡ Inversor para {e.kwp} kWp</p>
+                            {invOps.map((o: ComboEquipo, k: number) => (
+                              <p key={o.descripcion} className={`flex justify-between gap-2 ${k === 0 ? 'text-emerald-400 font-bold' : 'text-muted'}`}>
+                                <span>{k === 0 ? '✓ ' : ''}{o.descripcion}</span>
+                                <span className="tabular-nums shrink-0">{fmtEur2(o.coste)} · {fmtEur2(o.ratio)}/kW</span>
+                              </p>
+                            ))}
+                          </div>
+                        )}
+                        {batOps.length > 0 && (
+                          <div>
+                            <p className="font-bold text-foreground">🔋 Batería para ≈{capBat} kWh</p>
+                            {batOps.map((o: ComboEquipo, k: number) => (
+                              <p key={o.descripcion} className={`flex justify-between gap-2 ${k === 0 ? 'text-emerald-400 font-bold' : 'text-muted'}`}>
+                                <span>{k === 0 ? '✓ ' : ''}{o.descripcion} → {o.medida_total} kWh</span>
+                                <span className="tabular-nums shrink-0">{fmtEur2(o.coste)} · {fmtEur2(o.ratio)}/kWh</span>
+                              </p>
+                            ))}
+                          </div>
+                        )}
+                        <p className="text-muted/70 leading-snug">Precios de material orientativos de mercado (sin IVA, sin instalación). Compáralos con Óscar; el inversor puede ir hasta ~15 % por debajo del pico.</p>
+                      </div>
+                    </details>
+                  );
+                })()}
 
                 {/* Todos los cálculos, línea a línea, con su fuente */}
                 <details className="mt-1 rounded-lg bg-background/40 border border-border/30">

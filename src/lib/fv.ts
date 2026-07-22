@@ -440,6 +440,55 @@ export const INVERSORES_MERCADO: RefMercado[] = [
   { marca: 'Sungrow', modelo: 'SG20RT', medida: 20, precio: 2100, detalle: 'Trifásico · 10 años garantía' },
 ];
 
+/* ═══════════ ALGORITMO: COMBINACIÓN MÁS ECONÓMICA ═══════════ */
+
+export interface ComboEquipo {
+  descripcion: string;   // "2× Pylontech US5000 (4,8 kWh)"
+  marca: string;
+  unidades: number;
+  medida_total: number;  // kWh o kW que suma la combinación
+  coste: number;         // € material sin IVA
+  ratio: number;         // €/kWh o €/kW
+  sobra: number;         // cuánto se pasa del objetivo (menos = mejor ajuste)
+}
+
+/**
+ * Batería más económica del mercado para una capacidad objetivo.
+ * Las baterías son modulares: se pueden apilar varias del mismo modelo.
+ * Prueba cada modelo, calcula cuántas unidades hacen falta y su coste,
+ * y devuelve las opciones ordenadas de más barata a más cara.
+ */
+export function bateriaEconomica(capacidadKwh: number, n = 3): ComboEquipo[] {
+  if (capacidadKwh <= 0) return [];
+  return BATERIAS_MERCADO.map((b) => {
+    const unidades = Math.max(1, Math.ceil(capacidadKwh / b.medida));
+    const medidaTotal = r2(unidades * b.medida);
+    const coste = unidades * b.precio;
+    return {
+      descripcion: `${unidades}× ${b.marca} ${b.modelo} (${b.medida} kWh c/u)`,
+      marca: b.marca, unidades, medida_total: medidaTotal, coste,
+      ratio: r2(coste / medidaTotal), sobra: r2(medidaTotal - capacidadKwh),
+    };
+  }).sort((a, b) => a.coste - b.coste || a.sobra - b.sobra).slice(0, n);
+}
+
+/**
+ * Inversor más económico del mercado que cubre la potencia objetivo.
+ * Se admite un inversor algo por debajo del pico (hasta ~15 %): el
+ * sobredimensionado DC/AC es habitual y sano. Ordena por coste.
+ */
+export function inversorEconomico(potenciaKw: number, n = 3): ComboEquipo[] {
+  if (potenciaKw <= 0) return [];
+  const minimo = potenciaKw * 0.85;
+  return INVERSORES_MERCADO.filter((i) => i.medida >= minimo)
+    .map((i) => ({
+      descripcion: `${i.marca} ${i.modelo} (${i.medida} kW)`,
+      marca: i.marca, unidades: 1, medida_total: i.medida, coste: i.precio,
+      ratio: r2(i.precio / i.medida), sobra: r2(i.medida - potenciaKw),
+    }))
+    .sort((a, b) => a.coste - b.coste || Math.abs(a.sobra) - Math.abs(b.sobra)).slice(0, n);
+}
+
 /* ═══════════ AYUDAS, BONIFICACIONES Y DEDUCCIONES ═══════════ */
 
 /**
