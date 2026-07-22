@@ -37,7 +37,49 @@ export const HIPOTESIS_DEFECTO: HipotesisFV = {
 const MESES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 const num = (s: string) => parseFloat(String(s).replace(',', '.')) || 0;
 
-export function EnergiaEscenarios({ energia, setEnergia, hipotesis, setHipotesis, potenciaActual, precioSinIva, precioConIva, onAplicarPotencia }: {
+/** Referencia mínima del catálogo que necesita el recomendador. */
+export interface RefCatMin { codigo: string; descripcion: string; precio_base: number; confianza: string; num_referencias: number; activo: boolean }
+
+/**
+ * Recomendación automática de equipos desde el catálogo real de Óscar.
+ * Son SUGERENCIAS coherentes con sus presupuestos: siempre revisables en las partidas.
+ */
+export function recomendarEquipos(kwp: number, paneles: number, consumoAnual: number, prodEspecifica: number, pctAuto: number, cat: RefCatMin[]) {
+  const busca = (codigo: string) => cat.find((c) => c.codigo === codigo && c.activo) || null;
+
+  // Inversor por potencia (referencias reales; el >18 kW es el caso Victron+Fronius: confianza baja)
+  const inversor =
+    kwp <= 6 ? busca('INV-FEL-5')
+    : kwp <= 12 ? busca('INV-HOY-10')
+    : kwp <= 18 ? busca('INV-VIC-15')
+    : busca('INV-VIC-FRO-20');
+
+  // Batería según excedente diario estimado (producción no autoconsumida / 365)
+  const excedenteDiario = (kwp * prodEspecifica * (1 - pctAuto / 100)) / 365;
+  const bateria = excedenteDiario > 18 ? busca('BAT-EVE-32') : excedenteDiario > 8 ? busca('BAT-FEL-16') : null;
+
+  // Monitorización coherente con el inversor (como en los presupuestos de Óscar)
+  const monitorizacion =
+    inversor?.codigo === 'INV-FEL-5' ? busca('MON-CAB-PROT')
+    : inversor?.codigo === 'INV-HOY-10' ? busca('MON-HOY')
+    : busca('MON-VIC');
+
+  // Instalación: referencia histórica más cercana por nº de paneles (confianza según distancia)
+  const refInst = paneles <= 20 ? busca('INS-VIV-16') : paneles <= 31 ? busca('INS-MET-30') : paneles <= 40 ? busca('INS-MET-32') : busca('INS-NAVE-50');
+  const refPaneles = { 'INS-VIV-16': 16, 'INS-MET-30': 30, 'INS-MET-32': 32, 'INS-NAVE-50': 50 }[refInst?.codigo || ''] || paneles;
+  const distancia = Math.abs(paneles - refPaneles);
+
+  const tramites = inversor?.codigo === 'INV-FEL-5' ? busca('TRA-AMPL') : busca('TRA-BASE');
+
+  return {
+    inversor, bateria, monitorizacion, instalacion: refInst, tramites,
+    instalacionConfianza: distancia <= 2 ? 'media' : 'baja',
+    instalacionNota: distancia > 2 ? `Referencia de ${refPaneles} paneles para ${paneles}: ajustar tras visita.` : null,
+    excedenteDiario: r2(excedenteDiario),
+  };
+}
+
+export function EnergiaEscenarios({ energia, setEnergia, hipotesis, setHipotesis, potenciaActual, precioSinIva, precioConIva, onAplicarPotencia, catalogo, onMontarPresupuesto }: {
   energia: EnergiaFV;
   setEnergia: (e: EnergiaFV) => void;
   hipotesis: HipotesisFV;
@@ -46,6 +88,8 @@ export function EnergiaEscenarios({ energia, setEnergia, hipotesis, setHipotesis
   precioSinIva: number;
   precioConIva: number;
   onAplicarPotencia: (kw: number) => void;
+  catalogo: RefCatMin[];
+  onMontarPresupuesto: (kwp: number, codigos: { codigo: string; cantidad: number; confianza?: string; nota?: string }[]) => void;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [errImport, setErrImport] = useState('');
@@ -126,9 +170,24 @@ export function EnergiaEscenarios({ energia, setEnergia, hipotesis, setHipotesis
         mantenimiento_anual: hipotesis.mantenimiento_anual, inversion,
       });
       const cobertura = Math.min(r2((produccion * (pctAuto / 100)) / anual * 100), 100);
-      return { nombre, kwp: kwpReal, paneles, produccion, pctAuto, cobertura, inversion, ahorro: a.ahorro_neto_anual, amortizacion: a.amortizacion_anios };
+      const rec = recomendarEquipos(kwpReal, paneles, anual, hipotesis.prod_especifica, pctAuto, catalogo);
+      return { nombre, kwp: kwpReal, paneles, produccion, pctAuto, cobertura, inversion, ahorro: a.ahorro_neto_anual, amortizacion: a.amortizacion_anios, rec };
     });
-  }, [anual, hipotesis, potenciaActual, precioSinIva]);
+  }, [anual, hipotesis, potenciaActual, precioSinIva, catalogo]);
+
+  /** Monta el presupuesto completo con la recomendación de un escenario. */
+  function montar(e: (typeof escenarios)[number]) {
+    const codigos: { codigo: string; cantidad: number; confianza?: string; nota?: string }[] = [
+      { codigo: 'PAN-JIN-515', cantidad: e.paneles },
+      { codigo: 'EST-SUN-STD', cantidad: e.paneles },
+    ];
+    if (e.rec.inversor) codigos.push({ codigo: e.rec.inversor.codigo, cantidad: 1 });
+    if (e.rec.bateria) codigos.push({ codigo: e.rec.bateria.codigo, cantidad: 1 });
+    if (e.rec.monitorizacion) codigos.push({ codigo: e.rec.monitorizacion.codigo, cantidad: 1 });
+    if (e.rec.instalacion) codigos.push({ codigo: e.rec.instalacion.codigo, cantidad: 1, confianza: e.rec.instalacionConfianza, nota: e.rec.instalacionNota || undefined });
+    if (e.rec.tramites) codigos.push({ codigo: e.rec.tramites.codigo, cantidad: 1 });
+    onMontarPresupuesto(e.kwp, codigos);
+  }
 
   /** Fase 3: ahorro con la potencia y el precio REAL del presupuesto actual. */
   const analisis = useMemo(() => {
@@ -214,8 +273,17 @@ export function EnergiaEscenarios({ energia, setEnergia, hipotesis, setHipotesis
                 <p className="text-muted">Autoconsumo {e.pctAuto} % · cobertura ≈{e.cobertura} %</p>
                 <p>Inversión ≈ <b className="tabular-nums">{fmtEur2(e.inversion)}</b></p>
                 <p className="text-emerald-400">Ahorro ≈ {fmtEur2(e.ahorro)}/año · amortiza en {e.amortizacion ?? '—'} años</p>
-                <button type="button" onClick={() => onAplicarPotencia(e.kwp)} className="w-full mt-1 px-2 py-1.5 rounded-lg bg-accent text-white text-[11px] font-bold hover:bg-accent/90">
-                  Usar esta potencia →
+                <div className="pt-1.5 mt-1 border-t border-border/30 text-[10px] text-muted space-y-0.5">
+                  <p>⚡ {e.rec.inversor?.descripcion || 'Inversor a estudiar'}</p>
+                  <p>🔋 {e.rec.bateria ? e.rec.bateria.descripcion : `Sin batería (excedente ≈${e.rec.excedenteDiario} kWh/día)`}</p>
+                  <p>🔧 {e.rec.instalacion?.descripcion || 'Instalación a valorar'}</p>
+                  {e.rec.instalacionNota && <p className="text-amber-300">⚠️ {e.rec.instalacionNota}</p>}
+                </div>
+                <button type="button" onClick={() => montar(e)} className="w-full mt-1.5 px-2 py-1.5 rounded-lg bg-accent text-white text-[11px] font-bold hover:bg-accent/90">
+                  🪄 Montar presupuesto con este escenario
+                </button>
+                <button type="button" onClick={() => onAplicarPotencia(e.kwp)} className="w-full px-2 py-1 rounded-lg border border-border/50 text-muted text-[10px] font-semibold hover:text-foreground">
+                  Solo usar la potencia
                 </button>
               </div>
             ))}

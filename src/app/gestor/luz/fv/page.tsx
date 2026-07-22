@@ -605,7 +605,7 @@ ${form.observaciones ? `<p class="muted">Observaciones: ${form.observaciones}</p
                     + Añadir paneles y estructura ({paneles} ud)
                   </button>
                 )}
-                <span className="text-muted">Inversor, batería e instalación: elígelos del catálogo (no se autoseleccionan).</span>
+                <span className="text-muted">Inversor, batería e instalación: usa 🪄 «Montar presupuesto» en los escenarios (sugerencias revisables) o elígelos a mano del catálogo.</span>
               </div>
             )}
 
@@ -674,6 +674,20 @@ ${form.observaciones ? `<p class="muted">Observaciones: ${form.observaciones}</p
             precioSinIva={resultado.precio_sin_iva}
             precioConIva={resultado.precio_con_iva}
             onAplicarPotencia={(kw) => setForm((f) => ({ ...f, potencia_kw: String(kw) }))}
+            catalogo={catalogo}
+            onMontarPresupuesto={(kwp, codigos) => {
+              const partidas = codigos
+                .map((c) => {
+                  const pt = partidaDesdeCatalogo(c.codigo, c.cantidad);
+                  if (!pt) return null;
+                  return { ...pt, confianza: c.confianza || pt.confianza, observaciones: c.nota || pt.observaciones, fuente: (pt.fuente || '') + ' · recomendación automática' };
+                })
+                .filter(Boolean) as PartidaFV[];
+              setModo('partidas');
+              setForm((f) => ({ ...f, potencia_kw: String(kwp) }));
+              setConceptos(partidas);
+              setMsg('🪄 Presupuesto montado con la recomendación: revisa inversor, batería e instalación antes de aprobar.');
+            }}
           />
 
           {/* Documentación (enlaces) */}
