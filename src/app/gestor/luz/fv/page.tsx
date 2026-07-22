@@ -11,6 +11,7 @@ import {
   CONFIANZA_LABEL, POTENCIA_PANEL_W, fmtEur2, r2, PERFIL_FRANJA, FRANJA_LABEL,
   estimarAyudas, IRPF_PCT_DEDUCCION, IRPF_BASE_MAXIMA, IBI_PCT_ORIENTATIVO, IBI_ANIOS_ORIENTATIVO,
   PERFILES_CLIENTE, PERFIL_LABEL, PERFIL_TEXTO, produccionMensual, MESES_CORTO, estimarGasoil,
+  INVERSORES_MERCADO, BATERIAS_MERCADO, RefMercado,
 } from '@/lib/fv';
 import { Card, EstadoCarga, useListaLuz, inputCls, labelCls, btnPrimario, btnSecundario, SelectorResponsable } from '../ui';
 import { tokenSesion } from '@/lib/usuario';
@@ -76,6 +77,7 @@ function CalculadoraFV() {
 
   const [editandoId, setEditandoId] = useState<string | null>(null); // null = lista · 'nuevo' = alta
   const [eligiendoTipo, setEligiendoTipo] = useState(false);          // pantalla "¿qué quieres hacer?"
+  const [picker, setPicker] = useState<{ index: number; tipo: 'inversores' | 'baterias' } | null>(null); // selector de equipo
   const [mostrarEstudio, setMostrarEstudio] = useState(false);        // estudio de ahorro opcional en el flujo de Óscar
   const [form, setForm] = useState(FORM_VACIO);
   const [conceptos, setConceptos] = useState<PartidaFV[]>([]);
@@ -718,6 +720,26 @@ ${form.observaciones ? `<p class="muted">Observaciones: ${form.observaciones}</p
   );
   const esDim = modo === 'partidas';
 
+  // Categorías de pieza que se pueden elegir con el selector visual
+  const esInversor = (c?: string) => ['inversores', 'inversor'].includes((c || '').toLowerCase());
+  const esBateria = (c?: string) => ['baterias', 'batería', 'bateria'].includes((c || '').toLowerCase());
+
+  /** Aplica el equipo elegido en el selector a la partida correspondiente. */
+  function elegirEquipo(r: RefMercado) {
+    if (!picker) return;
+    const unidad = picker.tipo === 'baterias' ? 'kWh' : 'kW';
+    setConceptos((arr) => arr.map((x, j) => j === picker.index ? {
+      ...x,
+      descripcion: `${r.marca} ${r.modelo} · ${r.medida} ${unidad}`,
+      marca: r.marca, precio_unitario: r.precio, codigo_catalogo: null,
+      cantidad: x.cantidad > 0 ? x.cantidad : 1,
+      fuente: 'Precio de mercado (ene 2026)', confianza: 'alta',
+    } : x));
+    setPicker(null);
+    setMsg(`✓ ${r.marca} ${r.modelo} (${r.medida} ${unidad}) seleccionado.`);
+  }
+  const opcionesPicker: RefMercado[] = picker?.tipo === 'baterias' ? BATERIAS_MERCADO : INVERSORES_MERCADO;
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -880,6 +902,13 @@ ${form.observaciones ? `<p class="muted">Observaciones: ${form.observaciones}</p
                             {c.marca && <span>· {c.marca}</span>}
                             {c.fuente && <span>· {c.fuente}</span>}
                           </div>
+                          {/* Elegir de la lista de mercado (inversores y baterías) */}
+                          {(esInversor(c.concepto) || esBateria(c.concepto)) && (
+                            <button type="button" onClick={() => setPicker({ index: i, tipo: esBateria(c.concepto) ? 'baterias' : 'inversores' })}
+                              className="mt-1.5 inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-secondary/15 text-secondary border border-secondary/30 text-[11px] font-bold hover:bg-secondary/25 transition">
+                              🔁 Elegir {esBateria(c.concepto) ? 'batería' : 'inversor'} del mercado
+                            </button>
+                          )}
                         </div>
                         {/* Importe grande a la derecha */}
                         <div className="text-right shrink-0">
@@ -1026,6 +1055,36 @@ ${form.observaciones ? `<p class="muted">Observaciones: ${form.observaciones}</p
           </p>
         </div>
       </div>
+
+      {/* Selector visual de inversor / batería del mercado */}
+      {picker && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/70 backdrop-blur-sm p-4" onClick={() => setPicker(null)}>
+          <div className="w-full max-w-2xl max-h-[85vh] overflow-y-auto rounded-2xl bg-surface border border-accent/30 shadow-2xl p-4 space-y-3" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between gap-3 sticky top-0 bg-surface pb-1">
+              <h3 className="font-black text-sm">{picker.tipo === 'baterias' ? '🔋 Elige la batería' : '⚡ Elige el inversor'}</h3>
+              <button onClick={() => setPicker(null)} className="text-muted hover:text-foreground"><X className="w-4 h-4" /></button>
+            </div>
+            <p className="text-[11px] text-muted">Precios de mercado orientativos (material, con IVA, enero 2026). Pulsa uno para ponerlo en el presupuesto.</p>
+            <div className="grid sm:grid-cols-2 gap-2">
+              {opcionesPicker.map((r) => {
+                const unidad = picker.tipo === 'baterias' ? 'kWh' : 'kW';
+                return (
+                  <button key={`${r.marca}-${r.modelo}`} onClick={() => elegirEquipo(r)}
+                    className="text-left p-3 rounded-xl border border-border/40 bg-card/50 hover:border-accent/60 hover:bg-accent/5 transition">
+                    <div className="flex items-baseline justify-between gap-2">
+                      <span className="text-lg font-black tabular-nums text-secondary">{r.medida} {unidad}</span>
+                      <span className="text-sm font-black tabular-nums">{fmtEur2(r.precio)}</span>
+                    </div>
+                    <p className="text-xs font-bold text-foreground mt-0.5 leading-tight">{r.marca} {r.modelo}</p>
+                    <p className="text-[10px] text-muted mt-0.5">{r.detalle}</p>
+                    <p className="text-[10px] text-muted/70 mt-0.5">{fmtEur2(r2(r.precio / r.medida))}/{unidad}</p>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
