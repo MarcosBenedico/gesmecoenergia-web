@@ -73,6 +73,8 @@ function CalculadoraFV() {
   const [msg, setMsg] = useState('');
 
   const [editandoId, setEditandoId] = useState<string | null>(null); // null = lista · 'nuevo' = alta
+  const [eligiendoTipo, setEligiendoTipo] = useState(false);          // pantalla "¿qué quieres hacer?"
+  const [mostrarEstudio, setMostrarEstudio] = useState(false);        // estudio de ahorro opcional en el flujo de Óscar
   const [form, setForm] = useState(FORM_VACIO);
   const [conceptos, setConceptos] = useState<PartidaFV[]>([]);
   const [modo, setModo] = useState<'simple' | 'partidas'>('simple');
@@ -189,8 +191,11 @@ function CalculadoraFV() {
     if (!margenTocado) setForm((f) => ({ ...f, margen_pct: '' }));
   }, [potencia > LIMITE_KW]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  function abrirNuevo() {
-    setForm(FORM_VACIO); setConceptos([]); setDocs([]); setMargenTocado(false); setModo('simple'); setAvisoCat(''); setEnergia(ENERGIA_VACIA); setHipotesis(HIPOTESIS_DEFECTO); setEditandoId('nuevo'); setMsg(''); setError('');
+  /** Alta nueva con el flujo elegido: 'simple' = presupuesto de Óscar · 'partidas' = dimensionado desde consumos. */
+  function abrirNuevo(tipo: 'simple' | 'partidas') {
+    setForm(FORM_VACIO); setConceptos([]); setDocs([]); setMargenTocado(false); setModo(tipo); setAvisoCat('');
+    setEnergia(ENERGIA_VACIA); setHipotesis(HIPOTESIS_DEFECTO); setMostrarEstudio(false);
+    setEligiendoTipo(false); setEditandoId('nuevo'); setMsg(''); setError('');
   }
 
   async function abrirExistente(p: PresupuestoFV) {
@@ -211,6 +216,8 @@ function CalculadoraFV() {
     const dim = (d as unknown as { dimensionado?: { energia?: EnergiaFV; hipotesis?: HipotesisFV } }).dimensionado || {};
     setEnergia(dim.energia || ENERGIA_VACIA);
     setHipotesis(dim.hipotesis || HIPOTESIS_DEFECTO);
+    // El estudio de ahorro solo se muestra en el flujo de Óscar si ya tiene datos guardados
+    setMostrarEstudio(!!dim.energia && (dim.energia.consumo_anual || 0) > 0);
     setDocs(d.documentos || []);
     setMargenTocado(true);
     setEditandoId(p.id); setMsg(''); setError('');
@@ -417,9 +424,36 @@ ${form.observaciones ? `<p class="muted">Observaciones: ${form.observaciones}</p
           <div className="flex gap-2">
             <button onClick={cargar} className={btnSecundario}><RefreshCw className={`w-4 h-4 ${cargando ? 'animate-spin' : ''}`} /></button>
             <a href="/gestor/luz/fv/catalogo" className={btnSecundario}>📚 Catálogo de precios</a>
-            <button onClick={abrirNuevo} className={btnPrimario}><Plus className="w-4 h-4" /> Nuevo presupuesto</button>
+            <button onClick={() => setEligiendoTipo(true)} className={btnPrimario}><Plus className="w-4 h-4" /> Nuevo presupuesto</button>
           </div>
         </div>
+
+        {/* ¿Qué quieres hacer? — cada flujo con su camino */}
+        {eligiendoTipo && (
+          <div className="grid md:grid-cols-2 gap-3">
+            <button onClick={() => abrirNuevo('simple')}
+              className="text-left p-5 rounded-2xl border border-accent/40 bg-accent/5 hover:bg-accent/10 hover:border-accent/70 transition space-y-1.5">
+              <p className="text-2xl">📄</p>
+              <p className="font-black text-sm text-foreground">Tengo el presupuesto de Óscar</p>
+              <p className="text-xs text-muted leading-relaxed">
+                Metes su importe sin IVA y el sistema añade la ingeniería si supera 10 kW,
+                aplica tu margen y el IVA. En 2 minutos tienes la oferta para el cliente.
+              </p>
+            </button>
+            <button onClick={() => abrirNuevo('partidas')}
+              className="text-left p-5 rounded-2xl border border-secondary/40 bg-secondary/5 hover:bg-secondary/10 hover:border-secondary/70 transition space-y-1.5">
+              <p className="text-2xl">⚡</p>
+              <p className="font-black text-sm text-foreground">Presupuestar desde consumos / factura</p>
+              <p className="text-xs text-muted leading-relaxed">
+                Metes el consumo del cliente, eliges escenario de dimensionado y el sistema
+                monta las partidas con el catálogo de Óscar. Estimación con rentabilidad incluida.
+              </p>
+            </button>
+            <button onClick={() => setEligiendoTipo(false)} className="md:col-span-2 text-xs text-muted hover:text-foreground text-center">
+              Cancelar
+            </button>
+          </div>
+        )}
 
         {msg && <p className="text-xs text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-2.5">{msg}</p>}
         {error && <p className="text-xs text-red-400 bg-red-500/10 border border-red-500/30 rounded-lg p-2.5">{error}</p>}
@@ -439,7 +473,16 @@ ${form.observaciones ? `<p class="muted">Observaciones: ${form.observaciones}</p
               <tbody>
                 {lista.map((p) => (
                   <tr key={p.id} className="border-b border-border/20 hover:bg-card/50 transition">
-                    <td className="px-3 py-2 font-semibold text-xs cursor-pointer" onClick={() => abrirExistente(p)}>{p.nombre_proyecto}</td>
+                    <td className="px-3 py-2 font-semibold text-xs cursor-pointer" onClick={() => abrirExistente(p)}>
+                      {p.nombre_proyecto}
+                      <span className={`ml-2 px-1.5 py-0.5 rounded-full border text-[9px] font-bold uppercase ${
+                        (p as unknown as { modo?: string }).modo === 'partidas'
+                          ? 'bg-secondary/15 text-secondary border-secondary/30'
+                          : 'bg-accent/15 text-accent border-accent/30'
+                      }`}>
+                        {(p as unknown as { modo?: string }).modo === 'partidas' ? '⚡ Dimensionado' : '📄 Óscar'}
+                      </span>
+                    </td>
                     <td className="px-3 py-2 text-xs text-muted">{p.cliente_nombre || '—'}</td>
                     <td className="px-3 py-2 text-right tabular-nums text-xs">{Number(p.potencia_kw).toLocaleString('es-ES')}</td>
                     <td className="px-3 py-2 text-right tabular-nums font-bold text-xs">{fmtEur2(Number(p.precio_sin_iva))}</td>
@@ -478,6 +521,32 @@ ${form.observaciones ? `<p class="muted">Observaciones: ${form.observaciones}</p
 
   // ═══════════ EDITOR ═══════════
   const p = lista.find((x) => x.id === editandoId);
+
+  /** Bloque de consumo, escenarios y rentabilidad (fases 2 y 3), reutilizado según el flujo. */
+  const bloqueEnergia = (
+    <EnergiaEscenarios
+      energia={energia} setEnergia={setEnergia}
+      hipotesis={hipotesis} setHipotesis={setHipotesis}
+      potenciaActual={potencia}
+      precioSinIva={resultado.precio_sin_iva}
+      precioConIva={resultado.precio_con_iva}
+      onAplicarPotencia={(kw) => setForm((f) => ({ ...f, potencia_kw: String(kw) }))}
+      catalogo={catalogo}
+      onMontarPresupuesto={(kwp, codigos) => {
+        const partidas = codigos
+          .map((c) => {
+            const pt = partidaDesdeCatalogo(c.codigo, c.cantidad);
+            if (!pt) return null;
+            return { ...pt, confianza: c.confianza || pt.confianza, observaciones: c.nota || pt.observaciones, fuente: (pt.fuente || '') + ' · recomendación automática' };
+          })
+          .filter(Boolean) as PartidaFV[];
+        setModo('partidas');
+        setForm((f) => ({ ...f, potencia_kw: String(kwp) }));
+        setConceptos(partidas);
+        setMsg('🪄 Presupuesto montado con la recomendación: revisa inversor, batería e instalación antes de aprobar.');
+      }}
+    />
+  );
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -525,16 +594,16 @@ ${form.observaciones ? `<p class="muted">Observaciones: ${form.observaciones}</p
                   </p>
                 )}
               </div>
-              <div className="md:col-span-2">
-                <label className={labelCls}>Modo de cálculo del coste</label>
-                <div className="inline-flex rounded-lg border border-border/50 bg-card/60 p-0.5">
-                  {([['simple', 'Importe único de Óscar'], ['partidas', 'Presupuesto por partidas (catálogo)']] as const).map(([v, n]) => (
-                    <button key={v} type="button" onClick={() => setModo(v)}
-                      className={`px-3 py-1.5 rounded-md text-xs font-semibold transition ${modo === v ? 'bg-accent text-white' : 'text-muted hover:text-foreground'}`}>
-                      {n}
-                    </button>
-                  ))}
-                </div>
+              <div className="md:col-span-2 flex items-end gap-2 flex-wrap">
+                <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-bold ${
+                  modo === 'partidas' ? 'bg-secondary/15 text-secondary border-secondary/30' : 'bg-accent/15 text-accent border-accent/30'
+                }`}>
+                  {modo === 'partidas' ? '⚡ Dimensionado desde consumos' : '📄 Desde presupuesto de Óscar'}
+                </span>
+                <button type="button" onClick={() => setModo(modo === 'simple' ? 'partidas' : 'simple')}
+                  className="text-[10px] font-semibold text-muted hover:text-foreground underline underline-offset-2 pb-1">
+                  cambiar tipo
+                </button>
               </div>
               {modo === 'simple' && (
                 <div><label className={labelCls}>Presupuesto instalador Óscar (€, sin IVA) *</label>
@@ -576,6 +645,9 @@ ${form.observaciones ? `<p class="muted">Observaciones: ${form.observaciones}</p
                 <textarea className={`${inputCls} resize-none`} rows={2} value={form.observaciones} onChange={(e) => setForm({ ...form, observaciones: e.target.value })} /></div>
             </div>
           </Card>
+
+          {/* Flujo Dimensionado: primero el consumo y los escenarios, que montan las partidas */}
+          {modo === 'partidas' && bloqueEnergia}
 
           {/* Dimensionado + partidas desde el catálogo */}
           <Card className="space-y-2">
@@ -666,29 +738,24 @@ ${form.observaciones ? `<p class="muted">Observaciones: ${form.observaciones}</p
             )}
           </Card>
 
-          {/* Fases 2 y 3: consumo, escenarios y rentabilidad */}
-          <EnergiaEscenarios
-            energia={energia} setEnergia={setEnergia}
-            hipotesis={hipotesis} setHipotesis={setHipotesis}
-            potenciaActual={potencia}
-            precioSinIva={resultado.precio_sin_iva}
-            precioConIva={resultado.precio_con_iva}
-            onAplicarPotencia={(kw) => setForm((f) => ({ ...f, potencia_kw: String(kw) }))}
-            catalogo={catalogo}
-            onMontarPresupuesto={(kwp, codigos) => {
-              const partidas = codigos
-                .map((c) => {
-                  const pt = partidaDesdeCatalogo(c.codigo, c.cantidad);
-                  if (!pt) return null;
-                  return { ...pt, confianza: c.confianza || pt.confianza, observaciones: c.nota || pt.observaciones, fuente: (pt.fuente || '') + ' · recomendación automática' };
-                })
-                .filter(Boolean) as PartidaFV[];
-              setModo('partidas');
-              setForm((f) => ({ ...f, potencia_kw: String(kwp) }));
-              setConceptos(partidas);
-              setMsg('🪄 Presupuesto montado con la recomendación: revisa inversor, batería e instalación antes de aprobar.');
-            }}
-          />
+          {/* Flujo de Óscar: el estudio de ahorro es opcional y va plegado */}
+          {modo === 'simple' && (
+            mostrarEstudio ? (
+              <>
+                <div className="flex justify-end">
+                  <button onClick={() => setMostrarEstudio(false)} className="text-[11px] font-semibold text-muted hover:text-foreground underline underline-offset-2">
+                    Ocultar estudio de ahorro
+                  </button>
+                </div>
+                {bloqueEnergia}
+              </>
+            ) : (
+              <button onClick={() => setMostrarEstudio(true)}
+                className="w-full text-left p-4 rounded-2xl border border-dashed border-secondary/40 text-secondary hover:bg-secondary/5 hover:border-secondary/70 transition text-xs font-bold">
+                ➕ Añadir estudio de ahorro al presupuesto (opcional) — consumo, escenarios y amortización
+              </button>
+            )
+          )}
 
           {/* Documentación (enlaces) */}
           <Card className="space-y-2.5">
