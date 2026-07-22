@@ -12,6 +12,7 @@ import {
 import { BotonDescarga, Card, Kpi, Badge, BadgePrioridad, EstadoCarga, useListaLuz, guardarLuz, inputCls, labelCls, btnPrimario, btnSecundario, SelectorResponsable } from '../ui';
 import { TableroPipeline } from './tablero';
 import { PedirMotivo } from '../motivo';
+import { Consejo } from '../consejo';
 
 const OP_VACIA = { cliente_id: '', tipo_oportunidad: 'cambio_comercializadora', comision_potencial: '', proxima_accion: '', fecha_proxima_accion: '', responsable: '' };
 
@@ -197,6 +198,8 @@ function PipelineContenido() {
           </form>
         </Card>
       )}
+
+      <Consejo clave="pipeline">Aquí se mueve la venta, no el día a día: una oportunidad por cliente vivo y su próxima acción siempre rellena. Las llamadas y visitas con fecha van en Tareas.</Consejo>
 
       <div className="grid grid-cols-3 gap-3">
         <Kpi valor={abiertas.length} etiqueta="Abiertas" color="text-secondary" />

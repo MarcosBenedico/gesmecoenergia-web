@@ -9,6 +9,7 @@ import {
   diasHasta, fmtFecha, tituloFechaCritica,
 } from '@/lib/luz';
 import { BotonDescarga, Card, BadgePrioridad, BadgeVencimiento, EstadoCarga, useListaLuz, guardarLuz, inputCls, labelCls, btnPrimario, btnSecundario, SelectorResponsable } from '../ui';
+import { Consejo } from '../consejo';
 
 const FECHA_VACIA = { cliente_id: '', cups_id: '', tipo_fecha: 'fin_contrato', fecha: '', descripcion: '', responsable: '' };
 
@@ -195,6 +196,8 @@ function FechasContenido() {
           )}
         </div>
       </div>
+
+      <Consejo clave="fechas">Una fecha crítica es algo que ocurre solo (fin de contrato, permanencia, presentar proyecto). El trabajo que genera se apunta como tarea. Asóciala a su CUPS si el cliente tiene varios.</Consejo>
 
       {msgGen && <p className="text-xs text-secondary bg-secondary/10 border border-secondary/25 rounded-lg p-2.5">{msgGen}</p>}
 

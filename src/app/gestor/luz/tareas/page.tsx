@@ -10,6 +10,7 @@ import {
 } from '@/lib/luz';
 import { BotonDescarga, Card, Kpi, Badge, BadgeVencimiento, EstadoCarga, useListaLuz, guardarLuz, inputCls, labelCls, btnPrimario, btnSecundario, SelectorResponsable } from '../ui';
 import { PedirMotivo } from '../motivo';
+import { Consejo } from '../consejo';
 import { TableroTareas, bucketDeTarea, BucketTarea } from './tablero';
 import { CalendarioTareas } from './calendario';
 
@@ -294,6 +295,8 @@ export default function TareasLuzPage() {
       </div>
 
       {msg && <p className="text-xs text-red-400 bg-red-500/10 border border-red-500/30 rounded-lg p-2.5">{msg}</p>}
+
+      <Consejo clave="tareas">Una tarea es algo que hace una persona un día concreto. Lo que ocurre solo (fin de contrato, permanencia) va en Fechas Críticas.</Consejo>
 
       <div className="grid grid-cols-3 gap-3">
         <Kpi valor={abiertas.length} etiqueta="Abiertas" />

@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard, Users, Plug, CalendarClock, Target, FileSignature,
-  Euro, BellRing, ArrowDownUp, Settings, ChevronLeft, Zap, UserCog, ShieldCheck, Route, History, Sun, UserPlus,
+  Euro, BellRing, ArrowDownUp, Settings, ChevronLeft, Zap, UserCog, ShieldCheck, Route, History, Sun, UserPlus, BookOpen,
 } from 'lucide-react';
 import { GuardiaModulo } from '@/components/guardia-modulo';
 import { useUsuario } from '@/lib/usuario';
@@ -19,6 +19,7 @@ const SECCIONES: { href: string; icono: typeof LayoutDashboard; nombre: string; 
   { href: '/gestor/luz/fechas', icono: CalendarClock, nombre: 'Fechas Críticas' },
   { href: '/gestor/luz/pipeline', icono: Target, nombre: 'Pipeline Energético' },
   { href: '/gestor/luz/rutas', icono: Route, nombre: 'Rutas de visitas' },
+  { href: '/gestor/luz/guia', icono: BookOpen, nombre: 'Guía rápida' },
   { href: '/gestor/luz', icono: LayoutDashboard, nombre: 'Dashboard Luz', grupo: 'Gestión' },
   { href: '/gestor/luz/cups', icono: Plug, nombre: 'CUPS / Suministros' },
   { href: '/gestor/luz/contratos', icono: FileSignature, nombre: 'Contratos y Activaciones' },
