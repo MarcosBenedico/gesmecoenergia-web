@@ -82,10 +82,13 @@ function ClientesLuzContenido() {
         </div>
         <div className="flex gap-2">
           <a href={urlExport} className={btnSecundario} download><Download className="w-4 h-4" /> Exportar</a>
-          <button onClick={() => setMostrarForm((v) => !v)} className={btnPrimario}>
+          <button onClick={() => setMostrarForm((v) => !v)} className={btnSecundario} title="Solo crea el cliente, sin pasos guiados">
             {mostrarForm ? <X className="w-4 h-4" /> : <UserPlus className="w-4 h-4" />}
-            {mostrarForm ? 'Cancelar' : 'Nuevo cliente'}
+            {mostrarForm ? 'Cancelar' : 'Alta rápida'}
           </button>
+          <Link href="/gestor/luz/alta" className={btnPrimario}>
+            <UserPlus className="w-4 h-4" /> Nuevo cliente (guiado)
+          </Link>
         </div>
       </div>
 

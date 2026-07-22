@@ -68,12 +68,12 @@ export const ESTADO_CUPS_LABEL: Record<string, string> = {
 
 // ── Fechas críticas ──
 export const TIPOS_FECHA = [
-  'fin_contrato', 'fin_permanencia', 'limite_preaviso', 'revision_comercial', 'seguimiento_oferta',
-  'contrato_pendiente_firma', 'activacion_pendiente', 'revision_comision', 'cliente_a_sin_accion',
+  'fin_contrato', 'fin_permanencia', 'limite_preaviso', 'presentar_proyecto', 'revision_comercial',
+  'seguimiento_oferta', 'contrato_pendiente_firma', 'activacion_pendiente', 'revision_comision', 'cliente_a_sin_accion',
 ] as const;
 export const TIPO_FECHA_LABEL: Record<string, string> = {
   fin_contrato: 'Fin contrato', fin_permanencia: 'Fin permanencia', limite_preaviso: 'Límite preaviso',
-  revision_comercial: 'Revisión comercial', seguimiento_oferta: 'Seguimiento oferta',
+  presentar_proyecto: 'Presentar proyecto', revision_comercial: 'Revisión comercial', seguimiento_oferta: 'Seguimiento oferta',
   contrato_pendiente_firma: 'Contrato pendiente firma', activacion_pendiente: 'Activación pendiente',
   revision_comision: 'Revisión comisión', cliente_a_sin_accion: 'Cliente A sin acción',
 };
@@ -81,6 +81,7 @@ export const TIPO_FECHA_TONO: Record<string, string> = {
   fin_contrato: 'bg-red-500/15 text-red-400 border-red-500/30',
   fin_permanencia: 'bg-orange-500/15 text-orange-400 border-orange-500/30',
   limite_preaviso: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
+  presentar_proyecto: 'bg-pink-500/15 text-pink-300 border-pink-500/30',
   revision_comercial: 'bg-blue-500/15 text-blue-300 border-blue-500/30',
   seguimiento_oferta: 'bg-secondary/15 text-secondary border-secondary/30',
   contrato_pendiente_firma: 'bg-purple-500/15 text-purple-300 border-purple-500/30',
