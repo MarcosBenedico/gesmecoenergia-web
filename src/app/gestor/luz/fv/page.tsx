@@ -332,19 +332,47 @@ Estimación orientativa según los datos de consumo facilitados; pendiente de va
 <p class="muted">El gasoil le cuesta <b>${g.coste_kwh} €/kWh</b> —además del ruido, el mantenimiento del grupo y los rellenos—. Cada kWh que produzca el sol es gasoil que deja de quemar. Por eso en una explotación aislada la instalación se amortiza mucho antes que conectada a red.</p>`;
     }
 
-    // ── Gráfico de estacionalidad (producción mes a mes) en barras CSS ──
+    // ── Gráfico mensual: producción vs consumo real + amortización calculada mes a mes ──
     let bloqueEstacional = '';
     if (potencia > 0) {
       const prodMes = produccionMensual(potencia * hipotesis.prod_especifica);
-      const maxP = Math.max(...prodMes, 1);
-      const barras = prodMes.map((v, i) => `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px">
-        <div style="width:100%;height:90px;display:flex;align-items:flex-end"><div style="width:100%;background:linear-gradient(180deg,#ffb347,#ff9500);border-radius:3px 3px 0 0;height:${(v / maxP) * 100}%" title="${Math.round(v)} kWh"></div></div>
+      const franjaE = energia.franja || null;
+      const pctAutoE = franjaE && PERFIL_FRANJA[franjaE] ? PERFIL_FRANJA[franjaE].coincidencia : hipotesis.pct_autoconsumo;
+      const hayConsumo = energia.mensual.some((v) => v > 0);
+      const consMes = hayConsumo ? energia.mensual : prodMes.map(() => 0);
+      const maxV = Math.max(...prodMes, ...consMes, 1);
+      // Ahorro mes a mes: autoconsumo (limitado por el consumo real si lo hay) + excedente compensado
+      let ahorroAnualReal = 0;
+      const detalle = prodMes.map((p, i) => {
+        const auto = hayConsumo ? Math.min(p * (pctAutoE / 100), consMes[i]) : p * (pctAutoE / 100);
+        const exc = Math.max(p - auto, 0);
+        const ahorroMes = auto * hipotesis.precio_kwh + exc * hipotesis.precio_compensacion;
+        ahorroAnualReal += ahorroMes;
+        return { p, c: consMes[i], auto, ahorroMes };
+      });
+      ahorroAnualReal = r2(ahorroAnualReal - hipotesis.mantenimiento_anual);
+      const invE = hipotesis.analisis_con_iva ? resultado.precio_con_iva : resultado.precio_sin_iva;
+      const amortReal = ahorroAnualReal > 0 ? (invE / ahorroAnualReal).toFixed(1) : null;
+      const kwhE = (n: number) => Math.round(n).toLocaleString('es-ES');
+
+      const barras = detalle.map((d, i) => `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px">
+        <div style="width:100%;height:100px;display:flex;align-items:flex-end;justify-content:center;gap:2px">
+          <div style="width:45%;background:linear-gradient(180deg,#ffb347,#ff9500);border-radius:3px 3px 0 0;height:${(d.p / maxV) * 100}%" title="Producción ${MESES_CORTO[i]}: ${kwhE(d.p)} kWh"></div>
+          ${hayConsumo ? `<div style="width:45%;background:linear-gradient(180deg,#3ba9d4,#0077a3);border-radius:3px 3px 0 0;height:${(d.c / maxV) * 100}%" title="Consumo ${MESES_CORTO[i]}: ${kwhE(d.c)} kWh"></div>` : ''}
+        </div>
         <div style="font-size:.62rem;color:#5c5c6e">${MESES_CORTO[i]}</div>
       </div>`).join('');
-      bloqueEstacional = `<h2>Su instalación a lo largo del año</h2>
-<p style="font-size:.9rem;color:#3a3a4a">El sol no produce igual todo el año: en verano genera más del doble que en invierno. Así se reparte la producción estimada de su instalación mes a mes:</p>
+
+      bloqueEstacional = `<h2>Su instalación mes a mes</h2>
+<p style="font-size:.9rem;color:#3a3a4a">El sol no produce igual todo el año: en verano genera más del doble que en invierno. ${hayConsumo ? 'Comparamos la producción estimada de sus placas con <b>su consumo real</b> mes a mes:' : 'Así se reparte la producción estimada de su instalación a lo largo del año:'}</p>
 <div style="display:flex;gap:4px;align-items:flex-end;margin:.6rem 0">${barras}</div>
-<p class="muted">En los meses de más sol es habitual tener excedente (que se acumula en batería o se vierte a red); en invierno se completa con red o grupo. El dimensionado busca el mejor equilibrio anual para usted.</p>`;
+<p style="font-size:.8rem;margin:.2rem 0"><span style="display:inline-block;width:11px;height:11px;background:#ff9500;border-radius:2px;vertical-align:middle"></span> Producción solar${hayConsumo ? ' &nbsp; <span style="display:inline-block;width:11px;height:11px;background:#0077a3;border-radius:2px;vertical-align:middle"></span> Su consumo' : ''}</p>
+${hayConsumo ? `<table><thead><tr><th>Cálculo del ahorro con su consumo real</th><th class="num">Al año</th></tr></thead><tbody>
+<tr><td>Energía solar que aprovecha directamente</td><td class="num">${kwhE(detalle.reduce((s, d) => s + d.auto, 0))} kWh</td></tr>
+<tr><td>Ahorro sumando los 12 meses (autoconsumo + excedentes − mantenimiento)</td><td class="num"><b>${fmtEur2(ahorroAnualReal)}/año</b></td></tr>
+${amortReal ? `<tr class="total"><td>Se amortiza en</td><td class="num">${amortReal} años</td></tr>` : ''}
+</tbody></table>
+<p class="muted">Esta amortización se calcula mes a mes cruzando la producción de las placas con su consumo real, no con una media: es la estimación más ajustada a su caso. Donde la barra naranja supera a la azul hay excedente (batería o red); donde no llega, se completa con red${form.perfil === 'granja_aislada' ? ' o grupo' : ''}.</p>` : `<p class="muted">En los meses de más sol es habitual tener excedente; en invierno se completa con red. El dimensionado busca el mejor equilibrio anual para usted.</p>`}`;
     }
 
     // ── Ficha técnica: consumo medido, dimensionado, equipos y por qué de cada uno ──
