@@ -558,9 +558,6 @@ ${fila('Se amortiza en', (e) => e.amortizacion != null ? `${e.amortizacion} año
                 <button type="button" onClick={() => montar(e)} className="w-full mt-1.5 px-2 py-1.5 rounded-lg bg-accent text-white text-[11px] font-bold hover:bg-accent/90">
                   🪄 Montar presupuesto con este escenario
                 </button>
-                <button type="button" onClick={() => onAplicarPotencia(e.kwp)} className="w-full px-2 py-1 rounded-lg border border-border/50 text-muted text-[10px] font-semibold hover:text-foreground">
-                  Solo usar la potencia
-                </button>
               </div>
             ))}
           </div>

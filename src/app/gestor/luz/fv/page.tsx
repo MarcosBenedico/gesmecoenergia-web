@@ -708,6 +708,19 @@ ${form.observaciones ? `<p class="muted">Observaciones: ${form.observaciones}</p
       }}
     />
   );
+
+  // Cabecera de paso (solo en el flujo "desde consumos", para guiar el orden)
+  const Paso = ({ n, titulo, desc }: { n: number; titulo: string; desc?: string }) => (
+    <div className="flex items-center gap-2.5 pt-1">
+      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-secondary text-white text-xs font-black">{n}</span>
+      <div className="min-w-0">
+        <p className="text-sm font-black text-foreground leading-tight">{titulo}</p>
+        {desc && <p className="text-[10px] text-muted leading-tight">{desc}</p>}
+      </div>
+    </div>
+  );
+  const esDim = modo === 'partidas';
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -733,6 +746,7 @@ ${form.observaciones ? `<p class="muted">Observaciones: ${form.observaciones}</p
       <div className="grid lg:grid-cols-[1fr_380px] gap-4 items-start">
         {/* ── BLOQUE IZQUIERDO: datos del proyecto ── */}
         <div className="space-y-4">
+          {esDim && <Paso n={1} titulo="Cliente y tipo de instalación" desc="A quién va y con qué lenguaje le hablamos" />}
           <Card className="space-y-3">
             <h3 className="font-bold text-sm">Datos del proyecto</h3>
             <div className="grid md:grid-cols-2 gap-3">
@@ -756,6 +770,9 @@ ${form.observaciones ? `<p class="muted">Observaciones: ${form.observaciones}</p
               <div>
                 <label className={labelCls}>Potencia (kW) *</label>
                 <input className={inputCls} type="number" min="0.01" step="0.01" value={form.potencia_kw} onChange={(e) => setForm({ ...form, potencia_kw: e.target.value })} />
+                {esDim && potencia <= 0 && (
+                  <p className="text-[10px] mt-0.5 text-muted">Se rellena sola al elegir un escenario en el paso 2 (o escríbela a mano).</p>
+                )}
                 {potencia > 0 && (
                   <p className={`text-[10px] mt-0.5 font-semibold ${potencia > LIMITE_KW ? 'text-amber-300' : 'text-secondary'}`}>
                     {potencia > LIMITE_KW ? '⚙️ Más de 10 kW: se añade ingeniería.' : '✓ 10 kW o menos: no se añade ingeniería.'}
@@ -815,9 +832,11 @@ ${form.observaciones ? `<p class="muted">Observaciones: ${form.observaciones}</p
           </Card>
 
           {/* Flujo Dimensionado: primero el consumo y los escenarios, que montan las partidas */}
+          {esDim && <Paso n={2} titulo="Consumo y escenario" desc="Mete el consumo del cliente y elige un escenario: rellena la potencia y las partidas de golpe" />}
           {modo === 'partidas' && bloqueEnergia}
 
           {/* Dimensionado + partidas desde el catálogo */}
+          {esDim && <Paso n={3} titulo="Revisa los equipos y precios" desc="Ajusta las partidas que montó el escenario, cámbialas o añade del catálogo" />}
           <Card className="space-y-2">
             <div className="flex items-center justify-between gap-2 flex-wrap">
               <h3 className="font-bold text-sm">{modo === 'partidas' ? '🧮 Presupuesto por partidas' : 'Desglose de costes adicionales'}</h3>
@@ -834,18 +853,9 @@ ${form.observaciones ? `<p class="muted">Observaciones: ${form.observaciones}</p
             {potencia > 0 && (
               <div className="flex items-center gap-3 flex-wrap text-[11px] rounded-lg bg-secondary/5 border border-secondary/25 p-2.5">
                 <span>☀️ <b>{paneles} paneles</b> de {POTENCIA_PANEL_W} W para {potencia.toLocaleString('es-ES')} kWp (⌈kWp×1000/{POTENCIA_PANEL_W}⌉)</span>
-                {modo === 'partidas' && (
-                  <button
-                    onClick={() => {
-                      const nuevas = [partidaDesdeCatalogo('PAN-JIN-515', paneles), partidaDesdeCatalogo('EST-SUN-STD', paneles)].filter(Boolean) as PartidaFV[];
-                      setConceptos((c) => [...c.filter((x) => !['PAN-JIN-515', 'EST-SUN-STD'].includes(x.codigo_catalogo || '')), ...nuevas]);
-                    }}
-                    className="px-2.5 py-1 rounded-lg bg-accent text-white font-bold hover:bg-accent/90 transition"
-                  >
-                    + Añadir paneles y estructura ({paneles} ud)
-                  </button>
+                {modo === 'partidas' && conceptos.length === 0 && (
+                  <span className="text-muted">Aún no hay partidas: usa 🪄 «Montar presupuesto con este escenario» arriba para rellenarlas de golpe, o añádelas del catálogo.</span>
                 )}
-                <span className="text-muted">Inversor, batería e instalación: usa 🪄 «Montar presupuesto» en los escenarios (sugerencias revisables) o elígelos a mano del catálogo.</span>
               </div>
             )}
 
@@ -926,6 +936,7 @@ ${form.observaciones ? `<p class="muted">Observaciones: ${form.observaciones}</p
           )}
 
           {/* Documentación (enlaces) */}
+          {esDim && <Paso n={4} titulo="Documentación (opcional)" desc="Adjunta factura, planos o el presupuesto de Óscar" />}
           <Card className="space-y-2.5">
             <h3 className="font-bold text-sm">📁 Documentación</h3>
             <p className="text-[11px] text-muted">
