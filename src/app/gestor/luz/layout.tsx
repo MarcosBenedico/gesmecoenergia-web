@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard, Users, Plug, CalendarClock, Target, FileSignature,
-  Euro, BellRing, ArrowDownUp, Settings, ChevronLeft, Zap, UserCog, ShieldCheck, Route, History, Sun, UserPlus, BookOpen,
+  Euro, BellRing, ArrowDownUp, Settings, ChevronLeft, Zap, UserCog, ShieldCheck, Route, History, Sun, UserPlus, BookOpen, Calculator,
 } from 'lucide-react';
 import { GuardiaModulo } from '@/components/guardia-modulo';
 import { useUsuario } from '@/lib/usuario';
@@ -25,6 +25,7 @@ const SECCIONES: { href: string; icono: typeof LayoutDashboard; nombre: string; 
   { href: '/gestor/luz/contratos', icono: FileSignature, nombre: 'Contratos y Activaciones' },
   { href: '/gestor/luz/comisiones', icono: Euro, nombre: 'Comisiones' },
   { href: '/gestor/luz/equipo', icono: UserCog, nombre: 'Equipo y Responsables' },
+  { href: '/gestor/luz/fv', icono: Calculator, nombre: 'Calculadora FV', soloAdmin: true },
   { href: '/gestor/luz/usuarios', icono: ShieldCheck, nombre: 'Usuarios y Permisos', soloAdmin: true },
   { href: '/gestor/luz/control', icono: History, nombre: 'Control General', soloAdmin: true },
   { href: '/gestor/luz/importar', icono: ArrowDownUp, nombre: 'Importación / Exportación' },
