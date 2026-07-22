@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Download, Upload } from 'lucide-react';
 import {
   ahorroSimple, numeroPaneles, r2, fmtEur2, POTENCIA_PANEL_W,
@@ -39,9 +39,12 @@ export interface HipotesisFV {
 
 export const ENERGIA_VACIA: EnergiaFV = { mensual: Array(12).fill(0), consumo_anual: 0, origen: null };
 export const HIPOTESIS_DEFECTO: HipotesisFV = {
-  prod_especifica: 1500, pct_autoconsumo: 60, precio_kwh: 0.15, precio_compensacion: 0.06,
-  mantenimiento_anual: 100, analisis_con_iva: false,
+  prod_especifica: 800, pct_autoconsumo: 75, precio_kwh: 0.15, precio_compensacion: 0.081,
+  mantenimiento_anual: 0, analisis_con_iva: false, // el mantenimiento se calcula solo: nº de placas × 10 €
 };
+
+/** Coste de mantenimiento por defecto: 10 € por panel presupuestado. */
+export const MANTENIMIENTO_POR_PANEL = 10;
 
 const MESES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 const num = (s: string) => parseFloat(String(s).replace(',', '.')) || 0;
@@ -117,6 +120,15 @@ export function EnergiaEscenarios({ energia, setEnergia, hipotesis, setHipotesis
     if (est.coste_kwh > 0) setHipotesis({ ...hipotesis, precio_kwh: est.coste_kwh, precio_compensacion: 0, pct_autoconsumo: 90 });
   }
   const gasoilEst = energia.gasoil ? estimarGasoil({ gastoMensual: energia.gasoil.gasto_mensual, precioLitro: energia.gasoil.precio_litro, kwhLitro: energia.gasoil.kwh_litro }) : null;
+
+  // Mantenimiento por defecto = nº de placas presupuestadas × 10 € (hasta que se edite a mano)
+  const [mantTocado, setMantTocado] = useState(false);
+  const panelesActuales = numeroPaneles(potenciaActual);
+  useEffect(() => {
+    if (mantTocado || panelesActuales <= 0) return;
+    const mant = panelesActuales * MANTENIMIENTO_POR_PANEL;
+    if (mant !== hipotesis.mantenimiento_anual) setHipotesis({ ...hipotesis, mantenimiento_anual: mant });
+  }, [panelesActuales, mantTocado]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function setMes(i: number, v: number) {
     const mensual = energia.mensual.map((x, j) => (j === i ? Math.max(v, 0) : x));
@@ -476,8 +488,9 @@ ${fila('Se amortiza en', (e) => e.amortizacion != null ? `${e.amortizacion} año
           {([['prod_especifica', 'Producción (kWh/kWp/año)'], ['pct_autoconsumo', '% autoconsumo'], ['precio_kwh', '€/kWh evitado'],
             ['precio_compensacion', '€/kWh excedente'], ['mantenimiento_anual', 'Mantenimiento €/año']] as const).map(([k, n]) => (
             <div key={k}>
-              <label className={labelCls}>{n}</label>
-              <input className={inputCls} type="number" min="0" step="0.01" value={hipotesis[k]} onChange={(e) => setH(k, num(e.target.value))} />
+              <label className={labelCls}>{n}{k === 'mantenimiento_anual' && !mantTocado && panelesActuales > 0 ? ` (auto: ${panelesActuales}×10)` : ''}</label>
+              <input className={inputCls} type="number" min="0" step="0.01" value={hipotesis[k]}
+                onChange={(e) => { if (k === 'mantenimiento_anual') setMantTocado(true); setH(k, num(e.target.value)); }} />
             </div>
           ))}
           <div>
