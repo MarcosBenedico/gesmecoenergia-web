@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { ChevronLeft, ChevronDown, ChevronRight, Plus, RefreshCw, Search, X, History } from 'lucide-react';
 import { GuardiaAdmin } from '@/components/guardia-modulo';
-import { CONFIANZA_LABEL, fmtEur2, r2 } from '@/lib/fv';
+import { CONFIANZA_LABEL, fmtEur2, r2, BATERIAS_MERCADO, INVERSORES_MERCADO, RefMercado } from '@/lib/fv';
 import { Card, Kpi, inputCls, labelCls, btnPrimario, btnSecundario } from '../../ui';
 import { tokenSesion } from '@/lib/usuario';
 import { PedirMotivo } from '../../motivo';
@@ -74,6 +74,7 @@ function Catalogo() {
   const [fCat, setFCat] = useState('');
   const [fConf, setFConf] = useState('');
   const [verInactivas, setVerInactivas] = useState(false);
+  const [verMercado, setVerMercado] = useState(false);
 
   const cargar = useCallback(async () => {
     setCargando(true);
@@ -96,6 +97,20 @@ function Catalogo() {
     const { ok, json } = await api('POST', { ...nuevo, precio_base: parseFloat(nuevo.precio_base) || 0 });
     if (!ok) { setError(json.error || 'Error.'); return; }
     setNuevo(NUEVO); setMostrarForm(false); setMsg('✓ Referencia creada.');
+    cargar();
+  }
+
+  /** Añade una referencia de mercado al catálogo con precio de mercado (elegible en presupuestos). */
+  async function anadirDesdeMercado(r: RefMercado, categoria: 'baterias' | 'inversores') {
+    const codigo = `${categoria === 'baterias' ? 'BAT' : 'INV'}-MERC-${r.marca.slice(0, 3).toUpperCase()}-${Math.round(r.medida * 10)}`;
+    const descripcion = `${r.marca} ${r.modelo} · ${r.medida} ${categoria === 'baterias' ? 'kWh' : 'kW'} · ${r.detalle}`;
+    const { ok, json } = await api('POST', {
+      codigo, categoria, descripcion, marca: r.marca, unidad: 'ud',
+      precio_base: r.precio, confianza: 'alta', alcance: 'Precio de mercado (material sin IVA)',
+      advertencia: 'Precio orientativo de mercado: confírmalo con el distribuidor.',
+    });
+    if (!ok) { setError(json.error || 'No se pudo añadir.'); return; }
+    setError(''); setMsg(`✓ ${r.marca} ${r.modelo} añadido al catálogo con precio de mercado.`);
     cargar();
   }
 
@@ -355,6 +370,66 @@ function Catalogo() {
           </div>
         </Card>
       ))}
+
+      {/* Comparador de mercado: baterías e inversores reales vs Óscar */}
+      <Card className="!p-0 overflow-hidden">
+        <button onClick={() => setVerMercado((v) => !v)} className="w-full flex items-center justify-between gap-2 px-4 py-3 hover:bg-card/40 transition text-left">
+          <span className="text-xs font-black uppercase tracking-wide text-muted">📊 Comparador de mercado · baterías e inversores reales</span>
+          {verMercado ? <ChevronDown className="w-4 h-4 text-accent" /> : <ChevronRight className="w-4 h-4 text-muted" />}
+        </button>
+        {verMercado && (
+          <div className="px-4 pb-4 space-y-4">
+            <p className="text-[11px] text-muted">Precios orientativos de material (sin IVA, sin instalación) de marcas fiables en el mercado español. Compara con lo que te cobra Óscar y, si te interesa, añade cualquiera al catálogo con un clic para poder usarlo en los presupuestos. Los precios de equipos fluctúan: confírmalos con el distribuidor.</p>
+
+            {([['🔋 Baterías (LiFePO4)', BATERIAS_MERCADO, 'baterias', 'kWh'], ['⚡ Inversores', INVERSORES_MERCADO, 'inversores', 'kW']] as const).map(([titulo, lista, cat, unidad]) => {
+              const enCatalogo = refs.filter((r) => r.categoria === cat && r.activo);
+              const precioOscar = enCatalogo.length ? Math.min(...enCatalogo.map((r) => Number(r.precio_base))) : null;
+              return (
+                <div key={cat}>
+                  <p className="text-xs font-bold mb-1.5">{titulo}</p>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="text-left text-[10px] uppercase text-muted border-b border-border/40">
+                          <th className="px-2 py-2">Marca y modelo</th>
+                          <th className="px-2 py-2 text-right">{unidad === 'kWh' ? 'Capacidad' : 'Potencia'}</th>
+                          <th className="px-2 py-2 text-right">Precio mercado</th>
+                          <th className="px-2 py-2 text-right">€/{unidad}</th>
+                          <th className="px-2 py-2">Detalle</th>
+                          <th className="px-2 py-2"></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {lista.map((r) => {
+                          const ratio = r2(r.precio / r.medida);
+                          const yaEsta = refs.some((x) => x.descripcion?.includes(r.modelo));
+                          return (
+                            <tr key={r.modelo} className="border-b border-border/15">
+                              <td className="px-2 py-1.5 font-semibold">{r.marca} {r.modelo}</td>
+                              <td className="px-2 py-1.5 text-right tabular-nums font-bold">{r.medida} {unidad}</td>
+                              <td className="px-2 py-1.5 text-right tabular-nums">{fmtEur2(r.precio)}</td>
+                              <td className="px-2 py-1.5 text-right tabular-nums text-muted">{fmtEur2(ratio)}</td>
+                              <td className="px-2 py-1.5 text-[10px] text-muted max-w-56">{r.detalle}</td>
+                              <td className="px-2 py-1.5 text-right">
+                                {yaEsta
+                                  ? <span className="text-[10px] text-emerald-400 font-bold">✓ en catálogo</span>
+                                  : <button onClick={() => anadirDesdeMercado(r, cat)} className="px-2 py-1 rounded-lg bg-secondary/15 text-secondary border border-secondary/30 text-[10px] font-bold hover:bg-secondary/25 transition whitespace-nowrap">+ Añadir</button>}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                  {precioOscar != null && (
+                    <p className="text-[10px] text-amber-300 mt-1">💡 En tu catálogo (Óscar) el {cat === 'baterias' ? 'precio de batería' : 'inversor'} más barato es {fmtEur2(precioOscar)}. Compáralo con estas referencias para negociar o elegir.</p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </Card>
 
       {/* Presupuestos históricos de Óscar */}
       {oscar.length > 0 && (
