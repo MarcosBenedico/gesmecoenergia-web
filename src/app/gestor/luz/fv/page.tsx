@@ -12,6 +12,7 @@ import {
 } from '@/lib/fv';
 import { Card, EstadoCarga, useListaLuz, inputCls, labelCls, btnPrimario, btnSecundario, SelectorResponsable } from '../ui';
 import { tokenSesion } from '@/lib/usuario';
+import { EnergiaEscenarios, EnergiaFV, HipotesisFV, ENERGIA_VACIA, HIPOTESIS_DEFECTO } from './energia';
 import { supabase } from '@/lib/supabase';
 
 const BUCKET_FV = 'documentos_fv';
@@ -77,6 +78,8 @@ function CalculadoraFV() {
   const [modo, setModo] = useState<'simple' | 'partidas'>('simple');
   const [catalogo, setCatalogo] = useState<RefCat[]>([]);
   const [avisoCat, setAvisoCat] = useState('');
+  const [energia, setEnergia] = useState<EnergiaFV>(ENERGIA_VACIA);
+  const [hipotesis, setHipotesis] = useState<HipotesisFV>(HIPOTESIS_DEFECTO);
 
   // Catálogo de precios (para el selector de partidas)
   useEffect(() => {
@@ -187,7 +190,7 @@ function CalculadoraFV() {
   }, [potencia > LIMITE_KW]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function abrirNuevo() {
-    setForm(FORM_VACIO); setConceptos([]); setDocs([]); setMargenTocado(false); setModo('simple'); setAvisoCat(''); setEditandoId('nuevo'); setMsg(''); setError('');
+    setForm(FORM_VACIO); setConceptos([]); setDocs([]); setMargenTocado(false); setModo('simple'); setAvisoCat(''); setEnergia(ENERGIA_VACIA); setHipotesis(HIPOTESIS_DEFECTO); setEditandoId('nuevo'); setMsg(''); setError('');
   }
 
   async function abrirExistente(p: PresupuestoFV) {
@@ -205,6 +208,9 @@ function CalculadoraFV() {
     });
     setConceptos((json.conceptos || []).map((c: PartidaFV) => ({ ...PARTIDA_NUEVA, ...c })));
     setModo(((d as unknown as { modo?: string }).modo === 'partidas') ? 'partidas' : 'simple');
+    const dim = (d as unknown as { dimensionado?: { energia?: EnergiaFV; hipotesis?: HipotesisFV } }).dimensionado || {};
+    setEnergia(dim.energia || ENERGIA_VACIA);
+    setHipotesis(dim.hipotesis || HIPOTESIS_DEFECTO);
     setDocs(d.documentos || []);
     setMargenTocado(true);
     setEditandoId(p.id); setMsg(''); setError('');
@@ -226,7 +232,7 @@ function CalculadoraFV() {
       observaciones: form.observaciones || null,
       documentos: docs,
       modo,
-      dimensionado: { num_paneles: paneles, potencia_panel_w: POTENCIA_PANEL_W },
+      dimensionado: { num_paneles: paneles, potencia_panel_w: POTENCIA_PANEL_W, energia, hipotesis },
       conceptos: conceptos.filter((c) => c.concepto.trim()),
     };
     const { ok, json } = await apiFV(editandoId === 'nuevo' ? 'POST' : 'PUT', body);
@@ -265,6 +271,22 @@ function CalculadoraFV() {
     const logo = `${window.location.origin}/logo-gesmeco.png`;
     const entrada60 = fmtEur2(resultado.precio_con_iva * 0.6);
     const resto40 = fmtEur2(resultado.precio_con_iva * 0.4);
+    // Bloque de producción y ahorro (solo si hay hipótesis con sentido)
+    let bloqueAhorro = '';
+    if (potencia > 0 && hipotesis.prod_especifica > 0) {
+      const prod = potencia * hipotesis.prod_especifica;
+      const auto = prod * (hipotesis.pct_autoconsumo / 100);
+      const ahorroAnual = auto * hipotesis.precio_kwh + (prod - auto) * hipotesis.precio_compensacion - hipotesis.mantenimiento_anual;
+      const inv = hipotesis.analisis_con_iva ? resultado.precio_con_iva : resultado.precio_sin_iva;
+      const amort = ahorroAnual > 0 ? (inv / ahorroAnual).toFixed(1) : null;
+      bloqueAhorro = `<h2>Producción y ahorro estimados</h2>
+<table><tbody>
+<tr><td>Producción anual estimada</td><td class="num">${Math.round(prod).toLocaleString('es-ES')} kWh</td></tr>
+<tr><td>Ahorro anual estimado</td><td class="num">${fmtEur2(Math.round(ahorroAnual * 100) / 100)}</td></tr>
+${amort ? `<tr><td>Amortización orientativa</td><td class="num">${amort} años</td></tr>` : ''}
+</tbody></table>
+<p class="muted">Estimación orientativa según los datos de consumo facilitados; pendiente de validación técnica del instalador.</p>`;
+    }
     const w = window.open('', '_blank');
     if (!w) return;
     w.document.write(`<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><title>Presupuesto ${ref} · ${form.nombre_proyecto}</title>
@@ -316,6 +338,7 @@ Instalación solar fotovoltaica de <b>${potencia.toLocaleString('es-ES')} kW</b>
 fotovoltaicos, inversor, estructura, cableado y protecciones eléctricas, ingeniería, legalización, tramitación de boletines
 y puesta en marcha de la instalación.</p>
 
+${bloqueAhorro}
 <h2>Oferta económica</h2>
 <table>
 <thead><tr><th>Concepto</th><th class="num">Importe</th></tr></thead>
@@ -642,6 +665,16 @@ ${form.observaciones ? `<p class="muted">Observaciones: ${form.observaciones}</p
               <p className="text-[11px] font-bold text-right">Coste directo (partidas incluidas): <span className="tabular-nums">{fmtEur2(otros)}</span> · Confianza global: {CONFIANZA_LABEL[confianza]}</p>
             )}
           </Card>
+
+          {/* Fases 2 y 3: consumo, escenarios y rentabilidad */}
+          <EnergiaEscenarios
+            energia={energia} setEnergia={setEnergia}
+            hipotesis={hipotesis} setHipotesis={setHipotesis}
+            potenciaActual={potencia}
+            precioSinIva={resultado.precio_sin_iva}
+            precioConIva={resultado.precio_con_iva}
+            onAplicarPotencia={(kw) => setForm((f) => ({ ...f, potencia_kw: String(kw) }))}
+          />
 
           {/* Documentación (enlaces) */}
           <Card className="space-y-2.5">
