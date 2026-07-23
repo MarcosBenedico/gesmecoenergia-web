@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { Map as MapIcon, Navigation, Loader, ExternalLink, X, Pencil, Check, MousePointerClick } from 'lucide-react';
-import { LuzCliente, LuzCups } from '@/lib/luz';
+import { LuzCliente, LuzCups, LuzOportunidad } from '@/lib/luz';
 import { Card, Badge, BadgePrioridad, EstadoCarga, useListaLuz, guardarLuz, inputCls, labelCls, btnPrimario, btnSecundario } from '../ui';
 
 // El mapa usa Leaflet (necesita `window`): se carga solo en el navegador, nunca en el servidor.
@@ -33,8 +33,10 @@ const ORIGEN_DEFECTO = 'Avenida de Aragón 50, Binéfar, Huesca';
 export default function RutasPage() {
   const clientes = useListaLuz<LuzCliente>('clientes');
   const cups = useListaLuz<LuzCups>('cups');
+  const pipeline = useListaLuz<LuzOportunidad>('pipeline');
   const [buscar, setBuscar] = useState('');
   const [fResp, setFResp] = useState('David');
+  const [fVista, setFVista] = useState<'todos' | 'fv' | 'prioridadA' | 'olvidados' | 'visitadosHoy'>('todos');
   const [seleccion, setSeleccion] = useState<Map<string, Parada>>(new Map());
   const [origen, setOrigen] = useState(ORIGEN_DEFECTO);
   const [calculando, setCalculando] = useState(false);
@@ -47,17 +49,27 @@ export default function RutasPage() {
     return Array.from(s).sort();
   }, [clientes.datos]);
 
+  /** Clientes con oportunidad de fotovoltaica en el pipeline (no perdida). */
+  const interesadosFV = useMemo(() => {
+    const s = new Set<string>();
+    for (const o of pipeline.datos) {
+      if (o.tipo_oportunidad === 'derivacion_fotovoltaica' && o.estado !== 'perdido' && o.cliente_id) s.add(o.cliente_id);
+    }
+    return s;
+  }, [pipeline.datos]);
+
   /** Posibles paradas: clientes con dirección + CUPS con dirección de suministro. */
   const paradasDisponibles = useMemo(() => {
+    const HOY = new Date().toISOString().slice(0, 10);
     const q = buscar.trim().toLowerCase();
     const deResp = (r: string | null) => !fResp || (r || '').toLowerCase().includes(fResp.toLowerCase());
-    const lista: (Parada & { tipo: 'cliente' | 'cups'; prioridad?: string; fecha_ultimo_contacto?: string | null })[] = [];
+    const lista: (Parada & { tipo: 'cliente' | 'cups'; prioridad?: string; fecha_ultimo_contacto?: string | null; interesFV?: boolean })[] = [];
 
     for (const c of clientes.datos) {
       if (!c.direccion_fiscal?.trim()) continue;
       if (!deResp(c.responsable)) continue;
       if (q && !c.nombre.toLowerCase().includes(q)) continue;
-      lista.push({ id: `c-${c.id}`, cliente_id: c.id, nombre: c.nombre, direccion: c.direccion_fiscal, tipo: 'cliente', prioridad: c.prioridad, fecha_ultimo_contacto: c.fecha_ultimo_contacto });
+      lista.push({ id: `c-${c.id}`, cliente_id: c.id, nombre: c.nombre, direccion: c.direccion_fiscal, tipo: 'cliente', prioridad: c.prioridad, fecha_ultimo_contacto: c.fecha_ultimo_contacto, interesFV: interesadosFV.has(c.id) });
     }
     for (const s of cups.datos) {
       if (!s.direccion_suministro?.trim()) continue;
@@ -65,10 +77,37 @@ export default function RutasPage() {
       const nombre = `${s.luz_clientes?.nombre || 'Cliente'} · ${s.alias_suministro || s.cups.slice(0, 10) + '…'}`;
       if (q && !nombre.toLowerCase().includes(q)) continue;
       const clientePadre = clientes.datos.find((c) => c.id === s.cliente_id);
-      lista.push({ id: `s-${s.id}`, cliente_id: s.cliente_id, nombre, direccion: s.direccion_suministro, tipo: 'cups', prioridad: s.prioridad || s.luz_clientes?.prioridad, fecha_ultimo_contacto: clientePadre?.fecha_ultimo_contacto });
+      lista.push({ id: `s-${s.id}`, cliente_id: s.cliente_id, nombre, direccion: s.direccion_suministro, tipo: 'cups', prioridad: s.prioridad || s.luz_clientes?.prioridad, fecha_ultimo_contacto: clientePadre?.fecha_ultimo_contacto, interesFV: interesadosFV.has(s.cliente_id) });
     }
-    return lista.sort((a, b) => a.nombre.localeCompare(b.nombre));
-  }, [clientes.datos, cups.datos, buscar, fResp]);
+
+    // Filtro de vista rápida (afecta al mapa y a la lista a la vez)
+    const filtrada = lista.filter((p) => {
+      if (fVista === 'fv') return p.interesFV;
+      if (fVista === 'prioridadA') return p.prioridad === 'A';
+      if (fVista === 'visitadosHoy') return p.fecha_ultimo_contacto === HOY;
+      if (fVista === 'olvidados') {
+        if (!p.fecha_ultimo_contacto) return true;
+        return (Date.now() - new Date(p.fecha_ultimo_contacto).getTime()) / 86400000 > 30;
+      }
+      return true;
+    });
+    return filtrada.sort((a, b) => a.nombre.localeCompare(b.nombre));
+  }, [clientes.datos, cups.datos, buscar, fResp, fVista, interesadosFV]);
+
+  /** Crea la oportunidad de fotovoltaica en el pipeline desde el mapa. */
+  async function marcarInteresFV(clienteId: string, nombre: string) {
+    const nombreCliente = nombre.split(' · ')[0];
+    const err = await guardarLuz('pipeline', 'POST', {
+      cliente_id: clienteId,
+      nombre_oportunidad: `${nombreCliente} · Derivación fotovoltaica`,
+      tipo_oportunidad: 'derivacion_fotovoltaica',
+      estado: 'prospecto',
+      responsable: fResp || null,
+      observaciones: 'Interés detectado en visita (marcado desde el mapa de rutas)',
+    });
+    if (err) { setError(err); return; }
+    pipeline.recargar();
+  }
 
   // Edición de ubicación en línea: dirección escrita a mano o enlace de Google Maps pegado
   const [editando, setEditando] = useState<{ id: string; valor: string } | null>(null);
@@ -148,9 +187,25 @@ export default function RutasPage() {
       {!cargando && (
         <div className="space-y-2">
           <div className="flex items-center justify-between gap-2 flex-wrap">
-            <p className="text-xs text-muted">
-              🗺️ Marca paradas directamente sobre el mapa, mira quién está pendiente y quién ya se ha visitado.
-            </p>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {([
+                ['todos', 'Todos'],
+                ['fv', '☀️ Interés fotovoltaica'],
+                ['prioridadA', '🔴 Prioridad A'],
+                ['olvidados', '🕐 +30 días sin visitar'],
+                ['visitadosHoy', '✓ Visitados hoy'],
+              ] as const).map(([clave, texto]) => (
+                <button
+                  key={clave}
+                  onClick={() => { setFVista(clave); setResultado(null); }}
+                  className={`px-2.5 py-1 rounded-full text-[11px] font-bold border transition ${
+                    fVista === clave ? 'bg-accent text-white border-accent' : 'bg-card/70 text-muted border-border/50 hover:text-foreground'
+                  }`}
+                >
+                  {texto}
+                </button>
+              ))}
+            </div>
             <button
               onClick={() => setModoManual((v) => !v)}
               className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border transition ${
@@ -170,6 +225,7 @@ export default function RutasPage() {
             origenTexto={origen}
             onRecargarClientes={() => { clientes.recargar(); cups.recargar(); }}
             modoManual={modoManual}
+            onMarcarFV={marcarInteresFV}
           />
         </div>
       )}
@@ -202,7 +258,7 @@ export default function RutasPage() {
                       <input type="checkbox" checked={marcada} onChange={() => alternar(p)} className="accent-[#e11d48] w-4 h-4 shrink-0" />
                       <BadgePrioridad prioridad={p.prioridad} />
                       <div className="min-w-0 flex-1">
-                        <p className="text-xs font-bold truncate">{p.nombre}</p>
+                        <p className="text-xs font-bold truncate">{p.interesFV && <span title="Interesado en fotovoltaica">☀️ </span>}{p.nombre}</p>
                         {editando?.id === p.id ? (
                           <span className="flex items-center gap-1 mt-0.5" onClick={(e) => e.preventDefault()}>
                             <input
