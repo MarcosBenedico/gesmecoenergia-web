@@ -7,7 +7,7 @@ import {
   FRANJAS_CONSUMO, FRANJA_LABEL, PERFIL_FRANJA, CAPACIDAD_BATERIA,
   optimizarBateria, siguienteEuro, LineaJustificacion, OpcionBateria, estimarAyudas, IRPF_PCT_DEDUCCION,
   estimarGasoil, produccionMensual, MESES_CORTO, GASOIL_PRECIO_LITRO, GASOIL_KWH_LITRO,
-  bateriaEconomica, inversorEconomico, ComboEquipo,
+  bateriaEconomica, inversorEconomico, ComboEquipo, ResultadoHorarioFV,
 } from '@/lib/fv';
 import { Card, inputCls, labelCls, btnSecundario, btnPrimario } from '../ui';
 
@@ -92,7 +92,7 @@ export function recomendarEquipos(kwp: number, paneles: number, consumoAnual: nu
   };
 }
 
-export function EnergiaEscenarios({ energia, setEnergia, hipotesis, setHipotesis, potenciaActual, precioSinIva, precioConIva, onAplicarPotencia, catalogo, onMontarPresupuesto, clienteNombre, proyecto, perfil }: {
+export function EnergiaEscenarios({ energia, setEnergia, hipotesis, setHipotesis, potenciaActual, precioSinIva, precioConIva, onAplicarPotencia, catalogo, onMontarPresupuesto, clienteNombre, proyecto, perfil, simulacion, capacidadBateria }: {
   energia: EnergiaFV;
   setEnergia: (e: EnergiaFV) => void;
   hipotesis: HipotesisFV;
@@ -106,6 +106,8 @@ export function EnergiaEscenarios({ energia, setEnergia, hipotesis, setHipotesis
   clienteNombre?: string;
   proyecto?: string;
   perfil?: string;
+  simulacion?: ResultadoHorarioFV | null;
+  capacidadBateria?: number;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [errImport, setErrImport] = useState('');
@@ -487,6 +489,51 @@ ${fila('Se amortiza en', (e) => e.amortizacion != null ? `${e.amortizacion} año
             </div>
           );
         })()}
+
+        {/* Día tipo hora a hora: cuándo produce el sol, cuándo consume el cliente y qué hace la batería */}
+        {simulacion && (
+          <div className="pt-2 border-t border-border/30 space-y-1.5">
+            <div className="flex items-center justify-between flex-wrap gap-1">
+              <p className="text-[11px] font-bold uppercase tracking-wide text-muted">🕐 Día tipo hora a hora {(capacidadBateria || 0) > 0 ? `· con ${capacidadBateria} kWh de batería` : '· sin batería'}</p>
+              <p className="text-[10px] text-muted">
+                <span className="inline-block w-2.5 h-2.5 rounded-sm bg-amber-400/70 align-middle"></span> sol ·
+                <span className="inline-block w-2.5 h-2.5 rounded-sm bg-secondary/60 align-middle ml-1"></span> consumo ·
+                <span className="inline-block w-2.5 h-2.5 rounded-sm bg-emerald-400/70 align-middle ml-1"></span> batería
+              </p>
+            </div>
+            {(() => {
+              const max = Math.max(...simulacion.horas.map((x) => Math.max(x.produccion, x.consumo)), 0.1);
+              return (
+                <div className="grid grid-cols-12 sm:grid-cols-24 gap-[2px]">
+                  {simulacion.horas.map((x) => (
+                    <div key={x.h} className="flex flex-col items-center gap-0.5" title={`${x.h}:00 — sol ${x.produccion} kWh · consumo ${x.consumo} kWh · batería ${x.carga > 0 ? `carga ${x.carga}` : x.descarga > 0 ? `da ${x.descarga}` : '—'} kWh`}>
+                      <div className="w-full h-16 flex items-end justify-center gap-[1px]">
+                        <div className="w-1/3 bg-amber-400/70 rounded-t" style={{ height: `${(x.produccion / max) * 100}%` }} />
+                        <div className="w-1/3 bg-secondary/60 rounded-t" style={{ height: `${(x.consumo / max) * 100}%` }} />
+                        <div className={`w-1/3 rounded-t ${x.descarga > 0 ? 'bg-emerald-400/70' : 'bg-emerald-400/25'}`} style={{ height: `${(Math.max(x.carga, x.descarga) / max) * 100}%` }} />
+                      </div>
+                      <p className="text-[7px] text-muted">{x.h}</p>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-center">
+              {[['Autoconsumo directo', `${simulacion.autoconsumo_directo} kWh/día`, 'text-amber-300'],
+                ['Aporta la batería', `${simulacion.aporte_bateria} kWh/día`, 'text-emerald-400'],
+                ['Se vierte a red', `${simulacion.vertido} kWh/día`, 'text-muted'],
+                ['Autoconsumo efectivo', `${simulacion.pct_autoconsumo} %`, 'text-secondary']].map(([n, v, tono]) => (
+                <div key={n} className="rounded-lg bg-card/50 border border-border/25 p-1.5">
+                  <p className={`text-sm font-black tabular-nums ${tono}`}>{v}</p>
+                  <p className="text-[9px] uppercase font-bold text-muted">{n}</p>
+                </div>
+              ))}
+            </div>
+            <p className="text-[10px] text-secondary">
+              ⚙️ Este <b>autoconsumo efectivo ({simulacion.pct_autoconsumo} %)</b> es el que usan el ahorro, la amortización y la oferta al cliente: se recalcula solo al cambiar la batería, la potencia o la franja.
+            </p>
+          </div>
+        )}
       </Card>
 
       {/* ── Hipótesis (visibles y editables) ── */}

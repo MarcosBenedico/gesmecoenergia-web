@@ -12,6 +12,7 @@ import {
   estimarAyudas, IRPF_PCT_DEDUCCION, IRPF_BASE_MAXIMA, IBI_PCT_ORIENTATIVO, IBI_ANIOS_ORIENTATIVO,
   PERFILES_CLIENTE, PERFIL_LABEL, PERFIL_TEXTO, produccionMensual, MESES_CORTO, estimarGasoil,
   INVERSORES_MERCADO, BATERIAS_MERCADO, RefMercado,
+  simularDiaFV, capacidadDeTexto, CAPACIDAD_BATERIA,
 } from '@/lib/fv';
 import { Card, EstadoCarga, useListaLuz, inputCls, labelCls, btnPrimario, btnSecundario, SelectorResponsable } from '../ui';
 import { tokenSesion } from '@/lib/usuario';
@@ -189,6 +190,33 @@ function CalculadoraFV() {
   const margenModificado = margenUsado !== margenDefecto;
   const confianza = confianzaGlobal(conceptos);
   const paneles = numeroPaneles(potencia);
+
+  /** kWh útiles de batería que hay ahora mismo en el presupuesto (catálogo de Óscar o de mercado). */
+  const capacidadBateria = useMemo(() => conceptos
+    .filter((c) => c.incluido && ['baterias', 'batería', 'bateria'].includes((c.concepto || '').toLowerCase()))
+    .reduce((s, c) => {
+      const porUd = CAPACIDAD_BATERIA[c.codigo_catalogo || ''] || capacidadDeTexto(c.descripcion);
+      return s + porUd * (Number(c.cantidad) || 0);
+    }, 0), [conceptos]);
+
+  /** Simulación horaria con la batería REAL del presupuesto (fuente del autoconsumo efectivo). */
+  const simulacion = useMemo(() => {
+    if (potencia <= 0 || energia.consumo_anual <= 0) return null;
+    return simularDiaFV({
+      produccion_dia: (potencia * hipotesis.prod_especifica) / 365,
+      consumo_dia: energia.consumo_anual / 365,
+      franja: energia.franja,
+      capacidad_bateria: capacidadBateria,
+    });
+  }, [potencia, hipotesis.prod_especifica, energia.consumo_anual, energia.franja, capacidadBateria]);
+
+  // Redimensionado en vivo: si cambia la batería (o la curva), el autoconsumo efectivo se recalcula
+  useEffect(() => {
+    if (!simulacion) return;
+    if (Math.abs(simulacion.pct_autoconsumo - hipotesis.pct_autoconsumo) > 0.5) {
+      setHipotesis((h) => ({ ...h, pct_autoconsumo: simulacion.pct_autoconsumo }));
+    }
+  }, [simulacion?.pct_autoconsumo]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Al cambiar la potencia de tramo, el margen vuelve al predeterminado salvo que se haya tocado a mano
   useEffect(() => {
@@ -690,6 +718,8 @@ ${form.observaciones ? `<p class="muted">Observaciones: ${form.observaciones}</p
       clienteNombre={clientes.datos.find((c) => c.id === form.cliente_id)?.nombre || ''}
       proyecto={form.nombre_proyecto}
       perfil={form.perfil}
+      simulacion={simulacion}
+      capacidadBateria={capacidadBateria}
       onMontarPresupuesto={(kwp, codigos, pctAutoEfectivo) => {
         const partidas = codigos
           .map((c) => {

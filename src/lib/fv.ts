@@ -400,6 +400,94 @@ export function estimarGasoil(e: { gastoMensual: number; precioLitro?: number; k
   return { gasto_anual: gastoAnual, litros_anio: litrosAnio, kwh_anio: kwhAnio, coste_kwh: costeKwh };
 }
 
+/* ═══════════ SIMULACIÓN HORARIA (24 h): SOL, CONSUMO Y BATERÍA ═══════════ */
+
+/**
+ * Reparto horario de la producción solar en un día medio (fracción de la
+ * producción diaria por hora). El sol concentra ~70 % entre las 10 h y las 16 h.
+ */
+export const PERFIL_SOLAR_HORARIO = [
+  0, 0, 0, 0, 0, 0, 0.005, 0.02, 0.045, 0.07, 0.09, 0.105,
+  0.115, 0.12, 0.115, 0.10, 0.08, 0.055, 0.03, 0.012, 0.003, 0, 0, 0,
+];
+
+/** Reparto horario del consumo según la franja fuerte declarada por el cliente. */
+export const PERFIL_CONSUMO_HORARIO: Record<string, number[]> = {
+  manana:   [1, 1, 1, 1, 1, 2, 5, 8, 9, 9, 8, 7, 5, 3, 2, 2, 2, 3, 4, 4, 3, 2, 2, 1],
+  mediodia: [1, 1, 1, 1, 1, 1, 2, 3, 4, 5, 7, 9, 10, 10, 9, 7, 5, 4, 3, 3, 3, 2, 2, 1],
+  tarde:    [1, 1, 1, 1, 1, 1, 2, 3, 3, 3, 3, 4, 5, 5, 5, 6, 8, 9, 9, 8, 7, 5, 3, 2],
+  diurno:   [1, 1, 1, 1, 1, 2, 4, 6, 7, 7, 7, 7, 7, 7, 7, 7, 6, 6, 5, 4, 3, 2, 1, 1],
+  noche:    [6, 6, 5, 5, 5, 5, 4, 3, 2, 1, 1, 1, 1, 1, 1, 1, 2, 3, 4, 5, 6, 7, 7, 7],
+  todo_dia: [4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4],
+};
+
+export interface HoraFV {
+  h: number; produccion: number; consumo: number;
+  directo: number; carga: number; descarga: number; vertido: number; red: number; soc: number;
+}
+export interface ResultadoHorarioFV {
+  horas: HoraFV[];
+  autoconsumo_directo: number;  // kWh/día que se usa al momento
+  aporte_bateria: number;       // kWh/día que la batería traslada a horas sin sol
+  vertido: number;              // kWh/día que se vierte a red
+  red: number;                  // kWh/día que se sigue comprando
+  pct_autoconsumo: number;      // % de la producción realmente aprovechado
+}
+
+const normalizar = (a: number[]) => { const s = a.reduce((x, y) => x + y, 0) || 1; return a.map((v) => v / s); };
+
+/**
+ * Simula un día hora a hora: cuánto se autoconsume directo, cuánto carga y
+ * descarga la batería, cuánto se vierte y cuánto se compra a la red.
+ * Es el cálculo honesto para justificar la batería ante el cliente.
+ */
+export function simularDiaFV(e: {
+  produccion_dia: number;      // kWh que producen las placas ese día
+  consumo_dia: number;         // kWh que consume el cliente ese día
+  franja?: string | null;      // perfil horario del consumo
+  capacidad_bateria: number;   // kWh útiles de batería (0 = sin batería)
+  rendimiento?: number;        // eficiencia de ida y vuelta de la batería
+}): ResultadoHorarioFV {
+  const solar = normalizar(PERFIL_SOLAR_HORARIO);
+  const consPerfil = normalizar(PERFIL_CONSUMO_HORARIO[e.franja || 'todo_dia'] || PERFIL_CONSUMO_HORARIO.todo_dia);
+  const cap = Math.max(e.capacidad_bateria, 0);
+  const ef = e.rendimiento ?? 0.92;
+
+  let soc = 0;
+  let horas: HoraFV[] = [];
+  // Dos pasadas: la segunda arranca con el estado de carga real del día anterior
+  for (let pasada = 0; pasada < 2; pasada++) {
+    horas = [];
+    for (let h = 0; h < 24; h++) {
+      const produccion = e.produccion_dia * solar[h];
+      const consumo = e.consumo_dia * consPerfil[h];
+      const directo = Math.min(produccion, consumo);
+      let sobra = produccion - directo;
+      let falta = consumo - directo;
+      let carga = 0, descarga = 0;
+      if (cap > 0 && sobra > 0 && soc < cap) { carga = Math.min(sobra, cap - soc); soc += carga; sobra -= carga; }
+      if (cap > 0 && falta > 0 && soc > 0) { descarga = Math.min(falta, soc * ef); soc -= descarga / ef; falta -= descarga; }
+      horas.push({ h, produccion: r2(produccion), consumo: r2(consumo), directo: r2(directo), carga: r2(carga), descarga: r2(descarga), vertido: r2(sobra), red: r2(falta), soc: r2(soc) });
+    }
+  }
+  const suma = (k: keyof HoraFV) => r2(horas.reduce((s, x) => s + (x[k] as number), 0));
+  const directo = suma('directo'), aporte = suma('descarga');
+  return {
+    horas,
+    autoconsumo_directo: directo,
+    aporte_bateria: aporte,
+    vertido: suma('vertido'),
+    red: suma('red'),
+    pct_autoconsumo: e.produccion_dia > 0 ? Math.min(r2(((directo + aporte) / e.produccion_dia) * 100), 100) : 0,
+  };
+}
+
+/** Capacidad de batería (kWh) que declara una partida del presupuesto. */
+export function capacidadDeTexto(texto: string): number {
+  const m = (texto || '').match(/([\d]+(?:[.,]\d+)?)\s*kwh/i);
+  return m ? parseFloat(m[1].replace(',', '.')) : 0;
+}
+
 /* ═══════════ REFERENCIA DE MERCADO: BATERÍAS E INVERSORES ═══════════ */
 
 /**
