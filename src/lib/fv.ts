@@ -282,36 +282,39 @@ export function optimizarBateria(e: {
 
 /**
  * Igual que `optimizarBateria`, pero el % de autoconsumo de cada opción sale de la
- * SIMULACIÓN HORARIA real (`simularDiaFV`) en vez de la fórmula rápida de excedente
- * anual. Es más lento pero es el número que de verdad se aplica en la oferta final
- * (el mismo `simularDiaFV` que redimensiona la batería en vivo) — usarlo aquí evita
- * que un escenario prometa un % y, al montarlo, el presupuesto acabe mostrando otro.
+ * SIMULACIÓN ANUAL real mes a mes (`simularAnioFV`: cada mes con su propio sol y su
+ * propio consumo) en vez de una fórmula rápida sobre un "día medio" anual. Es más
+ * lento pero es el número que de verdad se aplica en la oferta final — usarlo aquí
+ * evita que un escenario prometa un % y, al montarlo, el presupuesto acabe mostrando
+ * otro (además de ser más correcto: invierno y verano no se comportan igual).
  */
 export function optimizarBateriaHoraria(e: {
-  produccion_dia: number;
-  consumo_dia: number;
+  produccion_anual_kwh: number;
+  consumo_mensual_kwh: number[];
   franja?: string | null;
   inversion_placas: number;
   precio_kwh: number; precio_compensacion: number; mantenimiento_anual: number;
   baterias: { codigo: string; nombre: string; coste: number }[];
 }): { opciones: OpcionBateria[]; elegida: OpcionBateria } {
-  const produccionAnual = r2(e.produccion_dia * 365);
   const candidatos = [
     { codigo: null as string | null, nombre: 'Sin batería', capacidad_util: 0, coste: 0 },
     ...e.baterias.map((b) => ({ codigo: b.codigo as string | null, nombre: b.nombre, capacidad_util: CAPACIDAD_BATERIA[b.codigo] || 10, coste: b.coste })),
   ];
 
   const opciones: OpcionBateria[] = candidatos.map((b) => {
-    const sim = simularDiaFV({ produccion_dia: e.produccion_dia, consumo_dia: e.consumo_dia, franja: e.franja, capacidad_bateria: b.capacidad_util });
+    const anual = simularAnioFV({
+      produccion_anual_kwh: e.produccion_anual_kwh, consumo_mensual_kwh: e.consumo_mensual_kwh,
+      franja: e.franja, capacidad_bateria: b.capacidad_util,
+    });
     const inversion = r2(e.inversion_placas + b.coste);
     const a = ahorroSimple({
-      produccion_anual_kwh: produccionAnual, pct_autoconsumo: sim.pct_autoconsumo,
+      produccion_anual_kwh: e.produccion_anual_kwh, pct_autoconsumo: anual.pct_autoconsumo,
       precio_kwh_evitado: e.precio_kwh, precio_compensacion: e.precio_compensacion,
       mantenimiento_anual: e.mantenimiento_anual, inversion,
     });
     return {
       codigo: b.codigo, nombre: b.nombre, capacidad_util: b.capacidad_util, coste: b.coste,
-      pct_auto_efectivo: sim.pct_autoconsumo, aporte_anual_kwh: r2(sim.aporte_bateria * 365),
+      pct_auto_efectivo: anual.pct_autoconsumo, aporte_anual_kwh: anual.aporte_bateria,
       inversion, ahorro_neto_anual: a.ahorro_neto_anual, amortizacion: a.amortizacion_anios, elegida: false,
     };
   });
@@ -451,11 +454,42 @@ export function estimarGasoil(e: { gastoMensual: number; precioLitro?: number; k
 /**
  * Reparto horario de la producción solar en un día medio (fracción de la
  * producción diaria por hora). El sol concentra ~70 % entre las 10 h y las 16 h.
+ * Perfil de "temporada media" (marzo/abril/septiembre/octubre): días de ~11-12 h de sol.
  */
 export const PERFIL_SOLAR_HORARIO = [
   0, 0, 0, 0, 0, 0, 0.005, 0.02, 0.045, 0.07, 0.09, 0.105,
   0.115, 0.12, 0.115, 0.10, 0.08, 0.055, 0.03, 0.012, 0.003, 0, 0, 0,
 ];
+
+/**
+ * Perfil solar de INVIERNO (noviembre–febrero): día corto (~9 h, sol de 8h a 17h
+ * en Binéfar) y de menor altura — el amanecer y el ocaso aportan casi nada.
+ * Orientativo (referencia PVGIS de la zona), ajustable.
+ */
+export const PERFIL_SOLAR_INVIERNO = [
+  0, 0, 0, 0, 0, 0, 0, 0, 0.015, 0.05, 0.10, 0.15,
+  0.185, 0.185, 0.15, 0.10, 0.05, 0.015, 0, 0, 0, 0, 0, 0,
+];
+
+/**
+ * Perfil solar de VERANO (mayo–agosto): día largo (~15 h, sol de 6h a 21h) y
+ * más plano — el pico es menos pronunciado porque hay más horas de sol fuerte.
+ * Orientativo (referencia PVGIS de la zona), ajustable.
+ */
+export const PERFIL_SOLAR_VERANO = [
+  0, 0, 0, 0, 0, 0.005, 0.02, 0.045, 0.065, 0.08, 0.09, 0.095,
+  0.10, 0.10, 0.095, 0.09, 0.08, 0.065, 0.045, 0.02, 0.005, 0, 0, 0,
+];
+
+/** Días de cada mes (año no bisiesto; suficiente para el reparto orientativo). */
+export const DIAS_MES = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+
+/** Índice de mes (0=Ene) → perfil solar horario según estación (Aragón interior). */
+export function perfilSolarMes(mesIdx: number): number[] {
+  if ([10, 11, 0, 1].includes(mesIdx)) return PERFIL_SOLAR_INVIERNO;   // Nov, Dic, Ene, Feb
+  if ([4, 5, 6, 7].includes(mesIdx)) return PERFIL_SOLAR_VERANO;       // May, Jun, Jul, Ago
+  return PERFIL_SOLAR_HORARIO;                                        // Mar, Abr, Sep, Oct
+}
 
 /** Reparto horario del consumo según la franja fuerte declarada por el cliente. */
 export const PERFIL_CONSUMO_HORARIO: Record<string, number[]> = {
@@ -493,8 +527,9 @@ export function simularDiaFV(e: {
   franja?: string | null;      // perfil horario del consumo
   capacidad_bateria: number;   // kWh útiles de batería (0 = sin batería)
   rendimiento?: number;        // eficiencia de ida y vuelta de la batería
+  perfil_solar?: number[];     // perfil horario solar a usar (por defecto, el de temporada media)
 }): ResultadoHorarioFV {
-  const solar = normalizar(PERFIL_SOLAR_HORARIO);
+  const solar = normalizar(e.perfil_solar || PERFIL_SOLAR_HORARIO);
   const consPerfil = normalizar(PERFIL_CONSUMO_HORARIO[e.franja || 'todo_dia'] || PERFIL_CONSUMO_HORARIO.todo_dia);
   const cap = Math.max(e.capacidad_bateria, 0);
   const ef = e.rendimiento ?? 0.92;
@@ -525,6 +560,56 @@ export function simularDiaFV(e: {
     vertido: suma('vertido'),
     red: suma('red'),
     pct_autoconsumo: e.produccion_dia > 0 ? Math.min(r2(((directo + aporte) / e.produccion_dia) * 100), 100) : 0,
+  };
+}
+
+export interface ResultadoMesFV extends ResultadoHorarioFV { mes: number; dias: number }
+export interface ResultadoAnualFV {
+  meses: ResultadoMesFV[];
+  autoconsumo_directo: number;  // kWh/año
+  aporte_bateria: number;       // kWh/año
+  vertido: number;              // kWh/año
+  red: number;                  // kWh/año
+  pct_autoconsumo: number;      // % real del año completo (ponderado mes a mes, no un día medio)
+}
+
+/**
+ * Simula el AÑO COMPLETO mes a mes: cada mes tiene su propio perfil solar
+ * (día corto y bajo en invierno, largo y plano en verano) y su propio consumo
+ * real (el que el cliente metió mes a mes, no una media anual repartida a lo
+ * tonto). Es el cálculo "al milímetro": una granja que gasta el doble en
+ * invierno por la calefacción, o un negocio de verano, no se puede simular
+ * bien con un único "día medio" — aquí se simulan los 12 y se suman de verdad.
+ * Esto es lo que decide el % de autoconsumo real y, con él, la amortización.
+ */
+export function simularAnioFV(e: {
+  produccion_anual_kwh: number;
+  consumo_mensual_kwh: number[];  // 12 valores (ene..dic); si faltan, se reparte el anual a partes iguales
+  franja?: string | null;
+  capacidad_bateria: number;
+  rendimiento?: number;
+}): ResultadoAnualFV {
+  const prodMensual = produccionMensual(e.produccion_anual_kwh);
+  const meses: ResultadoMesFV[] = DIAS_MES.map((dias, i) => {
+    const consumoMes = e.consumo_mensual_kwh?.[i] || 0;
+    const sim = simularDiaFV({
+      produccion_dia: r2(prodMensual[i] / dias), consumo_dia: r2(consumoMes / dias),
+      franja: e.franja, capacidad_bateria: e.capacidad_bateria, rendimiento: e.rendimiento,
+      perfil_solar: perfilSolarMes(i),
+    });
+    return { ...sim, mes: i, dias };
+  });
+  const sumaAnual = (k: keyof ResultadoHorarioFV) => r2(meses.reduce((s, m) => s + (m[k] as number) * m.dias, 0));
+  const autoDirecto = sumaAnual('autoconsumo_directo');
+  const aporteBateria = sumaAnual('aporte_bateria');
+  const produccionTotal = r2(prodMensual.reduce((s, p) => s + p, 0));
+  return {
+    meses,
+    autoconsumo_directo: autoDirecto,
+    aporte_bateria: aporteBateria,
+    vertido: sumaAnual('vertido'),
+    red: sumaAnual('red'),
+    pct_autoconsumo: produccionTotal > 0 ? Math.min(r2(((autoDirecto + aporteBateria) / produccionTotal) * 100), 100) : 0,
   };
 }
 

@@ -7,7 +7,7 @@ import {
   FRANJAS_CONSUMO, FRANJA_LABEL, PERFIL_FRANJA, CAPACIDAD_BATERIA,
   optimizarBateriaHoraria, siguienteEuro, LineaJustificacion, OpcionBateria, estimarAyudas, IRPF_PCT_DEDUCCION,
   estimarGasoil, produccionMensual, MESES_CORTO, GASOIL_PRECIO_LITRO, GASOIL_KWH_LITRO,
-  bateriaEconomica, inversorEconomico, ComboEquipo, ResultadoHorarioFV,
+  bateriaEconomica, inversorEconomico, ComboEquipo, ResultadoAnualFV,
 } from '@/lib/fv';
 import { Card, inputCls, labelCls, btnSecundario, btnPrimario } from '../ui';
 
@@ -104,7 +104,7 @@ export function recomendarEquipos(kwp: number, paneles: number, consumoAnual: nu
   };
 }
 
-export function EnergiaEscenarios({ energia, setEnergia, hipotesis, setHipotesis, potenciaActual, precioSinIva, precioConIva, onAplicarPotencia, catalogo, onMontarPresupuesto, clienteNombre, proyecto, perfil, simulacion, capacidadBateria }: {
+export function EnergiaEscenarios({ energia, setEnergia, hipotesis, setHipotesis, potenciaActual, precioSinIva, precioConIva, onAplicarPotencia, catalogo, onMontarPresupuesto, clienteNombre, proyecto, perfil, simulacionAnual, capacidadBateria }: {
   energia: EnergiaFV;
   setEnergia: (e: EnergiaFV) => void;
   hipotesis: HipotesisFV;
@@ -118,10 +118,11 @@ export function EnergiaEscenarios({ energia, setEnergia, hipotesis, setHipotesis
   clienteNombre?: string;
   proyecto?: string;
   perfil?: string;
-  simulacion?: ResultadoHorarioFV | null;
+  simulacionAnual?: ResultadoAnualFV | null;
   capacidadBateria?: number;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
+  const [mesDiaTipo, setMesDiaTipo] = useState(new Date().getMonth());
   const [errImport, setErrImport] = useState('');
   const anual = energia.consumo_anual;
   const esGasoil = perfil === 'granja_aislada';
@@ -241,11 +242,12 @@ export function EnergiaEscenarios({ energia, setEnergia, hipotesis, setHipotesis
       const produccion = r2(kwpReal * hipotesis.prod_especifica);
 
       const inversionPlacas = r2(kwpReal * inversionReferencia);
-      // Algoritmo batería: usa la SIMULACIÓN HORARIA real (misma que "día tipo" y la oferta final),
-      // no un % aproximado por franja — así el escenario nunca promete un autoconsumo distinto
-      // del que se aplica de verdad al montar el presupuesto.
+      // Algoritmo batería: usa la SIMULACIÓN ANUAL real mes a mes (mismo cálculo que "día tipo"
+      // y la oferta final) — cada mes con su propio sol y su propio consumo real (el que metió el
+      // cliente), no un % aproximado por franja sobre un día medio. Así el escenario nunca promete
+      // un autoconsumo distinto del que se aplica de verdad al montar el presupuesto.
       const opt = optimizarBateriaHoraria({
-        produccion_dia: produccion / 365, consumo_dia: anual / 365, franja, inversion_placas: inversionPlacas,
+        produccion_anual_kwh: produccion, consumo_mensual_kwh: energia.mensual, franja, inversion_placas: inversionPlacas,
         precio_kwh: hipotesis.precio_kwh, precio_compensacion: hipotesis.precio_compensacion,
         mantenimiento_anual: hipotesis.mantenimiento_anual, baterias,
       });
@@ -290,7 +292,7 @@ export function EnergiaEscenarios({ energia, setEnergia, hipotesis, setHipotesis
         opt, marginal, justificacion, rec,
       };
     });
-  }, [anual, hipotesis, potenciaActual, precioSinIva, catalogo, franja, perfilFranja, overrides]);
+  }, [anual, energia.mensual, hipotesis, potenciaActual, precioSinIva, catalogo, franja, perfilFranja, overrides]);
 
   /** Monta el presupuesto completo con la recomendación del escenario (batería = la elegida por el algoritmo, o la forzada a mano). */
   function montar(e: (typeof escenarios)[number]) {
@@ -551,50 +553,68 @@ ${fila('Se amortiza en', (e) => e.amortizacion != null ? `${e.amortizacion} año
           );
         })()}
 
-        {/* Día tipo hora a hora: cuándo produce el sol, cuándo consume el cliente y qué hace la batería */}
-        {simulacion && (
-          <div className="pt-2 border-t border-border/30 space-y-1.5">
-            <div className="flex items-center justify-between flex-wrap gap-1">
-              <p className="text-[11px] font-bold uppercase tracking-wide text-muted">🕐 Día tipo hora a hora {(capacidadBateria || 0) > 0 ? `· con ${capacidadBateria} kWh de batería` : '· sin batería'}</p>
-              <p className="text-[10px] text-muted">
-                <span className="inline-block w-2.5 h-2.5 rounded-sm bg-amber-400/70 align-middle"></span> sol ·
-                <span className="inline-block w-2.5 h-2.5 rounded-sm bg-secondary/60 align-middle ml-1"></span> consumo ·
-                <span className="inline-block w-2.5 h-2.5 rounded-sm bg-emerald-400/70 align-middle ml-1"></span> batería
+        {/* Día tipo hora a hora, MES A MES: cada mes tiene su propio sol (invierno/verano) y su propio consumo real */}
+        {simulacionAnual && (() => {
+          const mesData = simulacionAnual.meses[mesDiaTipo];
+          const max = Math.max(...mesData.horas.map((x) => Math.max(x.produccion, x.consumo)), 0.1);
+          return (
+            <div className="pt-2 border-t border-border/30 space-y-2">
+              <div className="flex items-center justify-between flex-wrap gap-1.5">
+                <p className="text-[11px] font-bold uppercase tracking-wide text-muted">🕐 Día tipo hora a hora {(capacidadBateria || 0) > 0 ? `· con ${capacidadBateria} kWh de batería` : '· sin batería'}</p>
+                <p className="text-[10px] text-muted">
+                  <span className="inline-block w-2.5 h-2.5 rounded-sm bg-amber-400/70 align-middle"></span> sol ·
+                  <span className="inline-block w-2.5 h-2.5 rounded-sm bg-secondary/60 align-middle ml-1"></span> consumo ·
+                  <span className="inline-block w-2.5 h-2.5 rounded-sm bg-emerald-400/70 align-middle ml-1"></span> batería
+                </p>
+              </div>
+
+              {/* Selector de mes — cada uno con su propio perfil solar (invierno corto/verano largo) y su propio consumo */}
+              <div className="flex gap-1 flex-wrap">
+                {MESES_CORTO.map((m, i) => (
+                  <button key={m} type="button" onClick={() => setMesDiaTipo(i)}
+                    className={`px-2 py-1 rounded-md text-[10px] font-bold transition ${
+                      i === mesDiaTipo ? 'bg-amber-400/25 text-amber-300 ring-1 ring-amber-400/50' : 'bg-card/60 text-muted hover:text-foreground hover:bg-card'
+                    }`}>
+                    {m}
+                  </button>
+                ))}
+              </div>
+
+              <div className="grid grid-cols-12 sm:grid-cols-24 gap-[2px]">
+                {mesData.horas.map((x) => (
+                  <div key={x.h} className="flex flex-col items-center gap-0.5" title={`${x.h}:00 — sol ${x.produccion} kWh · consumo ${x.consumo} kWh · batería ${x.carga > 0 ? `carga ${x.carga}` : x.descarga > 0 ? `da ${x.descarga}` : '—'} kWh`}>
+                    <div className="w-full h-16 flex items-end justify-center gap-[1px]">
+                      <div className="w-1/3 bg-amber-400/70 rounded-t transition-all duration-300" style={{ height: `${(x.produccion / max) * 100}%` }} />
+                      <div className="w-1/3 bg-secondary/60 rounded-t transition-all duration-300" style={{ height: `${(x.consumo / max) * 100}%` }} />
+                      <div className={`w-1/3 rounded-t transition-all duration-300 ${x.descarga > 0 ? 'bg-emerald-400/70' : 'bg-emerald-400/25'}`} style={{ height: `${(Math.max(x.carga, x.descarga) / max) * 100}%` }} />
+                    </div>
+                    <p className="text-[7px] text-muted">{x.h}</p>
+                  </div>
+                ))}
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-center">
+                {[['Autoconsumo directo', `${mesData.autoconsumo_directo} kWh/día`, 'text-amber-300'],
+                  ['Aporta la batería', `${mesData.aporte_bateria} kWh/día`, 'text-emerald-400'],
+                  ['Se vierte a red', `${mesData.vertido} kWh/día`, 'text-muted'],
+                  [`Autoconsumo en ${MESES_CORTO[mesDiaTipo]}`, `${mesData.pct_autoconsumo} %`, 'text-secondary']].map(([n, v, tono]) => (
+                  <div key={n} className="rounded-lg bg-card/50 border border-border/25 p-1.5">
+                    <p className={`text-sm font-black tabular-nums ${tono}`}>{v}</p>
+                    <p className="text-[9px] uppercase font-bold text-muted">{n}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* El número que de verdad manda: la media del AÑO COMPLETO (12 simulaciones, no un día suelto) */}
+              <div className="rounded-lg bg-secondary/10 border border-secondary/30 p-2 text-center">
+                <p className="text-lg font-black tabular-nums text-secondary">{simulacionAnual.pct_autoconsumo} %</p>
+                <p className="text-[9px] uppercase font-bold text-muted">Autoconsumo efectivo del AÑO completo (los 12 meses simulados, ponderados por sus días)</p>
+              </div>
+              <p className="text-[10px] text-secondary">
+                ⚙️ El <b>{simulacionAnual.pct_autoconsumo} % anual</b> —no el de un mes suelto— es el que usan el ahorro, la amortización y la oferta al cliente: se recalcula solo al cambiar la batería, la potencia, la franja o el consumo mensual.
               </p>
             </div>
-            {(() => {
-              const max = Math.max(...simulacion.horas.map((x) => Math.max(x.produccion, x.consumo)), 0.1);
-              return (
-                <div className="grid grid-cols-12 sm:grid-cols-24 gap-[2px]">
-                  {simulacion.horas.map((x) => (
-                    <div key={x.h} className="flex flex-col items-center gap-0.5" title={`${x.h}:00 — sol ${x.produccion} kWh · consumo ${x.consumo} kWh · batería ${x.carga > 0 ? `carga ${x.carga}` : x.descarga > 0 ? `da ${x.descarga}` : '—'} kWh`}>
-                      <div className="w-full h-16 flex items-end justify-center gap-[1px]">
-                        <div className="w-1/3 bg-amber-400/70 rounded-t" style={{ height: `${(x.produccion / max) * 100}%` }} />
-                        <div className="w-1/3 bg-secondary/60 rounded-t" style={{ height: `${(x.consumo / max) * 100}%` }} />
-                        <div className={`w-1/3 rounded-t ${x.descarga > 0 ? 'bg-emerald-400/70' : 'bg-emerald-400/25'}`} style={{ height: `${(Math.max(x.carga, x.descarga) / max) * 100}%` }} />
-                      </div>
-                      <p className="text-[7px] text-muted">{x.h}</p>
-                    </div>
-                  ))}
-                </div>
-              );
-            })()}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-center">
-              {[['Autoconsumo directo', `${simulacion.autoconsumo_directo} kWh/día`, 'text-amber-300'],
-                ['Aporta la batería', `${simulacion.aporte_bateria} kWh/día`, 'text-emerald-400'],
-                ['Se vierte a red', `${simulacion.vertido} kWh/día`, 'text-muted'],
-                ['Autoconsumo efectivo', `${simulacion.pct_autoconsumo} %`, 'text-secondary']].map(([n, v, tono]) => (
-                <div key={n} className="rounded-lg bg-card/50 border border-border/25 p-1.5">
-                  <p className={`text-sm font-black tabular-nums ${tono}`}>{v}</p>
-                  <p className="text-[9px] uppercase font-bold text-muted">{n}</p>
-                </div>
-              ))}
-            </div>
-            <p className="text-[10px] text-secondary">
-              ⚙️ Este <b>autoconsumo efectivo ({simulacion.pct_autoconsumo} %)</b> es el que usan el ahorro, la amortización y la oferta al cliente: se recalcula solo al cambiar la batería, la potencia o la franja.
-            </p>
-          </div>
-        )}
+          );
+        })()}
       </Card>
 
       {/* ── Hipótesis (visibles y editables) ── */}
