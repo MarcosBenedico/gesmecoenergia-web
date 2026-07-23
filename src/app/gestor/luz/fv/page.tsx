@@ -8,7 +8,10 @@ import {
   calcularFV, validarEntradaFV, advertenciasFV, margenPorDefecto,
   INGENIERIA_DEFECTO, LIMITE_KW, ESTADOS_FV, ESTADO_FV_LABEL, ESTADOS_FV_PROTEGIDOS,
   PartidaFV, importePartida, precioAjustado, costeDirecto, numeroPaneles, confianzaGlobal,
-  CONFIANZA_LABEL, POTENCIA_PANEL_W, fmtEur2,
+  CONFIANZA_LABEL, POTENCIA_PANEL_W, fmtEur2, r2, PERFIL_FRANJA, FRANJA_LABEL,
+  estimarAyudas, IRPF_PCT_DEDUCCION, IRPF_BASE_MAXIMA, IBI_PCT_ORIENTATIVO, IBI_ANIOS_ORIENTATIVO,
+  PERFILES_CLIENTE, PERFIL_LABEL, PERFIL_TEXTO, produccionMensual, MESES_CORTO, estimarGasoil,
+  INVERSORES_MERCADO, BATERIAS_MERCADO, RefMercado,
 } from '@/lib/fv';
 import { Card, EstadoCarga, useListaLuz, inputCls, labelCls, btnPrimario, btnSecundario, SelectorResponsable } from '../ui';
 import { tokenSesion } from '@/lib/usuario';
@@ -51,7 +54,7 @@ const PARTIDA_NUEVA: PartidaFV = {
 interface RefCat { id: string; codigo: string; categoria: string; descripcion: string; marca: string | null; unidad: string; precio_base: number; confianza: string; advertencia: string | null; num_referencias: number; activo: boolean }
 
 const FORM_VACIO = {
-  cliente_id: '', nombre_proyecto: '', potencia_kw: '', presupuesto_instalador: '',
+  cliente_id: '', nombre_proyecto: '', perfil: 'residencial', potencia_kw: '', presupuesto_instalador: '',
   coste_ingenieria: String(INGENIERIA_DEFECTO), margen_pct: '', motivo_margen: '',
   iva_pct: '21', iva_otro: '', responsable: '', observaciones: '',
 };
@@ -73,6 +76,9 @@ function CalculadoraFV() {
   const [msg, setMsg] = useState('');
 
   const [editandoId, setEditandoId] = useState<string | null>(null); // null = lista · 'nuevo' = alta
+  const [eligiendoTipo, setEligiendoTipo] = useState(false);          // pantalla "¿qué quieres hacer?"
+  const [picker, setPicker] = useState<{ index: number; tipo: 'inversores' | 'baterias' } | null>(null); // selector de equipo
+  const [mostrarEstudio, setMostrarEstudio] = useState(false);        // estudio de ahorro opcional en el flujo de Óscar
   const [form, setForm] = useState(FORM_VACIO);
   const [conceptos, setConceptos] = useState<PartidaFV[]>([]);
   const [modo, setModo] = useState<'simple' | 'partidas'>('simple');
@@ -189,8 +195,11 @@ function CalculadoraFV() {
     if (!margenTocado) setForm((f) => ({ ...f, margen_pct: '' }));
   }, [potencia > LIMITE_KW]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  function abrirNuevo() {
-    setForm(FORM_VACIO); setConceptos([]); setDocs([]); setMargenTocado(false); setModo('simple'); setAvisoCat(''); setEnergia(ENERGIA_VACIA); setHipotesis(HIPOTESIS_DEFECTO); setEditandoId('nuevo'); setMsg(''); setError('');
+  /** Alta nueva con el flujo elegido: 'simple' = presupuesto de Óscar · 'partidas' = dimensionado desde consumos. */
+  function abrirNuevo(tipo: 'simple' | 'partidas') {
+    setForm(FORM_VACIO); setConceptos([]); setDocs([]); setMargenTocado(false); setModo(tipo); setAvisoCat('');
+    setEnergia(ENERGIA_VACIA); setHipotesis(HIPOTESIS_DEFECTO); setMostrarEstudio(false);
+    setEligiendoTipo(false); setEditandoId('nuevo'); setMsg(''); setError('');
   }
 
   async function abrirExistente(p: PresupuestoFV) {
@@ -199,6 +208,7 @@ function CalculadoraFV() {
     const d: PresupuestoFV = json.dato;
     setForm({
       cliente_id: d.cliente_id || '', nombre_proyecto: d.nombre_proyecto,
+      perfil: (d as unknown as { dimensionado?: { perfil?: string } }).dimensionado?.perfil || 'residencial',
       potencia_kw: String(d.potencia_kw), presupuesto_instalador: String(d.presupuesto_instalador),
       coste_ingenieria: String(d.coste_ingenieria),
       margen_pct: String(d.margen_pct), motivo_margen: d.motivo_margen || '',
@@ -211,6 +221,8 @@ function CalculadoraFV() {
     const dim = (d as unknown as { dimensionado?: { energia?: EnergiaFV; hipotesis?: HipotesisFV } }).dimensionado || {};
     setEnergia(dim.energia || ENERGIA_VACIA);
     setHipotesis(dim.hipotesis || HIPOTESIS_DEFECTO);
+    // El estudio de ahorro solo se muestra en el flujo de Óscar si ya tiene datos guardados
+    setMostrarEstudio(!!dim.energia && (dim.energia.consumo_anual || 0) > 0);
     setDocs(d.documentos || []);
     setMargenTocado(true);
     setEditandoId(p.id); setMsg(''); setError('');
@@ -232,7 +244,7 @@ function CalculadoraFV() {
       observaciones: form.observaciones || null,
       documentos: docs,
       modo,
-      dimensionado: { num_paneles: paneles, potencia_panel_w: POTENCIA_PANEL_W, energia, hipotesis },
+      dimensionado: { num_paneles: paneles, potencia_panel_w: POTENCIA_PANEL_W, perfil: form.perfil, energia, hipotesis },
       conceptos: conceptos.filter((c) => c.concepto.trim()),
     };
     const { ok, json } = await apiFV(editandoId === 'nuevo' ? 'POST' : 'PUT', body);
@@ -266,27 +278,168 @@ function CalculadoraFV() {
   function generarVistaCliente() {
     const clienteNombre = clientes.datos.find((c) => c.id === form.cliente_id)?.nombre || '';
     const hoy = new Date().toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' });
-    const validez = new Date(Date.now() + 30 * 86400000).toLocaleDateString('es-ES');
+    const validez = new Date(Date.now() + 15 * 86400000).toLocaleDateString('es-ES');
+    const conIngenieria = potencia > LIMITE_KW;
     const ref = `FV-${new Date().getFullYear()}-${(editandoId && editandoId !== 'nuevo' ? editandoId : Date.now().toString(16)).slice(0, 6).toUpperCase()}`;
     const logo = `${window.location.origin}/logo-gesmeco.png`;
     const entrada60 = fmtEur2(resultado.precio_con_iva * 0.6);
     const resto40 = fmtEur2(resultado.precio_con_iva * 0.4);
-    // Bloque de producción y ahorro (solo si hay hipótesis con sentido)
-    let bloqueAhorro = '';
-    if (potencia > 0 && hipotesis.prod_especifica > 0) {
-      const prod = potencia * hipotesis.prod_especifica;
-      const auto = prod * (hipotesis.pct_autoconsumo / 100);
-      const ahorroAnual = auto * hipotesis.precio_kwh + (prod - auto) * hipotesis.precio_compensacion - hipotesis.mantenimiento_anual;
-      const inv = hipotesis.analisis_con_iva ? resultado.precio_con_iva : resultado.precio_sin_iva;
-      const amort = ahorroAnual > 0 ? (inv / ahorroAnual).toFixed(1) : null;
-      bloqueAhorro = `<h2>Producción y ahorro estimados</h2>
-<table><tbody>
-<tr><td>Producción anual estimada</td><td class="num">${Math.round(prod).toLocaleString('es-ES')} kWh</td></tr>
-<tr><td>Ahorro anual estimado</td><td class="num">${fmtEur2(Math.round(ahorroAnual * 100) / 100)}</td></tr>
-${amort ? `<tr><td>Amortización orientativa</td><td class="num">${amort} años</td></tr>` : ''}
+    // ── Intro adaptada al perfil del cliente (residencial, empresa, granja...) ──
+    const pf = PERFIL_TEXTO[form.perfil] || PERFIL_TEXTO.residencial;
+    const bloqueIntro = `<h2>${pf.titular}</h2>
+<p style="font-size:.98rem">${pf.intro}</p>
+<ul>${pf.puntos.map((p) => `<li>${p}</li>`).join('')}</ul>`;
+
+    // ── Granja aislada: comparación con el grupo de gasoil ──
+    let bloqueGasoil = '';
+    if (form.perfil === 'granja_aislada' && energia.gasoil && energia.gasoil.gasto_mensual > 0) {
+      const g = estimarGasoil({ gastoMensual: energia.gasoil.gasto_mensual, precioLitro: energia.gasoil.precio_litro, kwhLitro: energia.gasoil.kwh_litro });
+      bloqueGasoil = `<h2>Su situación actual: grupo de gasoil</h2>
+<table><thead><tr><th>Concepto</th><th>Cálculo</th><th class="num">Valor</th></tr></thead><tbody>
+<tr><td>Gasto de gasoil</td><td>${fmtEur2(energia.gasoil.gasto_mensual)}/mes × 12</td><td class="num">${fmtEur2(g.gasto_anual)}/año</td></tr>
+<tr><td>Litros consumidos</td><td>${fmtEur2(g.gasto_anual)} ÷ ${energia.gasoil.precio_litro} €/L</td><td class="num">${g.litros_anio.toLocaleString('es-ES')} L/año</td></tr>
+<tr><td>Energía equivalente</td><td>${g.litros_anio.toLocaleString('es-ES')} L × ${energia.gasoil.kwh_litro} kWh/L</td><td class="num">${g.kwh_anio.toLocaleString('es-ES')} kWh/año</td></tr>
+<tr class="total"><td>Coste real de su energía hoy</td><td></td><td class="num">${g.coste_kwh} €/kWh</td></tr>
 </tbody></table>
-<p class="muted">Estimación orientativa según los datos de consumo facilitados; pendiente de validación técnica del instalador.</p>`;
+<p class="muted">El gasoil le cuesta <b>${g.coste_kwh} €/kWh</b> —además del ruido, el mantenimiento del grupo y los rellenos—. Cada kWh que produzca el sol es gasoil que deja de quemar. Por eso en una explotación aislada la instalación se amortiza mucho antes que conectada a red.</p>`;
     }
+
+    // ── Gráfico SVG mensual: producción vs consumo real + ahorro mes a mes + proyección 25 años ──
+    let bloqueEstacional = '';
+    if (potencia > 0) {
+      const prodMes = produccionMensual(potencia * hipotesis.prod_especifica);
+      const pctAutoE = hipotesis.pct_autoconsumo; // autoconsumo efectivo (incluye batería si se montó escenario)
+      const hayConsumo = energia.mensual.some((v) => v > 0);
+      const consMes = hayConsumo ? energia.mensual : prodMes.map(() => 0);
+
+      // Balance mes a mes: autoconsumo (limitado por el consumo real), excedente y energía de red evitada
+      let ahorroReal = 0, autoTotal = 0, excTotal = 0, consTotal = 0;
+      const detalle = prodMes.map((p, i) => {
+        const c = consMes[i];
+        const auto = hayConsumo ? Math.min(p * (pctAutoE / 100), c) : p * (pctAutoE / 100);
+        const exc = Math.max(p - auto, 0);
+        ahorroReal += auto * hipotesis.precio_kwh + exc * hipotesis.precio_compensacion;
+        autoTotal += auto; excTotal += exc; consTotal += c;
+        return { p, c, auto, exc };
+      });
+      ahorroReal = r2(ahorroReal - hipotesis.mantenimiento_anual);
+      const invE = hipotesis.analisis_con_iva ? resultado.precio_con_iva : resultado.precio_sin_iva;
+      const amortReal = ahorroReal > 0 ? r2(invE / ahorroReal) : null;
+      const kwhE = (n: number) => Math.round(n).toLocaleString('es-ES');
+      const coberturaReal = consTotal > 0 ? Math.min(r2((autoTotal / consTotal) * 100), 100) : null;
+
+      // Gráfico de barras en SVG (imprime perfecto): producción (naranja) vs consumo (azul)
+      const W = 680, H = 210, ml = 44, mb = 26, mt = 16;
+      const plotH = H - mt - mb, plotW = W - ml - 8;
+      const maxV = Math.max(...prodMes, ...consMes, 1);
+      const niceMax = Math.ceil(maxV / 500) * 500 || 500;
+      const gw = plotW / 12;
+      const bw = hayConsumo ? Math.min(gw / 3, 16) : Math.min(gw / 2, 22);
+      const yAt = (v: number) => mt + plotH - (v / niceMax) * plotH;
+      const grid = [0, 0.25, 0.5, 0.75, 1].map((f) => {
+        const y = mt + plotH - f * plotH;
+        return `<line x1="${ml}" y1="${y}" x2="${W - 8}" y2="${y}" stroke="#eee" stroke-width="1"/><text x="${ml - 6}" y="${y + 3}" text-anchor="end" font-size="9" fill="#9a9aa8">${kwhE(niceMax * f)}</text>`;
+      }).join('');
+      const barras = detalle.map((d, i) => {
+        const cx = ml + i * gw + gw / 2;
+        const px = hayConsumo ? cx - bw - 1 : cx - bw / 2;
+        const rects = `<rect x="${px}" y="${yAt(d.p)}" width="${bw}" height="${mt + plotH - yAt(d.p)}" rx="2" fill="#ff9500"/>`
+          + (hayConsumo ? `<rect x="${cx + 1}" y="${yAt(d.c)}" width="${bw}" height="${mt + plotH - yAt(d.c)}" rx="2" fill="#0088bb"/>` : '');
+        return rects + `<text x="${cx}" y="${H - 8}" text-anchor="middle" font-size="9" fill="#5c5c6e">${MESES_CORTO[i]}</text>`;
+      }).join('');
+      const chart = `<svg viewBox="0 0 ${W} ${H}" width="100%" style="max-width:100%;height:auto">${grid}${barras}</svg>`;
+
+      // Proyección a 25 años (vida útil de los módulos) y CO2 evitado
+      const proyeccion25 = amortReal != null ? r2(ahorroReal * 25 - invE) : null;
+      const co2Anual = r2((potencia * hipotesis.prod_especifica) * 0.19 / 1000); // t CO2/año (mix eléctrico ~0,19 kg/kWh)
+
+      bloqueEstacional = `<h2>Qué pasará cuando tenga las placas</h2>
+<p style="font-size:.92rem;color:#3a3a4a">El sol no produce igual todo el año: en verano genera más del doble que en invierno. ${hayConsumo ? 'Este es el reparto de la producción de sus placas frente a <b>su consumo real</b>, mes a mes:' : 'Este es el reparto de la producción estimada de su instalación:'}</p>
+<div style="margin:.5rem 0">${chart}</div>
+<p style="font-size:.82rem;margin:.2rem 0 1rem"><span style="display:inline-block;width:12px;height:12px;background:#ff9500;border-radius:2px;vertical-align:middle"></span> Producción solar${hayConsumo ? ' &nbsp;&nbsp; <span style="display:inline-block;width:12px;height:12px;background:#0088bb;border-radius:2px;vertical-align:middle"></span> Su consumo real' : ''}</p>
+${hayConsumo ? `<table><thead><tr><th>Qué hará su energía en un año</th><th class="num">kWh/año</th><th class="num">%</th></tr></thead><tbody>
+<tr><td>☀️ Producción total de sus placas</td><td class="num">${kwhE(prodMes.reduce((s, p) => s + p, 0))}</td><td class="num">100 %</td></tr>
+<tr><td>🏠 Energía que aprovecha usted mismo (deja de comprar a la red)</td><td class="num">${kwhE(autoTotal)}</td><td class="num">${coberturaReal ?? '—'} % de su consumo</td></tr>
+<tr><td>🔄 Excedente que vierte a la red (se le compensa en factura)</td><td class="num">${kwhE(excTotal)}</td><td class="num"></td></tr>
+</tbody></table>` : ''}
+<div class="calc" style="background:#eafaf0;border-color:#bfe6cf">
+  <div style="display:flex;gap:1.5rem;flex-wrap:wrap;justify-content:space-around;text-align:center">
+    <div><div style="font-size:1.5rem;font-weight:900;color:#0a8a4a">${fmtEur2(ahorroReal)}</div><div style="font-size:.72rem;color:#5c5c6e">AHORRO ESTIMADO AL AÑO</div></div>
+    ${amortReal != null ? `<div><div style="font-size:1.5rem;font-weight:900;color:#e11d48">${amortReal} años</div><div style="font-size:.72rem;color:#5c5c6e">EN RECUPERAR LA INVERSIÓN</div></div>` : ''}
+    ${proyeccion25 != null ? `<div><div style="font-size:1.5rem;font-weight:900;color:#0a8a4a">${fmtEur2(proyeccion25)}</div><div style="font-size:.72rem;color:#5c5c6e">AHORRO NETO EN 25 AÑOS</div></div>` : ''}
+    <div><div style="font-size:1.5rem;font-weight:900;color:#0a8a4a">${co2Anual} t</div><div style="font-size:.72rem;color:#5c5c6e">CO₂ EVITADO AL AÑO</div></div>
+  </div>
+</div>
+<p class="muted">${hayConsumo ? 'El ahorro se calcula cruzando mes a mes la producción de las placas con su consumo real —no con una media—: es la estimación más ajustada a su caso. ' : ''}A partir del año de amortización, todo lo que ahorra es beneficio: los módulos tienen una vida útil de unos 25 años. La proyección a 25 años no aplica inflación de la luz (si sube, ahorrará más). Cifras orientativas pendientes de validación técnica.</p>`;
+    }
+
+    // ── Ficha técnica: consumo medido, dimensionado, equipos y por qué de cada uno ──
+    let bloqueTecnico = '';
+    if (potencia > 0) {
+      const nPaneles = paneles || numeroPaneles(potencia);
+      const kwpReal = r2((nPaneles * POTENCIA_PANEL_W) / 1000);
+      const consumoAnual = energia.consumo_anual || 0;
+      const prodAnual = potencia * hipotesis.prod_especifica;
+      const franjaT = energia.franja || null;
+      const pctAutoT = hipotesis.pct_autoconsumo; // autoconsumo efectivo (incluye batería si se montó escenario)
+      const coberturaT = consumoAnual > 0 ? Math.min(r2((prodAnual * (pctAutoT / 100)) / consumoAnual * 100), 100) : null;
+      const partidaCat = (cats: string[]) => conceptos.find((c) => c.incluido && cats.includes((c.concepto || '').toLowerCase()));
+      const inversorP = partidaCat(['inversores', 'inversor']);
+      const bateriaP = partidaCat(['baterias', 'batería', 'bateria']);
+      const kwhT = (n: number) => Math.round(n).toLocaleString('es-ES');
+      const filas: string[] = [
+        consumoAnual > 0 ? `<tr><td>Consumo anual analizado</td><td>Suma de los 12 meses de su factura eléctrica</td><td class="num">${kwhT(consumoAnual)} kWh</td></tr>` : '',
+        `<tr><td>Potencia pico propuesta</td><td>Dimensionado para su perfil de consumo</td><td class="num">${potencia.toLocaleString('es-ES')} kWp</td></tr>`,
+        `<tr><td>Módulos fotovoltaicos</td><td>⌈${potencia.toLocaleString('es-ES')} kWp × 1000 ÷ ${POTENCIA_PANEL_W} W⌉ · paneles de ${POTENCIA_PANEL_W} W</td><td class="num">${nPaneles} paneles (${kwpReal} kWp)</td></tr>`,
+        `<tr><td>Inversor</td><td>${inversorP ? inversorP.descripcion : `Dimensionado para ${potencia.toLocaleString('es-ES')} kWp`} · instalación ${potencia > LIMITE_KW ? 'trifásica con ingeniería' : 'monofásica'}</td><td class="num">${inversorP ? '✓' : 'a confirmar'}</td></tr>`,
+        bateriaP ? `<tr><td>Acumulación (batería)</td><td>${bateriaP.descripcion} · traslada el sol a sus horas de consumo</td><td class="num">✓</td></tr>` : `<tr><td>Acumulación (batería)</td><td>No incluida${franjaT ? ` (su consumo ${FRANJA_LABEL[franjaT].replace(/^\S+\s/, '').toLowerCase()} se aprovecha en directo)` : ''}</td><td class="num">—</td></tr>`,
+        `<tr><td>Producción anual estimada</td><td>${potencia.toLocaleString('es-ES')} kWp × ${hipotesis.prod_especifica} kWh/kWp·año · irradiación de Binéfar (ref. PVGIS)</td><td class="num">${kwhT(prodAnual)} kWh</td></tr>`,
+        coberturaT != null ? `<tr><td>Cobertura de su consumo</td><td>Energía solar autoconsumida ÷ su consumo anual</td><td class="num">≈ ${coberturaT} %</td></tr>` : '',
+      ].filter(Boolean);
+      bloqueTecnico = `<h2>Configuración técnica y dimensionado</h2>
+<p style="font-size:.9rem;color:#3a3a4a">Cada dato de esta propuesta está calculado a partir de ${consumoAnual > 0 ? 'su consumo real' : 'la potencia acordada'} y de la irradiación solar de la zona: así sabe exactamente qué se instala y por qué.</p>
+<table><thead><tr><th>Parámetro</th><th>Justificación</th><th class="num">Valor</th></tr></thead><tbody>
+${filas.join('\n')}
+</tbody></table>`;
+    }
+
+    // ── Ayudas, bonificaciones y deducciones (con calculadora para el cliente) ──
+    const ay = estimarAyudas(resultado.precio_con_iva);
+    const netoTrasAyudas = fmtEur2(r2(resultado.precio_con_iva - ay.deduccion_irpf));
+    const bloqueAyudas = `<h2>Ayudas, bonificaciones y deducciones</h2>
+<p style="font-size:.9rem;color:#3a3a4a">Una instalación de autoconsumo da derecho a varias ventajas fiscales. Estas son las habituales; el importe exacto depende de su situación, y <b>nosotros se lo calculamos y tramitamos</b> (somos también asesoría).</p>
+<table><thead><tr><th>Ayuda</th><th>Cómo funciona</th><th class="num">Estimación</th></tr></thead><tbody>
+<tr><td><b>Deducción en el IRPF</b></td><td>Hasta el <b>${IRPF_PCT_DEDUCCION} %</b> de la inversión (sobre una base máxima de ${fmtEur2(IRPF_BASE_MAXIMA)}) por mejora de la eficiencia energética de la vivienda. Se resta de su declaración de la renta. Requiere certificado energético y tener cuota suficiente.</td><td class="num"><b>hasta ${fmtEur2(ay.deduccion_irpf)}</b></td></tr>
+<tr><td><b>Bonificación del IBI</b></td><td>Su ayuntamiento puede bonificar parte del recibo del IBI durante varios años (habitual: ${IBI_PCT_ORIENTATIVO} % · ${IBI_ANIOS_ORIENTATIVO} años). Depende de la ordenanza municipal.</td><td class="num">según municipio</td></tr>
+<tr><td><b>Bonificación del ICIO</b></td><td>Reducción de hasta el 95 % del impuesto de construcciones de la licencia de obra.</td><td class="num">según municipio</td></tr>
+<tr><td><b>Subvenciones</b></td><td>Según convocatorias autonómicas y europeas vigentes en cada momento. Le avisamos si hay alguna abierta que encaje.</td><td class="num">variable</td></tr>
+</tbody></table>
+
+<div class="calc noprint">
+  <p style="font-weight:800;margin:0 0 .5rem">🧮 Calcule su deducción de IRPF en 10 segundos</p>
+  <p style="font-size:.85rem;color:#3a3a4a;margin:.2rem 0 .7rem">La deducción es el ${IRPF_PCT_DEDUCCION} % de lo que invierte (con un máximo de ${fmtEur2(IRPF_BASE_MAXIMA)} de base), y solo se aplica hasta donde llegue la cuota de IRPF que le sale a pagar. Ajuste su cuota y lo verá al instante:</p>
+  <div style="display:flex;gap:1rem;flex-wrap:wrap;align-items:flex-end">
+    <label style="font-size:.82rem">Importe de su instalación (€)<br><input id="inv" type="number" value="${Math.round(resultado.precio_con_iva)}" style="width:150px;padding:.4rem;font-size:1rem;border:1.5px solid #ccc;border-radius:6px"></label>
+    <label style="font-size:.82rem">Su cuota de IRPF del año (€)<br><input id="cuota" type="number" value="3000" style="width:150px;padding:.4rem;font-size:1rem;border:1.5px solid #ccc;border-radius:6px"></label>
+  </div>
+  <p style="margin:.8rem 0 0;font-size:1.05rem">Deducción estimada: <b id="resDed" style="color:#e11d48">${fmtEur2(ay.deduccion_irpf)}</b> · le costaría realmente <b id="resNeto" style="color:#0a8a4a">${netoTrasAyudas}</b></p>
+  <p style="font-size:.72rem;color:#888;margin:.4rem 0 0">Cálculo orientativo: deducción = mín(${IRPF_PCT_DEDUCCION} % × mín(inversión, ${fmtEur2(IRPF_BASE_MAXIMA)}), su cuota de IRPF). Confírmelo con nosotros: cada declaración es distinta.</p>
+  <script>
+    (function(){
+      var inv=document.getElementById('inv'),cuota=document.getElementById('cuota'),rD=document.getElementById('resDed'),rN=document.getElementById('resNeto');
+      var eur=function(n){return n.toLocaleString('es-ES',{minimumFractionDigits:2,maximumFractionDigits:2})+' €';};
+      function calc(){
+        var i=parseFloat(inv.value)||0, c=parseFloat(cuota.value)||0;
+        var base=Math.min(i, ${IRPF_BASE_MAXIMA});
+        var ded=Math.min(base*${IRPF_PCT_DEDUCCION / 100}, c);
+        rD.textContent=eur(ded); rN.textContent=eur(Math.max(i-ded,0));
+      }
+      inv.addEventListener('input',calc); cuota.addEventListener('input',calc);
+    })();
+  </script>
+</div>
+<p class="muted">Gesmeco Energía y Asesoría Gesmeco tramitan por usted la deducción del IRPF y las bonificaciones municipales que le correspondan. Estimaciones orientativas sujetas a la normativa vigente y a su situación fiscal.</p>`;
+
     const w = window.open('', '_blank');
     if (!w) return;
     w.document.write(`<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><title>Presupuesto ${ref} · ${form.nombre_proyecto}</title>
@@ -317,12 +470,13 @@ ${amort ? `<tr><td>Amortización orientativa</td><td class="num">${amort} años<
   ul{margin:.4rem 0;padding-left:1.2rem} li{margin:.25rem 0;font-size:.88rem;color:#3a3a4a}
   .firma{margin-top:2.6rem;display:flex;gap:2.5rem}
   .firma div{flex:1;border-top:1.5px solid var(--oscuro);padding-top:.45rem;font-size:.82rem;color:var(--gris)}
+  .calc{background:#fff8f9;border:1.5px solid #f3c9d2;border-radius:12px;padding:1rem 1.2rem;margin:.8rem 0}
   .pie{margin-top:2rem;padding-top:.8rem;border-top:1px solid #eee;font-size:.75rem;color:var(--gris);text-align:center}
   @media print{.noprint{display:none} .banda{-webkit-print-color-adjust:exact;print-color-adjust:exact} thead th,.total td,.franja{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
 </style></head><body>
 <div class="banda">
   <img src="${logo}" alt="Gesmeco Energía">
-  <div class="ref"><b>PRESUPUESTO ${ref}</b>Fecha: ${hoy}<br>Validez: 30 días (hasta ${validez})</div>
+  <div class="ref"><b>PRESUPUESTO ${ref}</b>Fecha: ${hoy}<br>Validez: 15 días (hasta ${validez})</div>
 </div>
 <div class="franja"></div>
 <div class="hoja">
@@ -334,11 +488,19 @@ ${amort ? `<tr><td>Amortización orientativa</td><td class="num">${amort} años<
 
 <h2>Proyecto</h2>
 <p><b style="font-size:1.05rem">${form.nombre_proyecto || 'Instalación fotovoltaica'}</b><br>
-Instalación solar fotovoltaica de <b>${potencia.toLocaleString('es-ES')} kW</b>, llave en mano: suministro e instalación de módulos
-fotovoltaicos, inversor, estructura, cableado y protecciones eléctricas, ingeniería, legalización, tramitación de boletines
+Instalación solar fotovoltaica de <b>${potencia.toLocaleString('es-ES')} kW</b> <b>llave en mano</b>: suministro e instalación de módulos
+fotovoltaicos, inversor, estructura, cableado y protecciones eléctricas, ${conIngenieria ? 'ingeniería, ' : ''}legalización, tramitación de boletines
 y puesta en marcha de la instalación.</p>
+<p style="background:#f8f8fa;border-left:3px solid #e11d48;border-radius:0 8px 8px 0;padding:.7rem .9rem;font-size:.9rem;color:#3a3a4a">
+🤝 <b>Usted no se preocupa de nada.</b> Nos encargamos de todos los trámites que la ley nos permite gestionar en su nombre —
+${conIngenieria ? 'proyecto de ingeniería, ' : ''}legalización, boletines, permisos de acceso y conexión, alta de autoconsumo y solicitud de compensación de excedentes—
+para que usted solo tenga que disfrutar del ahorro. Estamos en Binéfar, a un teléfono de distancia, antes, durante y después de la instalación.</p>
 
-${bloqueAhorro}
+${bloqueIntro}
+${bloqueGasoil}
+${bloqueTecnico}
+${bloqueEstacional}
+${bloqueAyudas}
 <h2>Oferta económica</h2>
 <table>
 <thead><tr><th>Concepto</th><th class="num">Importe</th></tr></thead>
@@ -357,9 +519,9 @@ ${bloqueAhorro}
 
 <h2>Condiciones</h2>
 <ul>
-<li>Presupuesto válido durante 30 días desde la fecha de emisión.</li>
+<li>Presupuesto válido durante 15 días desde la fecha de emisión.</li>
 <li>Plazo de ejecución a acordar tras la aceptación del presupuesto.</li>
-<li>Incluye ingeniería, legalización y tramitación de boletines. No incluye trabajos no descritos en este documento.</li>
+<li>Instalación llave en mano: incluye ${conIngenieria ? 'ingeniería, ' : ''}legalización y tramitación de boletines. No incluye trabajos no descritos en este documento.</li>
 <li>Garantías de fabricante en módulos e inversor; garantía de instalación según normativa vigente.</li>
 </ul>
 
@@ -417,9 +579,36 @@ ${form.observaciones ? `<p class="muted">Observaciones: ${form.observaciones}</p
           <div className="flex gap-2">
             <button onClick={cargar} className={btnSecundario}><RefreshCw className={`w-4 h-4 ${cargando ? 'animate-spin' : ''}`} /></button>
             <a href="/gestor/luz/fv/catalogo" className={btnSecundario}>📚 Catálogo de precios</a>
-            <button onClick={abrirNuevo} className={btnPrimario}><Plus className="w-4 h-4" /> Nuevo presupuesto</button>
+            <button onClick={() => setEligiendoTipo(true)} className={btnPrimario}><Plus className="w-4 h-4" /> Nuevo presupuesto</button>
           </div>
         </div>
+
+        {/* ¿Qué quieres hacer? — cada flujo con su camino */}
+        {eligiendoTipo && (
+          <div className="grid md:grid-cols-2 gap-3">
+            <button onClick={() => abrirNuevo('simple')}
+              className="text-left p-5 rounded-2xl border border-accent/40 bg-accent/5 hover:bg-accent/10 hover:border-accent/70 transition space-y-1.5">
+              <p className="text-2xl">📄</p>
+              <p className="font-black text-sm text-foreground">Tengo el presupuesto de Óscar</p>
+              <p className="text-xs text-muted leading-relaxed">
+                Metes su importe sin IVA y el sistema añade la ingeniería si supera 10 kW,
+                aplica tu margen y el IVA. En 2 minutos tienes la oferta para el cliente.
+              </p>
+            </button>
+            <button onClick={() => abrirNuevo('partidas')}
+              className="text-left p-5 rounded-2xl border border-secondary/40 bg-secondary/5 hover:bg-secondary/10 hover:border-secondary/70 transition space-y-1.5">
+              <p className="text-2xl">⚡</p>
+              <p className="font-black text-sm text-foreground">Presupuestar desde consumos / factura</p>
+              <p className="text-xs text-muted leading-relaxed">
+                Metes el consumo del cliente, eliges escenario de dimensionado y el sistema
+                monta las partidas con el catálogo de Óscar. Estimación con rentabilidad incluida.
+              </p>
+            </button>
+            <button onClick={() => setEligiendoTipo(false)} className="md:col-span-2 text-xs text-muted hover:text-foreground text-center">
+              Cancelar
+            </button>
+          </div>
+        )}
 
         {msg && <p className="text-xs text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-2.5">{msg}</p>}
         {error && <p className="text-xs text-red-400 bg-red-500/10 border border-red-500/30 rounded-lg p-2.5">{error}</p>}
@@ -439,7 +628,16 @@ ${form.observaciones ? `<p class="muted">Observaciones: ${form.observaciones}</p
               <tbody>
                 {lista.map((p) => (
                   <tr key={p.id} className="border-b border-border/20 hover:bg-card/50 transition">
-                    <td className="px-3 py-2 font-semibold text-xs cursor-pointer" onClick={() => abrirExistente(p)}>{p.nombre_proyecto}</td>
+                    <td className="px-3 py-2 font-semibold text-xs cursor-pointer" onClick={() => abrirExistente(p)}>
+                      {p.nombre_proyecto}
+                      <span className={`ml-2 px-1.5 py-0.5 rounded-full border text-[9px] font-bold uppercase ${
+                        (p as unknown as { modo?: string }).modo === 'partidas'
+                          ? 'bg-secondary/15 text-secondary border-secondary/30'
+                          : 'bg-accent/15 text-accent border-accent/30'
+                      }`}>
+                        {(p as unknown as { modo?: string }).modo === 'partidas' ? '⚡ Dimensionado' : '📄 Óscar'}
+                      </span>
+                    </td>
                     <td className="px-3 py-2 text-xs text-muted">{p.cliente_nombre || '—'}</td>
                     <td className="px-3 py-2 text-right tabular-nums text-xs">{Number(p.potencia_kw).toLocaleString('es-ES')}</td>
                     <td className="px-3 py-2 text-right tabular-nums font-bold text-xs">{fmtEur2(Number(p.precio_sin_iva))}</td>
@@ -478,6 +676,70 @@ ${form.observaciones ? `<p class="muted">Observaciones: ${form.observaciones}</p
 
   // ═══════════ EDITOR ═══════════
   const p = lista.find((x) => x.id === editandoId);
+
+  /** Bloque de consumo, escenarios y rentabilidad (fases 2 y 3), reutilizado según el flujo. */
+  const bloqueEnergia = (
+    <EnergiaEscenarios
+      energia={energia} setEnergia={setEnergia}
+      hipotesis={hipotesis} setHipotesis={setHipotesis}
+      potenciaActual={potencia}
+      precioSinIva={resultado.precio_sin_iva}
+      precioConIva={resultado.precio_con_iva}
+      onAplicarPotencia={(kw) => setForm((f) => ({ ...f, potencia_kw: String(kw) }))}
+      catalogo={catalogo}
+      clienteNombre={clientes.datos.find((c) => c.id === form.cliente_id)?.nombre || ''}
+      proyecto={form.nombre_proyecto}
+      perfil={form.perfil}
+      onMontarPresupuesto={(kwp, codigos, pctAutoEfectivo) => {
+        const partidas = codigos
+          .map((c) => {
+            const pt = partidaDesdeCatalogo(c.codigo, c.cantidad);
+            if (!pt) return null;
+            return { ...pt, confianza: c.confianza || pt.confianza, observaciones: c.nota || pt.observaciones, fuente: (pt.fuente || '') + ' · recomendación automática' };
+          })
+          .filter(Boolean) as PartidaFV[];
+        setModo('partidas');
+        setForm((f) => ({ ...f, potencia_kw: String(kwp) }));
+        setConceptos(partidas);
+        // Autoconsumo efectivo (con batería) → fuente única para que la oferta cuadre con el escenario
+        if (pctAutoEfectivo != null) setHipotesis((h) => ({ ...h, pct_autoconsumo: r2(pctAutoEfectivo) }));
+        setMsg('🪄 Presupuesto montado con la recomendación: revisa inversor, batería e instalación antes de aprobar.');
+      }}
+    />
+  );
+
+  // Cabecera de paso (solo en el flujo "desde consumos", para guiar el orden)
+  const Paso = ({ n, titulo, desc }: { n: number; titulo: string; desc?: string }) => (
+    <div className="flex items-center gap-2.5 pt-1">
+      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-secondary text-white text-xs font-black">{n}</span>
+      <div className="min-w-0">
+        <p className="text-sm font-black text-foreground leading-tight">{titulo}</p>
+        {desc && <p className="text-[10px] text-muted leading-tight">{desc}</p>}
+      </div>
+    </div>
+  );
+  const esDim = modo === 'partidas';
+
+  // Categorías de pieza que se pueden elegir con el selector visual
+  const esInversor = (c?: string) => ['inversores', 'inversor'].includes((c || '').toLowerCase());
+  const esBateria = (c?: string) => ['baterias', 'batería', 'bateria'].includes((c || '').toLowerCase());
+
+  /** Aplica el equipo elegido en el selector a la partida correspondiente. */
+  function elegirEquipo(r: RefMercado) {
+    if (!picker) return;
+    const unidad = picker.tipo === 'baterias' ? 'kWh' : 'kW';
+    setConceptos((arr) => arr.map((x, j) => j === picker.index ? {
+      ...x,
+      descripcion: `${r.marca} ${r.modelo} · ${r.medida} ${unidad}`,
+      marca: r.marca, precio_unitario: r.precio, codigo_catalogo: null,
+      cantidad: x.cantidad > 0 ? x.cantidad : 1,
+      fuente: 'Precio de mercado (ene 2026)', confianza: 'alta',
+    } : x));
+    setPicker(null);
+    setMsg(`✓ ${r.marca} ${r.modelo} (${r.medida} ${unidad}) seleccionado.`);
+  }
+  const opcionesPicker: RefMercado[] = picker?.tipo === 'baterias' ? BATERIAS_MERCADO : INVERSORES_MERCADO;
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -503,6 +765,7 @@ ${form.observaciones ? `<p class="muted">Observaciones: ${form.observaciones}</p
       <div className="grid lg:grid-cols-[1fr_380px] gap-4 items-start">
         {/* ── BLOQUE IZQUIERDO: datos del proyecto ── */}
         <div className="space-y-4">
+          {esDim && <Paso n={1} titulo="Cliente y tipo de instalación" desc="A quién va y con qué lenguaje le hablamos" />}
           <Card className="space-y-3">
             <h3 className="font-bold text-sm">Datos del proyecto</h3>
             <div className="grid md:grid-cols-2 gap-3">
@@ -516,25 +779,35 @@ ${form.observaciones ? `<p class="muted">Observaciones: ${form.observaciones}</p
               </div>
               <div><label className={labelCls}>Nombre del proyecto *</label>
                 <input className={inputCls} value={form.nombre_proyecto} onChange={(e) => setForm({ ...form, nombre_proyecto: e.target.value })} placeholder="Instalación fotovoltaica granja Perlag" /></div>
+              <div className="md:col-span-2">
+                <label className={labelCls}>Tipo de cliente (adapta el lenguaje de la propuesta)</label>
+                <select className={inputCls} value={form.perfil} onChange={(e) => setForm({ ...form, perfil: e.target.value })}>
+                  {PERFILES_CLIENTE.map((p) => <option key={p} value={p}>{PERFIL_LABEL[p]}</option>)}
+                </select>
+                <p className="text-[10px] text-muted mt-0.5">{PERFIL_TEXTO[form.perfil]?.intro}</p>
+              </div>
               <div>
                 <label className={labelCls}>Potencia (kW) *</label>
                 <input className={inputCls} type="number" min="0.01" step="0.01" value={form.potencia_kw} onChange={(e) => setForm({ ...form, potencia_kw: e.target.value })} />
+                {esDim && potencia <= 0 && (
+                  <p className="text-[10px] mt-0.5 text-muted">Se rellena sola al elegir un escenario en el paso 2 (o escríbela a mano).</p>
+                )}
                 {potencia > 0 && (
                   <p className={`text-[10px] mt-0.5 font-semibold ${potencia > LIMITE_KW ? 'text-amber-300' : 'text-secondary'}`}>
                     {potencia > LIMITE_KW ? '⚙️ Más de 10 kW: se añade ingeniería.' : '✓ 10 kW o menos: no se añade ingeniería.'}
                   </p>
                 )}
               </div>
-              <div className="md:col-span-2">
-                <label className={labelCls}>Modo de cálculo del coste</label>
-                <div className="inline-flex rounded-lg border border-border/50 bg-card/60 p-0.5">
-                  {([['simple', 'Importe único de Óscar'], ['partidas', 'Presupuesto por partidas (catálogo)']] as const).map(([v, n]) => (
-                    <button key={v} type="button" onClick={() => setModo(v)}
-                      className={`px-3 py-1.5 rounded-md text-xs font-semibold transition ${modo === v ? 'bg-accent text-white' : 'text-muted hover:text-foreground'}`}>
-                      {n}
-                    </button>
-                  ))}
-                </div>
+              <div className="md:col-span-2 flex items-end gap-2 flex-wrap">
+                <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-bold ${
+                  modo === 'partidas' ? 'bg-secondary/15 text-secondary border-secondary/30' : 'bg-accent/15 text-accent border-accent/30'
+                }`}>
+                  {modo === 'partidas' ? '⚡ Dimensionado desde consumos' : '📄 Desde presupuesto de Óscar'}
+                </span>
+                <button type="button" onClick={() => setModo(modo === 'simple' ? 'partidas' : 'simple')}
+                  className="text-[10px] font-semibold text-muted hover:text-foreground underline underline-offset-2 pb-1">
+                  cambiar tipo
+                </button>
               </div>
               {modo === 'simple' && (
                 <div><label className={labelCls}>Presupuesto instalador Óscar (€, sin IVA) *</label>
@@ -577,7 +850,12 @@ ${form.observaciones ? `<p class="muted">Observaciones: ${form.observaciones}</p
             </div>
           </Card>
 
+          {/* Flujo Dimensionado: primero el consumo y los escenarios, que montan las partidas */}
+          {esDim && <Paso n={2} titulo="Consumo y escenario" desc="Mete el consumo del cliente y elige un escenario: rellena la potencia y las partidas de golpe" />}
+          {modo === 'partidas' && bloqueEnergia}
+
           {/* Dimensionado + partidas desde el catálogo */}
+          {esDim && <Paso n={3} titulo="Revisa los equipos y precios" desc="Ajusta las partidas que montó el escenario, cámbialas o añade del catálogo" />}
           <Card className="space-y-2">
             <div className="flex items-center justify-between gap-2 flex-wrap">
               <h3 className="font-bold text-sm">{modo === 'partidas' ? '🧮 Presupuesto por partidas' : 'Desglose de costes adicionales'}</h3>
@@ -594,18 +872,9 @@ ${form.observaciones ? `<p class="muted">Observaciones: ${form.observaciones}</p
             {potencia > 0 && (
               <div className="flex items-center gap-3 flex-wrap text-[11px] rounded-lg bg-secondary/5 border border-secondary/25 p-2.5">
                 <span>☀️ <b>{paneles} paneles</b> de {POTENCIA_PANEL_W} W para {potencia.toLocaleString('es-ES')} kWp (⌈kWp×1000/{POTENCIA_PANEL_W}⌉)</span>
-                {modo === 'partidas' && (
-                  <button
-                    onClick={() => {
-                      const nuevas = [partidaDesdeCatalogo('PAN-JIN-515', paneles), partidaDesdeCatalogo('EST-SUN-STD', paneles)].filter(Boolean) as PartidaFV[];
-                      setConceptos((c) => [...c.filter((x) => !['PAN-JIN-515', 'EST-SUN-STD'].includes(x.codigo_catalogo || '')), ...nuevas]);
-                    }}
-                    className="px-2.5 py-1 rounded-lg bg-accent text-white font-bold hover:bg-accent/90 transition"
-                  >
-                    + Añadir paneles y estructura ({paneles} ud)
-                  </button>
+                {modo === 'partidas' && conceptos.length === 0 && (
+                  <span className="text-muted">Aún no hay partidas: usa 🪄 «Montar presupuesto con este escenario» arriba para rellenarlas de golpe, o añádelas del catálogo.</span>
                 )}
-                <span className="text-muted">Inversor, batería e instalación: usa 🪄 «Montar presupuesto» en los escenarios (sugerencias revisables) o elígelos a mano del catálogo.</span>
               </div>
             )}
 
@@ -613,52 +882,53 @@ ${form.observaciones ? `<p class="muted">Observaciones: ${form.observaciones}</p
             {modo === 'simple' && <p className="text-[11px] text-muted">El presupuesto de Óscar y la ingeniería ya cuentan arriba. Aquí van extras (baterías, obra civil…). Lo «incluido» suma al coste base.</p>}
 
             {conceptos.length > 0 && (
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="text-left text-[10px] uppercase text-muted border-b border-border/40">
-                      <th className="px-2 py-2">Código</th><th className="px-2 py-2">Descripción</th>
-                      <th className="px-2 py-2 text-right">Cant.</th><th className="px-2 py-2 text-right">€ base</th>
-                      <th className="px-2 py-2 text-right">Ajuste %</th><th className="px-2 py-2 text-right">Ajuste €</th>
-                      <th className="px-2 py-2 text-right">€ ajustado</th><th className="px-2 py-2 text-right">Importe</th>
-                      <th className="px-2 py-2 text-center">Incl.</th><th className="px-2 py-2 text-center">Opc.</th>
-                      <th className="px-2 py-2">Conf.</th><th></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {conceptos.map((c, i) => {
-                      const set = (k: keyof PartidaFV, v: unknown) => setConceptos((arr) => arr.map((x, j) => (j === i ? { ...x, [k]: v } : x)));
-                      return (
-                        <tr key={i} className={`border-b border-border/20 ${!c.incluido ? 'opacity-50' : ''}`}>
-                          <td className="px-2 py-1.5 font-mono text-[10px] text-muted">{c.codigo_catalogo || 'manual'}</td>
-                          <td className="px-2 py-1.5">
-                            <input className={`${selCls} w-full min-w-40`} value={c.descripcion} onChange={(e) => set('descripcion', e.target.value)} placeholder="Descripción" />
-                            {c.fuente && <span className="block text-[9px] text-muted mt-0.5">{c.fuente}</span>}
-                          </td>
-                          <td className="px-2 py-1.5"><input className={`${selCls} w-16 text-right`} type="number" min="0" step="0.01" value={c.cantidad} onChange={(e) => set('cantidad', parseFloat(e.target.value) || 0)} /></td>
-                          <td className="px-2 py-1.5"><input className={`${selCls} w-20 text-right`} type="number" min="0" step="0.01" value={c.precio_unitario} onChange={(e) => set('precio_unitario', parseFloat(e.target.value) || 0)} /></td>
-                          <td className="px-2 py-1.5"><input className={`${selCls} w-16 text-right`} type="number" step="0.5" value={c.ajuste_pct} onChange={(e) => set('ajuste_pct', parseFloat(e.target.value) || 0)} /></td>
-                          <td className="px-2 py-1.5"><input className={`${selCls} w-16 text-right`} type="number" step="1" value={c.ajuste_fijo} onChange={(e) => set('ajuste_fijo', parseFloat(e.target.value) || 0)} /></td>
-                          <td className="px-2 py-1.5 text-right tabular-nums">{fmtEur2(precioAjustado(c))}</td>
-                          <td className="px-2 py-1.5 text-right tabular-nums font-bold">{fmtEur2(importePartida(c))}</td>
-                          <td className="px-2 py-1.5 text-center"><input type="checkbox" checked={c.incluido} onChange={(e) => set('incluido', e.target.checked)} className="accent-[#22c55e] w-4 h-4" /></td>
-                          <td className="px-2 py-1.5 text-center"><input type="checkbox" checked={c.opcional} onChange={(e) => set('opcional', e.target.checked)} className="accent-[#f59e0b] w-4 h-4" title="Opcional para el cliente" /></td>
-                          <td className="px-2 py-1.5">
-                            <select className={`${selCls} !px-1`} value={c.confianza || 'media'} onChange={(e) => set('confianza', e.target.value)}>
-                              {Object.entries(CONFIANZA_LABEL).map(([v]) => <option key={v} value={v}>{v}</option>)}
-                            </select>
-                          </td>
-                          <td className="px-2 py-1.5"><button onClick={() => setConceptos((arr) => arr.filter((_, j) => j !== i))} className="text-muted hover:text-red-400"><X className="w-3.5 h-3.5" /></button></td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-                {(conceptos.some((c) => (c.ajuste_pct || 0) !== 0 || (c.ajuste_fijo || 0) !== 0)) && (
-                  <input className={`${inputCls} !text-xs mt-2`} placeholder="Justificación de los ajustes aplicados (queda guardada)"
-                    value={conceptos.find((c) => c.motivo_ajuste)?.motivo_ajuste || ''}
-                    onChange={(e) => setConceptos((arr) => arr.map((x, j) => (j === 0 ? { ...x, motivo_ajuste: e.target.value } : x)))} />
-                )}
+              <div className="space-y-2">
+                {conceptos.map((c, i) => {
+                  const set = (k: keyof PartidaFV, v: unknown) => setConceptos((arr) => arr.map((x, j) => (j === i ? { ...x, [k]: v } : x)));
+                  return (
+                    <div key={i} className={`rounded-xl border p-2.5 ${c.incluido ? 'border-border/40 bg-card/40' : 'border-border/20 bg-card/20 opacity-55'}`}>
+                      <div className="flex items-start gap-2.5">
+                        {/* Incluir / no incluir de un vistazo */}
+                        <button type="button" onClick={() => set('incluido', !c.incluido)}
+                          className={`mt-1 shrink-0 w-6 h-6 rounded-md border flex items-center justify-center text-xs font-black transition ${c.incluido ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40' : 'bg-card/60 text-muted border-border/50'}`}
+                          title={c.incluido ? 'Incluida en el presupuesto' : 'No incluida'}>
+                          {c.incluido ? '✓' : ''}
+                        </button>
+                        <div className="min-w-0 flex-1">
+                          {/* Nombre de la pieza */}
+                          <input className={`${selCls} w-full font-semibold !text-sm`} value={c.descripcion} onChange={(e) => set('descripcion', e.target.value)} placeholder="Nombre de la pieza (ej: Inversor Huawei 10 kW)" />
+                          <div className="flex items-center gap-2 mt-1 flex-wrap text-[10px] text-muted">
+                            <span className="font-mono">{c.codigo_catalogo || 'manual'}</span>
+                            {c.marca && <span>· {c.marca}</span>}
+                            {c.fuente && <span>· {c.fuente}</span>}
+                          </div>
+                          {/* Elegir de la lista de mercado (inversores y baterías) */}
+                          {(esInversor(c.concepto) || esBateria(c.concepto)) && (
+                            <button type="button" onClick={() => setPicker({ index: i, tipo: esBateria(c.concepto) ? 'baterias' : 'inversores' })}
+                              className="mt-1.5 inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-secondary/15 text-secondary border border-secondary/30 text-[11px] font-bold hover:bg-secondary/25 transition">
+                              🔁 Elegir {esBateria(c.concepto) ? 'batería' : 'inversor'} del mercado
+                            </button>
+                          )}
+                        </div>
+                        {/* Importe grande a la derecha */}
+                        <div className="text-right shrink-0">
+                          <p className="font-black text-sm tabular-nums">{fmtEur2(importePartida(c))}</p>
+                          <button onClick={() => setConceptos((arr) => arr.filter((_, j) => j !== i))} className="text-[10px] text-muted hover:text-red-400">quitar ✕</button>
+                        </div>
+                      </div>
+                      {/* Controles: cantidad · precio · opcional · confianza */}
+                      <div className="flex items-end gap-3 mt-2 flex-wrap pl-8">
+                        <label className="text-[10px] text-muted">Cantidad<br /><input className={`${selCls} w-20 text-right`} type="number" min="0" step="1" value={c.cantidad} onChange={(e) => set('cantidad', parseFloat(e.target.value) || 0)} /></label>
+                        <label className="text-[10px] text-muted">Precio/ud (€)<br /><input className={`${selCls} w-24 text-right`} type="number" min="0" step="0.01" value={c.precio_unitario} onChange={(e) => set('precio_unitario', parseFloat(e.target.value) || 0)} /></label>
+                        <label className="text-[10px] text-muted">Confianza<br /><select className={`${selCls} !px-1.5`} value={c.confianza || 'media'} onChange={(e) => set('confianza', e.target.value)}>{Object.entries(CONFIANZA_LABEL).map(([v, n]) => <option key={v} value={v}>{n}</option>)}</select></label>
+                        <label className="flex items-center gap-1.5 text-[10px] text-muted cursor-pointer pb-1.5">
+                          <input type="checkbox" checked={c.opcional} onChange={(e) => set('opcional', e.target.checked)} className="accent-[#f59e0b] w-4 h-4" />
+                          Opcional para el cliente
+                        </label>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
             {modo === 'partidas' && (
@@ -666,31 +936,27 @@ ${form.observaciones ? `<p class="muted">Observaciones: ${form.observaciones}</p
             )}
           </Card>
 
-          {/* Fases 2 y 3: consumo, escenarios y rentabilidad */}
-          <EnergiaEscenarios
-            energia={energia} setEnergia={setEnergia}
-            hipotesis={hipotesis} setHipotesis={setHipotesis}
-            potenciaActual={potencia}
-            precioSinIva={resultado.precio_sin_iva}
-            precioConIva={resultado.precio_con_iva}
-            onAplicarPotencia={(kw) => setForm((f) => ({ ...f, potencia_kw: String(kw) }))}
-            catalogo={catalogo}
-            onMontarPresupuesto={(kwp, codigos) => {
-              const partidas = codigos
-                .map((c) => {
-                  const pt = partidaDesdeCatalogo(c.codigo, c.cantidad);
-                  if (!pt) return null;
-                  return { ...pt, confianza: c.confianza || pt.confianza, observaciones: c.nota || pt.observaciones, fuente: (pt.fuente || '') + ' · recomendación automática' };
-                })
-                .filter(Boolean) as PartidaFV[];
-              setModo('partidas');
-              setForm((f) => ({ ...f, potencia_kw: String(kwp) }));
-              setConceptos(partidas);
-              setMsg('🪄 Presupuesto montado con la recomendación: revisa inversor, batería e instalación antes de aprobar.');
-            }}
-          />
+          {/* Flujo de Óscar: el estudio de ahorro es opcional y va plegado */}
+          {modo === 'simple' && (
+            mostrarEstudio ? (
+              <>
+                <div className="flex justify-end">
+                  <button onClick={() => setMostrarEstudio(false)} className="text-[11px] font-semibold text-muted hover:text-foreground underline underline-offset-2">
+                    Ocultar estudio de ahorro
+                  </button>
+                </div>
+                {bloqueEnergia}
+              </>
+            ) : (
+              <button onClick={() => setMostrarEstudio(true)}
+                className="w-full text-left p-4 rounded-2xl border border-dashed border-secondary/40 text-secondary hover:bg-secondary/5 hover:border-secondary/70 transition text-xs font-bold">
+                ➕ Añadir estudio de ahorro al presupuesto (opcional) — consumo, escenarios y amortización
+              </button>
+            )
+          )}
 
           {/* Documentación (enlaces) */}
+          {esDim && <Paso n={4} titulo="Documentación (opcional)" desc="Adjunta factura, planos o el presupuesto de Óscar" />}
           <Card className="space-y-2.5">
             <h3 className="font-bold text-sm">📁 Documentación</h3>
             <p className="text-[11px] text-muted">
@@ -789,6 +1055,36 @@ ${form.observaciones ? `<p class="muted">Observaciones: ${form.observaciones}</p
           </p>
         </div>
       </div>
+
+      {/* Selector visual de inversor / batería del mercado */}
+      {picker && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/70 backdrop-blur-sm p-4" onClick={() => setPicker(null)}>
+          <div className="w-full max-w-2xl max-h-[85vh] overflow-y-auto rounded-2xl bg-surface border border-accent/30 shadow-2xl p-4 space-y-3" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between gap-3 sticky top-0 bg-surface pb-1">
+              <h3 className="font-black text-sm">{picker.tipo === 'baterias' ? '🔋 Elige la batería' : '⚡ Elige el inversor'}</h3>
+              <button onClick={() => setPicker(null)} className="text-muted hover:text-foreground"><X className="w-4 h-4" /></button>
+            </div>
+            <p className="text-[11px] text-muted">Precios de mercado orientativos (material, con IVA, enero 2026). Pulsa uno para ponerlo en el presupuesto.</p>
+            <div className="grid sm:grid-cols-2 gap-2">
+              {opcionesPicker.map((r) => {
+                const unidad = picker.tipo === 'baterias' ? 'kWh' : 'kW';
+                return (
+                  <button key={`${r.marca}-${r.modelo}`} onClick={() => elegirEquipo(r)}
+                    className="text-left p-3 rounded-xl border border-border/40 bg-card/50 hover:border-accent/60 hover:bg-accent/5 transition">
+                    <div className="flex items-baseline justify-between gap-2">
+                      <span className="text-lg font-black tabular-nums text-secondary">{r.medida} {unidad}</span>
+                      <span className="text-sm font-black tabular-nums">{fmtEur2(r.precio)}</span>
+                    </div>
+                    <p className="text-xs font-bold text-foreground mt-0.5 leading-tight">{r.marca} {r.modelo}</p>
+                    <p className="text-[10px] text-muted mt-0.5">{r.detalle}</p>
+                    <p className="text-[10px] text-muted/70 mt-0.5">{fmtEur2(r2(r.precio / r.medida))}/{unidad}</p>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
