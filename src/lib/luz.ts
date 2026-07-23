@@ -352,6 +352,16 @@ export interface LuzVisita {
   luz_clientes?: { nombre: string } | null;
 }
 
+export interface LuzProyecto {
+  id: string;
+  cliente_id: string | null;
+  titulo: string;
+  datos: Record<string, unknown>;
+  creado_en?: string;
+  actualizado_en?: string;
+  luz_clientes?: { nombre: string } | null;
+}
+
 export interface LuzTarea {
   id: string;
   cliente_id: string | null;

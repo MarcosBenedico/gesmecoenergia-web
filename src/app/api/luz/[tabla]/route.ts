@@ -98,6 +98,14 @@ const TABLAS: Record<string, DefTabla> = {
     orden: { col: 'fecha', asc: false },
     colFecha: 'fecha',
   },
+  proyectos: {
+    tabla: 'luz_proyectos',
+    select: '*, luz_clientes(nombre)',
+    columnas: ['cliente_id', 'titulo', 'datos'],
+    filtros: ['cliente_id'],
+    buscarEn: 'titulo',
+    orden: { col: 'creado_en', asc: false },
+  },
   config: {
     tabla: 'luz_config',
     select: '*',
