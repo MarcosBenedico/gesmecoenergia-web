@@ -1,10 +1,11 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Plus, RefreshCw, Trash2, GitMerge, Pencil, X } from 'lucide-react';
+import { Plus, RefreshCw, Trash2, GitMerge, Pencil, X, Trophy } from 'lucide-react';
 import { ROL_LABEL } from '@/lib/correbin';
 import { Card, guardarLuz, inputCls, labelCls, btnPrimario, btnSecundario } from '../ui';
 import { tokenSesion } from '@/lib/usuario';
+import { LogrosComercial } from './logros';
 
 async function cabeceraSesion(): Promise<Record<string, string>> {
   const token = await tokenSesion();
@@ -33,6 +34,7 @@ export default function EquipoPage() {
   const [nuevo, setNuevo] = useState({ nombre: '', rol: 'comercial' });
   const [fusion, setFusion] = useState<{ origen: string; destino: string } | null>(null);
   const [renombrando, setRenombrando] = useState<{ id: string; de: string; a: string } | null>(null);
+  const [verLogrosDe, setVerLogrosDe] = useState<string | null>(null);
 
   const cargar = useCallback(async () => {
     setCargando(true);
@@ -235,7 +237,17 @@ export default function EquipoPage() {
                       {r.activo ? 'Activo' : 'Inactivo'}
                     </button>
                   </td>
-                  <td className="px-4 py-2.5 text-right">
+                  <td className="px-4 py-2.5 text-right whitespace-nowrap">
+                    {r.rol === 'comercial' && (
+                      <button
+                        onClick={() => setVerLogrosDe(verLogrosDe === r.nombre ? null : r.nombre)}
+                        className={`mr-2 inline-flex items-center gap-1 px-2 py-1 rounded-full border text-[10px] font-bold transition ${
+                          verLogrosDe === r.nombre ? 'bg-amber-500/15 text-amber-300 border-amber-500/40' : 'bg-card/80 text-muted border-border/50 hover:text-amber-300 hover:border-amber-500/40'
+                        }`}
+                        title="Ver perfil de logros">
+                        <Trophy className="w-3 h-3" /> Logros
+                      </button>
+                    )}
                     <button onClick={() => eliminar(r)} className="text-muted hover:text-red-400 transition" title={total > 0 ? 'Tiene registros: fusiona o desactiva' : 'Eliminar'}>
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -247,6 +259,17 @@ export default function EquipoPage() {
         </table>
         {responsables.length === 0 && !cargando && <p className="text-sm text-muted text-center py-8">Sin responsables dados de alta.</p>}
       </Card>
+
+      {/* Perfil de logros del comercial seleccionado */}
+      {verLogrosDe && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <h3 className="font-black text-sm flex items-center gap-1.5"><Trophy className="w-4 h-4 text-amber-300" /> Perfil de logros · {verLogrosDe}</h3>
+            <button onClick={() => setVerLogrosDe(null)} className="text-muted hover:text-foreground"><X className="w-4 h-4" /></button>
+          </div>
+          <LogrosComercial responsable={verLogrosDe} />
+        </div>
+      )}
 
       {/* Nombres que aparecen en datos pero no están dados de alta */}
       {nombresEnDatos.filter((n) => !nombresAlta.has(n.toLowerCase())).length > 0 && (
