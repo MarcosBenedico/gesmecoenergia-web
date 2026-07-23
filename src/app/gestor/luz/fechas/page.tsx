@@ -10,8 +10,10 @@ import {
 } from '@/lib/luz';
 import { BotonDescarga, Card, BadgePrioridad, BadgeVencimiento, EstadoCarga, useListaLuz, guardarLuz, inputCls, labelCls, btnPrimario, btnSecundario, SelectorResponsable } from '../ui';
 import { Consejo } from '../consejo';
+import { PedirMotivo } from '../motivo';
+import { MOTIVOS_ELIMINACION } from '@/lib/luz';
 
-const FECHA_VACIA = { cliente_id: '', cups_id: '', tipo_fecha: 'fin_contrato', fecha: '', descripcion: '', responsable: '' };
+const FECHA_VACIA = { cliente_id: '', cups_id: '', tipo_fecha: 'fin_contrato', fecha: '', descripcion: '', responsable: '', titulo_personalizado: '' };
 
 const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 const DIAS_SEMANA = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
@@ -36,6 +38,7 @@ function FechasContenido() {
   const [arrastrando, setArrastrando] = useState<string | null>(null);
   const [diaActivo, setDiaActivo] = useState<string | null>(null);
   const [diasExpandidos, setDiasExpandidos] = useState<Set<string>>(new Set());
+  const [detalle, setDetalle] = useState<LuzFechaCritica | null>(null);
   const clientes = useListaLuz<LuzCliente>('clientes');
   const cups = useListaLuz<LuzCups>('cups');
 
@@ -127,6 +130,9 @@ function FechasContenido() {
     const cliente = clientes.datos.find((c) => c.id === form.cliente_id);
     if (!cliente) { setErrorForm('Selecciona el cliente.'); return; }
     if (!form.fecha) { setErrorForm('Indica la fecha.'); return; }
+    if (form.tipo_fecha === 'personalizada' && !form.titulo_personalizado.trim()) {
+      setErrorForm('Escribe el nombre de la fecha personalizada.'); return;
+    }
     setErrorForm('');
     const cupsSel = cups.datos.find((c) => c.id === form.cups_id);
     const err = await guardarLuz('fechas', 'POST', {
@@ -134,7 +140,9 @@ function FechasContenido() {
       cups_id: form.cups_id || null,
       tipo_fecha: form.tipo_fecha,
       fecha: form.fecha,
-      titulo: tituloFechaCritica(cliente.nombre, cupsSel?.cups || '', form.tipo_fecha, cupsSel?.comercializadora_actual),
+      titulo: form.tipo_fecha === 'personalizada'
+        ? `LUZ - ${cliente.nombre} - ${form.titulo_personalizado.trim()}`
+        : tituloFechaCritica(cliente.nombre, cupsSel?.cups || '', form.tipo_fecha, cupsSel?.comercializadora_actual),
       descripcion: form.descripcion || null,
       prioridad: cliente.prioridad || 'C',
       responsable: form.responsable || cliente.responsable || null,
@@ -150,10 +158,21 @@ function FechasContenido() {
     recargar();
   }
 
-  async function borrarFecha(f: LuzFechaCritica) {
-    if (!confirm(`¿Eliminar la fecha crítica "${f.titulo}"?`)) return;
-    await guardarLuz('fechas', 'DELETE', { id: f.id });
+  // Eliminar con motivo: la justificación queda en la auditoría (Control General)
+  const [borrando, setBorrando] = useState<LuzFechaCritica | null>(null);
+  async function confirmarBorrado(motivo: string) {
+    if (!borrando) return;
+    const f = borrando;
+    const nota = `[Eliminada ${new Date().toLocaleDateString('es-ES')}] Motivo: ${motivo}`;
+    await guardarLuz('fechas', 'PUT', { id: f.id, descripcion: f.descripcion ? `${f.descripcion}\n${nota}` : nota });
+    const err = await guardarLuz('fechas', 'DELETE', { id: f.id });
+    if (err) setMsgGen(`No se pudo eliminar: ${err}`);
+    setBorrando(null);
+    setDetalle(null);
     recargar();
+  }
+  function borrarFecha(f: LuzFechaCritica) {
+    setBorrando(f);
   }
 
   /** Soltar una fecha crítica en otro día del calendario → se guarda al momento. */
@@ -223,8 +242,17 @@ function FechasContenido() {
                 <label className={labelCls}>Tipo de fecha</label>
                 <select className={inputCls} value={form.tipo_fecha} onChange={(e) => setForm({ ...form, tipo_fecha: e.target.value })}>
                   {TIPOS_FECHA.map((t) => <option key={t} value={t}>{TIPO_FECHA_LABEL[t]}</option>)}
+                  <option value="personalizada">✏️ Otro (nombre personalizado)…</option>
                 </select>
               </div>
+              {form.tipo_fecha === 'personalizada' && (
+                <div className="md:col-span-2">
+                  <label className={labelCls}>Nombre personalizado *</label>
+                  <input className={inputCls} value={form.titulo_personalizado} autoFocus
+                    onChange={(e) => setForm({ ...form, titulo_personalizado: e.target.value })}
+                    placeholder="P. ej. Cita con el instalador, Entrega de documentación..." />
+                </div>
+              )}
               <div><label className={labelCls}>Fecha *</label><input className={inputCls} type="date" value={form.fecha} onChange={(e) => setForm({ ...form, fecha: e.target.value })} /></div>
               <div>
                 <label className={labelCls}>Responsable</label>
@@ -301,16 +329,17 @@ function FechasContenido() {
                   <p className={`text-[11px] font-bold ${esHoy ? 'text-accent' : 'text-muted'}`}>{dia}</p>
                   <div className="space-y-1 mt-1">
                     {visibles.map((f) => (
-                      <Link key={f.id} href={`/gestor/luz/clientes/${f.cliente_id}`}
+                      <button key={f.id} type="button"
                         draggable
                         onDragStart={(e) => { e.dataTransfer.setData('text/plain', f.id); e.dataTransfer.effectAllowed = 'move'; setArrastrando(f.id); }}
                         onDragEnd={() => { setArrastrando(null); setDiaActivo(null); }}
-                        className={`block text-[10px] leading-tight px-1.5 py-1 rounded border truncate hover:brightness-125 transition cursor-grab active:cursor-grabbing ${
+                        onClick={() => setDetalle(f)}
+                        className={`block w-full text-left text-[10px] leading-tight px-1.5 py-1 rounded border truncate hover:brightness-125 transition cursor-grab active:cursor-grabbing ${
                           TIPO_FECHA_TONO[f.tipo_fecha] || 'bg-card/60 text-muted border-border/30'
                         } ${arrastrando === f.id ? 'opacity-40' : ''}`}
-                        title={`${f.titulo} — arrastra a otro día para cambiar la fecha`}>
+                        title={`${f.titulo} — clic para ver el detalle · arrastra a otro día para cambiar la fecha`}>
                         {f.titulo.replace(/^LUZ - /, '')}
-                      </Link>
+                      </button>
                     ))}
                     {lista.length > 3 && (
                       <button
@@ -333,9 +362,48 @@ function FechasContenido() {
             {TIPOS_FECHA.map((t) => (
               <span key={t} className={`px-2 py-0.5 rounded-full border text-[10px] font-semibold ${TIPO_FECHA_TONO[t]}`}>{TIPO_FECHA_LABEL[t]}</span>
             ))}
-            <span className="text-[10px] text-muted/70 italic ml-auto">💡 Arrastra un evento a otro día para cambiar su fecha</span>
+            <span className="text-[10px] text-muted/70 italic ml-auto">💡 Clic en un evento para ver su detalle · arrastra a otro día para cambiar su fecha</span>
           </div>
         </Card>
+      )}
+
+      {/* ── Detalle de una fecha crítica (clic en el calendario) ── */}
+      {detalle && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/70 backdrop-blur-sm p-4" onClick={() => setDetalle(null)}>
+          <div className="w-full max-w-md rounded-2xl p-5 bg-surface border border-accent/30 shadow-2xl space-y-3" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <span className={`inline-block px-2 py-0.5 rounded-full border text-[10px] font-semibold mb-1.5 ${TIPO_FECHA_TONO[detalle.tipo_fecha] || 'bg-card/60 text-muted border-border/30'}`}>
+                  {TIPO_FECHA_LABEL[detalle.tipo_fecha] || 'Personalizada'}
+                </span>
+                <h3 className="font-bold text-sm leading-snug">{detalle.titulo.replace(/^LUZ - /, '')}</h3>
+              </div>
+              <button onClick={() => setDetalle(null)} className="text-muted hover:text-foreground shrink-0"><X className="w-4 h-4" /></button>
+            </div>
+            <div className="text-xs space-y-1.5">
+              <p><span className="text-muted">📅 Fecha:</span> <b>{fmtFecha(detalle.fecha)}</b> {(() => { const d = diasHasta(detalle.fecha); return d != null ? <span className={d < 0 ? 'text-red-400' : d <= 7 ? 'text-amber-300' : 'text-muted'}>({d < 0 ? `hace ${-d} días` : d === 0 ? 'hoy' : `en ${d} días`})</span> : null; })()}</p>
+              {detalle.descripcion && <p className="whitespace-pre-wrap"><span className="text-muted">📝 Descripción:</span> {detalle.descripcion}</p>}
+              {detalle.responsable && <p><span className="text-muted">👤 Responsable:</span> {detalle.responsable}</p>}
+              {detalle.prioridad && <p><span className="text-muted">Prioridad:</span> {detalle.prioridad}</p>}
+            </div>
+            <div className="flex gap-2">
+              <Link href={`/gestor/luz/clientes/${detalle.cliente_id}`} className={`${btnPrimario} flex-1 justify-center`}>
+                Ver ficha del cliente →
+              </Link>
+              <button onClick={() => setDetalle(null)} className={btnSecundario}>Cerrar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {borrando && (
+        <PedirMotivo
+          titulo="¿Por qué se elimina esta fecha crítica?"
+          subtitulo={`"${borrando.titulo}" — el motivo queda registrado en el Control General.`}
+          sugerencias={MOTIVOS_ELIMINACION}
+          onGuardar={confirmarBorrado}
+          onCancelar={() => setBorrando(null)}
+        />
       )}
 
       {!cargando && vista === 'listado' && (

@@ -9,7 +9,7 @@ import {
   TIPOS_CLIENTE, TIPO_CLIENTE_LABEL, PRIORIDADES, PRIORIDAD_LABEL, ESTADOS_CLIENTE, ESTADO_CLIENTE_LABEL,
   TARIFAS_ACCESO, ESTADOS_CUPS, ESTADO_CUPS_LABEL, ESTADO_PIPELINE_LABEL, ESTADOS_CONTRATO, ESTADO_CONTRATO_LABEL,
   ESTADOS_COMISION, ESTADO_COMISION_LABEL, TIPOS_COMISION, TIPO_COMISION_LABEL, TIPOS_FECHA, TIPO_FECHA_LABEL,
-  TIPOS_TAREA, TIPO_TAREA_LABEL, TAREAS_ABIERTAS, TIPOS_OPORTUNIDAD,
+  TIPOS_TAREA, TIPO_TAREA_LABEL, TAREAS_ABIERTAS, TIPOS_OPORTUNIDAD, MOTIVOS_ELIMINACION,
   TIPO_OPORTUNIDAD_LABEL, tituloFechaCritica, fmtEur, fmtFecha, fmtKwh, normCups,
 } from '@/lib/luz';
 import {
@@ -17,6 +17,7 @@ import {
   inputCls, labelCls, btnPrimario, btnSecundario, SelectorResponsable,
 } from '../../ui';
 import { ProximaAccion, TareasCliente, HistorialCliente, VisitasYFV } from './componentes';
+import { PedirMotivo } from '../../motivo';
 
 const CUPS_VACIO = {
   cups: '', alias_suministro: '', direccion_suministro: '', tarifa_acceso: '2.0TD',
@@ -43,7 +44,9 @@ export default function FichaClienteLuz() {
   const [editCupsId, setEditCupsId] = useState<string | null>(null);
   const [formEditCups, setFormEditCups] = useState<Record<string, string>>({});
   const [formOp, setFormOp] = useState<{ tipo_oportunidad: string; comision_potencial: string; proxima_accion: string; fecha_proxima_accion: string } | null>(null);
-  const [formFecha, setFormFecha] = useState<{ tipo_fecha: string; fecha: string; descripcion: string; cups_id: string } | null>(null);
+  const [formFecha, setFormFecha] = useState<{ tipo_fecha: string; fecha: string; descripcion: string; cups_id: string; titulo_personalizado: string } | null>(null);
+  const [editFecha, setEditFecha] = useState<{ id: string; titulo: string; fecha: string; descripcion: string } | null>(null);
+  const [borrandoFecha, setBorrandoFecha] = useState<LuzFechaCritica | null>(null);
   const [formContrato, setFormContrato] = useState<{ comercializadora_final: string; estado_contrato: string; fecha_activacion_prevista: string } | null>(null);
   const [formCom, setFormCom] = useState<{ comercializadora: string; tipo_comision: string; importe_previsto: string; fecha_prevista_cobro: string } | null>(null);
   const [msg, setMsg] = useState('');
@@ -167,16 +170,46 @@ export default function FichaClienteLuz() {
   async function crearFecha(e: React.FormEvent) {
     e.preventDefault();
     if (!formFecha?.fecha || !cliente) { setMsg('Indica la fecha.'); return; }
+    if (formFecha.tipo_fecha === 'personalizada' && !formFecha.titulo_personalizado.trim()) {
+      setMsg('Escribe el nombre de la fecha personalizada.'); return;
+    }
     const cupsSel = cups.datos.find((c) => c.id === formFecha.cups_id);
     const err = await guardarLuz('fechas', 'POST', {
       cliente_id: clienteId, cups_id: formFecha.cups_id || null,
       tipo_fecha: formFecha.tipo_fecha, fecha: formFecha.fecha,
-      titulo: tituloFechaCritica(cliente.nombre, cupsSel?.cups || '', formFecha.tipo_fecha, cupsSel?.comercializadora_actual),
+      titulo: formFecha.tipo_fecha === 'personalizada'
+        ? `LUZ - ${cliente.nombre} - ${formFecha.titulo_personalizado.trim()}`
+        : tituloFechaCritica(cliente.nombre, cupsSel?.cups || '', formFecha.tipo_fecha, cupsSel?.comercializadora_actual),
       descripcion: formFecha.descripcion || null,
       prioridad: cliente.prioridad || 'C', responsable: cliente.responsable,
     });
     if (err) { setMsg(err); return; }
     setFormFecha(null); setMsg('');
+    fechas.recargar();
+  }
+
+  async function guardarEdicionFecha(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editFecha) return;
+    const err = await guardarLuz('fechas', 'PUT', {
+      id: editFecha.id, titulo: editFecha.titulo, fecha: editFecha.fecha,
+      descripcion: editFecha.descripcion || null,
+    });
+    if (err) { setMsg(err); return; }
+    setEditFecha(null); setMsg('');
+    fechas.recargar();
+  }
+
+  /** Eliminar fecha crítica con motivo: la nota queda en la auditoría (Control General). */
+  async function eliminarFechaConMotivo(motivo: string) {
+    if (!borrandoFecha) return;
+    const f = borrandoFecha;
+    const nota = `[Eliminada ${new Date().toLocaleDateString('es-ES')}] Motivo: ${motivo}`;
+    await guardarLuz('fechas', 'PUT', { id: f.id, descripcion: f.descripcion ? `${f.descripcion}\n${nota}` : nota });
+    const err = await guardarLuz('fechas', 'DELETE', { id: f.id });
+    if (err) setMsg(`No se pudo eliminar: ${err}`);
+    else setMsg('');
+    setBorrandoFecha(null);
     fechas.recargar();
   }
 
@@ -486,7 +519,7 @@ export default function FichaClienteLuz() {
         <Card>
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-bold text-foreground">Fechas críticas</h3>
-            <button onClick={() => setFormFecha(formFecha ? null : { tipo_fecha: 'fin_contrato', fecha: '', descripcion: '', cups_id: '' })} className={btnSecundario}>
+            <button onClick={() => setFormFecha(formFecha ? null : { tipo_fecha: 'fin_contrato', fecha: '', descripcion: '', cups_id: '', titulo_personalizado: '' })} className={btnSecundario}>
               {formFecha ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />} Fecha
             </button>
           </div>
@@ -495,9 +528,15 @@ export default function FichaClienteLuz() {
               <div className="grid grid-cols-2 gap-2">
                 <select className={inputCls} value={formFecha.tipo_fecha} onChange={(e) => setFormFecha({ ...formFecha, tipo_fecha: e.target.value })}>
                   {TIPOS_FECHA.map((t) => <option key={t} value={t}>{TIPO_FECHA_LABEL[t]}</option>)}
+                  <option value="personalizada">✏️ Otro (nombre personalizado)…</option>
                 </select>
                 <input className={inputCls} type="date" value={formFecha.fecha} onChange={(e) => setFormFecha({ ...formFecha, fecha: e.target.value })} />
               </div>
+              {formFecha.tipo_fecha === 'personalizada' && (
+                <input className={inputCls} value={formFecha.titulo_personalizado} autoFocus
+                  onChange={(e) => setFormFecha({ ...formFecha, titulo_personalizado: e.target.value })}
+                  placeholder="Nombre de la fecha (p. ej. Cita con el instalador, Entrega de documentación...)" />
+              )}
               <select className={inputCls} value={formFecha.cups_id} onChange={(e) => setFormFecha({ ...formFecha, cups_id: e.target.value })}>
                 <option value="">— Todo el cliente (sin CUPS concreto) —</option>
                 {cups.datos.map((c) => <option key={c.id} value={c.id}>{c.alias_suministro || c.cups}</option>)}
@@ -510,17 +549,37 @@ export default function FichaClienteLuz() {
             <div className="space-y-1.5">
               {fechas.datos.map((f) => {
                 const cupsF = f.cups_id ? cups.datos.find((c) => c.id === f.cups_id) : null;
+                if (editFecha?.id === f.id) {
+                  return (
+                    <form key={f.id} onSubmit={guardarEdicionFecha} className="space-y-2 p-2.5 rounded-lg bg-card/60 border border-accent/40">
+                      <input className={inputCls} value={editFecha.titulo} onChange={(e) => setEditFecha({ ...editFecha, titulo: e.target.value })} placeholder="Nombre de la fecha crítica" required />
+                      <div className="grid grid-cols-2 gap-2">
+                        <input className={inputCls} type="date" value={editFecha.fecha} onChange={(e) => setEditFecha({ ...editFecha, fecha: e.target.value })} required />
+                        <input className={inputCls} value={editFecha.descripcion} onChange={(e) => setEditFecha({ ...editFecha, descripcion: e.target.value })} placeholder="Descripción" />
+                      </div>
+                      <div className="flex gap-2">
+                        <button type="submit" className={btnPrimario}>Guardar</button>
+                        <button type="button" onClick={() => setEditFecha(null)} className={btnSecundario}>Cancelar</button>
+                      </div>
+                    </form>
+                  );
+                }
                 return (
                   <div key={f.id} className="flex items-center justify-between gap-2 p-2.5 rounded-lg bg-card/60">
                     <div className="min-w-0">
                       <p className="text-xs font-semibold truncate">{f.titulo}</p>
+                      {f.descripcion && <p className="text-[10px] text-muted truncate">{f.descripcion}</p>}
                       {cupsF && <p className="text-[10px] text-muted truncate">🔌 {cupsF.alias_suministro || cupsF.cups}</p>}
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
                       <BadgeVencimiento fecha={f.fecha} />
                       <button
-                        onClick={async () => { if (confirm(`¿Eliminar "${f.titulo}"?`)) { await guardarLuz('fechas', 'DELETE', { id: f.id }); fechas.recargar(); } }}
-                        className="text-muted hover:text-red-400 text-xs" title="Eliminar"
+                        onClick={() => setEditFecha({ id: f.id, titulo: f.titulo, fecha: f.fecha, descripcion: f.descripcion || '' })}
+                        className="text-muted hover:text-accent" title="Editar"
+                      ><Pencil className="w-3.5 h-3.5" /></button>
+                      <button
+                        onClick={() => setBorrandoFecha(f)}
+                        className="text-muted hover:text-red-400 text-xs" title="Eliminar (pide motivo)"
                       >✕</button>
                     </div>
                   </div>
@@ -611,6 +670,16 @@ export default function FichaClienteLuz() {
         {/* Historial de modificaciones (auditoría) */}
         <HistorialCliente clienteId={clienteId} />
       </div>
+
+      {borrandoFecha && (
+        <PedirMotivo
+          titulo="¿Por qué se elimina esta fecha crítica?"
+          subtitulo={`"${borrandoFecha.titulo}" — el motivo queda registrado en el Control General.`}
+          sugerencias={MOTIVOS_ELIMINACION}
+          onGuardar={eliminarFechaConMotivo}
+          onCancelar={() => setBorrandoFecha(null)}
+        />
+      )}
     </div>
   );
 }
