@@ -16,7 +16,7 @@ import {
 } from '@/lib/fv';
 import { Card, EstadoCarga, useListaLuz, inputCls, labelCls, btnPrimario, btnSecundario, SelectorResponsable } from '../ui';
 import { tokenSesion } from '@/lib/usuario';
-import { EnergiaEscenarios, EnergiaFV, HipotesisFV, ENERGIA_VACIA, HIPOTESIS_DEFECTO } from './energia';
+import { EnergiaEscenarios, EnergiaFV, HipotesisFV, ENERGIA_VACIA, HIPOTESIS_DEFECTO, ItemPresupuesto } from './energia';
 import { supabase } from '@/lib/supabase';
 
 const BUCKET_FV = 'documentos_fv';
@@ -720,9 +720,20 @@ ${form.observaciones ? `<p class="muted">Observaciones: ${form.observaciones}</p
       perfil={form.perfil}
       simulacion={simulacion}
       capacidadBateria={capacidadBateria}
-      onMontarPresupuesto={(kwp, codigos, pctAutoEfectivo) => {
+      onMontarPresupuesto={(kwp, codigos: ItemPresupuesto[], pctAutoEfectivo) => {
         const partidas = codigos
           .map((c) => {
+            // Partida de mercado (p. ej. combinación más económica): no viene del catálogo de Óscar
+            if (c.precio_override != null) {
+              return {
+                ...PARTIDA_NUEVA,
+                concepto: c.concepto_override || 'Otros', codigo_catalogo: null,
+                descripcion: c.descripcion_override || c.codigo, marca: c.marca_override || null,
+                cantidad: c.cantidad, precio_unitario: c.precio_override,
+                confianza: c.confianza || 'alta', observaciones: c.nota || '',
+                fuente: 'Precio de mercado (combinación más económica)',
+              } as PartidaFV;
+            }
             const pt = partidaDesdeCatalogo(c.codigo, c.cantidad);
             if (!pt) return null;
             return { ...pt, confianza: c.confianza || pt.confianza, observaciones: c.nota || pt.observaciones, fuente: (pt.fuente || '') + ' · recomendación automática' };
