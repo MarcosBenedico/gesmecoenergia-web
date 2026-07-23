@@ -49,6 +49,17 @@ export const ESTADO_CLIENTE_LABEL: Record<string, string> = {
   no_viable: 'No viable', revisar_adelante: 'Revisar más adelante',
 };
 
+// ── Vía de entrada del cliente: cómo ha llegado y qué toca hacer con él ──
+export const VIAS_ENTRADA = ['facturas', 'captacion'] as const;
+export const VIA_ENTRADA_LABEL: Record<string, string> = {
+  facturas: '📄 Con facturas · estudio pendiente',
+  captacion: '🧲 Captación en ruta · seguimiento',
+};
+export const VIA_ENTRADA_CORTA: Record<string, string> = {
+  facturas: '📄 Estudio',
+  captacion: '🧲 Captación',
+};
+
 // ── Tarifas de acceso ──
 export const TARIFAS_ACCESO = ['2.0TD', '3.0TD', '6.1TD', '6.2TD', 'otra'] as const;
 
@@ -218,6 +229,7 @@ export interface LuzCliente {
   estado_comercial: string;
   potencial_comercial: string | null;
   origen_cliente: string | null;
+  via_entrada?: string | null;
   observaciones: string | null;
   fecha_ultimo_contacto: string | null;
   fecha_proxima_accion: string | null;

@@ -60,7 +60,7 @@ export default function AltaGuiadaPage() {
   // ── Formularios de cada paso ──
   const [fCliente, setFCliente] = useState({
     nombre: '', telefono: '', direccion_fiscal: '', tipo_cliente: 'pyme',
-    prioridad: 'C', responsable: '', persona_contacto: '',
+    prioridad: 'C', responsable: '', persona_contacto: '', via_entrada: 'captacion',
   });
   const [fCups, setFCups] = useState({
     cups: '', alias_suministro: '', direccion_suministro: '', tarifa_acceso: '2.0TD',
@@ -76,7 +76,12 @@ export default function AltaGuiadaPage() {
   async function guardarPaso1() {
     if (!fCliente.nombre.trim()) { setError('El nombre del cliente es obligatorio.'); return; }
     setGuardando(true); setError('');
-    const res = await crearConId('clientes', { ...fCliente, estado_comercial: 'contacto_iniciado', responsable: fCliente.responsable || null });
+    // Si ya nos ha dado las facturas, el estado arranca en "Documentación recibida"
+    const res = await crearConId('clientes', {
+      ...fCliente,
+      estado_comercial: fCliente.via_entrada === 'facturas' ? 'doc_recibida' : 'contacto_iniciado',
+      responsable: fCliente.responsable || null,
+    });
     setGuardando(false);
     if (!res?.ok) { setError(res?.json?.error || 'No se pudo crear el cliente.'); return; }
     setClienteId(res.json.dato.id);
@@ -196,6 +201,29 @@ export default function AltaGuiadaPage() {
       {paso === 1 && (
         <Card className="space-y-3">
           <h3 className="font-bold text-foreground">👤 ¿Quién es el cliente?</h3>
+
+          {/* Vía de entrada: la primera decisión — marca qué toca hacer con él */}
+          <div className="grid sm:grid-cols-2 gap-2">
+            {([
+              ['captacion', '🧲 Posible cliente (captación)', 'Contactado por David en sus rutas. Toca hacer seguimiento de la factura y de la fotovoltaica si le interesa.'],
+              ['facturas', '📄 Ya nos ha dado las facturas', 'Toca hacerle el estudio y quedar en persona para presentárselo.'],
+            ] as const).map(([valor, titulo, texto]) => (
+              <button
+                key={valor}
+                type="button"
+                onClick={() => setFCliente({ ...fCliente, via_entrada: valor })}
+                className={`text-left rounded-xl border p-3 transition ${
+                  fCliente.via_entrada === valor
+                    ? 'border-accent bg-accent/10 ring-1 ring-accent/40'
+                    : 'border-border/40 bg-card/50 hover:border-border/70'
+                }`}
+              >
+                <p className="text-xs font-bold">{titulo}</p>
+                <p className="text-[11px] text-muted mt-0.5">{texto}</p>
+              </button>
+            ))}
+          </div>
+
           <div className="grid md:grid-cols-2 gap-3">
             <div className="md:col-span-2"><label className={labelCls}>Nombre / Razón social *</label>
               <input className={inputCls} value={fCliente.nombre} onChange={(e) => setFCliente({ ...fCliente, nombre: e.target.value })} autoFocus /></div>

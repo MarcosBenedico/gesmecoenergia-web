@@ -37,7 +37,7 @@ export default function RutasPage() {
   const visitas = useListaLuz<LuzVisita>('visitas');
   const [buscar, setBuscar] = useState('');
   const [fResp, setFResp] = useState('David');
-  const [fVista, setFVista] = useState<'todos' | 'fv' | 'prioridadA' | 'olvidados' | 'visitadosHoy'>('todos');
+  const [fVista, setFVista] = useState<'todos' | 'fv' | 'prioridadA' | 'olvidados' | 'visitadosHoy' | 'captacion' | 'facturas'>('todos');
   const [fFechaVisita, setFFechaVisita] = useState('');
   const [seleccion, setSeleccion] = useState<Map<string, Parada>>(new Map());
   const [origen, setOrigen] = useState(ORIGEN_DEFECTO);
@@ -75,13 +75,13 @@ export default function RutasPage() {
     const HOY = new Date().toISOString().slice(0, 10);
     const q = buscar.trim().toLowerCase();
     const deResp = (r: string | null) => !fResp || (r || '').toLowerCase().includes(fResp.toLowerCase());
-    const lista: (Parada & { tipo: 'cliente' | 'cups'; prioridad?: string; fecha_ultimo_contacto?: string | null; interesFV?: boolean })[] = [];
+    const lista: (Parada & { tipo: 'cliente' | 'cups'; prioridad?: string; fecha_ultimo_contacto?: string | null; interesFV?: boolean; via_entrada?: string | null })[] = [];
 
     for (const c of clientes.datos) {
       if (!c.direccion_fiscal?.trim()) continue;
       if (!deResp(c.responsable)) continue;
       if (q && !c.nombre.toLowerCase().includes(q)) continue;
-      lista.push({ id: `c-${c.id}`, cliente_id: c.id, nombre: c.nombre, direccion: c.direccion_fiscal, tipo: 'cliente', prioridad: c.prioridad, fecha_ultimo_contacto: c.fecha_ultimo_contacto, interesFV: interesadosFV.has(c.id) });
+      lista.push({ id: `c-${c.id}`, cliente_id: c.id, nombre: c.nombre, direccion: c.direccion_fiscal, tipo: 'cliente', prioridad: c.prioridad, fecha_ultimo_contacto: c.fecha_ultimo_contacto, interesFV: interesadosFV.has(c.id), via_entrada: c.via_entrada });
     }
     for (const s of cups.datos) {
       if (!s.direccion_suministro?.trim()) continue;
@@ -89,13 +89,15 @@ export default function RutasPage() {
       const nombre = `${s.luz_clientes?.nombre || 'Cliente'} · ${s.alias_suministro || s.cups.slice(0, 10) + '…'}`;
       if (q && !nombre.toLowerCase().includes(q)) continue;
       const clientePadre = clientes.datos.find((c) => c.id === s.cliente_id);
-      lista.push({ id: `s-${s.id}`, cliente_id: s.cliente_id, nombre, direccion: s.direccion_suministro, tipo: 'cups', prioridad: s.prioridad || s.luz_clientes?.prioridad, fecha_ultimo_contacto: clientePadre?.fecha_ultimo_contacto, interesFV: interesadosFV.has(s.cliente_id) });
+      lista.push({ id: `s-${s.id}`, cliente_id: s.cliente_id, nombre, direccion: s.direccion_suministro, tipo: 'cups', prioridad: s.prioridad || s.luz_clientes?.prioridad, fecha_ultimo_contacto: clientePadre?.fecha_ultimo_contacto, interesFV: interesadosFV.has(s.cliente_id), via_entrada: clientePadre?.via_entrada });
     }
 
     // Filtro de vista rápida (afecta al mapa y a la lista a la vez)
     const filtrada = lista.filter((p) => {
       // Filtro por día de visita: usa el historial guardado en luz_visitas
       if (fFechaVisita && !visitasPorCliente.get(p.cliente_id)?.has(fFechaVisita)) return false;
+      if (fVista === 'captacion') return (p.via_entrada || 'captacion') === 'captacion';
+      if (fVista === 'facturas') return p.via_entrada === 'facturas';
       if (fVista === 'fv') return p.interesFV;
       if (fVista === 'prioridadA') return p.prioridad === 'A';
       if (fVista === 'visitadosHoy') return p.fecha_ultimo_contacto === HOY || visitasPorCliente.get(p.cliente_id)?.has(HOY);
@@ -204,6 +206,8 @@ export default function RutasPage() {
             <div className="flex items-center gap-1.5 flex-wrap">
               {([
                 ['todos', 'Todos'],
+                ['captacion', '🧲 Captación'],
+                ['facturas', '📄 Estudio pendiente'],
                 ['fv', '☀️ Interés fotovoltaica'],
                 ['prioridadA', '🔴 Prioridad A'],
                 ['olvidados', '🕐 +30 días sin visitar'],

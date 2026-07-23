@@ -9,7 +9,7 @@ import {
   TIPOS_CLIENTE, TIPO_CLIENTE_LABEL, PRIORIDADES, PRIORIDAD_LABEL, ESTADOS_CLIENTE, ESTADO_CLIENTE_LABEL,
   TARIFAS_ACCESO, ESTADOS_CUPS, ESTADO_CUPS_LABEL, ESTADO_PIPELINE_LABEL, ESTADOS_CONTRATO, ESTADO_CONTRATO_LABEL,
   ESTADOS_COMISION, ESTADO_COMISION_LABEL, TIPOS_COMISION, TIPO_COMISION_LABEL, TIPOS_FECHA, TIPO_FECHA_LABEL,
-  TIPOS_TAREA, TIPO_TAREA_LABEL, TAREAS_ABIERTAS, TIPOS_OPORTUNIDAD, MOTIVOS_ELIMINACION,
+  TIPOS_TAREA, TIPO_TAREA_LABEL, TAREAS_ABIERTAS, TIPOS_OPORTUNIDAD, MOTIVOS_ELIMINACION, VIA_ENTRADA_LABEL,
   TIPO_OPORTUNIDAD_LABEL, tituloFechaCritica, fmtEur, fmtFecha, fmtKwh, normCups,
 } from '@/lib/luz';
 import {
@@ -65,6 +65,7 @@ export default function FichaClienteLuz() {
       email: cliente.email || '', direccion_fiscal: cliente.direccion_fiscal || '',
       prioridad: cliente.prioridad, estado_comercial: cliente.estado_comercial,
       potencial_comercial: cliente.potencial_comercial || '', origen_cliente: cliente.origen_cliente || '',
+      via_entrada: cliente.via_entrada || 'captacion',
       observaciones: cliente.observaciones || '', proxima_accion: cliente.proxima_accion || '',
       fecha_proxima_accion: cliente.fecha_proxima_accion || '',
     });
@@ -280,6 +281,9 @@ export default function FichaClienteLuz() {
                   <div className="flex items-center gap-2 mt-1 flex-wrap">
                     <Badge tono="accent">{TIPO_CLIENTE_LABEL[cliente.tipo_cliente]}</Badge>
                     <Badge>{ESTADO_CLIENTE_LABEL[cliente.estado_comercial]}</Badge>
+                    <Badge tono={(cliente.via_entrada || 'captacion') === 'facturas' ? 'verde' : 'ambar'}>
+                      {VIA_ENTRADA_LABEL[cliente.via_entrada || 'captacion']}
+                    </Badge>
                     <span className="text-[11px] text-muted">NIF: {cliente.nif || '—'}</span>
                   </div>
                 </div>
@@ -331,6 +335,13 @@ export default function FichaClienteLuz() {
                 <label className={labelCls}>Tipo</label>
                 <select className={inputCls} value={formC.tipo_cliente} onChange={setC('tipo_cliente')}>
                   {TIPOS_CLIENTE.map((t) => <option key={t} value={t}>{TIPO_CLIENTE_LABEL[t]}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className={labelCls}>Vía de entrada</label>
+                <select className={inputCls} value={formC.via_entrada || 'captacion'} onChange={setC('via_entrada')}>
+                  <option value="captacion">🧲 Captación en ruta · seguimiento</option>
+                  <option value="facturas">📄 Con facturas · estudio pendiente</option>
                 </select>
               </div>
               <div>

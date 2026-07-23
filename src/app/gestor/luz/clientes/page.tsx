@@ -6,13 +6,13 @@ import { useSearchParams } from 'next/navigation';
 import { UserPlus, X, Download } from 'lucide-react';
 import {
   LuzCliente, LuzCups, TIPOS_CLIENTE, TIPO_CLIENTE_LABEL, PRIORIDADES, PRIORIDAD_LABEL,
-  ESTADOS_CLIENTE, ESTADO_CLIENTE_LABEL, fmtKwh, fmtFecha,
+  ESTADOS_CLIENTE, ESTADO_CLIENTE_LABEL, VIA_ENTRADA_CORTA, fmtKwh, fmtFecha,
 } from '@/lib/luz';
 import { Card, BadgePrioridad, Badge, EstadoCarga, useListaLuz, guardarLuz, inputCls, labelCls, btnPrimario, btnSecundario, SelectorResponsable } from '../ui';
 
 const FORM_VACIO = {
   nombre: '', nif: '', tipo_cliente: 'particular', persona_contacto: '', telefono: '', email: '',
-  direccion_fiscal: '', responsable: '', prioridad: 'C', estado_comercial: 'detectado',
+  direccion_fiscal: '', responsable: '', prioridad: 'C', estado_comercial: 'detectado', via_entrada: 'captacion',
   potencial_comercial: '', origen_cliente: '', observaciones: '',
 };
 
@@ -27,6 +27,7 @@ function ClientesLuzContenido() {
   const [fTipo, setFTipo] = useState('');
   const [fResp, setFResp] = useState('');
   const [fEspecial, setFEspecial] = useState('');
+  const [fVia, setFVia] = useState('');
   const [fDesde, setFDesde] = useState('');
   const [fHasta, setFHasta] = useState('');
   const [mostrarForm, setMostrarForm] = useState(false);
@@ -59,11 +60,12 @@ function ClientesLuzContenido() {
     if (fResp && c.responsable !== fResp) return false;
     if (fEspecial === 'sin_accion' && c.proxima_accion) return false;
     if (fEspecial === 'a_sin_seguimiento' && !(c.prioridad === 'A' && !c.proxima_accion)) return false;
+    if (fVia && (c.via_entrada || 'captacion') !== fVia) return false;
     const alta = (c.creado_en || '').slice(0, 10);
     if (fDesde && alta < fDesde) return false;
     if (fHasta && alta > fHasta) return false;
     return true;
-  }), [clientes.datos, fPrioridad, fEstado, fTipo, fResp, fEspecial, fDesde, fHasta]);
+  }), [clientes.datos, fPrioridad, fEstado, fTipo, fResp, fEspecial, fVia, fDesde, fHasta]);
 
   async function crear(e: React.FormEvent) {
     e.preventDefault();
@@ -124,6 +126,13 @@ function ClientesLuzContenido() {
                   {ESTADOS_CLIENTE.map((es) => <option key={es} value={es}>{ESTADO_CLIENTE_LABEL[es]}</option>)}
                 </select>
               </div>
+              <div>
+                <label className={labelCls}>Vía de entrada</label>
+                <select className={inputCls} value={form.via_entrada} onChange={set('via_entrada')}>
+                  <option value="captacion">🧲 Captación en ruta · seguimiento</option>
+                  <option value="facturas">📄 Con facturas · estudio pendiente</option>
+                </select>
+              </div>
               <div><label className={labelCls}>Origen</label><input className={inputCls} value={form.origen_cliente} onChange={set('origen_cliente')} placeholder="Web, oficina, derivación..." /></div>
               <div className="md:col-span-3"><label className={labelCls}>Potencial comercial</label><input className={inputCls} value={form.potencial_comercial} onChange={set('potencial_comercial')} /></div>
             </div>
@@ -160,9 +169,13 @@ function ClientesLuzContenido() {
             {(fDesde || fHasta) && <button onClick={() => { setFDesde(''); setFHasta(''); }} className="text-accent font-bold hover:underline">✕</button>}
           </span>
         </div>
-        <div className="flex gap-1.5 flex-wrap text-xs">
+        <div className="flex gap-1.5 flex-wrap text-xs items-center">
           {[['', 'Todos'], ['sin_accion', '⚠️ Sin próxima acción'], ['a_sin_seguimiento', '🔴 Clientes A sin seguimiento']].map(([v, n]) => (
             <button key={v} onClick={() => setFEspecial(v)} className={`px-2.5 py-1.5 rounded-lg font-semibold ${fEspecial === v ? 'bg-accent text-white' : 'bg-card/80 text-muted border border-border/50'}`}>{n}</button>
+          ))}
+          <span className="w-px h-5 bg-border/50 mx-1" />
+          {[['', 'Vía: todas'], ['facturas', '📄 Con facturas (estudio)'], ['captacion', '🧲 Captación (seguimiento)']].map(([v, n]) => (
+            <button key={`via-${v}`} onClick={() => setFVia(v)} className={`px-2.5 py-1.5 rounded-lg font-semibold ${fVia === v ? 'bg-accent text-white' : 'bg-card/80 text-muted border border-border/50'}`}>{n}</button>
           ))}
         </div>
       </Card>
@@ -196,6 +209,7 @@ function ClientesLuzContenido() {
                     <td className="px-3 py-2"><BadgePrioridad prioridad={c.prioridad} /></td>
                     <td className="px-3 py-2">
                       <Link href={`/gestor/luz/clientes/${c.id}`} className="font-semibold hover:text-accent transition">{c.nombre}</Link>
+                      <span className="block text-[10px] text-muted">{VIA_ENTRADA_CORTA[c.via_entrada || 'captacion']}</span>
                       {c.nif && <span className="block text-[10px] font-mono text-muted">{c.nif}</span>}
                     </td>
                     <td className="px-3 py-2"><Badge>{TIPO_CLIENTE_LABEL[c.tipo_cliente] || c.tipo_cliente}</Badge></td>
