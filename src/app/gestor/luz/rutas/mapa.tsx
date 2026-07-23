@@ -58,6 +58,7 @@ export function MapaRutas({ paradas, seleccion, onAlternar, orden, origenGeo, or
   const [cargando, setCargando] = useState(false);
   const [cargado, setCargado] = useState(false);
   const [error, setError] = useState('');
+  const [pintar, setPintar] = useState(0); // señal para repintar marcadores cuando el mapa termina de crearse
 
   /** Geocodifica (una vez) las paradas visibles con el filtro actual. */
   const cargarUbicaciones = useCallback(async () => {
@@ -83,7 +84,11 @@ export function MapaRutas({ paradas, seleccion, onAlternar, orden, origenGeo, or
   }, [paradas, origenTexto]);
 
   // Crear el mapa una sola vez
+  // El mapa se crea SOLO cuando el contenedor ya es visible: si Leaflet arranca
+  // con el div a 0 px de alto, calcula una vista de 0×0 y nunca pide las baldosas
+  // (los pines sí se pintan porque van por coordenadas — ese era el mapa "negro").
   useEffect(() => {
+    if (!cargado) return;
     let cancelado = false;
     (async () => {
       const L = await import('leaflet');
@@ -91,39 +96,33 @@ export function MapaRutas({ paradas, seleccion, onAlternar, orden, origenGeo, or
       if (cancelado || !mapaRef.current || mapaObj.current) return;
       const mapa = L.map(mapaRef.current, { zoomControl: true }).setView([41.85, 0.29], 10); // Binéfar
 
-      // ── Capas base (gratuitas, rápidas y fiables) ──
-      // Satélite Esri: relieve real del terreno (naves, granjas, caminos) sin nombres.
-      const satelite = L.tileLayer(
-        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-        { attribution: 'Esri · Maxar', maxZoom: 19 }
-      );
-      // Calles CARTO en oscuro y SIN nombres: encaja con el tema y se ve la trama de calles.
-      const callesOscuro = L.tileLayer(
-        'https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png',
-        { attribution: '© OpenStreetMap · CARTO', subdomains: 'abcd', maxZoom: 20 }
-      );
-      // Clásico con nombres, por si algún día hace falta leer una calle concreta.
-      const clasico = L.tileLayer(
-        'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-        { attribution: '© OpenStreetMap', maxZoom: 19 }
-      );
-
-      satelite.addTo(mapa); // relieve real por defecto
-      L.control.layers(
-        { '🛰️ Satélite (relieve real)': satelite, '🌙 Calles sin nombres': callesOscuro, '🗺️ Clásico con nombres': clasico },
-        {},
-        { position: 'topright' }
-      ).addTo(mapa);
+      // Una sola vista, estilo Google Maps: calles, carreteras y pueblos bien legibles.
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+        attribution: '© OpenStreetMap · CARTO',
+        subdomains: 'abcd',
+        maxZoom: 20,
+      }).addTo(mapa);
 
       capaMarcadores.current = L.layerGroup().addTo(mapa);
       mapaObj.current = mapa;
+      // Recalcular tamaño en cuanto el navegador pinte el contenedor con su altura real
+      requestAnimationFrame(() => mapa.invalidateSize());
+      setPintar((n) => n + 1); // fuerza el pintado de marcadores ahora que el mapa existe
     })();
     return () => {
       cancelado = true;
       mapaObj.current?.remove();
       mapaObj.current = null;
     };
-  }, []);
+  }, [cargado]);
+
+  // Si el panel cambia de tamaño (redimensionar ventana, plegar menú), Leaflet se entera
+  useEffect(() => {
+    if (!cargado || !mapaRef.current) return;
+    const obs = new ResizeObserver(() => mapaObj.current?.invalidateSize());
+    obs.observe(mapaRef.current);
+    return () => obs.disconnect();
+  }, [cargado]);
 
   /** Marcar hoy como visitado (reutiliza fecha_ultimo_contacto del cliente). */
   async function marcarVisitado(clienteId: string) {
@@ -206,9 +205,10 @@ export function MapaRutas({ paradas, seleccion, onAlternar, orden, origenGeo, or
     }
 
     if (bounds.length > 0) {
+      mapa.invalidateSize(); // por si el contenedor acaba de hacerse visible
       try { mapa.fitBounds(bounds as [number, number][], { padding: [30, 30], maxZoom: 14 }); } catch { /* rango insuficiente */ }
     }
-  }, [puntos, seleccion, orden, origenGeo, paradas, modoManual, origenTexto]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [puntos, seleccion, orden, origenGeo, paradas, modoManual, origenTexto, pintar]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const visitadasHoy = paradas.filter((p) => puntos[p.id] && p.fecha_ultimo_contacto === HOY()).length;
   const ubicadas = Object.values(puntos).filter(Boolean).length;
@@ -235,11 +235,15 @@ export function MapaRutas({ paradas, seleccion, onAlternar, orden, origenGeo, or
         </div>
       )}
 
-      <div
-        ref={mapaRef}
-        className={`w-full transition-opacity ${cargado ? 'opacity-100' : 'opacity-0 h-0'}`}
-        style={{ height: cargado ? '28rem' : 0, position: 'relative', zIndex: 0, isolation: 'isolate', background: '#1c2733' }}
-      />
+      {/* Sin transiciones ni altura 0: una transición CSS de height dejaba el
+          contenedor a 0 px mientras Leaflet medía, y el mapa salía vacío. */}
+      {cargado && (
+        <div
+          ref={mapaRef}
+          className="w-full"
+          style={{ height: '28rem', position: 'relative', zIndex: 0, isolation: 'isolate', background: '#e8e4dc', transition: 'none' }}
+        />
+      )}
 
       {cargado && (
         <div className="flex flex-wrap gap-3 px-3 py-2 border-t border-border/30 text-[10px] text-muted">
