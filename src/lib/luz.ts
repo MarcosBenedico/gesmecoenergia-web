@@ -222,6 +222,8 @@ export interface LuzCliente {
   fecha_ultimo_contacto: string | null;
   fecha_proxima_accion: string | null;
   proxima_accion: string | null;
+  creado_en?: string;
+  actualizado_en?: string;
 }
 
 export interface LuzCups {

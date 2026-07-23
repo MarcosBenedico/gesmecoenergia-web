@@ -16,7 +16,7 @@ import {
   Card, Badge, BadgePrioridad, BadgeVencimiento, EstadoCarga, useListaLuz, guardarLuz,
   inputCls, labelCls, btnPrimario, btnSecundario, SelectorResponsable,
 } from '../../ui';
-import { ProximaAccion, TareasCliente } from './componentes';
+import { ProximaAccion, TareasCliente, HistorialCliente } from './componentes';
 
 const CUPS_VACIO = {
   cups: '', alias_suministro: '', direccion_suministro: '', tarifa_acceso: '2.0TD',
@@ -600,6 +600,9 @@ export default function FichaClienteLuz() {
             {contratos.datos.length + comisiones.datos.length === 0 && !formContrato && !formCom && <p className="text-sm text-muted text-center py-3">Sin contratos ni comisiones.</p>}
           </div>
         </Card>
+
+        {/* Historial de modificaciones (auditoría) */}
+        <HistorialCliente clienteId={clienteId} />
       </div>
     </div>
   );

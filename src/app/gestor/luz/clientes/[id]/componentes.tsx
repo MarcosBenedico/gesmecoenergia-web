@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pencil, Plus, X } from 'lucide-react';
 import {
   LuzCliente, LuzOportunidad, LuzTarea, PRIORIDADES, PRIORIDAD_LABEL,
@@ -12,6 +12,7 @@ import {
   inputCls, labelCls, btnPrimario, btnSecundario, SelectorResponsable,
 } from '../../ui';
 import { PedirMotivo } from '../../motivo';
+import { supabase } from '@/lib/supabase';
 
 /* ══════════════ Próxima acción: dato único sincronizado con el Pipeline ══════════════ */
 export function ProximaAccion({ cliente, oportunidades, onGuardado }: {
@@ -307,6 +308,69 @@ export function TareasCliente({ clienteId, tareas, recargar, clienteResponsable,
           onGuardar={confirmarBorrado}
           onCancelar={() => setPidiendoBorrado(null)}
         />
+      )}
+    </Card>
+  );
+}
+
+
+/* ══════════════ Historial de modificaciones del cliente (auditoría) ══════════════ */
+interface RegistroAud { id: string; usuario: string | null; accion: string; antes: Record<string, unknown> | null; despues: Record<string, unknown> | null; creado_en: string }
+const CAMPOS_OCULTOS = new Set(['actualizado_en', 'creado_en', 'id']);
+
+export function HistorialCliente({ clienteId }: { clienteId: string }) {
+  const [registros, setRegistros] = useState<RegistroAud[]>([]);
+  const [visible, setVisible] = useState(false);
+  const [abierto, setAbierto] = useState(false);
+
+  useEffect(() => {
+    supabase.from('app_auditoria')
+      .select('id, usuario, accion, antes, despues, creado_en')
+      .eq('tabla', 'luz_clientes').eq('registro_id', clienteId)
+      .order('creado_en', { ascending: false }).limit(50)
+      .then(({ data, error }) => {
+        if (!error && data) { setRegistros(data as RegistroAud[]); setVisible(true); }
+      });
+  }, [clienteId]);
+
+  if (!visible || registros.length === 0) return null;
+
+  function cambios(r: RegistroAud): string[] {
+    if (r.accion !== 'UPDATE' || !r.antes || !r.despues) return [];
+    const out: string[] = [];
+    for (const k of Object.keys(r.despues)) {
+      if (CAMPOS_OCULTOS.has(k)) continue;
+      if (JSON.stringify(r.antes[k] ?? null) !== JSON.stringify(r.despues[k] ?? null)) {
+        const f = (v: unknown) => (v == null || v === '' ? 'vacío' : String(v).slice(0, 40));
+        out.push(k.replace(/_/g, ' ') + ': ' + f(r.antes[k]) + ' → ' + f(r.despues[k]));
+      }
+    }
+    return out;
+  }
+
+  return (
+    <Card className="lg:col-span-2">
+      <button onClick={() => setAbierto((v) => !v)} className="w-full text-left font-bold text-foreground text-sm">
+        {abierto ? '▾' : '▸'} 🕓 Historial de modificaciones ({registros.length})
+      </button>
+      {abierto && (
+        <div className="mt-2 divide-y divide-border/20">
+          {registros.map((r) => {
+            const cs = cambios(r);
+            return (
+              <div key={r.id} className="py-2 flex items-start gap-3 text-xs">
+                <span className="shrink-0 text-[10px] text-muted tabular-nums w-28">{new Date(r.creado_en).toLocaleString('es-ES', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
+                <span className={`shrink-0 px-1.5 py-0.5 rounded-full border text-[9px] font-bold ${r.accion === 'INSERT' ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30' : 'bg-amber-500/15 text-amber-300 border-amber-500/30'}`}>
+                  {r.accion === 'INSERT' ? 'Alta' : 'Cambio'}
+                </span>
+                <span className="min-w-0 flex-1 text-muted leading-relaxed">
+                  {r.accion === 'INSERT' ? 'Cliente dado de alta.' : cs.length ? cs.slice(0, 5).join(' · ') : 'Actualización'}
+                </span>
+                <span className="shrink-0 text-[10px] text-secondary">{r.usuario || 'sistema'}</span>
+              </div>
+            );
+          })}
+        </div>
       )}
     </Card>
   );

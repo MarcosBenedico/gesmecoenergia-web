@@ -6,7 +6,7 @@ import { useSearchParams } from 'next/navigation';
 import { UserPlus, X, Download } from 'lucide-react';
 import {
   LuzCliente, LuzCups, TIPOS_CLIENTE, TIPO_CLIENTE_LABEL, PRIORIDADES, PRIORIDAD_LABEL,
-  ESTADOS_CLIENTE, ESTADO_CLIENTE_LABEL, fmtKwh,
+  ESTADOS_CLIENTE, ESTADO_CLIENTE_LABEL, fmtKwh, fmtFecha,
 } from '@/lib/luz';
 import { Card, BadgePrioridad, Badge, EstadoCarga, useListaLuz, guardarLuz, inputCls, labelCls, btnPrimario, btnSecundario, SelectorResponsable } from '../ui';
 
@@ -27,6 +27,8 @@ function ClientesLuzContenido() {
   const [fTipo, setFTipo] = useState('');
   const [fResp, setFResp] = useState('');
   const [fEspecial, setFEspecial] = useState('');
+  const [fDesde, setFDesde] = useState('');
+  const [fHasta, setFHasta] = useState('');
   const [mostrarForm, setMostrarForm] = useState(false);
   const [form, setForm] = useState(FORM_VACIO);
   const [errorForm, setErrorForm] = useState('');
@@ -57,8 +59,11 @@ function ClientesLuzContenido() {
     if (fResp && c.responsable !== fResp) return false;
     if (fEspecial === 'sin_accion' && c.proxima_accion) return false;
     if (fEspecial === 'a_sin_seguimiento' && !(c.prioridad === 'A' && !c.proxima_accion)) return false;
+    const alta = (c.creado_en || '').slice(0, 10);
+    if (fDesde && alta < fDesde) return false;
+    if (fHasta && alta > fHasta) return false;
     return true;
-  }), [clientes.datos, fPrioridad, fEstado, fTipo, fResp, fEspecial]);
+  }), [clientes.datos, fPrioridad, fEstado, fTipo, fResp, fEspecial, fDesde, fHasta]);
 
   async function crear(e: React.FormEvent) {
     e.preventDefault();
@@ -147,6 +152,13 @@ function ClientesLuzContenido() {
             <option value="">Responsable: todos</option>
             {responsables.map((r) => <option key={r} value={r}>{r}</option>)}
           </select>
+          <span className="flex items-center gap-1.5 text-xs text-muted font-semibold">
+            Alta:
+            <input type="date" className={selCls} value={fDesde} onChange={(e) => setFDesde(e.target.value)} title="Entrados desde" />
+            —
+            <input type="date" className={selCls} value={fHasta} onChange={(e) => setFHasta(e.target.value)} title="Entrados hasta" />
+            {(fDesde || fHasta) && <button onClick={() => { setFDesde(''); setFHasta(''); }} className="text-accent font-bold hover:underline">✕</button>}
+          </span>
         </div>
         <div className="flex gap-1.5 flex-wrap text-xs">
           {[['', 'Todos'], ['sin_accion', '⚠️ Sin próxima acción'], ['a_sin_seguimiento', '🔴 Clientes A sin seguimiento']].map(([v, n]) => (
@@ -173,6 +185,7 @@ function ClientesLuzContenido() {
                 <th className="px-3 py-3">Estado</th>
                 <th className="px-3 py-3">Responsable</th>
                 <th className="px-3 py-3">Próxima acción</th>
+                <th className="px-3 py-3">Alta</th>
               </tr>
             </thead>
             <tbody>
@@ -203,6 +216,12 @@ function ClientesLuzContenido() {
                     </td>
                     <td className="px-3 py-2 text-xs max-w-40 truncate">
                       {c.proxima_accion || <span className="text-amber-400">—</span>}
+                    </td>
+                    <td className="px-3 py-2 whitespace-nowrap">
+                      <span className="text-xs font-semibold tabular-nums">{fmtFecha(c.creado_en)}</span>
+                      {c.actualizado_en && c.actualizado_en.slice(0, 10) !== (c.creado_en || '').slice(0, 10) && (
+                        <span className="block text-[10px] text-muted">mod. {fmtFecha(c.actualizado_en)}</span>
+                      )}
                     </td>
                   </tr>
                 );
