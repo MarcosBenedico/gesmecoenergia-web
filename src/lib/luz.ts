@@ -330,6 +330,16 @@ export interface LuzComision {
   luz_cups?: { cups: string } | null;
 }
 
+export interface LuzVisita {
+  id: string;
+  cliente_id: string;
+  fecha: string;
+  notas: string | null;
+  responsable: string | null;
+  creado_en?: string;
+  luz_clientes?: { nombre: string } | null;
+}
+
 export interface LuzTarea {
   id: string;
   cliente_id: string | null;

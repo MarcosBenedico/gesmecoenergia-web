@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Pencil, Plus, X } from 'lucide-react';
 import {
-  LuzCliente, LuzOportunidad, LuzTarea, PRIORIDADES, PRIORIDAD_LABEL,
+  LuzCliente, LuzOportunidad, LuzTarea, LuzVisita, PRIORIDADES, PRIORIDAD_LABEL,
   ESTADO_PIPELINE_LABEL, TIPOS_TAREA, TIPO_TAREA_LABEL, TAREAS_ABIERTAS,
   ResponsableEquipo, responsableSugerido, MOTIVOS_ELIMINACION, diasHasta, fmtFecha,
 } from '@/lib/luz';
@@ -370,6 +370,159 @@ export function HistorialCliente({ clienteId }: { clienteId: string }) {
               </div>
             );
           })}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+/* ══════════════ Visitas y fotovoltaica: conectado con el mapa de rutas y el pipeline ══════════════ */
+export function VisitasYFV({ cliente, oportunidades, onRecargar }: {
+  cliente: LuzCliente;
+  oportunidades: LuzOportunidad[];
+  onRecargar: () => void;
+}) {
+  const visitas = useListaLuz<LuzVisita>('visitas', { cliente_id: cliente.id });
+  const [guardando, setGuardando] = useState(false);
+  const [err, setErr] = useState('');
+  const [nueva, setNueva] = useState<{ fecha: string; notas: string } | null>(null);
+
+  const HOY = new Date().toISOString().slice(0, 10);
+  const opFV = oportunidades.find((o) => o.tipo_oportunidad === 'derivacion_fotovoltaica' && o.estado !== 'perdido') || null;
+  const visitadoHoy = visitas.datos.some((v) => v.fecha === HOY);
+
+  async function marcarInteresFV() {
+    setGuardando(true); setErr('');
+    const e = await guardarLuz('pipeline', 'POST', {
+      cliente_id: cliente.id,
+      nombre_oportunidad: `${cliente.nombre} · Derivación fotovoltaica`,
+      tipo_oportunidad: 'derivacion_fotovoltaica',
+      estado: 'prospecto',
+      responsable: cliente.responsable || null,
+      observaciones: 'Interés marcado desde la ficha del cliente',
+    });
+    setGuardando(false);
+    if (e) { setErr(e); return; }
+    onRecargar();
+  }
+
+  async function quitarInteresFV() {
+    if (!opFV) return;
+    if (!confirm('¿Quitar el interés en fotovoltaica? La oportunidad del pipeline pasará a "Perdido".')) return;
+    setGuardando(true); setErr('');
+    const e = await guardarLuz('pipeline', 'PUT', {
+      id: opFV.id,
+      estado: 'perdido',
+      motivo_perdida: 'Sin interés en fotovoltaica (quitado desde la ficha del cliente)',
+    });
+    setGuardando(false);
+    if (e) { setErr(e); return; }
+    onRecargar();
+  }
+
+  async function registrarVisita(fecha: string, notas: string) {
+    setGuardando(true); setErr('');
+    const e = await guardarLuz('visitas', 'POST', {
+      cliente_id: cliente.id,
+      fecha,
+      notas: notas || null,
+      responsable: cliente.responsable || null,
+    });
+    setGuardando(false);
+    if (e) { setErr(e); return; }
+    setNueva(null);
+    visitas.recargar();
+    onRecargar(); // el "último contacto" del cliente avanza en el servidor
+  }
+
+  async function borrarVisita(id: string) {
+    if (!confirm('¿Eliminar esta visita del historial?')) return;
+    const e = await guardarLuz('visitas', 'DELETE', { id });
+    if (e) { setErr(e); return; }
+    visitas.recargar();
+  }
+
+  return (
+    <Card>
+      <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
+        <h3 className="font-bold text-foreground">Visitas y fotovoltaica</h3>
+        <div className="flex items-center gap-2">
+          {!visitadoHoy && (
+            <button onClick={() => registrarVisita(HOY, '')} disabled={guardando} className={btnSecundario}>
+              ✓ Visitado hoy
+            </button>
+          )}
+          <button onClick={() => setNueva(nueva ? null : { fecha: HOY, notas: '' })} className={btnSecundario}>
+            <Plus className="w-3.5 h-3.5" /> Visita con fecha
+          </button>
+        </div>
+      </div>
+
+      {/* Interés en fotovoltaica: mismo dato que pinta el pin amarillo ☀️ en el mapa de rutas */}
+      <div className={`flex items-center justify-between gap-2 flex-wrap rounded-xl border p-3 mb-3 ${
+        opFV ? 'border-yellow-500/40 bg-yellow-500/10' : 'border-border/40 bg-card/40'
+      }`}>
+        <div className="text-xs">
+          {opFV ? (
+            <>
+              <p className="font-bold text-yellow-300">☀️ Interesado en fotovoltaica</p>
+              <p className="text-muted mt-0.5">
+                Oportunidad en pipeline: {ESTADO_PIPELINE_LABEL[opFV.estado] || opFV.estado}. En el mapa de rutas sale con pin amarillo.
+              </p>
+            </>
+          ) : (
+            <p className="text-muted">Sin interés en fotovoltaica registrado.</p>
+          )}
+        </div>
+        {opFV ? (
+          <button onClick={quitarInteresFV} disabled={guardando} className={btnSecundario}>✕ Quitar interés</button>
+        ) : (
+          <button onClick={marcarInteresFV} disabled={guardando} className={btnSecundario}>☀️ Marcar interesado</button>
+        )}
+      </div>
+
+      {err && <p className="text-xs text-red-400 mb-2">{err}</p>}
+
+      {nueva && (
+        <form
+          onSubmit={(e) => { e.preventDefault(); registrarVisita(nueva.fecha, nueva.notas); }}
+          className="flex items-end gap-2 flex-wrap rounded-xl border border-border/40 bg-card/40 p-3 mb-3"
+        >
+          <div>
+            <label className={labelCls}>Fecha de la visita</label>
+            <input type="date" required className={inputCls} value={nueva.fecha} max={HOY}
+              onChange={(e) => setNueva({ ...nueva, fecha: e.target.value })} />
+          </div>
+          <div className="flex-1 min-w-40">
+            <label className={labelCls}>Notas (opcional)</label>
+            <input className={inputCls} value={nueva.notas} placeholder="Cómo fue la visita..."
+              onChange={(e) => setNueva({ ...nueva, notas: e.target.value })} />
+          </div>
+          <button type="submit" disabled={guardando} className={btnPrimario}>Guardar</button>
+          <button type="button" onClick={() => setNueva(null)} className={btnSecundario}><X className="w-3.5 h-3.5" /></button>
+        </form>
+      )}
+
+      {visitas.faltaMigracion ? (
+        <p className="text-xs text-amber-300 bg-amber-500/10 border border-amber-500/20 rounded-lg p-2">
+          ⚠️ Falta crear la tabla de visitas: ejecuta <b>supabase_visitas.sql</b> en el SQL Editor de Supabase.
+        </p>
+      ) : visitas.datos.length === 0 ? (
+        <p className="text-xs text-muted text-center py-2">Sin visitas registradas todavía.</p>
+      ) : (
+        <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
+          {visitas.datos.map((v) => (
+            <div key={v.id} className="flex items-center gap-2 p-2 rounded-lg bg-card/50 border border-border/20 text-xs">
+              <span className={`font-bold shrink-0 ${v.fecha === HOY ? 'text-emerald-400' : ''}`}>
+                {v.fecha === HOY ? '✓ Hoy' : fmtFecha(v.fecha)}
+              </span>
+              <span className="text-muted truncate flex-1">{v.notas || '—'}</span>
+              {v.responsable && <Badge tono="muted">{v.responsable}</Badge>}
+              <button onClick={() => borrarVisita(v.id)} className="text-muted hover:text-red-400 shrink-0" title="Eliminar visita">
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ))}
         </div>
       )}
     </Card>

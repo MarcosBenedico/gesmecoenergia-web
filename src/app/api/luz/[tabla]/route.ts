@@ -90,6 +90,14 @@ const TABLAS: Record<string, DefTabla> = {
     orden: { col: 'fecha_limite', asc: true },
     colFecha: 'fecha_limite',
   },
+  visitas: {
+    tabla: 'luz_visitas',
+    select: '*, luz_clientes(nombre)',
+    columnas: ['cliente_id', 'fecha', 'notas', 'responsable'],
+    filtros: ['cliente_id', 'responsable'],
+    orden: { col: 'fecha', asc: false },
+    colFecha: 'fecha',
+  },
   config: {
     tabla: 'luz_config',
     select: '*',
@@ -189,6 +197,17 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ tabla: str
         return NextResponse.json({ error: tabla === 'cups' ? 'Ese CUPS ya está registrado.' : 'Registro duplicado.' }, { status: 409 });
       }
       return respuestaError(error.message);
+    }
+    // Nueva visita → el "último contacto" del cliente avanza si la visita es más reciente
+    if (tabla === 'visitas' && campos.cliente_id) {
+      const fechaVisita = String(campos.fecha || new Date().toISOString().slice(0, 10));
+      const { data: cli } = await supabase.from('luz_clientes').select('fecha_ultimo_contacto').eq('id', campos.cliente_id).single();
+      if (!cli?.fecha_ultimo_contacto || cli.fecha_ultimo_contacto < fechaVisita) {
+        await supabase.from('luz_clientes').update({
+          fecha_ultimo_contacto: fechaVisita,
+          actualizado_en: new Date().toISOString(),
+        }).eq('id', campos.cliente_id);
+      }
     }
     // Nueva oportunidad con próxima acción → se refleja en la ficha del cliente
     if (tabla === 'pipeline' && campos.cliente_id && (campos.proxima_accion || campos.fecha_proxima_accion)) {

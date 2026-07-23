@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { Map as MapIcon, Navigation, Loader, ExternalLink, X, Pencil, Check, MousePointerClick } from 'lucide-react';
-import { LuzCliente, LuzCups, LuzOportunidad } from '@/lib/luz';
+import { LuzCliente, LuzCups, LuzOportunidad, LuzVisita } from '@/lib/luz';
 import { Card, Badge, BadgePrioridad, EstadoCarga, useListaLuz, guardarLuz, inputCls, labelCls, btnPrimario, btnSecundario } from '../ui';
 
 // El mapa usa Leaflet (necesita `window`): se carga solo en el navegador, nunca en el servidor.
@@ -34,9 +34,11 @@ export default function RutasPage() {
   const clientes = useListaLuz<LuzCliente>('clientes');
   const cups = useListaLuz<LuzCups>('cups');
   const pipeline = useListaLuz<LuzOportunidad>('pipeline');
+  const visitas = useListaLuz<LuzVisita>('visitas');
   const [buscar, setBuscar] = useState('');
   const [fResp, setFResp] = useState('David');
   const [fVista, setFVista] = useState<'todos' | 'fv' | 'prioridadA' | 'olvidados' | 'visitadosHoy'>('todos');
+  const [fFechaVisita, setFFechaVisita] = useState('');
   const [seleccion, setSeleccion] = useState<Map<string, Parada>>(new Map());
   const [origen, setOrigen] = useState(ORIGEN_DEFECTO);
   const [calculando, setCalculando] = useState(false);
@@ -57,6 +59,16 @@ export default function RutasPage() {
     }
     return s;
   }, [pipeline.datos]);
+
+  /** Fechas de visita por cliente (historial completo de luz_visitas). */
+  const visitasPorCliente = useMemo(() => {
+    const m = new Map<string, Set<string>>();
+    for (const v of visitas.datos) {
+      if (!m.has(v.cliente_id)) m.set(v.cliente_id, new Set());
+      m.get(v.cliente_id)!.add(v.fecha);
+    }
+    return m;
+  }, [visitas.datos]);
 
   /** Posibles paradas: clientes con dirección + CUPS con dirección de suministro. */
   const paradasDisponibles = useMemo(() => {
@@ -82,9 +94,11 @@ export default function RutasPage() {
 
     // Filtro de vista rápida (afecta al mapa y a la lista a la vez)
     const filtrada = lista.filter((p) => {
+      // Filtro por día de visita: usa el historial guardado en luz_visitas
+      if (fFechaVisita && !visitasPorCliente.get(p.cliente_id)?.has(fFechaVisita)) return false;
       if (fVista === 'fv') return p.interesFV;
       if (fVista === 'prioridadA') return p.prioridad === 'A';
-      if (fVista === 'visitadosHoy') return p.fecha_ultimo_contacto === HOY;
+      if (fVista === 'visitadosHoy') return p.fecha_ultimo_contacto === HOY || visitasPorCliente.get(p.cliente_id)?.has(HOY);
       if (fVista === 'olvidados') {
         if (!p.fecha_ultimo_contacto) return true;
         return (Date.now() - new Date(p.fecha_ultimo_contacto).getTime()) / 86400000 > 30;
@@ -92,7 +106,7 @@ export default function RutasPage() {
       return true;
     });
     return filtrada.sort((a, b) => a.nombre.localeCompare(b.nombre));
-  }, [clientes.datos, cups.datos, buscar, fResp, fVista, interesadosFV]);
+  }, [clientes.datos, cups.datos, buscar, fResp, fVista, interesadosFV, fFechaVisita, visitasPorCliente]);
 
   /** Crea la oportunidad de fotovoltaica en el pipeline desde el mapa. */
   async function marcarInteresFV(clienteId: string, nombre: string) {
@@ -205,6 +219,20 @@ export default function RutasPage() {
                   {texto}
                 </button>
               ))}
+              <span className="flex items-center gap-1 ml-1">
+                <label className="text-[11px] text-muted font-bold">📅 Visitados el:</label>
+                <input
+                  type="date"
+                  value={fFechaVisita}
+                  onChange={(e) => { setFFechaVisita(e.target.value); setResultado(null); }}
+                  className="rounded-lg border border-border/50 bg-card/70 px-2 py-1 text-[11px]"
+                />
+                {fFechaVisita && (
+                  <button onClick={() => setFFechaVisita('')} className="text-muted hover:text-red-400" title="Quitar filtro de fecha">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </span>
             </div>
             <button
               onClick={() => setModoManual((v) => !v)}
@@ -223,7 +251,7 @@ export default function RutasPage() {
             orden={resultado?.orden || null}
             origenGeo={resultado?.origen_geo || null}
             origenTexto={origen}
-            onRecargarClientes={() => { clientes.recargar(); cups.recargar(); }}
+            onRecargarClientes={() => { clientes.recargar(); cups.recargar(); visitas.recargar(); }}
             modoManual={modoManual}
             onMarcarFV={marcarInteresFV}
           />

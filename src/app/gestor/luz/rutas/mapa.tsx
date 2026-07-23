@@ -134,9 +134,12 @@ export function MapaRutas({ paradas, seleccion, onAlternar, orden, origenGeo, or
     return () => obs.disconnect();
   }, [cargado]);
 
-  /** Marcar hoy como visitado (reutiliza fecha_ultimo_contacto del cliente). */
+  /** Marcar hoy como visitado: guarda la visita en el historial
+   *  (y el servidor avanza el "último contacto" del cliente). */
   async function marcarVisitado(clienteId: string) {
-    await guardarLuz('clientes', 'PUT', { id: clienteId, fecha_ultimo_contacto: HOY() });
+    const err = await guardarLuz('visitas', 'POST', { cliente_id: clienteId, fecha: HOY(), notas: 'Marcada desde el mapa de rutas' });
+    // Si la tabla de visitas aún no existe, al menos se apunta el último contacto
+    if (err) await guardarLuz('clientes', 'PUT', { id: clienteId, fecha_ultimo_contacto: HOY() });
     onRecargarClientes();
   }
 

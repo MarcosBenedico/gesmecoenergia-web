@@ -16,7 +16,7 @@ import {
   Card, Badge, BadgePrioridad, BadgeVencimiento, EstadoCarga, useListaLuz, guardarLuz,
   inputCls, labelCls, btnPrimario, btnSecundario, SelectorResponsable,
 } from '../../ui';
-import { ProximaAccion, TareasCliente, HistorialCliente } from './componentes';
+import { ProximaAccion, TareasCliente, HistorialCliente, VisitasYFV } from './componentes';
 
 const CUPS_VACIO = {
   cups: '', alias_suministro: '', direccion_suministro: '', tarifa_acceso: '2.0TD',
@@ -328,6 +328,13 @@ export default function FichaClienteLuz() {
         cliente={cliente}
         oportunidades={pipeline.datos}
         onGuardado={() => { clientes.recargar(); pipeline.recargar(); }}
+      />
+
+      {/* ── Visitas y fotovoltaica (conectado con el mapa de rutas) ── */}
+      <VisitasYFV
+        cliente={cliente}
+        oportunidades={pipeline.datos}
+        onRecargar={() => { clientes.recargar(); pipeline.recargar(); }}
       />
 
       {/* CUPS del cliente */}
