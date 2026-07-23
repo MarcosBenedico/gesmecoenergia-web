@@ -5,7 +5,7 @@ import { Download, Upload } from 'lucide-react';
 import {
   ahorroSimple, numeroPaneles, r2, fmtEur2, POTENCIA_PANEL_W,
   FRANJAS_CONSUMO, FRANJA_LABEL, PERFIL_FRANJA, CAPACIDAD_BATERIA,
-  optimizarBateria, siguienteEuro, LineaJustificacion, OpcionBateria, estimarAyudas, IRPF_PCT_DEDUCCION,
+  optimizarBateriaHoraria, siguienteEuro, LineaJustificacion, OpcionBateria, estimarAyudas, IRPF_PCT_DEDUCCION,
   estimarGasoil, produccionMensual, MESES_CORTO, GASOIL_PRECIO_LITRO, GASOIL_KWH_LITRO,
   bateriaEconomica, inversorEconomico, ComboEquipo, ResultadoHorarioFV,
 } from '@/lib/fv';
@@ -240,16 +240,19 @@ export function EnergiaEscenarios({ energia, setEnergia, hipotesis, setHipotesis
       const kwpReal = r2((paneles * POTENCIA_PANEL_W) / 1000);
       const produccion = r2(kwpReal * hipotesis.prod_especifica);
 
-      // Coincidencia directa: franja del consumo fuerte, o la hipótesis general si no se ha indicado
-      const coincidencia = perfilFranja ? perfilFranja.coincidencia : Math.min(Math.max(hipotesis.pct_autoconsumo, 10), 95);
-      const fuenteCoin = perfilFranja ? `perfil de la franja "${FRANJA_LABEL[franja!]}"` : 'hipótesis "% autoconsumo" (sin franja indicada)';
-
       const inversionPlacas = r2(kwpReal * inversionReferencia);
-      const opt = optimizarBateria({
-        produccion_anual_kwh: produccion, coincidencia_pct: coincidencia, inversion_placas: inversionPlacas,
+      // Algoritmo batería: usa la SIMULACIÓN HORARIA real (misma que "día tipo" y la oferta final),
+      // no un % aproximado por franja — así el escenario nunca promete un autoconsumo distinto
+      // del que se aplica de verdad al montar el presupuesto.
+      const opt = optimizarBateriaHoraria({
+        produccion_dia: produccion / 365, consumo_dia: anual / 365, franja, inversion_placas: inversionPlacas,
         precio_kwh: hipotesis.precio_kwh, precio_compensacion: hipotesis.precio_compensacion,
         mantenimiento_anual: hipotesis.mantenimiento_anual, baterias,
       });
+      // Coincidencia directa (sin batería): la de la propia simulación horaria de este escenario
+      const coincidencia = opt.opciones.find((o) => o.codigo === null)?.pct_auto_efectivo
+        ?? (perfilFranja ? perfilFranja.coincidencia : Math.min(Math.max(hipotesis.pct_autoconsumo, 10), 95));
+      const fuenteCoin = `simulación horaria del día tipo${perfilFranja ? ` (franja "${FRANJA_LABEL[franja!]}")` : ''}`;
       // Batería: la elige el algoritmo (menor amortización) salvo que se haya forzado una opción a mano
       const bateriaEditada = ov.bateriaCodigo !== undefined;
       const el = bateriaEditada ? (opt.opciones.find((o) => o.codigo === ov.bateriaCodigo) || opt.elegida) : opt.elegida;
@@ -324,7 +327,7 @@ export function EnergiaEscenarios({ energia, setEnergia, hipotesis, setHipotesis
     const inv = invOps[0];
     if (inv) {
       codigos.push({
-        codigo: `MKT-INV-${inv.marca}`, cantidad: 1, concepto_override: 'Inversores',
+        codigo: `MKT-INV-${inv.marca}`, cantidad: inv.unidades, concepto_override: 'Inversores',
         descripcion_override: inv.descripcion, marca_override: inv.marca, precio_override: r2(inv.coste / inv.unidades),
         confianza: 'alta', nota: 'Combinación más económica del mercado (precio de material, sin IVA ni instalación).',
       });
@@ -625,14 +628,14 @@ ${fila('Se amortiza en', (e) => e.amortizacion != null ? `${e.amortizacion} año
             </button>
           </div>
           <div className="grid xl:grid-cols-3 gap-4">
-            {escenarios.map((e) => {
+            {escenarios.map((e, idx) => {
               const invOps = inversorEconomico(e.kwp);
               const capBat = e.elegida.codigo ? e.elegida.capacidad_util : 0;
               const batOps = bateriaEconomica(capBat);
               const totalMin = (invOps[0]?.coste || 0) + (batOps[0]?.coste || 0);
               const editado = e.panelesEditado || e.bateriaEditada;
               return (
-              <div key={e.nombre} className={`rounded-2xl border p-4 space-y-2.5 text-[13px] ${editado ? 'border-amber-400/50 bg-amber-500/[0.04] ring-1 ring-amber-400/20' : 'border-border/40 bg-card/50'}`}>
+              <div key={e.nombre} data-n={idx} className={`fv-escenario rounded-2xl border p-4 space-y-2.5 text-[13px] ${editado ? 'fv-editado border-amber-400/50 bg-amber-500/[0.04] ring-1 ring-amber-400/20' : 'border-border/40 bg-card/50'}`}>
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     <p className="font-black text-base text-foreground">{e.nombre}</p>

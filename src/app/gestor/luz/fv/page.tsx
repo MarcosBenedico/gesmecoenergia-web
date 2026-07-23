@@ -800,13 +800,13 @@ ${form.observaciones ? `<p class="muted">Observaciones: ${form.observaciones}</p
         </div>
       </div>
 
-      {msg && <p className="text-xs text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-2.5">{msg}</p>}
-      {error && <p className="text-xs text-red-400 bg-red-500/10 border border-red-500/30 rounded-lg p-2.5">{error}</p>}
+      {msg && <p className="fv-fade-in text-xs text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-2.5">{msg}</p>}
+      {error && <p className="fv-fade-in text-xs text-red-400 bg-red-500/10 border border-red-500/30 rounded-lg p-2.5">{error}</p>}
 
       <div className="grid lg:grid-cols-[1fr_380px] gap-4 items-start">
         {/* ── BLOQUE IZQUIERDO: datos del proyecto ── */}
         <div className="space-y-4">
-          {esDim && <Paso n={1} titulo="Cliente y tipo de instalación" desc="A quién va y con qué lenguaje le hablamos" />}
+          {esDim && <div className="fv-paso-linea"><Paso n={1} titulo="Cliente y tipo de instalación" desc="A quién va y con qué lenguaje le hablamos" /></div>}
           <Card className="space-y-3">
             <h3 className="font-bold text-sm">Datos del proyecto</h3>
             <div className="grid md:grid-cols-2 gap-3">
@@ -892,11 +892,11 @@ ${form.observaciones ? `<p class="muted">Observaciones: ${form.observaciones}</p
           </Card>
 
           {/* Flujo Dimensionado: primero el consumo y los escenarios, que montan las partidas */}
-          {esDim && <Paso n={2} titulo="Consumo y escenario" desc="Mete el consumo del cliente y elige un escenario: rellena la potencia y las partidas de golpe" />}
+          {esDim && <div className="fv-paso-linea"><Paso n={2} titulo="Consumo y escenario" desc="Mete el consumo del cliente y elige un escenario: rellena la potencia y las partidas de golpe" /></div>}
           {modo === 'partidas' && bloqueEnergia}
 
           {/* Dimensionado + partidas desde el catálogo */}
-          {esDim && <Paso n={3} titulo="Revisa los equipos y precios" desc="Ajusta las partidas que montó el escenario, cámbialas o añade del catálogo" />}
+          {esDim && <div className="fv-paso-linea"><Paso n={3} titulo="Revisa los equipos y precios" desc="Ajusta las partidas que montó el escenario, cámbialas o añade del catálogo" /></div>}
           <Card className="space-y-2">
             <div className="flex items-center justify-between gap-2 flex-wrap">
               <h3 className="font-bold text-sm">{modo === 'partidas' ? '🧮 Presupuesto por partidas' : 'Desglose de costes adicionales'}</h3>
@@ -997,7 +997,7 @@ ${form.observaciones ? `<p class="muted">Observaciones: ${form.observaciones}</p
           )}
 
           {/* Documentación (enlaces) */}
-          {esDim && <Paso n={4} titulo="Documentación (opcional)" desc="Adjunta factura, planos o el presupuesto de Óscar" />}
+          {esDim && <div className="fv-paso-linea"><Paso n={4} titulo="Documentación (opcional)" desc="Adjunta factura, planos o el presupuesto de Óscar" /></div>}
           <Card className="space-y-2.5">
             <h3 className="font-bold text-sm">📁 Documentación</h3>
             <p className="text-[11px] text-muted">

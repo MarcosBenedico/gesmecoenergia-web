@@ -281,6 +281,52 @@ export function optimizarBateria(e: {
 }
 
 /**
+ * Igual que `optimizarBateria`, pero el % de autoconsumo de cada opción sale de la
+ * SIMULACIÓN HORARIA real (`simularDiaFV`) en vez de la fórmula rápida de excedente
+ * anual. Es más lento pero es el número que de verdad se aplica en la oferta final
+ * (el mismo `simularDiaFV` que redimensiona la batería en vivo) — usarlo aquí evita
+ * que un escenario prometa un % y, al montarlo, el presupuesto acabe mostrando otro.
+ */
+export function optimizarBateriaHoraria(e: {
+  produccion_dia: number;
+  consumo_dia: number;
+  franja?: string | null;
+  inversion_placas: number;
+  precio_kwh: number; precio_compensacion: number; mantenimiento_anual: number;
+  baterias: { codigo: string; nombre: string; coste: number }[];
+}): { opciones: OpcionBateria[]; elegida: OpcionBateria } {
+  const produccionAnual = r2(e.produccion_dia * 365);
+  const candidatos = [
+    { codigo: null as string | null, nombre: 'Sin batería', capacidad_util: 0, coste: 0 },
+    ...e.baterias.map((b) => ({ codigo: b.codigo as string | null, nombre: b.nombre, capacidad_util: CAPACIDAD_BATERIA[b.codigo] || 10, coste: b.coste })),
+  ];
+
+  const opciones: OpcionBateria[] = candidatos.map((b) => {
+    const sim = simularDiaFV({ produccion_dia: e.produccion_dia, consumo_dia: e.consumo_dia, franja: e.franja, capacidad_bateria: b.capacidad_util });
+    const inversion = r2(e.inversion_placas + b.coste);
+    const a = ahorroSimple({
+      produccion_anual_kwh: produccionAnual, pct_autoconsumo: sim.pct_autoconsumo,
+      precio_kwh_evitado: e.precio_kwh, precio_compensacion: e.precio_compensacion,
+      mantenimiento_anual: e.mantenimiento_anual, inversion,
+    });
+    return {
+      codigo: b.codigo, nombre: b.nombre, capacidad_util: b.capacidad_util, coste: b.coste,
+      pct_auto_efectivo: sim.pct_autoconsumo, aporte_anual_kwh: r2(sim.aporte_bateria * 365),
+      inversion, ahorro_neto_anual: a.ahorro_neto_anual, amortizacion: a.amortizacion_anios, elegida: false,
+    };
+  });
+
+  const validas = opciones.filter((o) => o.amortizacion != null);
+  const elegida = (validas.length ? validas : opciones).reduce((mejor, o) =>
+    (o.amortizacion ?? Infinity) < (mejor.amortizacion ?? Infinity) - 0.05
+    || ((Math.abs((o.amortizacion ?? Infinity) - (mejor.amortizacion ?? Infinity)) <= 0.05) && o.inversion < mejor.inversion)
+      ? o : mejor
+  );
+  elegida.elegida = true;
+  return { opciones, elegida };
+}
+
+/**
  * ¿Dónde rinde más el siguiente euro: en más placas o en más batería?
  * Compara el ahorro marginal por € invertido de ambas ampliaciones.
  */
@@ -584,17 +630,34 @@ export function bateriaEconomica(capacidadKwh: number, n = 3): ComboEquipo[] {
  * Inversor más económico del mercado que cubre la potencia objetivo.
  * Se admite un inversor algo por debajo del pico (hasta ~15 %): el
  * sobredimensionado DC/AC es habitual y sano. Ordena por coste.
+ *
+ * Si ningún inversor individual del catálogo llega a la potencia objetivo
+ * (instalaciones grandes, > 28 kWp aprox.), se combinan varias unidades del
+ * mismo modelo en paralelo — igual que se hace con las baterías modulares —
+ * en vez de devolver una lista vacía.
  */
 export function inversorEconomico(potenciaKw: number, n = 3): ComboEquipo[] {
   if (potenciaKw <= 0) return [];
   const minimo = potenciaKw * 0.85;
-  return INVERSORES_MERCADO.filter((i) => i.medida >= minimo)
+  const individuales = INVERSORES_MERCADO.filter((i) => i.medida >= minimo)
     .map((i) => ({
       descripcion: `${i.marca} ${i.modelo} (${i.medida} kW)`,
       marca: i.marca, unidades: 1, medida_total: i.medida, coste: i.precio,
       ratio: r2(i.precio / i.medida), sobra: r2(i.medida - potenciaKw),
-    }))
-    .sort((a, b) => a.coste - b.coste || Math.abs(a.sobra) - Math.abs(b.sobra)).slice(0, n);
+    }));
+  if (individuales.length > 0) {
+    return individuales.sort((a, b) => a.coste - b.coste || Math.abs(a.sobra) - Math.abs(b.sobra)).slice(0, n);
+  }
+  return INVERSORES_MERCADO.map((i) => {
+    const unidades = Math.max(1, Math.ceil(minimo / i.medida));
+    const medidaTotal = r2(unidades * i.medida);
+    const coste = unidades * i.precio;
+    return {
+      descripcion: `${unidades}× ${i.marca} ${i.modelo} (${i.medida} kW c/u, en paralelo)`,
+      marca: i.marca, unidades, medida_total: medidaTotal, coste,
+      ratio: r2(coste / medidaTotal), sobra: r2(medidaTotal - potenciaKw),
+    };
+  }).sort((a, b) => a.coste - b.coste || a.sobra - b.sobra).slice(0, n);
 }
 
 /* ═══════════ AYUDAS, BONIFICACIONES Y DEDUCCIONES ═══════════ */
