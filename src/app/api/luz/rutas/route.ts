@@ -123,10 +123,24 @@ function ordenar(origen: { lat: number; lon: number }, paradas: ParadaGeo[]): Pa
 
 export async function POST(req: NextRequest) {
   try {
-    const { origen, paradas } = (await req.json()) as { origen?: string; paradas: Parada[] };
+    const body = (await req.json()) as { origen?: string; paradas: Parada[]; accion?: string };
+    const { origen, paradas } = body;
     if (!Array.isArray(paradas) || paradas.length === 0) {
       return NextResponse.json({ error: 'Selecciona al menos una parada.' }, { status: 400 });
     }
+
+    // Modo "solo geocodificar": para pintar el mapa, sin calcular orden ni URL de Maps.
+    if (body.accion === 'geocodificar') {
+      if (paradas.length > 60) return NextResponse.json({ error: 'Máximo 60 ubicaciones por carga de mapa.' }, { status: 400 });
+      const puntos: (Parada & { lat: number | null; lon: number | null })[] = [];
+      for (const p of paradas) {
+        const g = p.direccion?.trim() ? await geocodificar(p.direccion) : null;
+        puntos.push({ ...p, lat: g?.lat ?? null, lon: g?.lon ?? null });
+      }
+      const origenGeo = origen?.trim() ? await geocodificar(origen.trim()) : await geocodificar(ORIGEN_DEFECTO);
+      return NextResponse.json({ ok: true, puntos, origen: origenGeo });
+    }
+
     if (paradas.length > 20) {
       return NextResponse.json({ error: 'Máximo 20 paradas por ruta.' }, { status: 400 });
     }
@@ -167,7 +181,8 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       ok: true,
-      orden: ordenadas.map((p) => ({ id: p.id, nombre: p.nombre, direccion: p.direccion, ubicada: p.lat != null })),
+      orden: ordenadas.map((p) => ({ id: p.id, nombre: p.nombre, direccion: p.direccion, ubicada: p.lat != null, lat: p.lat, lon: p.lon })),
+      origen_geo: geoOrigen,
       km_estimados: Math.round(km),
       sin_ubicar: sinUbicar,
       url_maps: url,

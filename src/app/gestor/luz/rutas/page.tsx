@@ -2,9 +2,16 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
-import { Map as MapIcon, Navigation, Loader, ExternalLink, X, Pencil, Check } from 'lucide-react';
+import dynamic from 'next/dynamic';
+import { Map as MapIcon, Navigation, Loader, ExternalLink, X, Pencil, Check, MousePointerClick } from 'lucide-react';
 import { LuzCliente, LuzCups } from '@/lib/luz';
-import { Card, Badge, BadgePrioridad, EstadoCarga, useListaLuz, guardarLuz, inputCls, labelCls, btnPrimario } from '../ui';
+import { Card, Badge, BadgePrioridad, EstadoCarga, useListaLuz, guardarLuz, inputCls, labelCls, btnPrimario, btnSecundario } from '../ui';
+
+// El mapa usa Leaflet (necesita `window`): se carga solo en el navegador, nunca en el servidor.
+const MapaRutas = dynamic(() => import('./mapa').then((m) => m.MapaRutas), {
+  ssr: false,
+  loading: () => <div className="rounded-2xl border border-border/40 bg-surface/40 p-6 text-center text-xs text-muted">Cargando mapa…</div>,
+});
 
 /**
  * Planificador de rutas de visitas: elige clientes y CUPS con dirección,
@@ -13,7 +20,8 @@ import { Card, Badge, BadgePrioridad, EstadoCarga, useListaLuz, guardarLuz, inpu
 
 interface Parada { id: string; nombre: string; direccion: string; cliente_id: string }
 interface Resultado {
-  orden: { id: string; nombre: string; direccion: string; ubicada: boolean }[];
+  orden: { id: string; nombre: string; direccion: string; ubicada: boolean; lat: number | null; lon: number | null }[];
+  origen_geo: { lat: number; lon: number } | null;
   km_estimados: number;
   sin_ubicar: string[];
   url_maps: string;
@@ -43,20 +51,21 @@ export default function RutasPage() {
   const paradasDisponibles = useMemo(() => {
     const q = buscar.trim().toLowerCase();
     const deResp = (r: string | null) => !fResp || (r || '').toLowerCase().includes(fResp.toLowerCase());
-    const lista: (Parada & { tipo: 'cliente' | 'cups'; prioridad?: string })[] = [];
+    const lista: (Parada & { tipo: 'cliente' | 'cups'; prioridad?: string; fecha_ultimo_contacto?: string | null })[] = [];
 
     for (const c of clientes.datos) {
       if (!c.direccion_fiscal?.trim()) continue;
       if (!deResp(c.responsable)) continue;
       if (q && !c.nombre.toLowerCase().includes(q)) continue;
-      lista.push({ id: `c-${c.id}`, cliente_id: c.id, nombre: c.nombre, direccion: c.direccion_fiscal, tipo: 'cliente', prioridad: c.prioridad });
+      lista.push({ id: `c-${c.id}`, cliente_id: c.id, nombre: c.nombre, direccion: c.direccion_fiscal, tipo: 'cliente', prioridad: c.prioridad, fecha_ultimo_contacto: c.fecha_ultimo_contacto });
     }
     for (const s of cups.datos) {
       if (!s.direccion_suministro?.trim()) continue;
       if (!deResp(s.responsable || null) && !deResp(null)) continue;
       const nombre = `${s.luz_clientes?.nombre || 'Cliente'} · ${s.alias_suministro || s.cups.slice(0, 10) + '…'}`;
       if (q && !nombre.toLowerCase().includes(q)) continue;
-      lista.push({ id: `s-${s.id}`, cliente_id: s.cliente_id, nombre, direccion: s.direccion_suministro, tipo: 'cups', prioridad: s.prioridad || s.luz_clientes?.prioridad });
+      const clientePadre = clientes.datos.find((c) => c.id === s.cliente_id);
+      lista.push({ id: `s-${s.id}`, cliente_id: s.cliente_id, nombre, direccion: s.direccion_suministro, tipo: 'cups', prioridad: s.prioridad || s.luz_clientes?.prioridad, fecha_ultimo_contacto: clientePadre?.fecha_ultimo_contacto });
     }
     return lista.sort((a, b) => a.nombre.localeCompare(b.nombre));
   }, [clientes.datos, cups.datos, buscar, fResp]);
@@ -64,6 +73,7 @@ export default function RutasPage() {
   // Edición de ubicación en línea: dirección escrita a mano o enlace de Google Maps pegado
   const [editando, setEditando] = useState<{ id: string; valor: string } | null>(null);
   const [verSinUbicacion, setVerSinUbicacion] = useState(false);
+  const [modoManual, setModoManual] = useState(false);
 
   /** Clientes del filtro actual que aún no tienen ubicación. */
   const sinUbicacion = useMemo(() => {
@@ -133,6 +143,36 @@ export default function RutasPage() {
       </div>
 
       <EstadoCarga cargando={cargando} error={clientes.error} faltaMigracion={clientes.faltaMigracion} vacio={false} textoVacio="" sqlFile="supabase_luz.sql" />
+
+      {/* ── Mapa interactivo: complemento visual del planificador ── */}
+      {!cargando && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <p className="text-xs text-muted">
+              🗺️ Marca paradas directamente sobre el mapa, mira quién está pendiente y quién ya se ha visitado.
+            </p>
+            <button
+              onClick={() => setModoManual((v) => !v)}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border transition ${
+                modoManual ? 'bg-accent text-white border-accent' : 'bg-card/80 text-muted border-border/50 hover:text-foreground'
+              }`}
+              title="Al activarlo, un clic en cualquier pin del mapa lo añade o lo quita de la ruta"
+            >
+              <MousePointerClick className="w-3.5 h-3.5" /> Modo manual: clic en el pin = añadir/quitar
+            </button>
+          </div>
+          <MapaRutas
+            paradas={paradasDisponibles}
+            seleccion={seleccion}
+            onAlternar={alternar}
+            orden={resultado?.orden || null}
+            origenGeo={resultado?.origen_geo || null}
+            origenTexto={origen}
+            onRecargarClientes={() => { clientes.recargar(); cups.recargar(); }}
+            modoManual={modoManual}
+          />
+        </div>
+      )}
 
       {!cargando && (
         <div className="grid lg:grid-cols-[1fr_400px] gap-4 items-start">
