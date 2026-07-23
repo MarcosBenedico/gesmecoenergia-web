@@ -90,10 +90,31 @@ export function MapaRutas({ paradas, seleccion, onAlternar, orden, origenGeo, or
       (window as unknown as { L: typeof L }).L = L;
       if (cancelado || !mapaRef.current || mapaObj.current) return;
       const mapa = L.map(mapaRef.current, { zoomControl: true }).setView([41.85, 0.29], 10); // Binéfar
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap',
-        maxZoom: 19,
-      }).addTo(mapa);
+
+      // ── Capas base (gratuitas, rápidas y fiables) ──
+      // Satélite Esri: relieve real del terreno (naves, granjas, caminos) sin nombres.
+      const satelite = L.tileLayer(
+        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+        { attribution: 'Esri · Maxar', maxZoom: 19 }
+      );
+      // Calles CARTO en oscuro y SIN nombres: encaja con el tema y se ve la trama de calles.
+      const callesOscuro = L.tileLayer(
+        'https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png',
+        { attribution: '© OpenStreetMap · CARTO', subdomains: 'abcd', maxZoom: 20 }
+      );
+      // Clásico con nombres, por si algún día hace falta leer una calle concreta.
+      const clasico = L.tileLayer(
+        'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+        { attribution: '© OpenStreetMap', maxZoom: 19 }
+      );
+
+      satelite.addTo(mapa); // relieve real por defecto
+      L.control.layers(
+        { '🛰️ Satélite (relieve real)': satelite, '🌙 Calles sin nombres': callesOscuro, '🗺️ Clásico con nombres': clasico },
+        {},
+        { position: 'topright' }
+      ).addTo(mapa);
+
       capaMarcadores.current = L.layerGroup().addTo(mapa);
       mapaObj.current = mapa;
     })();
@@ -214,7 +235,11 @@ export function MapaRutas({ paradas, seleccion, onAlternar, orden, origenGeo, or
         </div>
       )}
 
-      <div ref={mapaRef} className={`w-full transition-opacity ${cargado ? 'opacity-100' : 'opacity-0 h-0'}`} style={{ height: cargado ? '28rem' : 0 }} />
+      <div
+        ref={mapaRef}
+        className={`w-full transition-opacity ${cargado ? 'opacity-100' : 'opacity-0 h-0'}`}
+        style={{ height: cargado ? '28rem' : 0, position: 'relative', zIndex: 0, isolation: 'isolate', background: '#1c2733' }}
+      />
 
       {cargado && (
         <div className="flex flex-wrap gap-3 px-3 py-2 border-t border-border/30 text-[10px] text-muted">
