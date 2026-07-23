@@ -336,31 +336,41 @@ function CalculadoraFV() {
 <p class="muted">El gasoil le cuesta <b>${g.coste_kwh} €/kWh</b> —además del ruido, el mantenimiento del grupo y los rellenos—. Cada kWh que produzca el sol es gasoil que deja de quemar. Por eso en una explotación aislada la instalación se amortiza mucho antes que conectada a red.</p>`;
     }
 
-    // ── Gráfico SVG mensual: producción vs consumo real + ahorro mes a mes + proyección 25 años ──
+    // ── Gráficos SVG mes a mes: producción vs consumo real, cobertura % y reparto de la energía ──
     let bloqueEstacional = '';
     if (potencia > 0) {
       const prodMes = produccionMensual(potencia * hipotesis.prod_especifica);
-      const pctAutoE = hipotesis.pct_autoconsumo; // autoconsumo efectivo (incluye batería si se montó escenario)
+      const pctAutoE = hipotesis.pct_autoconsumo; // autoconsumo efectivo anual (fuente única, incluye batería)
       const hayConsumo = energia.mensual.some((v) => v > 0);
       const consMes = hayConsumo ? energia.mensual : prodMes.map(() => 0);
+      const hayBateria = capacidadBateria > 0;
+      const kwhE = (n: number) => Math.round(n).toLocaleString('es-ES');
 
-      // Balance mes a mes: autoconsumo (limitado por el consumo real), excedente y energía de red evitada
-      let ahorroReal = 0, autoTotal = 0, excTotal = 0, consTotal = 0;
+      // Detalle real mes a mes: si hay simulación anual (consumo mensual + franja conocidos), se usa el
+      // reparto hora a hora de CADA mes (su propio sol de invierno/verano y su propio consumo); si no,
+      // se usa el % de autoconsumo efectivo aplicado sobre cada mes como aproximación razonable.
       const detalle = prodMes.map((p, i) => {
         const c = consMes[i];
-        const auto = hayConsumo ? Math.min(p * (pctAutoE / 100), c) : p * (pctAutoE / 100);
-        const exc = Math.max(p - auto, 0);
-        ahorroReal += auto * hipotesis.precio_kwh + exc * hipotesis.precio_compensacion;
-        autoTotal += auto; excTotal += exc; consTotal += c;
-        return { p, c, auto, exc };
+        const m = simulacionAnual?.meses[i];
+        const auto = m ? r2(m.autoconsumo_directo * m.dias) : (hayConsumo ? Math.min(p * (pctAutoE / 100), c) : p * (pctAutoE / 100));
+        const bat = m ? r2(m.aporte_bateria * m.dias) : 0;
+        const exc = m ? r2(m.vertido * m.dias) : Math.max(p - auto, 0);
+        const pctMes = p > 0 ? Math.min(r2(((auto + bat) / p) * 100), 100) : 0;
+        return { p, c, auto, bat, exc, pctMes };
+      });
+      let ahorroReal = 0, autoTotal = 0, batTotal = 0, excTotal = 0, consTotal = 0;
+      detalle.forEach((d) => {
+        ahorroReal += (d.auto + d.bat) * hipotesis.precio_kwh + d.exc * hipotesis.precio_compensacion;
+        autoTotal += d.auto; batTotal += d.bat; excTotal += d.exc; consTotal += d.c;
       });
       ahorroReal = r2(ahorroReal - hipotesis.mantenimiento_anual);
       const invE = hipotesis.analisis_con_iva ? resultado.precio_con_iva : resultado.precio_sin_iva;
       const amortReal = ahorroReal > 0 ? r2(invE / ahorroReal) : null;
-      const kwhE = (n: number) => Math.round(n).toLocaleString('es-ES');
-      const coberturaReal = consTotal > 0 ? Math.min(r2((autoTotal / consTotal) * 100), 100) : null;
+      const coberturaReal = consTotal > 0 ? Math.min(r2(((autoTotal + batTotal) / consTotal) * 100), 100) : null;
+      const mesMax = detalle.reduce((best, d, i) => (d.pctMes > detalle[best].pctMes ? i : best), 0);
+      const mesMin = detalle.reduce((worst, d, i) => (d.pctMes < detalle[worst].pctMes ? i : worst), 0);
 
-      // Gráfico de barras en SVG (imprime perfecto): producción (naranja) vs consumo (azul)
+      // Gráfico 1 — producción vs consumo (kWh), barras
       const W = 680, H = 210, ml = 44, mb = 26, mt = 16;
       const plotH = H - mt - mb, plotW = W - ml - 8;
       const maxV = Math.max(...prodMes, ...consMes, 1);
@@ -381,17 +391,65 @@ function CalculadoraFV() {
       }).join('');
       const chart = `<svg viewBox="0 0 ${W} ${H}" width="100%" style="max-width:100%;height:auto">${grid}${barras}</svg>`;
 
+      // Gráfico 2 — reparto de CADA mes: cuánta energía se autoconsume/batería/vertido, en % de la producción de ese mes
+      const H2 = 190, mt2 = 16, mb2 = 26, plotH2 = H2 - mt2 - mb2;
+      const bw2 = Math.min(gw * 0.55, 30);
+      const yAt2 = (pct: number) => mt2 + plotH2 - (pct / 100) * plotH2;
+      const grid2 = [0, 25, 50, 75, 100].map((f) => {
+        const y = mt2 + plotH2 - (f / 100) * plotH2;
+        return `<line x1="${ml}" y1="${y}" x2="${W - 8}" y2="${y}" stroke="#eee" stroke-width="1"/><text x="${ml - 6}" y="${y + 3}" text-anchor="end" font-size="9" fill="#9a9aa8">${f}%</text>`;
+      }).join('');
+      const barrasReparto = detalle.map((d, i) => {
+        const cx = ml + i * gw + gw / 2;
+        const x = cx - bw2 / 2;
+        const pctAuto = d.p > 0 ? Math.min((d.auto / d.p) * 100, 100) : 0;
+        const pctBat = d.p > 0 ? Math.min((d.bat / d.p) * 100, 100 - pctAuto) : 0;
+        const pctExc = Math.max(100 - pctAuto - pctBat, 0);
+        const yTop = yAt2(pctAuto);
+        const yMidTop = yAt2(pctAuto + pctBat);
+        const rAuto = `<rect x="${x}" y="${yTop}" width="${bw2}" height="${mt2 + plotH2 - yTop}" fill="#ff9500"/>`;
+        const rBat = pctBat > 0.3 ? `<rect x="${x}" y="${yMidTop}" width="${bw2}" height="${yTop - yMidTop}" fill="#10b981"/>` : '';
+        const rExc = pctExc > 0.3 ? `<rect x="${x}" y="${mt2}" width="${bw2}" height="${yMidTop - mt2}" fill="#d8dce3"/>` : '';
+        return rAuto + rBat + rExc + `<text x="${cx}" y="${H2 - 8}" text-anchor="middle" font-size="9" fill="#5c5c6e">${MESES_CORTO[i]}</text>`;
+      }).join('');
+      const chartReparto = `<svg viewBox="0 0 ${W} ${H2}" width="100%" style="max-width:100%;height:auto">${grid2}${barrasReparto}</svg>`;
+
+      // Tabla mes a mes — cifras exactas para que no quede nada a la imaginación
+      const filasMes = detalle.map((d, i) => `<tr>
+<td><b>${MESES_CORTO[i]}</b></td>
+<td class="num">${kwhE(d.p)}</td>
+${hayConsumo ? `<td class="num">${kwhE(d.c)}</td>` : ''}
+<td class="num">${kwhE(d.auto)}</td>
+${hayBateria ? `<td class="num">${kwhE(d.bat)}</td>` : ''}
+<td class="num">${kwhE(d.exc)}</td>
+<td class="num"><b style="color:${d.pctMes >= 70 ? '#0a8a4a' : d.pctMes >= 40 ? '#b45309' : '#e11d48'}">${d.pctMes} %</b></td>
+</tr>`).join('');
+
       // Proyección a 25 años (vida útil de los módulos) y CO2 evitado
       const proyeccion25 = amortReal != null ? r2(ahorroReal * 25 - invE) : null;
       const co2Anual = r2((potencia * hipotesis.prod_especifica) * 0.19 / 1000); // t CO2/año (mix eléctrico ~0,19 kg/kWh)
 
-      bloqueEstacional = `<h2>Qué pasará cuando tenga las placas</h2>
-<p style="font-size:.92rem;color:#3a3a4a">El sol no produce igual todo el año: en verano genera más del doble que en invierno. ${hayConsumo ? 'Este es el reparto de la producción de sus placas frente a <b>su consumo real</b>, mes a mes:' : 'Este es el reparto de la producción estimada de su instalación:'}</p>
+      bloqueEstacional = `<h2>Qué pasará cuando tenga las placas, mes a mes</h2>
+<p style="font-size:.92rem;color:#3a3a4a">El sol no produce igual todo el año: en verano genera más del doble que en invierno, y su consumo tampoco es siempre el mismo. ${hayConsumo ? 'Este es el reparto real de la producción de sus placas frente a <b>su consumo mes a mes</b>:' : 'Este es el reparto de la producción estimada de su instalación:'}</p>
 <div style="margin:.5rem 0">${chart}</div>
-<p style="font-size:.82rem;margin:.2rem 0 1rem"><span style="display:inline-block;width:12px;height:12px;background:#ff9500;border-radius:2px;vertical-align:middle"></span> Producción solar${hayConsumo ? ' &nbsp;&nbsp; <span style="display:inline-block;width:12px;height:12px;background:#0088bb;border-radius:2px;vertical-align:middle"></span> Su consumo real' : ''}</p>
+<p style="font-size:.82rem;margin:.2rem 0 1.2rem"><span style="display:inline-block;width:12px;height:12px;background:#ff9500;border-radius:2px;vertical-align:middle"></span> Producción solar${hayConsumo ? ' &nbsp;&nbsp; <span style="display:inline-block;width:12px;height:12px;background:#0088bb;border-radius:2px;vertical-align:middle"></span> Su consumo real' : ''}</p>
+
+<p style="font-size:.92rem;color:#3a3a4a">Y esto es <b>qué hace cada mes con la energía que produce</b>: cuánto aprovecha usted al instante, cuánto le devuelve la batería${hayBateria ? '' : ' (si la incluye)'} en horas sin sol, y cuánto sobra y se vierte a la red:</p>
+<div style="margin:.5rem 0">${chartReparto}</div>
+<p style="font-size:.82rem;margin:.2rem 0 1.2rem">
+<span style="display:inline-block;width:12px;height:12px;background:#ff9500;border-radius:2px;vertical-align:middle"></span> Autoconsumo directo
+${hayBateria ? ' &nbsp;&nbsp; <span style="display:inline-block;width:12px;height:12px;background:#10b981;border-radius:2px;vertical-align:middle"></span> Aporta la batería' : ''}
+&nbsp;&nbsp; <span style="display:inline-block;width:12px;height:12px;background:#d8dce3;border-radius:2px;vertical-align:middle"></span> Excedente vertido a red
+</p>
+
+<table><thead><tr><th>Mes</th><th class="num">Producción</th>${hayConsumo ? '<th class="num">Su consumo</th>' : ''}<th class="num">Autoconsumo</th>${hayBateria ? '<th class="num">Batería</th>' : ''}<th class="num">Vertido</th><th class="num">Cobertura</th></tr></thead><tbody>
+${filasMes}
+</tbody></table>
+<p class="muted">Cobertura = qué parte de la producción de ese mes se queda en su casa (autoconsumo directo + lo que le devuelve la batería), en vez de irse a la red. En <b>${MESES_CORTO[mesMax]}</b> es donde mejor se aprovecha (${detalle[mesMax].pctMes} %); en <b>${MESES_CORTO[mesMin]}</b> es donde menos (${detalle[mesMin].pctMes} %) — normal, hay menos sol y ${hayBateria ? 'la batería no llega a cubrirlo todo' : 'sin batería el excedente del mediodía no se puede guardar'}.</p>
+
 ${hayConsumo ? `<table><thead><tr><th>Qué hará su energía en un año</th><th class="num">kWh/año</th><th class="num">%</th></tr></thead><tbody>
 <tr><td>☀️ Producción total de sus placas</td><td class="num">${kwhE(prodMes.reduce((s, p) => s + p, 0))}</td><td class="num">100 %</td></tr>
-<tr><td>🏠 Energía que aprovecha usted mismo (deja de comprar a la red)</td><td class="num">${kwhE(autoTotal)}</td><td class="num">${coberturaReal ?? '—'} % de su consumo</td></tr>
+<tr><td>🏠 Energía que aprovecha usted mismo (deja de comprar a la red)</td><td class="num">${kwhE(autoTotal + batTotal)}</td><td class="num">${coberturaReal ?? '—'} % de su consumo</td></tr>
 <tr><td>🔄 Excedente que vierte a la red (se le compensa en factura)</td><td class="num">${kwhE(excTotal)}</td><td class="num"></td></tr>
 </tbody></table>` : ''}
 <div class="calc" style="background:#eafaf0;border-color:#bfe6cf">
@@ -402,7 +460,7 @@ ${hayConsumo ? `<table><thead><tr><th>Qué hará su energía en un año</th><th 
     <div><div style="font-size:1.5rem;font-weight:900;color:#0a8a4a">${co2Anual} t</div><div style="font-size:.72rem;color:#5c5c6e">CO₂ EVITADO AL AÑO</div></div>
   </div>
 </div>
-<p class="muted">${hayConsumo ? 'El ahorro se calcula cruzando mes a mes la producción de las placas con su consumo real —no con una media—: es la estimación más ajustada a su caso. ' : ''}A partir del año de amortización, todo lo que ahorra es beneficio: los módulos tienen una vida útil de unos 25 años. La proyección a 25 años no aplica inflación de la luz (si sube, ahorrará más). Cifras orientativas pendientes de validación técnica.</p>`;
+<p class="muted">${hayConsumo ? 'El ahorro se calcula simulando mes a mes el sol y su consumo real —no con una media anual—: es la estimación más ajustada a su caso, invierno y verano por separado. ' : ''}A partir del año de amortización, todo lo que ahorra es beneficio: los módulos tienen una vida útil de unos 25 años. La proyección a 25 años no aplica inflación de la luz (si sube, ahorrará más). Cifras orientativas pendientes de validación técnica.</p>`;
     }
 
     // ── Ficha técnica: consumo medido, dimensionado, equipos y por qué de cada uno ──
