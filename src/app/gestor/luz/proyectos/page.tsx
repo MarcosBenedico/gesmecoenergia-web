@@ -6,27 +6,31 @@ import { LuzCliente, LuzCups, LuzProyecto, TARIFAS_ACCESO, fmtFecha } from '@/li
 import { Card, Badge, EstadoCarga, useListaLuz, guardarLuz, inputCls, labelCls, btnPrimario, btnSecundario } from '../ui';
 
 /**
- * Automatizador de proyectos de ahorro de luz.
- * Se eligen los CUPS a ofertar, se meten consumos e importes actuales por mes
- * (los meses que se quieran mostrar) y, por cada CUPS, dos ofertas:
- * precio FIJO a 12 meses e INDEXADO. Calcula el ahorro y genera el
- * documento profesional para presentar al cliente.
+ * Automatizador de proyectos de ahorro de luz — cálculo POR PERIODOS.
+ * Cada CUPS tiene sus periodos según la tarifa (P1-P3 en 2.0TD, P1-P6 en el resto).
+ * Se meten los consumos por periodo de cada mes y, por periodo, tres precios
+ * manuales en €/kWh: el actual, la oferta a precio fijo 12 meses y la indexada.
+ * Calcula el ahorro y genera el documento profesional para el cliente.
  */
 
-interface MesDato { mes: string; consumo_kwh: string; importe_eur: string }
+interface MesDato { mes: string; consumos: string[]; importe_eur: string }
 interface CupsProyecto {
   cups_id: string;          // id en luz_cups o '' si se escribe a mano
   etiqueta: string;         // texto que ve el cliente (CUPS o alias)
   tarifa: string;
   meses: MesDato[];
-  fijo_precio_kwh: string;      // €/kWh oferta fija 12 meses
-  fijo_termino_mes: string;     // € fijos al mes (potencia/cuota), opcional
-  index_precio_kwh: string;     // €/kWh estimado indexado
-  index_cuota_mes: string;      // € gestión al mes indexado, opcional
+  precios_actual: string[];     // €/kWh por periodo, situación actual
+  precios_fijo: string[];       // €/kWh por periodo, oferta fija 12 meses
+  precios_index: string[];      // €/kWh por periodo, oferta indexada (estimado)
+  fijo_termino_mes: string;     // € fijos al mes en la oferta fija (opcional)
+  index_cuota_mes: string;      // € gestión al mes en la indexada (opcional)
 }
 interface DatosProyecto { meses_mostrar: number; cups: CupsProyecto[] }
 
 const MESES_LARGO = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+
+/** Nº de periodos de energía según la tarifa de acceso. */
+const numPeriodos = (tarifa: string) => (tarifa === '2.0TD' || tarifa === 'otra' ? 3 : 6);
 
 /** Últimos n meses en formato YYYY-MM (el más antiguo primero). */
 function ultimosMeses(n: number): string[] {
@@ -43,34 +47,79 @@ const nombreMes = (ym: string) => {
   const [a, m] = ym.split('-');
   return `${MESES_LARGO[(parseInt(m) || 1) - 1]} ${a}`;
 };
-const num = (s: string) => { const v = parseFloat(String(s).replace(',', '.')); return isNaN(v) ? 0 : v; };
+const num = (s: string) => { const v = parseFloat(String(s ?? '').replace(',', '.')); return isNaN(v) ? 0 : v; };
 const eur = (v: number) => v.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
 const kwh = (v: number) => Math.round(v).toLocaleString('es-ES') + ' kWh';
+const precio = (s: string) => (num(s) > 0 ? num(s).toFixed(4).replace('.', ',') : '—');
 
-function cupsVacio(mesesMostrar: number): CupsProyecto {
+/** Ajusta un array de strings al tamaño pedido (rellena con ''). */
+const ajustar = (arr: string[] | undefined, n: number) =>
+  Array.from({ length: n }, (_, i) => arr?.[i] ?? '');
+
+function cupsVacio(mesesMostrar: number, tarifa = '2.0TD'): CupsProyecto {
+  const p = numPeriodos(tarifa);
   return {
-    cups_id: '', etiqueta: '', tarifa: '2.0TD',
-    meses: ultimosMeses(mesesMostrar).map((mes) => ({ mes, consumo_kwh: '', importe_eur: '' })),
-    fijo_precio_kwh: '', fijo_termino_mes: '', index_precio_kwh: '', index_cuota_mes: '',
+    cups_id: '', etiqueta: '', tarifa,
+    meses: ultimosMeses(mesesMostrar).map((mes) => ({ mes, consumos: Array(p).fill(''), importe_eur: '' })),
+    precios_actual: Array(p).fill(''), precios_fijo: Array(p).fill(''), precios_index: Array(p).fill(''),
+    fijo_termino_mes: '', index_cuota_mes: '',
   };
 }
 
-/** Cálculo de un CUPS: situación actual anualizada y coste de las dos ofertas. */
-function calcularCups(c: CupsProyecto) {
-  const filas = c.meses.filter((m) => num(m.consumo_kwh) > 0 || num(m.importe_eur) > 0);
-  const n = filas.length;
-  const consumo = filas.reduce((s, m) => s + num(m.consumo_kwh), 0);
-  const gasto = filas.reduce((s, m) => s + num(m.importe_eur), 0);
-  const factor = n > 0 ? 12 / n : 0;
-  const consumoAnual = consumo * factor;
-  const gastoAnual = gasto * factor;
-  const precioMedio = consumo > 0 ? gasto / consumo : 0;
-  const fijoAnual = num(c.fijo_precio_kwh) > 0 ? consumoAnual * num(c.fijo_precio_kwh) + num(c.fijo_termino_mes) * 12 : null;
-  const indexAnual = num(c.index_precio_kwh) > 0 ? consumoAnual * num(c.index_precio_kwh) + num(c.index_cuota_mes) * 12 : null;
+/** Compatibilidad con proyectos antiguos (consumo único sin periodos). */
+function normalizar(b: Partial<CupsProyecto> & { meses?: (Partial<MesDato> & { consumo_kwh?: string })[] }, mesesMostrar: number): CupsProyecto {
+  const tarifa = b.tarifa || '2.0TD';
+  const p = numPeriodos(tarifa);
+  const plantilla = ultimosMeses(mesesMostrar);
+  const mesesPrevios = Array.isArray(b.meses) ? b.meses : [];
+  const meses = (mesesPrevios.length ? mesesPrevios.map((m) => m.mes || '') : plantilla).map((mes, i) => {
+    const prev = mesesPrevios[i];
+    const consumos = ajustar(prev?.consumos, p);
+    if (prev?.consumo_kwh && !consumos.some((c) => c !== '')) consumos[0] = prev.consumo_kwh; // dato antiguo → P1
+    return { mes: mes || plantilla[i] || plantilla[0], consumos, importe_eur: prev?.importe_eur ?? '' };
+  });
   return {
-    n, consumo, gasto, consumoAnual, gastoAnual, precioMedio,
-    fijoAnual, ahorroFijo: fijoAnual != null ? gastoAnual - fijoAnual : null,
-    indexAnual, ahorroIndex: indexAnual != null ? gastoAnual - indexAnual : null,
+    cups_id: b.cups_id || '', etiqueta: b.etiqueta || '', tarifa,
+    meses,
+    precios_actual: ajustar(b.precios_actual, p),
+    precios_fijo: ajustar(b.precios_fijo, p),
+    precios_index: ajustar(b.precios_index, p),
+    fijo_termino_mes: b.fijo_termino_mes || '', index_cuota_mes: b.index_cuota_mes || '',
+  };
+}
+
+/** Cálculo de un CUPS por periodos: consumos, costes actuales y de las dos ofertas. */
+function calcularCups(c: CupsProyecto) {
+  const p = numPeriodos(c.tarifa);
+  const filas = c.meses.filter((m) => m.consumos.some((x) => num(x) > 0) || num(m.importe_eur) > 0);
+  const n = filas.length;
+  const factor = n > 0 ? 12 / n : 0;
+
+  // Consumo por periodo (suma de los meses) y anualizado
+  const consumoP = Array.from({ length: p }, (_, i) => filas.reduce((s, m) => s + num(m.consumos[i]), 0));
+  const consumoAnualP = consumoP.map((v) => v * factor);
+  const consumo = consumoP.reduce((s, v) => s + v, 0);
+  const consumoAnual = consumo * factor;
+
+  const gastoFacturas = filas.reduce((s, m) => s + num(m.importe_eur), 0);
+  const gastoFacturasAnual = gastoFacturas * factor;
+
+  const coste = (precios: string[]) => consumoAnualP.reduce((s, v, i) => s + v * num(precios[i]), 0);
+  const hayActual = c.precios_actual.some((x) => num(x) > 0);
+  const hayFijo = c.precios_fijo.some((x) => num(x) > 0);
+  const hayIndex = c.precios_index.some((x) => num(x) > 0);
+
+  // Situación actual: con precios por periodo si están; si no, con los importes de factura
+  const actualAnual = hayActual ? coste(c.precios_actual) : gastoFacturasAnual;
+  const fijoAnual = hayFijo ? coste(c.precios_fijo) + num(c.fijo_termino_mes) * 12 : null;
+  const indexAnual = hayIndex ? coste(c.precios_index) + num(c.index_cuota_mes) * 12 : null;
+
+  return {
+    p, n, factor, consumoP, consumoAnualP, consumo, consumoAnual,
+    gastoFacturas, gastoFacturasAnual, hayActual,
+    actualAnual,
+    fijoAnual, ahorroFijo: fijoAnual != null ? actualAnual - fijoAnual : null,
+    indexAnual, ahorroIndex: indexAnual != null ? actualAnual - indexAnual : null,
   };
 }
 
@@ -97,13 +146,14 @@ export default function ProyectosLuzPage() {
     setBloques([cupsVacio(6)]); setMsg(''); setEditando(true);
   }
 
-  function abrirProyecto(p: LuzProyecto) {
-    const d = p.datos as unknown as DatosProyecto;
-    setProyectoId(p.id);
-    setClienteId(p.cliente_id || '');
-    setTitulo(p.titulo);
-    setMesesMostrar(d.meses_mostrar || 6);
-    setBloques(Array.isArray(d.cups) && d.cups.length ? d.cups : [cupsVacio(d.meses_mostrar || 6)]);
+  function abrirProyecto(pr: LuzProyecto) {
+    const d = pr.datos as unknown as DatosProyecto;
+    const mm = d.meses_mostrar || 6;
+    setProyectoId(pr.id);
+    setClienteId(pr.cliente_id || '');
+    setTitulo(pr.titulo);
+    setMesesMostrar(mm);
+    setBloques(Array.isArray(d.cups) && d.cups.length ? d.cups.map((b) => normalizar(b, mm)) : [cupsVacio(mm)]);
     setMsg(''); setEditando(true);
   }
 
@@ -114,22 +164,45 @@ export default function ProyectosLuzPage() {
     const plantilla = ultimosMeses(nn);
     setBloques((bs) => bs.map((b) => ({
       ...b,
-      meses: plantilla.map((mes) => b.meses.find((m) => m.mes === mes) || { mes, consumo_kwh: '', importe_eur: '' }),
+      meses: plantilla.map((mes) => b.meses.find((m) => m.mes === mes) || { mes, consumos: Array(numPeriodos(b.tarifa)).fill(''), importe_eur: '' }),
     })));
   }
 
   const setBloque = (i: number, cambios: Partial<CupsProyecto>) =>
     setBloques((bs) => bs.map((b, j) => (j === i ? { ...b, ...cambios } : b)));
-  const setMes = (i: number, j: number, campo: 'mes' | 'consumo_kwh' | 'importe_eur', valor: string) =>
+
+  /** Cambiar la tarifa reajusta el nº de periodos en consumos y precios. */
+  function cambiarTarifa(i: number, tarifa: string) {
+    setBloques((bs) => bs.map((b, j) => {
+      if (j !== i) return b;
+      const p = numPeriodos(tarifa);
+      return {
+        ...b, tarifa,
+        meses: b.meses.map((m) => ({ ...m, consumos: ajustar(m.consumos, p) })),
+        precios_actual: ajustar(b.precios_actual, p),
+        precios_fijo: ajustar(b.precios_fijo, p),
+        precios_index: ajustar(b.precios_index, p),
+      };
+    }));
+  }
+
+  const setConsumo = (i: number, j: number, per: number, valor: string) =>
+    setBloques((bs) => bs.map((b, k) => k !== i ? b : {
+      ...b,
+      meses: b.meses.map((m, l) => (l === j ? { ...m, consumos: m.consumos.map((c, q) => (q === per ? valor : c)) } : m)),
+    }));
+  const setMesCampo = (i: number, j: number, campo: 'mes' | 'importe_eur', valor: string) =>
     setBloques((bs) => bs.map((b, k) => k !== i ? b : { ...b, meses: b.meses.map((m, l) => (l === j ? { ...m, [campo]: valor } : m)) }));
+  const setPrecio = (i: number, lista: 'precios_actual' | 'precios_fijo' | 'precios_index', per: number, valor: string) =>
+    setBloques((bs) => bs.map((b, k) => k !== i ? b : { ...b, [lista]: b[lista].map((v, q) => (q === per ? valor : v)) }));
 
   /** Al elegir un CUPS del cliente, se rellena la etiqueta y la tarifa. */
   function elegirCups(i: number, id: string) {
     const s = cupsDelCliente.find((c) => c.id === id);
+    if (s?.tarifa_acceso && s.tarifa_acceso !== bloques[i].tarifa) cambiarTarifa(i, s.tarifa_acceso);
     setBloque(i, {
       cups_id: id,
       etiqueta: s ? (s.alias_suministro ? `${s.alias_suministro} · ${s.cups}` : s.cups) : bloques[i].etiqueta,
-      tarifa: s?.tarifa_acceso || bloques[i].tarifa,
     });
   }
 
@@ -159,42 +232,59 @@ export default function ProyectosLuzPage() {
   function generarDocumento() {
     const logo = `${window.location.origin}/logo-gesmeco.png`;
     const hoy = new Date().toLocaleDateString('es-ES');
-    const conDatos = bloques.filter((b) => b.etiqueta.trim() || b.meses.some((m) => num(m.consumo_kwh) > 0));
+    const conDatos = bloques.filter((b) => b.etiqueta.trim() || b.meses.some((m) => m.consumos.some((x) => num(x) > 0)));
     if (conDatos.length === 0) { setMsg('Rellena al menos un CUPS con datos para generar el documento.'); return; }
 
-    let totalActual = 0, totalFijo = 0, totalIndex = 0, hayFijo = false, hayIndex = false;
+    let totalActual = 0, totalFijo = 0, totalIndex = 0, docFijo = false, docIndex = false;
 
     const secciones = conDatos.map((b, idx) => {
       const r = calcularCups(b);
-      totalActual += r.gastoAnual;
-      if (r.fijoAnual != null) { totalFijo += r.fijoAnual; hayFijo = true; }
-      if (r.indexAnual != null) { totalIndex += r.indexAnual; hayIndex = true; }
+      totalActual += r.actualAnual;
+      if (r.fijoAnual != null) { totalFijo += r.fijoAnual; docFijo = true; }
+      if (r.indexAnual != null) { totalIndex += r.indexAnual; docIndex = true; }
+      const pers = Array.from({ length: r.p }, (_, i) => i);
 
+      // Tabla de consumos por mes y periodo
+      const cabPeriodos = pers.map((i) => `<th class="num">P${i + 1}</th>`).join('');
       const filasMeses = b.meses
-        .filter((m) => num(m.consumo_kwh) > 0 || num(m.importe_eur) > 0)
-        .map((m) => `<tr><td>${nombreMes(m.mes)}</td><td class="num">${kwh(num(m.consumo_kwh))}</td><td class="num">${eur(num(m.importe_eur))}</td></tr>`)
+        .filter((m) => m.consumos.some((x) => num(x) > 0) || num(m.importe_eur) > 0)
+        .map((m) => `<tr><td>${nombreMes(m.mes)}</td>${pers.map((i) => `<td class="num">${num(m.consumos[i]) > 0 ? Math.round(num(m.consumos[i])).toLocaleString('es-ES') : '—'}</td>`).join('')}<td class="num">${num(m.importe_eur) > 0 ? eur(num(m.importe_eur)) : '—'}</td></tr>`)
         .join('');
+      const totPeriodos = pers.map((i) => `<td class="num">${Math.round(r.consumoP[i]).toLocaleString('es-ES')}</td>`).join('');
+
+      // Tabla de precios por periodo
+      const filasPrecios = pers.map((i) => `<tr>
+        <td><b>P${i + 1}</b></td>
+        <td class="num">${kwh(r.consumoAnualP[i])}</td>
+        <td class="num">${precio(b.precios_actual[i])}</td>
+        <td class="num">${precio(b.precios_fijo[i])}</td>
+        <td class="num">${precio(b.precios_index[i])}</td>
+      </tr>`).join('');
 
       const tarjeta = (nombre: string, sub: string, coste: number | null, ahorro: number | null) => coste == null ? '' : `
         <div class="oferta">
           <p class="of-nombre">${nombre}</p>
           <p class="of-sub">${sub}</p>
           <p class="of-coste">${eur(coste)} <span>/año estimado</span></p>
-          ${ahorro != null && ahorro > 0 ? `<p class="of-ahorro">Ahorro estimado: <b>${eur(ahorro)}</b> al año (${r.gastoAnual > 0 ? Math.round((ahorro / r.gastoAnual) * 100) : 0}%)</p>` : ahorro != null ? `<p class="of-igual">Coste similar al actual</p>` : ''}
+          ${ahorro != null && ahorro > 0 ? `<p class="of-ahorro">Ahorro estimado: <b>${eur(ahorro)}</b> al año (${r.actualAnual > 0 ? Math.round((ahorro / r.actualAnual) * 100) : 0}%)</p>` : ahorro != null ? `<p class="of-igual">Coste similar al actual</p>` : ''}
         </div>`;
 
       return `
-<h2>Suministro ${idx + 1} · ${b.etiqueta || 'CUPS'} <span class="tarifa">Tarifa ${b.tarifa}</span></h2>
+<h2>Suministro ${idx + 1} · ${b.etiqueta || 'CUPS'} <span class="tarifa">Tarifa ${b.tarifa} · ${r.p} periodos</span></h2>
 <table>
-  <thead><tr><th>Mes</th><th class="num">Consumo</th><th class="num">Importe actual</th></tr></thead>
+  <thead><tr><th>Mes</th>${cabPeriodos}<th class="num">Importe factura</th></tr></thead>
   <tbody>${filasMeses}</tbody>
-  <tfoot><tr class="suma"><td>Total ${r.n} mes${r.n === 1 ? '' : 'es'}</td><td class="num">${kwh(r.consumo)}</td><td class="num">${eur(r.gasto)}</td></tr></tfoot>
+  <tfoot><tr class="suma"><td>Total ${r.n} mes${r.n === 1 ? '' : 'es'} (kWh)</td>${totPeriodos}<td class="num">${r.gastoFacturas > 0 ? eur(r.gastoFacturas) : '—'}</td></tr></tfoot>
 </table>
-<p class="anual">📊 Proyección anual con sus consumos: <b>${kwh(r.consumoAnual)}</b> → gasto actual estimado <b>${eur(r.gastoAnual)}</b>/año
-(precio medio ${r.precioMedio.toFixed(4).replace('.', ',')} €/kWh).</p>
+<h2 style="margin-top:1.2rem">Precios por periodo (€/kWh)</h2>
+<table>
+  <thead><tr><th>Periodo</th><th class="num">Consumo anual</th><th class="num">Precio actual</th><th class="num">🔒 Oferta fija 12 m</th><th class="num">📈 Oferta indexada*</th></tr></thead>
+  <tbody>${filasPrecios}</tbody>
+</table>
+<p class="anual">📊 Proyección anual: <b>${kwh(r.consumoAnual)}</b> → coste actual estimado <b>${eur(r.actualAnual)}</b>/año${!r.hayActual && r.gastoFacturas > 0 ? ' (según los importes de sus facturas)' : ''}.</p>
 <div class="ofertas">
-  ${tarjeta('🔒 Oferta PRECIO FIJO · 12 meses', `${num(b.fijo_precio_kwh).toFixed(4).replace('.', ',')} €/kWh${num(b.fijo_termino_mes) > 0 ? ` + ${eur(num(b.fijo_termino_mes))}/mes` : ''} — mismo precio todo el año, sin sustos`, r.fijoAnual, r.ahorroFijo)}
-  ${tarjeta('📈 Oferta INDEXADA', `${num(b.index_precio_kwh).toFixed(4).replace('.', ',')} €/kWh estimado${num(b.index_cuota_mes) > 0 ? ` + ${eur(num(b.index_cuota_mes))}/mes de gestión` : ''} — sigue el precio del mercado`, r.indexAnual, r.ahorroIndex)}
+  ${tarjeta('🔒 Oferta PRECIO FIJO · 12 meses', `Precios por periodo de la tabla${num(b.fijo_termino_mes) > 0 ? ` + ${eur(num(b.fijo_termino_mes))}/mes` : ''} — mismo precio todo el año, sin sustos`, r.fijoAnual, r.ahorroFijo)}
+  ${tarjeta('📈 Oferta INDEXADA', `Precios estimados por periodo${num(b.index_cuota_mes) > 0 ? ` + ${eur(num(b.index_cuota_mes))}/mes de gestión` : ''} — sigue el precio del mercado`, r.indexAnual, r.ahorroIndex)}
 </div>`;
     }).join('');
 
@@ -204,8 +294,8 @@ export default function ProyectosLuzPage() {
   <thead><tr><th>Escenario</th><th class="num">Coste anual estimado</th><th class="num">Ahorro anual</th></tr></thead>
   <tbody>
     <tr><td>Situación actual</td><td class="num">${eur(totalActual)}</td><td class="num">—</td></tr>
-    ${hayFijo ? `<tr><td>🔒 Con oferta a precio fijo</td><td class="num">${eur(totalFijo)}</td><td class="num"><b>${eur(totalActual - totalFijo)}</b></td></tr>` : ''}
-    ${hayIndex ? `<tr><td>📈 Con oferta indexada</td><td class="num">${eur(totalIndex)}</td><td class="num"><b>${eur(totalActual - totalIndex)}</b></td></tr>` : ''}
+    ${docFijo ? `<tr><td>🔒 Con oferta a precio fijo</td><td class="num">${eur(totalFijo)}</td><td class="num"><b>${eur(totalActual - totalFijo)}</b></td></tr>` : ''}
+    ${docIndex ? `<tr><td>📈 Con oferta indexada</td><td class="num">${eur(totalIndex)}</td><td class="num"><b>${eur(totalActual - totalIndex)}</b></td></tr>` : ''}
   </tbody>
 </table>` : '';
 
@@ -228,8 +318,8 @@ export default function ProyectosLuzPage() {
   .caja b{display:block;font-size:1rem}
   p{line-height:1.6}
   table{width:100%;border-collapse:collapse;margin:.6rem 0}
-  td,th{padding:.5rem .9rem;text-align:left;font-size:.9rem}
-  thead th{background:var(--oscuro);color:#fff;font-size:.72rem;letter-spacing:.14em;text-transform:uppercase}
+  td,th{padding:.45rem .7rem;text-align:left;font-size:.86rem}
+  thead th{background:var(--oscuro);color:#fff;font-size:.68rem;letter-spacing:.1em;text-transform:uppercase}
   tbody td{border-bottom:1px solid #eee}
   .num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
   .suma td{background:#f3f3f7;font-weight:800}
@@ -262,10 +352,10 @@ ${secciones}
 ${resumen}
 <h2>Condiciones y notas</h2>
 <ul>
-  <li><b>Precio fijo 12 meses:</b> el precio de la energía se mantiene durante todo el año, pase lo que pase en el mercado.</li>
-  <li><b>Indexado:</b> el precio sigue el mercado mayorista (OMIE) hora a hora; el coste indicado es una estimación con los precios actuales y puede variar al alza o a la baja.</li>
-  <li>Proyección calculada a partir de los consumos reales facilitados por el cliente, extrapolados a 12 meses.</li>
-  <li>Importes con los mismos impuestos y peajes que las facturas facilitadas. La comparativa es orientativa hasta la oferta en firme de la comercializadora.</li>
+  <li><b>Precio fijo 12 meses:</b> los precios por periodo se mantienen durante todo el año, pase lo que pase en el mercado.</li>
+  <li><b>* Indexado:</b> el precio sigue el mercado mayorista (OMIE) hora a hora; los precios por periodo indicados son una estimación con el mercado actual y pueden variar al alza o a la baja.</li>
+  <li>Proyección calculada a partir de los consumos reales por periodo facilitados por el cliente, extrapolados a 12 meses.</li>
+  <li>La comparativa es orientativa hasta la oferta en firme de la comercializadora; no incluye variaciones de potencia contratada ni conceptos regulados ajenos a la energía.</li>
   <li>Gesmeco Energía gestiona el cambio sin coste y sin cortes de suministro: usted no tiene que hacer nada.</li>
 </ul>
 <div class="firma"><div>Firma del cliente</div><div>Gesmeco Energía</div></div>
@@ -277,13 +367,14 @@ ${resumen}
 
   // ── Totales del editor (en pantalla) ──
   const resultados = bloques.map(calcularCups);
-  const totActual = resultados.reduce((s, r) => s + r.gastoAnual, 0);
+  const totActual = resultados.reduce((s, r) => s + r.actualAnual, 0);
   const totFijo = resultados.reduce((s, r) => s + (r.fijoAnual ?? 0), 0);
   const totIndex = resultados.reduce((s, r) => s + (r.indexAnual ?? 0), 0);
   const hayFijo = resultados.some((r) => r.fijoAnual != null);
   const hayIndex = resultados.some((r) => r.indexAnual != null);
 
   const cargando = clientes.cargando || proyectos.cargando;
+  const inputMini = 'w-full rounded-md border border-border/40 bg-background/70 px-1.5 py-1 text-xs text-right tabular-nums';
 
   return (
     <div className="space-y-4">
@@ -291,8 +382,8 @@ ${resumen}
         <div>
           <h2 className="text-xl font-black text-foreground flex items-center gap-2"><FileText className="w-5 h-5 text-accent" /> Automatizador de proyectos</h2>
           <p className="text-xs text-muted mt-0.5">
-            Elige los CUPS a ofertar, mete consumos e importes por mes y presenta dos ofertas por suministro:
-            precio fijo 12 meses e indexado. Genera el documento listo para el cliente.
+            Consumos por periodo de cada mes y precios €/kWh por periodo (actual, fijo 12 meses e indexado).
+            2.0TD usa P1-P3; 3.0TD y 6.XTD usan P1-P6. Genera el documento listo para el cliente.
           </p>
         </div>
         {!editando && <button onClick={nuevoProyecto} className={btnPrimario}><Plus className="w-4 h-4" /> Nuevo proyecto</button>}
@@ -361,10 +452,11 @@ ${resumen}
 
           {bloques.map((b, i) => {
             const r = resultados[i];
+            const pers = Array.from({ length: r.p }, (_, q) => q);
             return (
               <Card key={i} className="space-y-3">
                 <div className="flex items-center justify-between gap-2 flex-wrap">
-                  <h3 className="font-bold text-sm">🔌 Suministro {i + 1}</h3>
+                  <h3 className="font-bold text-sm">🔌 Suministro {i + 1} <span className="text-muted font-semibold">· {r.p} periodos</span></h3>
                   {bloques.length > 1 && (
                     <button onClick={() => setBloques((bs) => bs.filter((_, j) => j !== i))} className="text-muted hover:text-red-400 text-xs font-bold">✕ Quitar este CUPS</button>
                   )}
@@ -385,87 +477,120 @@ ${resumen}
                     <input className={inputCls} value={b.etiqueta} onChange={(e) => setBloque(i, { etiqueta: e.target.value })} placeholder="Nave principal · ES0021..." />
                   </div>
                   <div>
-                    <label className={labelCls}>Tarifa</label>
-                    <select className={inputCls} value={b.tarifa} onChange={(e) => setBloque(i, { tarifa: e.target.value })}>
-                      {TARIFAS_ACCESO.map((t) => <option key={t} value={t}>{t}</option>)}
+                    <label className={labelCls}>Tarifa (marca los periodos)</label>
+                    <select className={inputCls} value={b.tarifa} onChange={(e) => cambiarTarifa(i, e.target.value)}>
+                      {TARIFAS_ACCESO.map((t) => <option key={t} value={t}>{t} · {numPeriodos(t)} periodos</option>)}
                     </select>
                   </div>
                 </div>
 
-                {/* Consumos e importes por mes */}
+                {/* Consumos por mes y periodo */}
                 <div className="overflow-x-auto">
-                  <table className="w-full text-xs">
+                  <table className="w-full text-xs min-w-[560px]">
                     <thead>
                       <tr className="text-left text-[10px] uppercase text-muted border-b border-border/40">
-                        <th className="py-1.5 pr-2">Mes</th>
-                        <th className="py-1.5 pr-2">Consumo (kWh)</th>
-                        <th className="py-1.5">Importe factura (€)</th>
+                        <th className="py-1.5 pr-2 min-w-36">Mes</th>
+                        {pers.map((q) => <th key={q} className="py-1.5 pr-2 text-right">P{q + 1} (kWh)</th>)}
+                        <th className="py-1.5 text-right">Importe factura € <span className="normal-case font-normal">(opcional)</span></th>
                       </tr>
                     </thead>
                     <tbody>
                       {b.meses.map((m, j) => (
                         <tr key={j} className="border-b border-border/15">
                           <td className="py-1 pr-2">
-                            <input className={`${inputCls} !py-1`} type="month" value={m.mes} onChange={(e) => setMes(i, j, 'mes', e.target.value)} />
+                            <input className={`${inputCls} !py-1`} type="month" value={m.mes} onChange={(e) => setMesCampo(i, j, 'mes', e.target.value)} />
                           </td>
-                          <td className="py-1 pr-2">
-                            <input className={`${inputCls} !py-1`} inputMode="decimal" value={m.consumo_kwh} onChange={(e) => setMes(i, j, 'consumo_kwh', e.target.value)} placeholder="0" />
-                          </td>
+                          {pers.map((q) => (
+                            <td key={q} className="py-1 pr-2">
+                              <input className={inputMini} inputMode="decimal" value={m.consumos[q] ?? ''} onChange={(e) => setConsumo(i, j, q, e.target.value)} placeholder="0" />
+                            </td>
+                          ))}
                           <td className="py-1">
-                            <input className={`${inputCls} !py-1`} inputMode="decimal" value={m.importe_eur} onChange={(e) => setMes(i, j, 'importe_eur', e.target.value)} placeholder="0,00" />
+                            <input className={inputMini} inputMode="decimal" value={m.importe_eur} onChange={(e) => setMesCampo(i, j, 'importe_eur', e.target.value)} placeholder="0,00" />
                           </td>
                         </tr>
                       ))}
+                      {r.n > 0 && (
+                        <tr className="font-bold">
+                          <td className="py-1.5 pr-2 text-[10px] uppercase text-muted">Total</td>
+                          {pers.map((q) => <td key={q} className="py-1.5 pr-2 text-right tabular-nums">{Math.round(r.consumoP[q]).toLocaleString('es-ES')}</td>)}
+                          <td className="py-1.5 text-right tabular-nums">{r.gastoFacturas > 0 ? eur(r.gastoFacturas) : '—'}</td>
+                        </tr>
+                      )}
                     </tbody>
                   </table>
                 </div>
 
-                {/* Las dos ofertas */}
-                <div className="grid md:grid-cols-2 gap-3">
-                  <div className="rounded-xl border border-border/40 bg-card/40 p-3 space-y-2">
-                    <p className="text-xs font-bold">🔒 Oferta PRECIO FIJO · 12 meses</p>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div><label className={labelCls}>€/kWh</label>
-                        <input className={inputCls} inputMode="decimal" value={b.fijo_precio_kwh} onChange={(e) => setBloque(i, { fijo_precio_kwh: e.target.value })} placeholder="0,1390" /></div>
-                      <div><label className={labelCls}>Fijo €/mes (opcional)</label>
-                        <input className={inputCls} inputMode="decimal" value={b.fijo_termino_mes} onChange={(e) => setBloque(i, { fijo_termino_mes: e.target.value })} placeholder="0" /></div>
-                    </div>
-                    {r.fijoAnual != null && (
-                      <p className="text-[11px]">
-                        Coste anual estimado: <b>{eur(r.fijoAnual)}</b>
-                        {r.ahorroFijo != null && (
-                          <span className={r.ahorroFijo > 0 ? 'text-emerald-400 font-bold' : 'text-amber-300'}>
-                            {' '}· {r.ahorroFijo > 0 ? `ahorra ${eur(r.ahorroFijo)}/año (${r.gastoAnual > 0 ? Math.round((r.ahorroFijo / r.gastoAnual) * 100) : 0}%)` : `${eur(-r.ahorroFijo)} más caro/año`}
-                          </span>
-                        )}
-                      </p>
-                    )}
-                  </div>
-                  <div className="rounded-xl border border-border/40 bg-card/40 p-3 space-y-2">
-                    <p className="text-xs font-bold">📈 Oferta INDEXADA</p>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div><label className={labelCls}>€/kWh estimado</label>
-                        <input className={inputCls} inputMode="decimal" value={b.index_precio_kwh} onChange={(e) => setBloque(i, { index_precio_kwh: e.target.value })} placeholder="0,1150" /></div>
-                      <div><label className={labelCls}>Gestión €/mes (opcional)</label>
-                        <input className={inputCls} inputMode="decimal" value={b.index_cuota_mes} onChange={(e) => setBloque(i, { index_cuota_mes: e.target.value })} placeholder="0" /></div>
-                    </div>
-                    {r.indexAnual != null && (
-                      <p className="text-[11px]">
-                        Coste anual estimado: <b>{eur(r.indexAnual)}</b>
-                        {r.ahorroIndex != null && (
-                          <span className={r.ahorroIndex > 0 ? 'text-emerald-400 font-bold' : 'text-amber-300'}>
-                            {' '}· {r.ahorroIndex > 0 ? `ahorra ${eur(r.ahorroIndex)}/año (${r.gastoAnual > 0 ? Math.round((r.ahorroIndex / r.gastoAnual) * 100) : 0}%)` : `${eur(-r.ahorroIndex)} más caro/año`}
-                          </span>
-                        )}
-                      </p>
-                    )}
-                  </div>
+                {/* Precios €/kWh por periodo: actual, fijo, indexado */}
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs min-w-[560px]">
+                    <thead>
+                      <tr className="text-left text-[10px] uppercase text-muted border-b border-border/40">
+                        <th className="py-1.5 pr-2">Precios €/kWh</th>
+                        {pers.map((q) => <th key={q} className="py-1.5 pr-2 text-right">P{q + 1}</th>)}
+                        <th className="py-1.5 text-right">Fijo €/mes</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr className="border-b border-border/15">
+                        <td className="py-1 pr-2 font-bold">Actual</td>
+                        {pers.map((q) => (
+                          <td key={q} className="py-1 pr-2">
+                            <input className={inputMini} inputMode="decimal" value={b.precios_actual[q] ?? ''} onChange={(e) => setPrecio(i, 'precios_actual', q, e.target.value)} placeholder="0,0000" />
+                          </td>
+                        ))}
+                        <td className="py-1 text-right text-[10px] text-muted">—</td>
+                      </tr>
+                      <tr className="border-b border-border/15">
+                        <td className="py-1 pr-2 font-bold">🔒 Oferta fija 12 m</td>
+                        {pers.map((q) => (
+                          <td key={q} className="py-1 pr-2">
+                            <input className={inputMini} inputMode="decimal" value={b.precios_fijo[q] ?? ''} onChange={(e) => setPrecio(i, 'precios_fijo', q, e.target.value)} placeholder="0,0000" />
+                          </td>
+                        ))}
+                        <td className="py-1">
+                          <input className={inputMini} inputMode="decimal" value={b.fijo_termino_mes} onChange={(e) => setBloque(i, { fijo_termino_mes: e.target.value })} placeholder="0" />
+                        </td>
+                      </tr>
+                      <tr>
+                        <td className="py-1 pr-2 font-bold">📈 Oferta indexada</td>
+                        {pers.map((q) => (
+                          <td key={q} className="py-1 pr-2">
+                            <input className={inputMini} inputMode="decimal" value={b.precios_index[q] ?? ''} onChange={(e) => setPrecio(i, 'precios_index', q, e.target.value)} placeholder="0,0000" />
+                          </td>
+                        ))}
+                        <td className="py-1">
+                          <input className={inputMini} inputMode="decimal" value={b.index_cuota_mes} onChange={(e) => setBloque(i, { index_cuota_mes: e.target.value })} placeholder="0" />
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                  <p className="text-[10px] text-muted mt-1">Si no rellenas los precios «Actual», la situación actual se calcula con los importes de factura. La fila indexada admite una cuota de gestión en «Fijo €/mes».</p>
                 </div>
 
+                {/* Resultado del CUPS */}
                 {r.n > 0 && (
-                  <p className="text-[11px] text-muted">
-                    📊 Con {r.n} mes{r.n === 1 ? '' : 'es'}: {kwh(r.consumo)} y {eur(r.gasto)} → proyección anual {kwh(r.consumoAnual)} · <b className="text-foreground">{eur(r.gastoAnual)}/año</b> · precio medio actual {r.precioMedio.toFixed(4).replace('.', ',')} €/kWh
-                  </p>
+                  <div className="rounded-xl border border-border/40 bg-card/40 p-3 text-[11px] space-y-1">
+                    <p>📊 Proyección anual: <b>{kwh(r.consumoAnual)}</b> · situación actual <b className="text-foreground">{eur(r.actualAnual)}/año</b>{!r.hayActual && r.gastoFacturas > 0 ? ' (según importes de factura)' : ''}</p>
+                    {r.fijoAnual != null && (
+                      <p>🔒 Fija 12 m: <b>{eur(r.fijoAnual)}/año</b>
+                        {r.ahorroFijo != null && (
+                          <span className={r.ahorroFijo > 0 ? 'text-emerald-400 font-bold' : 'text-amber-300'}>
+                            {' '}· {r.ahorroFijo > 0 ? `ahorra ${eur(r.ahorroFijo)} (${r.actualAnual > 0 ? Math.round((r.ahorroFijo / r.actualAnual) * 100) : 0}%)` : `${eur(-r.ahorroFijo)} más caro`}
+                          </span>
+                        )}
+                      </p>
+                    )}
+                    {r.indexAnual != null && (
+                      <p>📈 Indexada: <b>{eur(r.indexAnual)}/año</b>
+                        {r.ahorroIndex != null && (
+                          <span className={r.ahorroIndex > 0 ? 'text-emerald-400 font-bold' : 'text-amber-300'}>
+                            {' '}· {r.ahorroIndex > 0 ? `ahorra ${eur(r.ahorroIndex)} (${r.actualAnual > 0 ? Math.round((r.ahorroIndex / r.actualAnual) * 100) : 0}%)` : `${eur(-r.ahorroIndex)} más caro`}
+                          </span>
+                        )}
+                      </p>
+                    )}
+                  </div>
                 )}
               </Card>
             );
