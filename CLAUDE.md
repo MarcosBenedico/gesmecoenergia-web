@@ -17,6 +17,7 @@ npm run lint       # ESLint
 npm run smoke      # checklist de humo contra producción
 BASE=http://localhost:3000 npm run smoke   # smoke contra local
 node scripts/test-fv.mjs                   # tests de la lógica FV
+npm run test:estados                       # tests de sincronización de estados (Gestión Luz)
 npm run verify:supabase                    # comprueba conexión Supabase
 ```
 
@@ -33,7 +34,9 @@ No hay suite de tests formal; la verificación es `npm run build` + `scripts/smo
 
 - `src/app/(site)/` — web pública (home, servicios, sectores, analizador de facturas, etc.).
 - `src/app/gestor/` — panel interno, con login Supabase Auth:
-  - `gestor/luz/` — Gestión Luz: cartera energética (clientes, cups, contratos, pipeline, tareas, rutas, comisiones, proyectos de ahorro, mi-día…).
+  - `gestor/luz/` — Gestión Luz: cartera energética. El menú está organizado en **3 bloques por forma de trabajar** (`layout.tsx`), no por tipo de dato: **Calle** (David: mi-día, agenda, rutas, alta, pipeline, clientes), **Oficina** (Nicola: cups, contratos, proyectos, importar, guía) y **Dirección** (Marcos: dashboard, comisiones, equipo, FV, control, usuarios, configuración). Cada uno puede plegar los bloques que no usa (se recuerda en localStorage).
+    - **Agenda** (`gestor/luz/agenda`, lógica en `src/lib/agenda.ts`) — única lista de trabajo del equipo; sustituye en el menú a "Tareas" + "Fechas Críticas" (esas páginas siguen existiendo para crear/editar en detalle). Los vencimientos de contrato/permanencia/preaviso **no se guardan**: se calculan en vivo desde el CUPS, así nunca quedan desfasados.
+    - **Estado único del viaje comercial** (`src/lib/estados-luz.ts`) — el **CUPS es la fuente de verdad**; pipeline y contrato empujan su estado (traducción por tabla), y el estado comercial del cliente **se deriva** de todos sus CUPS. La sincronización vive en el PUT/POST de `src/app/api/luz/[tabla]/route.ts`. Nunca retrocede un suministro por accidente (`debeAplicarseAlCups`). Cubierto por `npm run test:estados`.
   - `gestor/luz/fv/` — **Calculadora FV** (solo admin): presupuestador fotovoltaico. Lógica en `src/lib/fv.ts`, UI en `page.tsx` + `energia.tsx`. Dos flujos: "presupuesto de Óscar" (instalador) y "presupuestar desde consumos". Incluye escenarios, algoritmo de batería por amortización (`optimizarBateria`), simulación horaria 24h (`simularDiaFV`), comparador de equipos reales y oferta PDF. `hipotesis.pct_autoconsumo` es la **fuente única** del autoconsumo efectivo en toda la oferta.
   - `gestor/correbin/` — vencimientos de seguros.
   - `gestor/clientes-app/` — App Clientes.

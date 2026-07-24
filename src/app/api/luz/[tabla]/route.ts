@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { PIPELINE_A_CUPS, CONTRATO_A_CUPS, estadoClienteDesdeCups, debeAplicarseAlCups } from '@/lib/estados-luz';
 
 /**
  * Cliente Supabase por petición: si llega el token del usuario, se reenvía
@@ -13,6 +14,7 @@ function clienteSupabase(req: NextRequest) {
     auth ? { global: { headers: { Authorization: auth } } } : undefined
   );
 }
+type Supa = ReturnType<typeof clienteSupabase>;
 
 /**
  * CRUD genérico del módulo Gestión Luz. Solo tablas luz_* whitelisteadas.
@@ -135,6 +137,41 @@ const TABLAS: Record<string, DefTabla> = {
 
 const PIPELINE_CERRADO_API = ['ganado', 'perdido', 'revisar_adelante'];
 
+/**
+ * Empuja un estado nuevo al CUPS y, en cascada, recalcula el estado comercial
+ * del cliente a partir de TODOS sus suministros.
+ *
+ * Es lo que evita tener que ir cambiando el mismo hecho en tres pantallas: el
+ * CUPS es la fuente de verdad y aquí se mantiene solo. Nunca retrocede un
+ * suministro por accidente (ver `debeAplicarseAlCups`).
+ */
+async function sincronizarCupsYCliente(supabase: Supa, cupsId: string, estadoNuevo: string | undefined) {
+  if (!cupsId) return;
+  const { data: cups } = await supabase.from('luz_cups').select('id, cliente_id, estado_cups').eq('id', cupsId).single();
+  if (!cups) return;
+
+  if (estadoNuevo && debeAplicarseAlCups(cups.estado_cups, estadoNuevo)) {
+    await supabase.from('luz_cups')
+      .update({ estado_cups: estadoNuevo, actualizado_en: new Date().toISOString() })
+      .eq('id', cupsId);
+  }
+  await recalcularEstadoCliente(supabase, cups.cliente_id);
+}
+
+/** El estado del cliente se deriva de sus CUPS: no se toca a mano en ningún sitio. */
+async function recalcularEstadoCliente(supabase: Supa, clienteId: string | null | undefined) {
+  if (!clienteId) return;
+  const { data: suministros } = await supabase.from('luz_cups').select('estado_cups').eq('cliente_id', clienteId);
+  const nuevo = estadoClienteDesdeCups((suministros || []).map((s: { estado_cups: string }) => s.estado_cups));
+  if (!nuevo) return;
+  const { data: cli } = await supabase.from('luz_clientes').select('estado_comercial').eq('id', clienteId).single();
+  if (cli && cli.estado_comercial !== nuevo) {
+    await supabase.from('luz_clientes')
+      .update({ estado_comercial: nuevo, actualizado_en: new Date().toISOString() })
+      .eq('id', clienteId);
+  }
+}
+
 const errorTabla = () => NextResponse.json({ error: 'Recurso no válido.' }, { status: 404 });
 const esFaltaTabla = (msg: string) => /relation .* does not exist|Could not find the table/i.test(msg);
 const respuestaError = (msg: string) =>
@@ -216,6 +253,10 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ tabla: str
           actualizado_en: new Date().toISOString(),
         }).eq('id', campos.cliente_id);
       }
+    }
+    // Nuevo suministro → el estado comercial del cliente se recalcula solo
+    if (tabla === 'cups' && campos.cliente_id) {
+      await recalcularEstadoCliente(supabase, String(campos.cliente_id));
     }
     // Nueva oportunidad con próxima acción → se refleja en la ficha del cliente
     if (tabla === 'pipeline' && campos.cliente_id && (campos.proxima_accion || campos.fecha_proxima_accion)) {
@@ -318,16 +359,39 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ tabla: stri
       }
     }
 
-    // Efecto: contrato activado → CUPS activado
-    if (tabla === 'contratos' && campos.estado_contrato === 'activado') {
-      const { data: con } = await supabase.from('luz_contratos').select('cups_id, comercializadora_final').eq('id', id).single();
+    // ── ESTADO ÚNICO DEL VIAJE COMERCIAL ──
+    // El CUPS manda; pipeline y contrato lo empujan; el cliente se deriva.
+    // Así el mismo hecho no hay que teclearlo en tres pantallas distintas.
+
+    // Contrato → CUPS (+ comercializadora al activar) → cliente
+    if (tabla === 'contratos' && 'estado_contrato' in campos) {
+      const { data: con } = await supabase.from('luz_contratos').select('cups_id, cliente_id, comercializadora_final').eq('id', id).single();
+      const destino = CONTRATO_A_CUPS[String(campos.estado_contrato)];
       if (con?.cups_id) {
-        await supabase.from('luz_cups').update({
-          estado_cups: 'activado',
-          ...(con.comercializadora_final ? { comercializadora_actual: con.comercializadora_final } : {}),
-          actualizado_en: new Date().toISOString(),
-        }).eq('id', con.cups_id);
+        if (campos.estado_contrato === 'activado' && con.comercializadora_final) {
+          await supabase.from('luz_cups').update({
+            comercializadora_actual: con.comercializadora_final,
+            actualizado_en: new Date().toISOString(),
+          }).eq('id', con.cups_id);
+        }
+        await sincronizarCupsYCliente(supabase, con.cups_id, destino);
+      } else {
+        await recalcularEstadoCliente(supabase, con?.cliente_id);
       }
+    }
+
+    // Pipeline → CUPS → cliente
+    if (tabla === 'pipeline' && 'estado' in campos) {
+      const { data: op } = await supabase.from('luz_pipeline').select('cups_id, cliente_id').eq('id', id).single();
+      const destino = PIPELINE_A_CUPS[String(campos.estado)];
+      if (op?.cups_id) await sincronizarCupsYCliente(supabase, op.cups_id, destino);
+      else await recalcularEstadoCliente(supabase, op?.cliente_id);
+    }
+
+    // CUPS tocado a mano → el cliente se recalcula solo
+    if (tabla === 'cups' && 'estado_cups' in campos) {
+      const { data: c } = await supabase.from('luz_cups').select('cliente_id').eq('id', id).single();
+      await recalcularEstadoCliente(supabase, c?.cliente_id);
     }
 
     return NextResponse.json({ ok: true });
