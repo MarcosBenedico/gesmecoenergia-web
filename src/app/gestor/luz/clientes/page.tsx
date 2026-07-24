@@ -88,6 +88,9 @@ function ClientesLuzContenido() {
           <p className="text-xs text-muted mt-0.5">{filtrados.length} cliente(s) · el centro es el cliente, debajo sus CUPS</p>
         </div>
         <div className="flex gap-2">
+          <Link href="/gestor/luz/clientes/duplicados" className={btnSecundario} title="Detectar clientes repetidos y fusionarlos">
+            🧬 Duplicados
+          </Link>
           <a href={urlExport} className={btnSecundario} download><Download className="w-4 h-4" /> Exportar</a>
           <button onClick={() => setMostrarForm((v) => !v)} className={btnSecundario} title="Solo crea el cliente, sin pasos guiados">
             {mostrarForm ? <X className="w-4 h-4" /> : <UserPlus className="w-4 h-4" />}
