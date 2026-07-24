@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { TrendingUp, TrendingDown, RefreshCw, ExternalLink, AlertTriangle, Newspaper } from 'lucide-react';
 import { GuardiaAdmin } from '@/components/guardia-modulo';
 import { Card, btnSecundario } from '../ui';
+import { GraficoPrecio, HoraMercado } from './grafico-precio';
 
 /**
  * PRECIO DE LA LUZ Y CONTEXTO DE MERCADO — solo dirección.
@@ -24,7 +25,6 @@ export default function MercadoPage() {
   );
 }
 
-interface HoraMercado { hora: number; omie: number | null; pvpc: number | null }
 interface Resumen { media: number | null; min: number | null; minHora: number | null; max: number | null; maxHora: number | null }
 interface DatosMercado {
   fecha: string;
@@ -38,21 +38,30 @@ interface DatosMercado {
 interface Noticia {
   titulo: string; enlace: string; fuente: string; fecha: string | null;
   temas: string[]; iconos: string[]; relevancia: number;
+  probabilidad?: number;
+  direccion?: 'sube' | 'baja' | 'neutro';
+  plazo?: 'inmediato' | 'corto' | 'medio' | 'largo';
+  motivo?: string;
+}
+
+/** Efecto sobre el precio: mismo lenguaje visual que el gráfico (cian barato / rosa caro). */
+const DIRECCION_UI = {
+  sube: { texto: 'Empuja el precio ARRIBA', color: '#fb7185', fondo: 'bg-rose-500/10 border-rose-500/30', flecha: '▲' },
+  baja: { texto: 'Empuja el precio ABAJO', color: '#22d3ee', fondo: 'bg-cyan-500/10 border-cyan-500/30', flecha: '▼' },
+  neutro: { texto: 'Sin efecto claro', color: '#94a3b8', fondo: 'bg-slate-500/10 border-slate-500/25', flecha: '■' },
+} as const;
+
+const PLAZO_LABEL = { inmediato: 'días', corto: 'semanas', medio: 'meses', largo: 'años' } as const;
+
+/** Tres tramos de probabilidad: lo que hay que leer, lo que conviene, y el ruido. */
+function tramoProb(p: number) {
+  if (p >= 60) return { etiqueta: 'Probable', clase: 'text-foreground', barra: 'bg-foreground/80' };
+  if (p >= 30) return { etiqueta: 'Posible', clase: 'text-muted', barra: 'bg-muted/60' };
+  return { etiqueta: 'Poco probable', clase: 'text-muted/60', barra: 'bg-muted/30' };
 }
 
 const eur = (n: number | null) => (n == null ? '—' : `${n.toLocaleString('es-ES', { maximumFractionDigits: 2 })} €`);
 const hh = (h: number | null) => (h == null ? '' : `${String(h).padStart(2, '0')}:00`);
-
-/** Verde barato, rojo caro: el color lo dice antes que el número. */
-function tonoPrecio(v: number | null, media: number | null): string {
-  if (v == null || media == null || media === 0) return 'bg-border/40';
-  const r = v / media;
-  if (r < 0.8) return 'bg-emerald-500';
-  if (r < 0.95) return 'bg-emerald-500/60';
-  if (r < 1.05) return 'bg-secondary/60';
-  if (r < 1.25) return 'bg-amber-500/70';
-  return 'bg-red-500';
-}
 
 function Mercado() {
   const [datos, setDatos] = useState<DatosMercado | null>(null);
@@ -79,9 +88,6 @@ function Mercado() {
 
   useEffect(() => { cargar(); }, [cargar]);
 
-  const maxBarra = datos
-    ? Math.max(...datos.horas.map((h) => Math.max(h.omie || 0, h.pvpc || 0)), 1)
-    : 1;
 
   const sube = (datos?.variacion_pct ?? 0) > 0;
 
@@ -147,28 +153,14 @@ function Mercado() {
 
           {/* Curva horaria */}
           <Card className="space-y-2">
-            <div className="flex items-center justify-between flex-wrap gap-1">
-              <h3 className="font-bold text-sm">Precio hora a hora · {new Date(datos.fecha).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}</h3>
-              <p className="text-[10px] text-muted">
-                <span className="inline-block w-2.5 h-2.5 rounded-sm bg-emerald-500 align-middle" /> barato ·
-                <span className="inline-block w-2.5 h-2.5 rounded-sm bg-amber-500/70 align-middle ml-1" /> caro ·
-                <span className="inline-block w-2.5 h-2.5 rounded-sm bg-red-500 align-middle ml-1" /> muy caro
-              </p>
-            </div>
-            <div className="grid grid-cols-12 sm:grid-cols-24 gap-[2px]">
-              {datos.horas.map((h) => (
-                <div key={h.hora} className="flex flex-col items-center gap-0.5"
-                  title={`${hh(h.hora)} · OMIE ${eur(h.omie)}/MWh${h.pvpc != null ? ` · PVPC ${eur(h.pvpc)}/MWh` : ''}`}>
-                  <div className="w-full h-24 flex items-end justify-center">
-                    <div
-                      className={`w-full rounded-t transition-all duration-500 ${tonoPrecio(h.omie, datos.hoy.media)}`}
-                      style={{ height: `${((h.omie || 0) / maxBarra) * 100}%` }}
-                    />
-                  </div>
-                  <p className="text-[7px] text-muted">{h.hora}</p>
-                </div>
-              ))}
-            </div>
+            <h3 className="font-bold text-sm">
+              Precio hora a hora · {new Date(datos.fecha).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}
+            </h3>
+            <GraficoPrecio
+              horas={datos.horas}
+              media={datos.hoy.media}
+              horaActual={datos.fecha === new Date().toISOString().slice(0, 10) ? new Date().getHours() : null}
+            />
             <p className="text-[10px] text-muted">
               Precio mayorista de OMIE, que es lo que compran las comercializadoras. Al cliente hay que sumarle peajes,
               cargos, margen e impuestos: no es lo que ve en su factura, pero es lo que marca hacia dónde van los precios.
@@ -192,37 +184,65 @@ function Mercado() {
             {noticias.length === 0 && (
               <p className="text-xs text-muted text-center py-4">No se han podido cargar las noticias ahora mismo.</p>
             )}
-            <div className="space-y-1.5">
-              {noticias.map((n) => (
-                <a
-                  key={n.enlace}
-                  href={n.enlace}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={`fv-fade-in block rounded-lg border p-2.5 transition hover:bg-card ${
-                    n.relevancia >= 5 ? 'border-amber-500/30 bg-amber-500/[0.04]' : 'border-border/25 bg-card/40'
-                  }`}
-                >
-                  <div className="flex items-start gap-2">
-                    <span className="text-base leading-none shrink-0">{n.iconos[0] || '📰'}</span>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-[13px] font-semibold text-foreground leading-snug">{n.titulo}</p>
-                      <div className="flex items-center gap-1.5 flex-wrap mt-1">
-                        {n.temas.map((t) => (
-                          <span key={t} className="px-1.5 py-0.5 rounded-full bg-secondary/10 text-secondary border border-secondary/25 text-[9px] font-bold uppercase">
-                            {t}
+            <div className="space-y-2">
+              {noticias.map((n) => {
+                const dir = n.direccion ? DIRECCION_UI[n.direccion] : null;
+                const prob = n.probabilidad ?? null;
+                const tramo = prob != null ? tramoProb(prob) : null;
+                return (
+                  <a
+                    key={n.enlace}
+                    href={n.enlace}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={`fv-fade-in block rounded-xl border p-3 transition hover:bg-card ${
+                      dir ? dir.fondo : 'border-border/25 bg-card/40'
+                    }`}
+                  >
+                    <div className="flex items-start gap-3">
+                      {/* Probabilidad: el dato que ordena la lista, en grande */}
+                      {prob != null ? (
+                        <div className="shrink-0 w-14 text-center">
+                          <p className="text-xl font-black tabular-nums leading-none" style={{ color: dir?.color }}>
+                            {prob}<span className="text-[11px]">%</span>
+                          </p>
+                          <div className="h-1 w-full rounded-full bg-background/60 overflow-hidden mt-1">
+                            <div className={`h-full rounded-full ${tramo!.barra}`} style={{ width: `${prob}%` }} />
+                          </div>
+                          <p className={`text-[8px] uppercase font-bold mt-0.5 ${tramo!.clase}`}>{tramo!.etiqueta}</p>
+                        </div>
+                      ) : (
+                        <span className="text-base leading-none shrink-0">{n.iconos[0] || '📰'}</span>
+                      )}
+
+                      <div className="min-w-0 flex-1">
+                        {dir && (
+                          <p className="text-[11px] font-black uppercase tracking-wide mb-0.5" style={{ color: dir.color }}>
+                            {dir.flecha} {dir.texto}
+                            {n.plazo && <span className="text-muted font-bold"> · en {PLAZO_LABEL[n.plazo]}</span>}
+                          </p>
+                        )}
+                        <p className="text-[13px] font-semibold text-foreground leading-snug">{n.titulo}</p>
+                        {n.motivo && (
+                          <p className="text-[11px] text-muted leading-snug mt-1">{n.motivo}</p>
+                        )}
+                        <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
+                          {n.temas.map((t) => (
+                            <span key={t} className="px-1.5 py-0.5 rounded-full bg-secondary/10 text-secondary border border-secondary/25 text-[9px] font-bold uppercase">
+                              {t}
+                            </span>
+                          ))}
+                          <span className="text-[10px] text-muted/70">
+                            {n.fuente}
+                            {n.fecha && ` · ${new Date(n.fecha).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}`}
                           </span>
-                        ))}
-                        <span className="text-[10px] text-muted/70">
-                          {n.fuente}
-                          {n.fecha && ` · ${new Date(n.fecha).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}`}
-                        </span>
+                        </div>
                       </div>
+                      <ExternalLink className="w-3.5 h-3.5 text-muted/40 shrink-0 mt-0.5" />
                     </div>
-                    <ExternalLink className="w-3.5 h-3.5 text-muted/40 shrink-0 mt-0.5" />
-                  </div>
-                </a>
-              ))}
+                  </a>
+                );
+              })}
             </div>
           </Card>
 

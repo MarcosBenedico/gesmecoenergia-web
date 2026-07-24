@@ -1,15 +1,18 @@
 import { NextResponse } from 'next/server';
+import Anthropic from '@anthropic-ai/sdk';
 
 /**
  * NOTICIAS QUE MUEVEN EL PRECIO DE LA LUZ.
  *
- * Lee los RSS públicos de medios especializados (sin clave ni suscripción) y
- * destaca lo que suele mover el mercado: gas y petróleo, geopolítica, decisiones
- * regulatorias, nuclear, interconexiones y meteorología extrema.
+ * Dos pasos:
+ *  1. Lee los RSS públicos de medios especializados (sin clave ni suscripción)
+ *     y preselecciona por temas que históricamente mueven el mercado.
+ *  2. Pide a Claude que valore CADA titular: qué probabilidad tiene de afectar
+ *     al precio, si empuja al alza o a la baja, en qué plazo y por qué.
  *
- * No predice nada ni interpreta: solo ordena y marca qué titulares tienen pinta
- * de afectar al precio, para leer cinco en vez de cincuenta. La lectura la pone
- * quien decide.
+ * El paso 2 es opcional: si falta la clave o la llamada falla, se sirve igual
+ * la lista con la clasificación por temas. Mejor una lista sin análisis que una
+ * pantalla en blanco.
  */
 
 export const revalidate = 1800; // media hora
@@ -33,6 +36,9 @@ const TEMAS: { etiqueta: string; peso: number; icono: string; claves: string[] }
   { etiqueta: 'Meteorología', peso: 2, icono: '🌡️', claves: ['ola de calor', 'ola de frío', 'ola de frio', 'borrasca', 'sequía', 'sequia', 'temporal', 'anticiclón', 'anticiclon'] },
 ];
 
+export type DireccionPrecio = 'sube' | 'baja' | 'neutro';
+export type PlazoImpacto = 'inmediato' | 'corto' | 'medio' | 'largo';
+
 export interface Noticia {
   titulo: string;
   enlace: string;
@@ -41,6 +47,114 @@ export interface Noticia {
   temas: string[];
   iconos: string[];
   relevancia: number;
+  /** Valoración de Claude (ausente si no se pudo analizar). */
+  probabilidad?: number;          // 0-100: qué opciones hay de que mueva el precio
+  direccion?: DireccionPrecio;    // hacia dónde lo empuja
+  plazo?: PlazoImpacto;           // cuándo se notaría
+  motivo?: string;                // por qué, en una frase
+}
+
+/** Esquema del análisis. Sin restricciones numéricas: no las admite, se validan aquí. */
+const SCHEMA_ANALISIS = {
+  type: 'object',
+  properties: {
+    analisis: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          indice: { type: 'integer' },
+          probabilidad: { type: 'integer' },
+          direccion: { type: 'string', enum: ['sube', 'baja', 'neutro'] },
+          plazo: { type: 'string', enum: ['inmediato', 'corto', 'medio', 'largo'] },
+          motivo: { type: 'string' },
+        },
+        required: ['indice', 'probabilidad', 'direccion', 'plazo', 'motivo'],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ['analisis'],
+  additionalProperties: false,
+};
+
+const SISTEMA_ANALISIS =
+  'Eres analista del mercado eléctrico español (OMIE, mercado diario). Valoras titulares de prensa '
+  + 'energética por su efecto sobre el PRECIO MAYORISTA DE LA LUZ EN ESPAÑA, no por su importancia periodística.\n\n'
+  + 'Para cada titular das:\n'
+  + '· probabilidad (0-100): qué opciones reales hay de que ESE hecho mueva el precio en España. '
+  + 'Sé exigente: un titular corporativo o de una tecnología concreta rara vez pasa de 25. '
+  + 'Reserva más de 70 para lo que afecta al mix, al gas, a la demanda o a la regulación de forma directa.\n'
+  + '· direccion: "sube" si empuja el precio al alza, "baja" si a la baja, "neutro" si no está claro '
+  + 'o el efecto se compensa. Recuerda que en España el gas suele marcar el precio marginal, y que '
+  + 'más renovable disponible o más nuclear tiende a bajarlo.\n'
+  + '· plazo: inmediato (días), corto (semanas), medio (meses), largo (años).\n'
+  + '· motivo: UNA frase corta y concreta en español explicando el mecanismo por el que afecta al precio. '
+  + 'Nada de generalidades: di la cadena causal. Si no afecta, dilo claramente.\n\n'
+  + 'No inventes datos que no estén en el titular. Si un titular es ambiguo, baja la probabilidad '
+  + 'y ponlo neutro en vez de suponer.';
+
+/**
+ * Valora los titulares con Claude. Devuelve las noticias enriquecidas, o las
+ * mismas de entrada si no se pudo analizar (sin clave, error de red, rechazo).
+ */
+async function analizarNoticias(noticias: Noticia[]): Promise<{ noticias: Noticia[]; analizado: boolean }> {
+  if (!process.env.ANTHROPIC_API_KEY || noticias.length === 0) {
+    return { noticias, analizado: false };
+  }
+
+  try {
+    const cliente = new Anthropic();
+    const lista = noticias.map((n, i) => `${i}. ${n.titulo}${n.fuente ? ` [${n.fuente}]` : ''}`).join('\n');
+
+    const respuesta = await cliente.messages.create({
+      model: 'claude-opus-4-8',
+      // Holgado a propósito: el razonamiento cuenta contra este límite, y quedarse
+      // corto trunca el JSON a media frase y tira todo el análisis por la borda.
+      max_tokens: 16000,
+      thinking: { type: 'adaptive' },
+      output_config: {
+        effort: 'medium',
+        format: { type: 'json_schema', schema: SCHEMA_ANALISIS },
+      },
+      system: SISTEMA_ANALISIS,
+      messages: [{
+        role: 'user',
+        content: `Valora estos ${noticias.length} titulares de hoy. Devuelve una entrada por cada uno, `
+          + `usando "indice" para identificarlos:\n\n${lista}`,
+      }],
+    });
+
+    // Rechazo o respuesta truncada: sin análisis, pero las noticias siguen sirviéndose
+    if (respuesta.stop_reason === 'refusal' || respuesta.stop_reason === 'max_tokens') {
+      return { noticias, analizado: false };
+    }
+
+    const texto = respuesta.content.find((b) => b.type === 'text');
+    if (!texto || texto.type !== 'text') return { noticias, analizado: false };
+
+    const { analisis } = JSON.parse(texto.text) as {
+      analisis: { indice: number; probabilidad: number; direccion: DireccionPrecio; plazo: PlazoImpacto; motivo: string }[];
+    };
+
+    const porIndice = new Map(analisis.map((a) => [a.indice, a]));
+    const enriquecidas = noticias.map((n, i) => {
+      const a = porIndice.get(i);
+      if (!a) return n;
+      return {
+        ...n,
+        // El esquema no puede acotar el rango: se acota aquí
+        probabilidad: Math.max(0, Math.min(100, Math.round(a.probabilidad))),
+        direccion: a.direccion,
+        plazo: a.plazo,
+        motivo: a.motivo,
+      };
+    });
+    return { noticias: enriquecidas, analizado: true };
+  } catch {
+    // Cualquier fallo del análisis degrada a la lista sin valorar, nunca rompe la pantalla
+    return { noticias, analizado: false };
+  }
 }
 
 /** Extrae el contenido de una etiqueta, tolerando CDATA y atributos. */
@@ -117,14 +231,23 @@ export async function GET() {
     return true;
   });
 
-  // Primero lo que más suele mover el precio; a igual relevancia, lo más reciente
+  // Preselección por temas antes de gastar análisis: lo más prometedor primero
   unicas.sort((a, b) =>
     b.relevancia - a.relevancia || (b.fecha || '').localeCompare(a.fecha || '')
   );
 
+  const { noticias: valoradas, analizado } = await analizarNoticias(unicas.slice(0, 25));
+
+  // Con análisis manda la probabilidad real de mover el precio; sin él, los temas
+  const ordenadas = analizado
+    ? [...valoradas].sort((a, b) =>
+        (b.probabilidad ?? 0) - (a.probabilidad ?? 0) || (b.fecha || '').localeCompare(a.fecha || ''))
+    : valoradas;
+
   return NextResponse.json({
     ok: true,
-    noticias: unicas.slice(0, 30),
+    noticias: ordenadas,
+    analizado,
     fallos,
     actualizado: new Date().toISOString(),
   });
