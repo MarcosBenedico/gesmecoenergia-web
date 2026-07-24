@@ -64,16 +64,19 @@ BEGIN
     RETURN OLD;
 
   ELSIF TG_OP = 'UPDATE' THEN
-    -- A la papelera: se registra como eliminación, que es lo que es para quien mira
-    IF to_jsonb(OLD) ? 'borrado_en'
-       AND (to_jsonb(OLD) ->> 'borrado_en') IS NULL
-       AND (to_jsonb(NEW) ->> 'borrado_en') IS NOT NULL THEN
-      v_accion := 'DELETE';
-    -- De vuelta desde la papelera
-    ELSIF to_jsonb(OLD) ? 'borrado_en'
-       AND (to_jsonb(OLD) ->> 'borrado_en') IS NOT NULL
-       AND (to_jsonb(NEW) ->> 'borrado_en') IS NULL THEN
-      v_accion := 'RESTORE';
+    -- jsonb_exists en vez del operador "?": mismo resultado, pero "?" lo
+    -- interpretan como marcador de parámetro algunos clientes SQL.
+    -- Las tablas sin papelera (responsables, usuarios) caen solas en 'UPDATE'.
+    IF jsonb_exists(to_jsonb(OLD), 'borrado_en') THEN
+      IF  (to_jsonb(OLD) ->> 'borrado_en') IS NULL
+      AND (to_jsonb(NEW) ->> 'borrado_en') IS NOT NULL THEN
+        v_accion := 'DELETE';    -- se ha ido a la papelera
+      ELSIF (to_jsonb(OLD) ->> 'borrado_en') IS NOT NULL
+        AND (to_jsonb(NEW) ->> 'borrado_en') IS NULL THEN
+        v_accion := 'RESTORE';   -- ha vuelto de la papelera
+      ELSE
+        v_accion := 'UPDATE';
+      END IF;
     ELSE
       v_accion := 'UPDATE';
     END IF;
