@@ -56,6 +56,7 @@ const BLOQUES: Bloque[] = [
     pista: 'Negocio, equipo y control',
     secciones: [
       { href: '/gestor/luz', icono: LayoutDashboard, nombre: 'Dashboard Luz' },
+      { href: '/gestor/luz/mercado', icono: TrendingUp, nombre: 'Precio de la luz', soloAdmin: true },
       { href: '/gestor/luz/comisiones', icono: Euro, nombre: 'Comisiones' },
       { href: '/gestor/luz/equipo', icono: UserCog, nombre: 'Equipo y Logros' },
       { href: '/gestor/luz/fv', icono: Calculator, nombre: 'Calculadora FV', soloAdmin: true },
