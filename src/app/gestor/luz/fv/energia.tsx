@@ -5,9 +5,9 @@ import { Download, Upload } from 'lucide-react';
 import {
   ahorroSimple, numeroPaneles, r2, fmtEur2, POTENCIA_PANEL_W,
   FRANJAS_CONSUMO, FRANJA_LABEL, PERFIL_FRANJA, CAPACIDAD_BATERIA,
-  optimizarBateria, siguienteEuro, LineaJustificacion, OpcionBateria, estimarAyudas, IRPF_PCT_DEDUCCION,
+  optimizarBateriaHoraria, siguienteEuro, LineaJustificacion, OpcionBateria, estimarAyudas, IRPF_PCT_DEDUCCION,
   estimarGasoil, produccionMensual, MESES_CORTO, GASOIL_PRECIO_LITRO, GASOIL_KWH_LITRO,
-  bateriaEconomica, inversorEconomico, ComboEquipo,
+  bateriaEconomica, inversorEconomico, ComboEquipo, ResultadoAnualFV,
 } from '@/lib/fv';
 import { Card, inputCls, labelCls, btnSecundario, btnPrimario } from '../ui';
 
@@ -48,10 +48,22 @@ export const HIPOTESIS_DEFECTO: HipotesisFV = {
 export const MANTENIMIENTO_POR_PANEL = 10;
 
 const MESES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+/** Icono por línea de la justificación de cálculos (orden fijo, cíclico si hay más líneas). */
+const JUSTIF_ICONOS = ['🎯', '☀️', '⚡', '🔀', '🔋', '💶', '🔄', '🛠️', '💰', '⏱️'];
 const num = (s: string) => parseFloat(String(s).replace(',', '.')) || 0;
 
 /** Referencia mínima del catálogo que necesita el recomendador. */
 export interface RefCatMin { codigo: string; descripcion: string; precio_base: number; confianza: string; num_referencias: number; activo: boolean }
+
+/**
+ * Partida a montar en el presupuesto. Si trae `precio_override` no sale del catálogo de Óscar
+ * sino de una referencia de mercado (p. ej. la combinación más económica): el importe, la marca
+ * y la descripción se toman directamente de ahí.
+ */
+export interface ItemPresupuesto {
+  codigo: string; cantidad: number; confianza?: string; nota?: string;
+  precio_override?: number; descripcion_override?: string; marca_override?: string; concepto_override?: string;
+}
 
 /**
  * Recomendación automática de equipos desde el catálogo real de Óscar.
@@ -92,7 +104,7 @@ export function recomendarEquipos(kwp: number, paneles: number, consumoAnual: nu
   };
 }
 
-export function EnergiaEscenarios({ energia, setEnergia, hipotesis, setHipotesis, potenciaActual, precioSinIva, precioConIva, onAplicarPotencia, catalogo, onMontarPresupuesto, clienteNombre, proyecto, perfil }: {
+export function EnergiaEscenarios({ energia, setEnergia, hipotesis, setHipotesis, potenciaActual, precioSinIva, precioConIva, onAplicarPotencia, catalogo, onMontarPresupuesto, clienteNombre, proyecto, perfil, simulacionAnual, capacidadBateria }: {
   energia: EnergiaFV;
   setEnergia: (e: EnergiaFV) => void;
   hipotesis: HipotesisFV;
@@ -102,12 +114,15 @@ export function EnergiaEscenarios({ energia, setEnergia, hipotesis, setHipotesis
   precioConIva: number;
   onAplicarPotencia: (kw: number) => void;
   catalogo: RefCatMin[];
-  onMontarPresupuesto: (kwp: number, codigos: { codigo: string; cantidad: number; confianza?: string; nota?: string }[], pctAutoEfectivo?: number) => void;
+  onMontarPresupuesto: (kwp: number, codigos: ItemPresupuesto[], pctAutoEfectivo?: number) => void;
   clienteNombre?: string;
   proyecto?: string;
   perfil?: string;
+  simulacionAnual?: ResultadoAnualFV | null;
+  capacidadBateria?: number;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
+  const [mesDiaTipo, setMesDiaTipo] = useState(new Date().getMonth());
   const [errImport, setErrImport] = useState('');
   const anual = energia.consumo_anual;
   const esGasoil = perfil === 'granja_aislada';
@@ -192,12 +207,21 @@ export function EnergiaEscenarios({ energia, setEnergia, hipotesis, setHipotesis
   const franja = energia.franja || null;
   const perfilFranja = franja ? PERFIL_FRANJA[franja] : null;
 
+  /** Ajustes manuales por escenario: nº de paneles y/o batería forzada (null = "sin batería" a propósito). */
+  const [overrides, setOverrides] = useState<Record<string, { paneles?: number; bateriaCodigo?: string | null }>>({});
+  const setOverride = (nombre: string, campo: 'paneles' | 'bateriaCodigo', valor: number | string | null | undefined) =>
+    setOverrides((prev) => ({ ...prev, [nombre]: { ...prev[nombre], [campo]: valor } }));
+  const resetOverride = (nombre: string, campo: 'paneles' | 'bateriaCodigo') =>
+    setOverrides((prev) => { const n = { ...prev[nombre] }; delete n[campo]; return { ...prev, [nombre]: n }; });
+
   /**
    * Escenarios con TODO justificado:
    *  1) Dimensionado de placas para cubrir un % del consumo.
    *  2) Coincidencia solar según la franja del consumo fuerte (o la hipótesis si no hay franja).
-   *  3) ALGORITMO batería: prueba sin/16/32 kWh del catálogo y elige la de menor amortización.
+   *  3) ALGORITMO batería: prueba sin/16/32 kWh del catálogo y elige la de menor amortización
+   *     (editable a mano: se puede forzar otra opción de la lista, o "sin batería").
    *  4) "Siguiente euro": ¿rinde más ampliar placas o batería?
+   * Nº de paneles y batería son editables por escenario (overrides); el resto se recalcula solo.
    */
   const escenarios = useMemo(() => {
     if (anual <= 0 || hipotesis.prod_especifica <= 0) return [];
@@ -210,21 +234,30 @@ export function EnergiaEscenarios({ energia, setEnergia, hipotesis, setHipotesis
 
     return ([['Conservador', 0.5], ['Equilibrado', 0.75], ['Máxima cobertura', 1.0]] as const).map(([nombre, factor]) => {
       const kwpObjetivo = r2((anual * factor) / hipotesis.prod_especifica);
-      const paneles = numeroPaneles(kwpObjetivo);
+      const panelesAuto = numeroPaneles(kwpObjetivo);
+      const ov = overrides[nombre] || {};
+      const paneles = ov.paneles && ov.paneles > 0 ? ov.paneles : panelesAuto;
+      const panelesEditado = paneles !== panelesAuto;
       const kwpReal = r2((paneles * POTENCIA_PANEL_W) / 1000);
       const produccion = r2(kwpReal * hipotesis.prod_especifica);
 
-      // Coincidencia directa: franja del consumo fuerte, o la hipótesis general si no se ha indicado
-      const coincidencia = perfilFranja ? perfilFranja.coincidencia : Math.min(Math.max(hipotesis.pct_autoconsumo, 10), 95);
-      const fuenteCoin = perfilFranja ? `perfil de la franja "${FRANJA_LABEL[franja!]}"` : 'hipótesis "% autoconsumo" (sin franja indicada)';
-
       const inversionPlacas = r2(kwpReal * inversionReferencia);
-      const opt = optimizarBateria({
-        produccion_anual_kwh: produccion, coincidencia_pct: coincidencia, inversion_placas: inversionPlacas,
+      // Algoritmo batería: usa la SIMULACIÓN ANUAL real mes a mes (mismo cálculo que "día tipo"
+      // y la oferta final) — cada mes con su propio sol y su propio consumo real (el que metió el
+      // cliente), no un % aproximado por franja sobre un día medio. Así el escenario nunca promete
+      // un autoconsumo distinto del que se aplica de verdad al montar el presupuesto.
+      const opt = optimizarBateriaHoraria({
+        produccion_anual_kwh: produccion, consumo_mensual_kwh: energia.mensual, franja, inversion_placas: inversionPlacas,
         precio_kwh: hipotesis.precio_kwh, precio_compensacion: hipotesis.precio_compensacion,
         mantenimiento_anual: hipotesis.mantenimiento_anual, baterias,
       });
-      const el = opt.elegida;
+      // Coincidencia directa (sin batería): la de la propia simulación horaria de este escenario
+      const coincidencia = opt.opciones.find((o) => o.codigo === null)?.pct_auto_efectivo
+        ?? (perfilFranja ? perfilFranja.coincidencia : Math.min(Math.max(hipotesis.pct_autoconsumo, 10), 95));
+      const fuenteCoin = `simulación horaria del día tipo${perfilFranja ? ` (franja "${FRANJA_LABEL[franja!]}")` : ''}`;
+      // Batería: la elige el algoritmo (menor amortización) salvo que se haya forzado una opción a mano
+      const bateriaEditada = ov.bateriaCodigo !== undefined;
+      const el = bateriaEditada ? (opt.opciones.find((o) => o.codigo === ov.bateriaCodigo) || opt.elegida) : opt.elegida;
       const cobertura = Math.min(r2((produccion * (el.pct_auto_efectivo / 100)) / anual * 100), 100);
       const rec = recomendarEquipos(kwpReal, paneles, anual, hipotesis.prod_especifica, el.pct_auto_efectivo, catalogo);
 
@@ -253,33 +286,65 @@ export function EnergiaEscenarios({ energia, setEnergia, hipotesis, setHipotesis
       ];
 
       return {
-        nombre, factor, kwp: kwpReal, paneles, produccion,
-        coincidencia, pctAuto: el.pct_auto_efectivo, cobertura,
+        nombre, factor, kwp: kwpReal, paneles, panelesAuto, panelesEditado, produccion,
+        coincidencia, pctAuto: el.pct_auto_efectivo, cobertura, elegida: el, bateriaEditada,
         inversion: el.inversion, ahorro: el.ahorro_neto_anual, amortizacion: el.amortizacion,
         opt, marginal, justificacion, rec,
       };
     });
-  }, [anual, hipotesis, potenciaActual, precioSinIva, catalogo, franja, perfilFranja]);
+  }, [anual, energia.mensual, hipotesis, potenciaActual, precioSinIva, catalogo, franja, perfilFranja, overrides]);
 
-  /** Monta el presupuesto completo con la recomendación del escenario (batería = la elegida por el algoritmo). */
+  /** Monta el presupuesto completo con la recomendación del escenario (batería = la elegida por el algoritmo, o la forzada a mano). */
   function montar(e: (typeof escenarios)[number]) {
-    const notaEscenario = `Escenario ${e.nombre} · ${e.paneles} paneles · autoconsumo ${e.pctAuto} %${franja ? ` · consumo fuerte: ${FRANJA_LABEL[franja]}` : ''}`;
-    const codigos: { codigo: string; cantidad: number; confianza?: string; nota?: string }[] = [
+    const notaEscenario = `Escenario ${e.nombre} · ${e.paneles} paneles${e.panelesEditado ? ' (ajustado a mano)' : ''} · autoconsumo ${e.pctAuto} %${franja ? ` · consumo fuerte: ${FRANJA_LABEL[franja]}` : ''}`;
+    const codigos: ItemPresupuesto[] = [
       { codigo: 'PAN-JIN-515', cantidad: e.paneles, nota: notaEscenario },
       { codigo: 'EST-SUN-STD', cantidad: e.paneles },
     ];
     if (e.rec.inversor) codigos.push({ codigo: e.rec.inversor.codigo, cantidad: 1 });
-    // Batería: la que eligió el algoritmo por amortización (no la heurística genérica)
-    if (e.opt.elegida.codigo) {
+    // Batería: la que eligió el algoritmo por amortización, o la forzada a mano en la tarjeta
+    if (e.elegida.codigo) {
       codigos.push({
-        codigo: e.opt.elegida.codigo, cantidad: 1,
-        nota: `Elegida por el algoritmo: aporta ${e.opt.elegida.aporte_anual_kwh.toLocaleString('es-ES')} kWh/año al autoconsumo y deja la amortización en ${e.opt.elegida.amortizacion ?? '—'} años.`,
+        codigo: e.elegida.codigo, cantidad: 1,
+        nota: `${e.bateriaEditada ? 'Elegida a mano' : 'Elegida por el algoritmo'}: aporta ${e.elegida.aporte_anual_kwh.toLocaleString('es-ES')} kWh/año al autoconsumo y deja la amortización en ${e.elegida.amortizacion ?? '—'} años.`,
       });
     }
     if (e.rec.monitorizacion) codigos.push({ codigo: e.rec.monitorizacion.codigo, cantidad: 1 });
     if (e.rec.instalacion) codigos.push({ codigo: e.rec.instalacion.codigo, cantidad: 1, confianza: e.rec.instalacionConfianza, nota: e.rec.instalacionNota || undefined });
     if (e.rec.tramites) codigos.push({ codigo: e.rec.tramites.codigo, cantidad: 1 });
     // Pasa el autoconsumo EFECTIVO (con batería): así la oferta al cliente cuadra con el escenario
+    onMontarPresupuesto(e.kwp, codigos, e.pctAuto);
+  }
+
+  /** Monta el presupuesto con la combinación de inversor/batería más económica del mercado para este escenario. */
+  function montarConCombinacionEconomica(e: (typeof escenarios)[number]) {
+    const invOps = inversorEconomico(e.kwp);
+    const capBat = e.elegida.codigo ? e.elegida.capacidad_util : 0;
+    const batOps = bateriaEconomica(capBat);
+    const notaEscenario = `Escenario ${e.nombre} · combinación más económica de mercado · ${e.paneles} paneles${e.panelesEditado ? ' (ajustado a mano)' : ''} · autoconsumo ${e.pctAuto} %`;
+    const codigos: ItemPresupuesto[] = [
+      { codigo: 'PAN-JIN-515', cantidad: e.paneles, nota: notaEscenario },
+      { codigo: 'EST-SUN-STD', cantidad: e.paneles },
+    ];
+    const inv = invOps[0];
+    if (inv) {
+      codigos.push({
+        codigo: `MKT-INV-${inv.marca}`, cantidad: inv.unidades, concepto_override: 'Inversores',
+        descripcion_override: inv.descripcion, marca_override: inv.marca, precio_override: r2(inv.coste / inv.unidades),
+        confianza: 'alta', nota: 'Combinación más económica del mercado (precio de material, sin IVA ni instalación).',
+      });
+    }
+    const bat = batOps[0];
+    if (bat) {
+      codigos.push({
+        codigo: `MKT-BAT-${bat.marca}`, cantidad: bat.unidades, concepto_override: 'Baterias',
+        descripcion_override: bat.descripcion, marca_override: bat.marca, precio_override: r2(bat.coste / bat.unidades),
+        confianza: 'alta', nota: `Combinación más económica del mercado: ${fmtEur2(bat.coste)} total (${bat.medida_total} kWh).`,
+      });
+    }
+    if (e.rec.monitorizacion) codigos.push({ codigo: e.rec.monitorizacion.codigo, cantidad: 1 });
+    if (e.rec.instalacion) codigos.push({ codigo: e.rec.instalacion.codigo, cantidad: 1, confianza: e.rec.instalacionConfianza, nota: e.rec.instalacionNota || undefined });
+    if (e.rec.tramites) codigos.push({ codigo: e.rec.tramites.codigo, cantidad: 1 });
     onMontarPresupuesto(e.kwp, codigos, e.pctAuto);
   }
 
@@ -324,7 +389,7 @@ export function EnergiaEscenarios({ energia, setEnergia, hipotesis, setHipotesis
 <tbody>
 ${fila('Potencia', (e) => `${e.kwp} kWp`)}
 ${fila('Nº de paneles', (e) => `${e.paneles}`)}
-${fila('Batería', (e) => e.opt.elegida.codigo ? 'Sí, incluida' : 'No necesaria')}
+${fila('Batería', (e) => e.elegida.codigo ? 'Sí, incluida' : 'No necesaria')}
 ${fila('Producción anual', (e) => `${Math.round(e.produccion).toLocaleString('es-ES')} kWh`)}
 ${fila('Cobertura de su consumo', (e) => `≈ ${e.cobertura} %`)}
 ${fila('Inversión estimada', (e) => fmtEur2(e.inversion))}
@@ -487,6 +552,69 @@ ${fila('Se amortiza en', (e) => e.amortizacion != null ? `${e.amortizacion} año
             </div>
           );
         })()}
+
+        {/* Día tipo hora a hora, MES A MES: cada mes tiene su propio sol (invierno/verano) y su propio consumo real */}
+        {simulacionAnual && (() => {
+          const mesData = simulacionAnual.meses[mesDiaTipo];
+          const max = Math.max(...mesData.horas.map((x) => Math.max(x.produccion, x.consumo)), 0.1);
+          return (
+            <div className="pt-2 border-t border-border/30 space-y-2">
+              <div className="flex items-center justify-between flex-wrap gap-1.5">
+                <p className="text-[11px] font-bold uppercase tracking-wide text-muted">🕐 Día tipo hora a hora {(capacidadBateria || 0) > 0 ? `· con ${capacidadBateria} kWh de batería` : '· sin batería'}</p>
+                <p className="text-[10px] text-muted">
+                  <span className="inline-block w-2.5 h-2.5 rounded-sm bg-amber-400/70 align-middle"></span> sol ·
+                  <span className="inline-block w-2.5 h-2.5 rounded-sm bg-secondary/60 align-middle ml-1"></span> consumo ·
+                  <span className="inline-block w-2.5 h-2.5 rounded-sm bg-emerald-400/70 align-middle ml-1"></span> batería
+                </p>
+              </div>
+
+              {/* Selector de mes — cada uno con su propio perfil solar (invierno corto/verano largo) y su propio consumo */}
+              <div className="flex gap-1 flex-wrap">
+                {MESES_CORTO.map((m, i) => (
+                  <button key={m} type="button" onClick={() => setMesDiaTipo(i)}
+                    className={`px-2 py-1 rounded-md text-[10px] font-bold transition ${
+                      i === mesDiaTipo ? 'bg-amber-400/25 text-amber-300 ring-1 ring-amber-400/50' : 'bg-card/60 text-muted hover:text-foreground hover:bg-card'
+                    }`}>
+                    {m}
+                  </button>
+                ))}
+              </div>
+
+              <div className="grid grid-cols-12 sm:grid-cols-24 gap-[2px]">
+                {mesData.horas.map((x) => (
+                  <div key={x.h} className="flex flex-col items-center gap-0.5" title={`${x.h}:00 — sol ${x.produccion} kWh · consumo ${x.consumo} kWh · batería ${x.carga > 0 ? `carga ${x.carga}` : x.descarga > 0 ? `da ${x.descarga}` : '—'} kWh`}>
+                    <div className="w-full h-16 flex items-end justify-center gap-[1px]">
+                      <div className="w-1/3 bg-amber-400/70 rounded-t transition-all duration-300" style={{ height: `${(x.produccion / max) * 100}%` }} />
+                      <div className="w-1/3 bg-secondary/60 rounded-t transition-all duration-300" style={{ height: `${(x.consumo / max) * 100}%` }} />
+                      <div className={`w-1/3 rounded-t transition-all duration-300 ${x.descarga > 0 ? 'bg-emerald-400/70' : 'bg-emerald-400/25'}`} style={{ height: `${(Math.max(x.carga, x.descarga) / max) * 100}%` }} />
+                    </div>
+                    <p className="text-[7px] text-muted">{x.h}</p>
+                  </div>
+                ))}
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-center">
+                {[['Autoconsumo directo', `${mesData.autoconsumo_directo} kWh/día`, 'text-amber-300'],
+                  ['Aporta la batería', `${mesData.aporte_bateria} kWh/día`, 'text-emerald-400'],
+                  ['Se vierte a red', `${mesData.vertido} kWh/día`, 'text-muted'],
+                  [`Autoconsumo en ${MESES_CORTO[mesDiaTipo]}`, `${mesData.pct_autoconsumo} %`, 'text-secondary']].map(([n, v, tono]) => (
+                  <div key={n} className="rounded-lg bg-card/50 border border-border/25 p-1.5">
+                    <p className={`text-sm font-black tabular-nums ${tono}`}>{v}</p>
+                    <p className="text-[9px] uppercase font-bold text-muted">{n}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* El número que de verdad manda: la media del AÑO COMPLETO (12 simulaciones, no un día suelto) */}
+              <div className="rounded-lg bg-secondary/10 border border-secondary/30 p-2 text-center">
+                <p className="text-lg font-black tabular-nums text-secondary">{simulacionAnual.pct_autoconsumo} %</p>
+                <p className="text-[9px] uppercase font-bold text-muted">Autoconsumo efectivo del AÑO completo (los 12 meses simulados, ponderados por sus días)</p>
+              </div>
+              <p className="text-[10px] text-secondary">
+                ⚙️ El <b>{simulacionAnual.pct_autoconsumo} % anual</b> —no el de un mes suelto— es el que usan el ahorro, la amortización y la oferta al cliente: se recalcula solo al cambiar la batería, la potencia, la franja o el consumo mensual.
+              </p>
+            </div>
+          );
+        })()}
       </Card>
 
       {/* ── Hipótesis (visibles y editables) ── */}
@@ -519,96 +647,151 @@ ${fila('Se amortiza en', (e) => e.amortizacion != null ? `${e.amortizacion} año
               🖨️ Imprimir comparativa de las 3 opciones
             </button>
           </div>
-          <div className="grid md:grid-cols-3 gap-3">
-            {escenarios.map((e) => (
-              <div key={e.nombre} className="rounded-xl border border-border/40 bg-card/50 p-3 space-y-1 text-xs">
-                <p className="font-black text-sm">{e.nombre} <span className="text-[10px] font-semibold text-muted">(cubre el {Math.round(e.factor * 100)} % del consumo)</span></p>
-                <p><b className="tabular-nums">{e.kwp} kWp</b> · {e.paneles} paneles · {r2(e.produccion).toLocaleString('es-ES')} kWh/año</p>
-                <p className="text-muted">
-                  Autoconsumo directo {e.coincidencia} %{e.opt.elegida.codigo ? <> + batería → <b className="text-foreground">{e.pctAuto} % efectivo</b></> : <> (sin batería)</>} · cobertura ≈{e.cobertura} %
-                </p>
-                <p>Inversión ≈ <b className="tabular-nums">{fmtEur2(e.inversion)}</b></p>
-                <p className="text-emerald-400 font-bold">Ahorro ≈ {fmtEur2(e.ahorro)}/año · amortiza en {e.amortizacion ?? '—'} años</p>
+          <div className="grid xl:grid-cols-3 gap-4">
+            {escenarios.map((e, idx) => {
+              const invOps = inversorEconomico(e.kwp);
+              const capBat = e.elegida.codigo ? e.elegida.capacidad_util : 0;
+              const batOps = bateriaEconomica(capBat);
+              const totalMin = (invOps[0]?.coste || 0) + (batOps[0]?.coste || 0);
+              const editado = e.panelesEditado || e.bateriaEditada;
+              return (
+              <div key={e.nombre} data-n={idx} className={`fv-escenario rounded-2xl border p-4 space-y-2.5 text-[13px] ${editado ? 'fv-editado border-amber-400/50 bg-amber-500/[0.04] ring-1 ring-amber-400/20' : 'border-border/40 bg-card/50'}`}>
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="font-black text-base text-foreground">{e.nombre}</p>
+                    <p className="text-[11px] font-semibold text-muted">cubre el {Math.round(e.factor * 100)} % del consumo</p>
+                  </div>
+                  {editado && (
+                    <button type="button" onClick={() => setOverrides((prev) => ({ ...prev, [e.nombre]: {} }))}
+                      className="text-[10px] px-2 py-1 rounded-full bg-amber-400/15 text-amber-300 border border-amber-400/40 font-bold hover:bg-amber-400/25">
+                      ↺ Ajustado a mano · restaurar
+                    </button>
+                  )}
+                </div>
 
-                {/* Decisión del algoritmo: comparación de opciones de batería */}
-                <div className="pt-1.5 mt-1 border-t border-border/30 space-y-0.5">
-                  <p className="text-[10px] font-bold uppercase text-muted">🔋 Algoritmo batería (elige la menor amortización)</p>
-                  {e.opt.opciones.map((o: OpcionBateria) => (
-                    <p key={o.nombre} className={`text-[10px] flex justify-between gap-2 ${o.elegida ? 'text-emerald-400 font-bold' : 'text-muted'}`}>
-                      <span>{o.elegida ? '✓ ' : ''}{o.nombre}{o.capacidad_util ? ` (${o.capacidad_util} kWh útiles)` : ''}</span>
-                      <span className="tabular-nums shrink-0">{o.amortizacion != null ? `${o.amortizacion} años` : '—'}</span>
-                    </p>
-                  ))}
-                  <p className="text-[10px] text-secondary leading-snug">📐 {e.marginal.texto}</p>
+                {/* Cifras clave, grandes */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="rounded-lg bg-background/50 border border-border/25 p-2">
+                    <p className="text-[9px] uppercase font-bold text-muted">Potencia</p>
+                    <p className="text-lg font-black tabular-nums text-foreground">{e.kwp} <span className="text-xs font-bold">kWp</span></p>
+                  </div>
+                  <div className="rounded-lg bg-emerald-500/5 border border-emerald-500/20 p-2">
+                    <p className="text-[9px] uppercase font-bold text-muted">Amortiza en</p>
+                    <p className="text-lg font-black tabular-nums text-emerald-400">{e.amortizacion ?? '—'} <span className="text-xs font-bold">{e.amortizacion != null ? 'años' : ''}</span></p>
+                  </div>
+                </div>
+
+                {/* Nº de paneles — editable */}
+                <div className="flex items-center justify-between gap-2 rounded-lg bg-background/40 border border-border/25 px-2.5 py-1.5">
+                  <label className="text-[11px] font-semibold text-muted">☀️ Nº de paneles</label>
+                  <div className="flex items-center gap-1.5">
+                    <input type="number" min="1" value={e.paneles}
+                      onChange={(ev) => setOverride(e.nombre, 'paneles', parseInt(ev.target.value) || e.panelesAuto)}
+                      className="w-16 rounded-md border border-border/40 bg-background/70 px-1.5 py-1 text-right text-[12px] font-bold tabular-nums" />
+                    {e.panelesEditado && (
+                      <button type="button" onClick={() => resetOverride(e.nombre, 'paneles')} title={`Automático: ${e.panelesAuto}`} className="text-[10px] text-amber-300 hover:underline">↺ auto ({e.panelesAuto})</button>
+                    )}
+                  </div>
+                </div>
+                <p className="text-muted text-[11.5px]">
+                  {r2(e.produccion).toLocaleString('es-ES')} kWh/año · autoconsumo directo {e.coincidencia} %
+                  {e.elegida.codigo ? <> + batería → <b className="text-foreground">{e.pctAuto} % efectivo</b></> : <> (sin batería)</>} · cobertura ≈{e.cobertura} %
+                </p>
+                <p>Inversión ≈ <b className="tabular-nums">{fmtEur2(e.inversion)}</b> · <span className="text-emerald-400 font-bold">ahorro ≈ {fmtEur2(e.ahorro)}/año</span></p>
+
+                {/* Decisión del algoritmo: comparación de opciones de batería — clicable para forzar una */}
+                <div className="pt-2 mt-1 border-t border-border/30 space-y-1">
+                  <p className="text-[10px] font-bold uppercase text-muted flex items-center justify-between">
+                    <span>🔋 Batería {e.bateriaEditada ? '(elegida a mano)' : '(algoritmo: menor amortización)'}</span>
+                    {e.bateriaEditada && <button type="button" onClick={() => resetOverride(e.nombre, 'bateriaCodigo')} className="text-amber-300 hover:underline normal-case font-semibold">↺ auto</button>}
+                  </p>
+                  {e.opt.opciones.map((o: OpcionBateria) => {
+                    const activa = o.codigo === e.elegida.codigo;
+                    return (
+                      <button key={o.nombre} type="button" onClick={() => setOverride(e.nombre, 'bateriaCodigo', o.codigo)}
+                        className={`w-full text-[11px] flex justify-between gap-2 rounded-md px-1.5 py-1 transition ${
+                          activa ? 'bg-emerald-500/10 text-emerald-400 font-bold ring-1 ring-emerald-500/30' : 'text-muted hover:bg-card/60 hover:text-foreground'
+                        }`}>
+                        <span>{activa ? '✓ ' : ''}{o.nombre}{o.capacidad_util ? ` (${o.capacidad_util} kWh útiles)` : ''}</span>
+                        <span className="tabular-nums shrink-0">{o.amortizacion != null ? `${o.amortizacion} años` : '—'}</span>
+                      </button>
+                    );
+                  })}
+                  <p className="text-[10px] text-secondary leading-snug pt-0.5">📐 {e.marginal.texto}</p>
                 </div>
 
                 {/* Equipos del escenario */}
-                <div className="pt-1.5 mt-1 border-t border-border/30 text-[10px] text-muted space-y-0.5">
+                <div className="pt-1.5 mt-1 border-t border-border/30 text-[11px] text-muted space-y-0.5">
                   <p>⚡ {e.rec.inversor?.descripcion || 'Inversor a estudiar'}</p>
                   <p>🔧 {e.rec.instalacion?.descripcion || 'Instalación a valorar'}</p>
                   {e.rec.instalacionNota && <p className="text-amber-300">⚠️ {e.rec.instalacionNota}</p>}
                 </div>
 
-                {/* Algoritmo: combinación más económica del mercado para la potencia y capacidad de este escenario */}
-                {(() => {
-                  const invOps = inversorEconomico(e.kwp);
-                  const capBat = e.opt.elegida.codigo ? e.opt.elegida.capacidad_util : 0;
-                  const batOps = bateriaEconomica(capBat);
-                  if (invOps.length === 0 && batOps.length === 0) return null;
-                  const totalMin = (invOps[0]?.coste || 0) + (batOps[0]?.coste || 0);
-                  return (
-                    <details className="mt-1 rounded-lg bg-emerald-500/5 border border-emerald-500/25">
-                      <summary className="px-2 py-1.5 text-[11px] font-bold cursor-pointer select-none text-emerald-400">💰 Combinación más económica del mercado{totalMin > 0 ? ` · ${fmtEur2(totalMin)}` : ''}</summary>
-                      <div className="px-2 pb-2 space-y-1.5 text-[10px]">
-                        {invOps.length > 0 && (
-                          <div>
-                            <p className="font-bold text-foreground">⚡ Inversor para {e.kwp} kWp</p>
-                            {invOps.map((o: ComboEquipo, k: number) => (
-                              <p key={o.descripcion} className={`flex justify-between gap-2 ${k === 0 ? 'text-emerald-400 font-bold' : 'text-muted'}`}>
-                                <span>{k === 0 ? '✓ ' : ''}{o.descripcion}</span>
-                                <span className="tabular-nums shrink-0">{fmtEur2(o.coste)} · {fmtEur2(o.ratio)}/kW</span>
-                              </p>
-                            ))}
-                          </div>
-                        )}
-                        {batOps.length > 0 && (
-                          <div>
-                            <p className="font-bold text-foreground">🔋 Batería para ≈{capBat} kWh</p>
-                            {batOps.map((o: ComboEquipo, k: number) => (
-                              <p key={o.descripcion} className={`flex justify-between gap-2 ${k === 0 ? 'text-emerald-400 font-bold' : 'text-muted'}`}>
-                                <span>{k === 0 ? '✓ ' : ''}{o.descripcion} → {o.medida_total} kWh</span>
-                                <span className="tabular-nums shrink-0">{fmtEur2(o.coste)} · {fmtEur2(o.ratio)}/kWh</span>
-                              </p>
-                            ))}
-                          </div>
-                        )}
-                        <p className="text-muted/70 leading-snug">Precios de material orientativos de mercado (sin IVA, sin instalación). Compáralos con Óscar; el inversor puede ir hasta ~15 % por debajo del pico.</p>
-                      </div>
-                    </details>
-                  );
-                })()}
+                {/* Combinación más económica del mercado — con botón para aplicarla directamente */}
+                {(invOps.length > 0 || batOps.length > 0) && (
+                  <details className="mt-1 rounded-xl bg-emerald-500/5 border border-emerald-500/25 overflow-hidden">
+                    <summary className="px-3 py-2 text-[12px] font-bold cursor-pointer select-none text-emerald-400 flex items-center justify-between">
+                      <span>💰 Combinación más económica del mercado</span>
+                      {totalMin > 0 && <span className="tabular-nums">{fmtEur2(totalMin)}</span>}
+                    </summary>
+                    <div className="px-3 pb-3 space-y-2 text-[11px]">
+                      {invOps.length > 0 && (
+                        <div>
+                          <p className="font-bold text-foreground">⚡ Inversor para {e.kwp} kWp</p>
+                          {invOps.map((o: ComboEquipo, k: number) => (
+                            <p key={o.descripcion} className={`flex justify-between gap-2 ${k === 0 ? 'text-emerald-400 font-bold' : 'text-muted'}`}>
+                              <span>{k === 0 ? '✓ ' : ''}{o.descripcion}</span>
+                              <span className="tabular-nums shrink-0">{fmtEur2(o.coste)} · {fmtEur2(o.ratio)}/kW</span>
+                            </p>
+                          ))}
+                        </div>
+                      )}
+                      {batOps.length > 0 && (
+                        <div>
+                          <p className="font-bold text-foreground">🔋 Batería para ≈{capBat} kWh</p>
+                          {batOps.map((o: ComboEquipo, k: number) => (
+                            <p key={o.descripcion} className={`flex justify-between gap-2 ${k === 0 ? 'text-emerald-400 font-bold' : 'text-muted'}`}>
+                              <span>{k === 0 ? '✓ ' : ''}{o.descripcion} → {o.medida_total} kWh</span>
+                              <span className="tabular-nums shrink-0">{fmtEur2(o.coste)} · {fmtEur2(o.ratio)}/kWh</span>
+                            </p>
+                          ))}
+                        </div>
+                      )}
+                      <p className="text-muted/70 leading-snug">Precios de material orientativos de mercado (sin IVA, sin instalación). Compáralos con Óscar; el inversor puede ir hasta ~15 % por debajo del pico.</p>
+                      <button type="button" onClick={() => montarConCombinacionEconomica(e)}
+                        className="w-full px-2 py-1.5 rounded-lg bg-emerald-500 text-white text-[11px] font-bold hover:bg-emerald-500/90">
+                        💰 Activar esta combinación en el presupuesto
+                      </button>
+                    </div>
+                  </details>
+                )}
 
-                {/* Todos los cálculos, línea a línea, con su fuente */}
-                <details className="mt-1 rounded-lg bg-background/40 border border-border/30">
-                  <summary className="px-2 py-1.5 text-[11px] font-bold cursor-pointer select-none text-secondary">🧮 Ver todos los cálculos y su justificación</summary>
-                  <div className="px-2 pb-2 space-y-1.5">
-                    {e.justificacion.map((l: LineaJustificacion) => (
-                      <div key={l.concepto} className="border-b border-border/20 pb-1 last:border-0">
-                        <p className="flex justify-between gap-2"><b>{l.concepto}</b><span className="tabular-nums text-right">{l.valor}</span></p>
-                        <p className="text-[10px] text-muted">{l.formula}</p>
+                {/* Todos los cálculos, línea a línea, con su fuente — visual, con icono por concepto */}
+                <details className="mt-1 rounded-xl bg-background/40 border border-border/30 overflow-hidden">
+                  <summary className="px-3 py-2 text-[12px] font-bold cursor-pointer select-none text-secondary">🧮 Ver todos los cálculos y su justificación</summary>
+                  <div className="px-3 pb-3 space-y-2">
+                    <p className="text-[10px] text-muted -mt-0.5">Estos números salen de las <b>Hipótesis</b> de arriba: cámbialas allí y se recalculan aquí al instante.</p>
+                    {e.justificacion.map((l: LineaJustificacion, i: number) => (
+                      <div key={l.concepto} className="rounded-lg bg-card/50 border border-border/20 p-2">
+                        <p className="flex justify-between gap-2 items-baseline">
+                          <b className="text-foreground">{JUSTIF_ICONOS[i % JUSTIF_ICONOS.length]} {l.concepto}</b>
+                          <span className="tabular-nums text-right font-black text-emerald-400">{l.valor}</span>
+                        </p>
+                        <p className="text-[10px] text-muted mt-0.5">{l.formula}</p>
                         <p className="text-[9px] text-muted/70">📌 {l.fuente}</p>
                       </div>
                     ))}
                   </div>
                 </details>
 
-                <button type="button" onClick={() => montar(e)} className="w-full mt-1.5 px-2 py-1.5 rounded-lg bg-accent text-white text-[11px] font-bold hover:bg-accent/90">
+                <button type="button" onClick={() => montar(e)} className="w-full mt-1.5 px-3 py-2 rounded-lg bg-accent text-white text-[12px] font-bold hover:bg-accent/90">
                   🪄 Montar presupuesto con este escenario
                 </button>
               </div>
-            ))}
+              );
+            })}
           </div>
-          <p className="text-[10px] text-muted">Estimación orientativa con las hipótesis de arriba: la inversión usa el €/kWp del presupuesto actual (o 1.100 €/kWp si aún no hay partidas). Pendiente de validación del instalador.</p>
+          <p className="text-[10px] text-muted">Estimación orientativa con las hipótesis de arriba: la inversión usa el €/kWp del presupuesto actual (o 1.100 €/kWp si aún no hay partidas). El nº de paneles y la batería se pueden ajustar a mano en cada tarjeta. Pendiente de validación del instalador.</p>
         </Card>
       )}
 
