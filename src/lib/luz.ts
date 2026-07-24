@@ -208,6 +208,20 @@ export const MOTIVOS_BLOQUEO = ['Esperando al cliente', 'Falta documentación', 
 export const MOTIVOS_PERDIDA = ['Precio no competitivo', 'Permanencia con penalización', 'No contesta', 'Se queda como está', 'Se fue con otro'];
 export const MOTIVOS_ELIMINACION = ['Tarea duplicada', 'Creada por error', 'Ya no aplica', 'Se hizo por otra vía'];
 
+/**
+ * Motivos para mover algo de día. Aplazar SIEMPRE pide justificación —
+ * completar no, porque hacer el trabajo no hay que explicarlo. Así queda
+ * rastro de por qué una cosa lleva tres semanas sin cerrarse.
+ */
+export const MOTIVOS_APLAZAMIENTO = [
+  'El cliente no estaba / no contesta',
+  'El cliente pide más tiempo',
+  'Falta documentación del cliente',
+  'Esperando a la comercializadora',
+  'No ha dado tiempo hoy',
+  'Se replanifica la ruta',
+];
+
 export const ESTADOS_TAREA = ['pendiente', 'en_curso', 'completada', 'bloqueada', 'cancelada'] as const;
 export const ESTADO_TAREA_LABEL: Record<string, string> = {
   pendiente: 'Pendiente', en_curso: 'En curso', completada: 'Completada', bloqueada: 'Bloqueada', cancelada: 'Cancelada',

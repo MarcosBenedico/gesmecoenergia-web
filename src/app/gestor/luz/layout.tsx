@@ -27,27 +27,27 @@ const BLOQUES: Bloque[] = [
   {
     id: 'calle',
     titulo: 'Calle',
-    pista: 'Captar, visitar y cerrar',
+    pista: 'Visitar, mover y cerrar',
     secciones: [
       { href: '/gestor/luz/mi-dia', icono: Sun, nombre: 'Mi Día' },
       { href: '/gestor/luz/agenda', icono: CalendarClock, nombre: 'Agenda' },
       { href: '/gestor/luz/rutas', icono: Route, nombre: 'Rutas de visitas' },
-      { href: '/gestor/luz/alta', icono: UserPlus, nombre: 'Alta guiada de cliente' },
       { href: '/gestor/luz/pipeline', icono: Target, nombre: 'Pipeline Energético' },
-      { href: '/gestor/luz/clientes', icono: Users, nombre: 'Clientes Energía' },
     ],
   },
   {
     id: 'oficina',
     titulo: 'Oficina',
-    pista: 'Datos, contratos y tramitación',
+    pista: 'Dar de alta, tramitar y ordenar',
     secciones: [
+      { href: '/gestor/luz/guia', icono: BookOpen, nombre: 'Guía rápida' },
+      { href: '/gestor/luz/alta', icono: UserPlus, nombre: 'Alta guiada de cliente' },
+      { href: '/gestor/luz/clientes', icono: Users, nombre: 'Clientes Energía' },
       { href: '/gestor/luz/cups', icono: Plug, nombre: 'CUPS / Suministros' },
       { href: '/gestor/luz/contratos', icono: FileSignature, nombre: 'Contratos y Activaciones' },
       { href: '/gestor/luz/tarifas', icono: TrendingUp, nombre: 'Tarifas y Comparador' },
       { href: '/gestor/luz/proyectos', icono: FileText, nombre: 'Proyectos de ahorro' },
       { href: '/gestor/luz/importar', icono: ArrowDownUp, nombre: 'Importación / Exportación' },
-      { href: '/gestor/luz/guia', icono: BookOpen, nombre: 'Guía rápida' },
     ],
   },
   {
