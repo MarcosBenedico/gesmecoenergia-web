@@ -7,7 +7,7 @@ import { Check, ChevronLeft, ChevronRight, PartyPopper } from 'lucide-react';
 import {
   TIPOS_CLIENTE, TIPO_CLIENTE_LABEL, PRIORIDADES, PRIORIDAD_LABEL, TARIFAS_ACCESO,
   TIPOS_OPORTUNIDAD, TIPO_OPORTUNIDAD_LABEL, TIPOS_TAREA, TIPO_TAREA_LABEL,
-  tituloFechaCritica, normCups, fmtFecha,
+  TIPOS_FECHA, TIPO_FECHA_LABEL, tituloFechaCritica, normCups, fmtFecha,
 } from '@/lib/luz';
 import { Card, guardarLuz, inputCls, labelCls, btnPrimario, btnSecundario, SelectorResponsable } from '../ui';
 import { tokenSesion } from '@/lib/usuario';
@@ -68,7 +68,12 @@ export default function AltaGuiadaPage() {
   });
   const [fOp, setFOp] = useState({ tipo_oportunidad: 'cambio_comercializadora', comision_potencial: '', proxima_accion: 'Pedir factura para estudio' });
   const [fTarea, setFTarea] = useState({ tipo_tarea: 'pedir_factura', descripcion: 'Pedir factura de luz para hacer el estudio', fecha_limite: enDias(2) });
-  const [fFechas, setFFechas] = useState({ presentar_proyecto: enDias(7), fin_contrato: '' });
+  const [fFechas, setFFechas] = useState({
+    tipo: 'presentar_proyecto',      // qué toca hacer con este cliente (editable)
+    titulo_personalizado: '',        // texto libre si el tipo es 'personalizada'
+    presentar_proyecto: enDias(7),   // fecha de esa próxima acción
+    fin_contrato: '',
+  });
 
   const diasProyecto = Math.round((new Date(fFechas.presentar_proyecto).getTime() - Date.now()) / 86400000) + 1;
 
@@ -141,18 +146,27 @@ export default function AltaGuiadaPage() {
   }
 
   async function guardarPaso5() {
-    if (!fFechas.presentar_proyecto) { setError('Indica la fecha para presentar el proyecto.'); return; }
+    if (!fFechas.presentar_proyecto) { setError('Indica la fecha de la próxima acción.'); return; }
+    if (fFechas.tipo === 'personalizada' && !fFechas.titulo_personalizado.trim()) {
+      setError('Escribe qué hay que hacer en esa visita (nombre de la fecha).'); return;
+    }
     setGuardando(true); setError('');
     const errores: string[] = [];
-    // Fecha crítica: presentar proyecto (máx. 1 semana desde la captación)
+    // Fecha crítica de la próxima acción: el tipo lo decide lo hablado con el cliente
+    // (presentar proyecto ≤7 días, volver a por facturas, visita de placas...).
+    const etiqueta = fFechas.tipo === 'personalizada'
+      ? fFechas.titulo_personalizado.trim()
+      : TIPO_FECHA_LABEL[fFechas.tipo] || fFechas.tipo;
     const e1 = await guardarLuz('fechas', 'POST', {
-      cliente_id: clienteId, cups_id: cupsId, tipo_fecha: 'presentar_proyecto',
+      cliente_id: clienteId, cups_id: cupsId, tipo_fecha: fFechas.tipo,
       fecha: fFechas.presentar_proyecto,
-      titulo: tituloFechaCritica(fCliente.nombre, fCups.cups ? normCups(fCups.cups) : '', 'presentar_proyecto', fCups.comercializadora_actual || null),
+      titulo: fFechas.tipo === 'personalizada'
+        ? `LUZ - ${fCliente.nombre} - ${fFechas.titulo_personalizado.trim()}`
+        : tituloFechaCritica(fCliente.nombre, fCups.cups ? normCups(fCups.cups) : '', fFechas.tipo, fCups.comercializadora_actual || null),
       prioridad: fCliente.prioridad, responsable: fCliente.responsable || null,
     });
     if (e1) errores.push(e1);
-    else setCreado((c) => [...c, `Fecha crítica: presentar proyecto el ${fmtFecha(fFechas.presentar_proyecto)}`]);
+    else setCreado((c) => [...c, `Fecha crítica: ${etiqueta} el ${fmtFecha(fFechas.presentar_proyecto)}`]);
     // Fecha crítica: fin de contrato (si la sabemos)
     if (fFechas.fin_contrato) {
       const e2 = await guardarLuz('fechas', 'POST', {
@@ -333,19 +347,58 @@ export default function AltaGuiadaPage() {
       {/* ── PASO 5: Fechas clave ── */}
       {paso === 5 && (
         <Card className="space-y-3">
-          <h3 className="font-bold text-foreground">📅 Las dos fechas que no se pueden escapar</h3>
+          <h3 className="font-bold text-foreground">📅 ¿Qué toca hacer con este cliente y cuándo?</h3>
+          <p className="text-[11px] text-muted -mt-1">
+            Según lo hablado: presentar el proyecto, volver a por las facturas, visita de placas... Se crea como fecha crítica y sale en el calendario.
+          </p>
+
+          {/* Atajos de lo más habitual */}
+          <div className="flex gap-1.5 flex-wrap">
+            {([
+              ['presentar_proyecto', '', '🎯 Presentar proyecto'],
+              ['personalizada', 'Volver a recoger las facturas', '📄 Volver a por facturas'],
+              ['personalizada', 'Visita de placas (fotovoltaica)', '☀️ Visita de placas'],
+              ['seguimiento_oferta', '', '📞 Seguimiento de oferta'],
+            ] as const).map(([tipo, texto, etiqueta]) => {
+              const activo = fFechas.tipo === tipo && (tipo !== 'personalizada' || fFechas.titulo_personalizado === texto);
+              return (
+                <button key={etiqueta} type="button"
+                  onClick={() => setFFechas({ ...fFechas, tipo, titulo_personalizado: texto })}
+                  className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold border transition ${
+                    activo ? 'bg-accent text-white border-accent' : 'bg-card/70 text-muted border-border/50 hover:text-foreground'
+                  }`}>
+                  {etiqueta}
+                </button>
+              );
+            })}
+          </div>
+
           <div className="grid md:grid-cols-2 gap-3">
             <div>
-              <label className={labelCls}>Presentar proyecto * (máximo 1 semana)</label>
-              <input className={inputCls} type="date" max={enDias(7)} value={fFechas.presentar_proyecto}
+              <label className={labelCls}>Tipo de próxima acción *</label>
+              <select className={inputCls} value={fFechas.tipo} onChange={(e) => setFFechas({ ...fFechas, tipo: e.target.value })}>
+                {TIPOS_FECHA.map((t) => <option key={t} value={t}>{TIPO_FECHA_LABEL[t]}</option>)}
+                <option value="personalizada">✏️ Otro (nombre personalizado)…</option>
+              </select>
+              {fFechas.tipo === 'personalizada' && (
+                <input className={`${inputCls} mt-2`} value={fFechas.titulo_personalizado} autoFocus
+                  onChange={(e) => setFFechas({ ...fFechas, titulo_personalizado: e.target.value })}
+                  placeholder="Qué hay que hacer: recoger facturas, visita de placas, llevar contrato..." />
+              )}
+            </div>
+            <div>
+              <label className={labelCls}>Fecha *{fFechas.tipo === 'presentar_proyecto' ? ' (máximo 1 semana)' : ''}</label>
+              <input className={inputCls} type="date"
+                max={fFechas.tipo === 'presentar_proyecto' ? enDias(7) : undefined}
+                value={fFechas.presentar_proyecto}
                 onChange={(e) => setFFechas({ ...fFechas, presentar_proyecto: e.target.value })} />
-              {diasProyecto > 7 ? (
+              {fFechas.tipo === 'presentar_proyecto' && diasProyecto > 7 ? (
                 <p className="text-[11px] text-red-400 mt-1">⚠️ Son más de 7 días desde hoy: el proyecto se presenta como mucho 1 semana después de captar al cliente.</p>
               ) : (
                 <p className="text-[11px] text-muted mt-1">Dentro de {Math.max(diasProyecto, 0)} día(s).</p>
               )}
             </div>
-            <div>
+            <div className="md:col-span-2">
               <label className={labelCls}>Fin de contrato actual (si se sabe)</label>
               <input className={inputCls} type="date" value={fFechas.fin_contrato}
                 onChange={(e) => setFFechas({ ...fFechas, fin_contrato: e.target.value })} />
@@ -353,7 +406,7 @@ export default function AltaGuiadaPage() {
             </div>
           </div>
           <div className="flex justify-end pt-2">
-            <button onClick={guardarPaso5} disabled={guardando || diasProyecto > 7} className={btnSiguiente}>
+            <button onClick={guardarPaso5} disabled={guardando || (fFechas.tipo === 'presentar_proyecto' && diasProyecto > 7)} className={btnSiguiente}>
               Crear fechas <ChevronRight className="w-4 h-4" />
             </button>
           </div>
