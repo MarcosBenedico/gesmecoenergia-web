@@ -53,7 +53,7 @@ export function useListaLuz<T>(recurso: string, params: Record<string, string> =
 }
 
 /** Guardado genérico contra /api/luz. Devuelve mensaje de error o null. */
-export async function guardarLuz(recurso: string, metodo: 'POST' | 'PUT' | 'DELETE', body: Record<string, unknown>) {
+export async function guardarLuz(recurso: string, metodo: 'POST' | 'PUT' | 'DELETE' | 'PATCH', body: Record<string, unknown>) {
   try {
     const token = await tokenSesion();
     const res = await fetch(`/api/luz/${recurso}`, {
@@ -65,5 +65,22 @@ export async function guardarLuz(recurso: string, metodo: 'POST' | 'PUT' | 'DELE
     return res.ok ? null : (json.error as string) || 'No se pudo guardar.';
   } catch {
     return 'Error de conexión.';
+  }
+}
+
+/** Envía a la papelera (recuperable). Devuelve el error, o cuántos registros arrastró. */
+export async function eliminarLuz(recurso: string, id: string, motivo?: string) {
+  try {
+    const token = await tokenSesion();
+    const res = await fetch(`/api/luz/${recurso}`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      body: JSON.stringify({ id, motivo }),
+    });
+    const json = await res.json();
+    if (!res.ok) return { error: (json.error as string) || 'No se pudo eliminar.', arrastrados: 0 };
+    return { error: null, arrastrados: (json.arrastrados as number) || 0 };
+  } catch {
+    return { error: 'Error de conexión.', arrastrados: 0 };
   }
 }

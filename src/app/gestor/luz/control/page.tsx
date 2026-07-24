@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Lock, History, ChevronLeft, ChevronRight, Plus, Pencil, Trash2, User } from 'lucide-react';
+import { Lock, History, ChevronLeft, ChevronRight, Plus, Pencil, Trash2, RotateCcw, User } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { GuardiaAdmin } from '@/components/guardia-modulo';
 import { Card, Kpi, EstadoCarga, useListaLuz, inputCls, btnPrimario, btnSecundario } from '../ui';
@@ -32,6 +32,8 @@ const ACCION_UI: Record<string, { nombre: string; tono: string; Icono: typeof Pl
   INSERT: { nombre: 'Creado', tono: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30', Icono: Plus },
   UPDATE: { nombre: 'Cambio', tono: 'bg-amber-500/15 text-amber-300 border-amber-500/30', Icono: Pencil },
   DELETE: { nombre: 'Eliminado', tono: 'bg-red-500/15 text-red-400 border-red-500/30', Icono: Trash2 },
+  // Desde que hay papelera, eliminar es reversible y restaurar deja su propio rastro
+  RESTORE: { nombre: 'Restaurado', tono: 'bg-secondary/15 text-secondary border-secondary/30', Icono: RotateCcw },
 };
 
 // Campos técnicos que no aportan nada al leer un cambio
@@ -40,7 +42,7 @@ const CAMPOS_IGNORADOS = new Set(['actualizado_en', 'creado_en', 'ultimo_acceso'
 interface RegistroAuditoria {
   id: string;
   usuario: string | null;
-  accion: 'INSERT' | 'UPDATE' | 'DELETE';
+  accion: 'INSERT' | 'UPDATE' | 'DELETE' | 'RESTORE';
   tabla: string;
   registro_id: string | null;
   antes: Record<string, unknown> | null;
@@ -155,6 +157,7 @@ function ControlGeneral() {
     creados: filtrados.filter((r) => r.accion === 'INSERT').length,
     cambios: filtrados.filter((r) => r.accion === 'UPDATE').length,
     borrados: filtrados.filter((r) => r.accion === 'DELETE').length,
+    restaurados: filtrados.filter((r) => r.accion === 'RESTORE').length,
   }), [filtrados]);
 
   function comprobarPin(e: React.FormEvent) {
@@ -258,6 +261,9 @@ function ControlGeneral() {
         <Kpi valor={resumenDia.creados} etiqueta="Creaciones" color="text-emerald-400" />
         <Kpi valor={resumenDia.cambios} etiqueta="Cambios" color="text-amber-300" />
         <Kpi valor={resumenDia.borrados} etiqueta="Eliminaciones" color={resumenDia.borrados ? 'text-red-400' : 'text-foreground'} />
+        {resumenDia.restaurados > 0 && (
+          <Kpi valor={resumenDia.restaurados} etiqueta="Restauraciones" color="text-secondary" />
+        )}
       </div>
 
       <EstadoCarga

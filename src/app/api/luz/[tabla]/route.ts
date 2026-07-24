@@ -172,6 +172,58 @@ async function recalcularEstadoCliente(supabase: Supa, clienteId: string | null 
   }
 }
 
+/* ═══════════ PAPELERA ═══════════ */
+
+/**
+ * Recursos que van a la papelera en vez de borrarse. Los que no están aquí
+ * (config, auditoría, responsables) se siguen borrando de verdad: o no son
+ * datos de negocio, o ya tienen su propio flujo.
+ */
+const CON_PAPELERA = new Set([
+  'clientes', 'cups', 'fechas', 'pipeline', 'contratos', 'comisiones', 'tareas', 'visitas', 'proyectos',
+]);
+
+/**
+ * Qué se lleva por delante borrar cada cosa.
+ *
+ * Antes esto lo hacía la base de datos con ON DELETE CASCADE y era
+ * irreversible. Ahora se replica a mano marcando los hijos con `borrado_con`
+ * = id del padre, para que al restaurar vuelvan EXACTAMENTE los que se fueron
+ * con él y no los que ya estaban en la papelera por su cuenta.
+ */
+const CASCADA: Record<string, { tabla: string; campo: string }[]> = {
+  clientes: [
+    { tabla: 'luz_cups', campo: 'cliente_id' },
+    { tabla: 'luz_fechas_criticas', campo: 'cliente_id' },
+    { tabla: 'luz_pipeline', campo: 'cliente_id' },
+    { tabla: 'luz_contratos', campo: 'cliente_id' },
+    { tabla: 'luz_comisiones', campo: 'cliente_id' },
+    { tabla: 'luz_tareas', campo: 'cliente_id' },
+    { tabla: 'luz_visitas', campo: 'cliente_id' },
+  ],
+  cups: [
+    { tabla: 'luz_fechas_criticas', campo: 'cups_id' },
+    { tabla: 'luz_pipeline', campo: 'cups_id' },
+    { tabla: 'luz_contratos', campo: 'cups_id' },
+    { tabla: 'luz_comisiones', campo: 'cups_id' },
+    { tabla: 'luz_tareas', campo: 'cups_id' },
+  ],
+};
+
+/** ¿La tabla todavía no tiene las columnas de papelera? (falta ejecutar el SQL) */
+const faltaPapelera = (msg: string) =>
+  /column .*borrado_en.* does not exist|Could not find the '?borrado_en'? column/i.test(msg);
+
+/** Email de quien está haciendo la operación, para dejar rastro de quién borró. */
+async function usuarioDe(supabase: Supa): Promise<string | null> {
+  try {
+    const { data } = await supabase.auth.getUser();
+    return data.user?.email || null;
+  } catch {
+    return null;
+  }
+}
+
 const errorTabla = () => NextResponse.json({ error: 'Recurso no válido.' }, { status: 404 });
 const esFaltaTabla = (msg: string) => /relation .* does not exist|Could not find the table/i.test(msg);
 const respuestaError = (msg: string) =>
@@ -197,11 +249,19 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ tabla: stri
   if (!def) return errorTabla();
 
   const params = req.nextUrl.searchParams;
+  // ?papelera=1 devuelve SOLO lo borrado; por defecto se ve solo lo vivo
+  const verPapelera = params.get('papelera') === '1';
+  const usaPapelera = CON_PAPELERA.has(tabla);
+
   let query = supabase
     .from(def.tabla)
     .select(def.select)
-    .order(def.orden.col, { ascending: def.orden.asc, nullsFirst: false })
+    .order(verPapelera ? 'borrado_en' : def.orden.col, { ascending: verPapelera ? false : def.orden.asc, nullsFirst: false })
     .limit(Math.min(parseInt(params.get('limite') || '2000'), 5000));
+
+  if (usaPapelera) {
+    query = verPapelera ? query.not('borrado_en', 'is', null) : query.is('borrado_en', null);
+  }
 
   for (const f of def.filtros) {
     const v = params.get(f);
@@ -217,7 +277,19 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ tabla: stri
   }
 
   const { data, error } = await query;
-  if (error) return respuestaError(error.message);
+  if (error) {
+    // Todavía no se ha ejecutado supabase_papelera.sql: se sirve sin filtrar
+    // en vez de dejar la pantalla en blanco. La papelera sí avisa de que falta.
+    if (usaPapelera && faltaPapelera(error.message)) {
+      if (verPapelera) return NextResponse.json({ ok: true, datos: [], falta_papelera: true });
+      const { data: d2, error: e2 } = await supabase
+        .from(def.tabla).select(def.select)
+        .order(def.orden.col, { ascending: def.orden.asc, nullsFirst: false })
+        .limit(Math.min(parseInt(params.get('limite') || '2000'), 5000));
+      if (!e2) return NextResponse.json({ ok: true, datos: d2 || [], falta_papelera: true });
+    }
+    return respuestaError(error.message);
+  }
   return NextResponse.json({ ok: true, datos: data || [] });
 }
 
@@ -400,6 +472,14 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ tabla: stri
   }
 }
 
+/**
+ * Enviar a la papelera (no borra) o borrar de verdad.
+ *
+ * body: { id, motivo?, definitivo? }
+ *  - Por defecto marca `borrado_en` y arrastra los hijos con `borrado_con`.
+ *  - `definitivo: true` borra físicamente (solo desde la papelera, y ahí sí
+ *    salta el ON DELETE CASCADE de la base de datos: es irreversible).
+ */
 export async function DELETE(req: NextRequest, ctx: { params: Promise<{ tabla: string }> }) {
   const supabase = clienteSupabase(req);
   const { tabla } = await ctx.params;
@@ -407,11 +487,83 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ tabla: s
   if (!def) return errorTabla();
 
   try {
+    const { id, motivo, definitivo } = await req.json();
+    if (!id) return NextResponse.json({ error: 'Falta el id.' }, { status: 400 });
+
+    const borradoFisico = async () => {
+      const { error } = await supabase.from(def.tabla).delete().eq('id', id);
+      if (error) return respuestaError(error.message);
+      return NextResponse.json({ ok: true, definitivo: true });
+    };
+
+    if (!CON_PAPELERA.has(tabla) || definitivo === true) return borradoFisico();
+
+    const marca = {
+      borrado_en: new Date().toISOString(),
+      borrado_por: await usuarioDe(supabase),
+      motivo_borrado: motivo || null,
+    };
+
+    const { error } = await supabase.from(def.tabla).update(marca).eq('id', id);
+    if (error) {
+      // Sin las columnas de papelera no podemos ser reversibles: mejor avisar
+      // que borrar de verdad creyendo el usuario que se puede recuperar.
+      if (faltaPapelera(error.message)) {
+        return NextResponse.json({
+          error: 'Falta la papelera: ejecuta supabase_papelera.sql en el SQL Editor de Supabase. '
+            + 'Hasta entonces no se puede eliminar de forma recuperable.',
+          falta_papelera: true,
+        }, { status: 409 });
+      }
+      return respuestaError(error.message);
+    }
+
+    // Los hijos se van con el padre, marcados para poder devolverlos juntos
+    let arrastrados = 0;
+    for (const hijo of CASCADA[tabla] || []) {
+      const { data } = await supabase
+        .from(hijo.tabla)
+        .update({ ...marca, borrado_con: String(id) })
+        .eq(hijo.campo, id)
+        .is('borrado_en', null)
+        .select('id');
+      arrastrados += data?.length || 0;
+    }
+
+    return NextResponse.json({ ok: true, en_papelera: true, arrastrados });
+  } catch {
+    return NextResponse.json({ error: 'Petición no válida.' }, { status: 400 });
+  }
+}
+
+/** Restaurar desde la papelera: el registro y todo lo que se fue con él. */
+export async function PATCH(req: NextRequest, ctx: { params: Promise<{ tabla: string }> }) {
+  const supabase = clienteSupabase(req);
+  const { tabla } = await ctx.params;
+  const def = TABLAS[tabla];
+  if (!def) return errorTabla();
+  if (!CON_PAPELERA.has(tabla)) {
+    return NextResponse.json({ error: 'Ese recurso no tiene papelera.' }, { status: 400 });
+  }
+
+  try {
     const { id } = await req.json();
     if (!id) return NextResponse.json({ error: 'Falta el id.' }, { status: 400 });
-    const { error } = await supabase.from(def.tabla).delete().eq('id', id);
+
+    const limpiar = { borrado_en: null, borrado_por: null, motivo_borrado: null, borrado_con: null };
+    const { error } = await supabase.from(def.tabla).update(limpiar).eq('id', id);
     if (error) return respuestaError(error.message);
-    return NextResponse.json({ ok: true });
+
+    // Solo vuelven los hijos que se fueron POR ESTE borrado (borrado_con = id),
+    // no los que ya estaban en la papelera por su cuenta.
+    let restaurados = 0;
+    for (const hijo of CASCADA[tabla] || []) {
+      const { data } = await supabase
+        .from(hijo.tabla).update(limpiar).eq('borrado_con', String(id)).select('id');
+      restaurados += data?.length || 0;
+    }
+
+    return NextResponse.json({ ok: true, restaurados });
   } catch {
     return NextResponse.json({ error: 'Petición no válida.' }, { status: 400 });
   }
