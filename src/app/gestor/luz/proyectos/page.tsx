@@ -1,6 +1,7 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { supabase } from '@/lib/supabase';
 import { FileText, Plus, Trash2, Pencil, X, Printer, Save } from 'lucide-react';
 import { LuzCliente, LuzCups, LuzProyecto, TARIFAS_ACCESO, fmtFecha } from '@/lib/luz';
 import { Card, Badge, EstadoCarga, useListaLuz, guardarLuz, inputCls, labelCls, btnPrimario, btnSecundario } from '../ui';
@@ -31,6 +32,11 @@ const MESES_LARGO = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'jul
 
 /** Nº de periodos de energía según la tarifa de acceso. */
 const numPeriodos = (tarifa: string) => (tarifa === '2.0TD' || tarifa === 'otra' ? 3 : 6);
+
+/** Tarifa base de las tablas de precios guardados ('2.0' | '3.0' | '6.1'). */
+const tarifaBase = (tarifa: string) => (tarifa === '2.0TD' || tarifa === 'otra' ? '2.0' : tarifa === '3.0TD' ? '3.0' : '6.1');
+
+interface TarifaGuardada { id: number; nombre: string; tarifa: string; precios_energia: number[] }
 
 /** Últimos n meses en formato YYYY-MM (el más antiguo primero). */
 function ultimosMeses(n: number): string[] {
@@ -140,6 +146,28 @@ export default function ProyectosLuzPage() {
 
   const cliente = clientes.datos.find((c) => c.id === clienteId) || null;
   const cupsDelCliente = useMemo(() => cups.datos.filter((c) => c.cliente_id === clienteId), [cups.datos, clienteId]);
+
+  // Precios guardados en Tarifas y Comparador: se cargan aquí con un clic
+  const [tarifasGuardadas, setTarifasGuardadas] = useState<TarifaGuardada[]>([]);
+  useEffect(() => {
+    supabase.from('precios_comercializadoras').select('id, tarifa, precios_energia, comercializadoras(nombre)')
+      .then(({ data }) => {
+        setTarifasGuardadas(((data as unknown as { id: number; tarifa: string; precios_energia: number[]; comercializadoras?: { nombre: string } | null }[]) || [])
+          .filter((r) => Array.isArray(r.precios_energia))
+          .map((r) => ({ id: r.id, tarifa: r.tarifa, precios_energia: r.precios_energia, nombre: r.comercializadoras?.nombre || 'Comercializadora' })));
+      });
+  }, []);
+
+  /** Rellenar los precios de una oferta con una tarifa guardada. */
+  function cargarTarifaGuardada(i: number, lista: 'precios_fijo' | 'precios_index', idTarifa: string) {
+    const t = tarifasGuardadas.find((x) => String(x.id) === idTarifa);
+    if (!t) return;
+    const p = numPeriodos(bloques[i].tarifa);
+    setBloques((bs) => bs.map((b, k) => k !== i ? b : {
+      ...b,
+      [lista]: Array.from({ length: p }, (_, q) => (t.precios_energia[q] != null ? String(t.precios_energia[q]) : '')),
+    }));
+  }
 
   function nuevoProyecto() {
     setProyectoId(null); setClienteId(''); setTitulo(''); setMesesMostrar(6);
@@ -542,7 +570,22 @@ ${resumen}
                         <td className="py-1 text-right text-[10px] text-muted">—</td>
                       </tr>
                       <tr className="border-b border-border/15">
-                        <td className="py-1 pr-2 font-bold">🔒 Oferta fija 12 m</td>
+                        <td className="py-1 pr-2 font-bold">
+                          🔒 Oferta fija 12 m
+                          {tarifasGuardadas.some((t) => t.tarifa === tarifaBase(b.tarifa)) && (
+                            <select
+                              className="block mt-0.5 w-full max-w-40 rounded-md border border-border/40 bg-background/70 px-1 py-0.5 text-[10px] text-muted"
+                              value=""
+                              onChange={(e) => { if (e.target.value) cargarTarifaGuardada(i, 'precios_fijo', e.target.value); }}
+                              title="Rellena los precios por periodo con una tarifa guardada en Tarifas y Comparador"
+                            >
+                              <option value="">⚡ Cargar comercializadora…</option>
+                              {tarifasGuardadas.filter((t) => t.tarifa === tarifaBase(b.tarifa)).map((t) => (
+                                <option key={t.id} value={t.id}>{t.nombre} · {t.tarifa}TD</option>
+                              ))}
+                            </select>
+                          )}
+                        </td>
                         {pers.map((q) => (
                           <td key={q} className="py-1 pr-2">
                             <input className={inputMini} inputMode="decimal" value={b.precios_fijo[q] ?? ''} onChange={(e) => setPrecio(i, 'precios_fijo', q, e.target.value)} placeholder="0,0000" />
@@ -553,7 +596,22 @@ ${resumen}
                         </td>
                       </tr>
                       <tr>
-                        <td className="py-1 pr-2 font-bold">📈 Oferta indexada</td>
+                        <td className="py-1 pr-2 font-bold">
+                          📈 Oferta indexada
+                          {tarifasGuardadas.some((t) => t.tarifa === tarifaBase(b.tarifa)) && (
+                            <select
+                              className="block mt-0.5 w-full max-w-40 rounded-md border border-border/40 bg-background/70 px-1 py-0.5 text-[10px] text-muted"
+                              value=""
+                              onChange={(e) => { if (e.target.value) cargarTarifaGuardada(i, 'precios_index', e.target.value); }}
+                              title="Rellena los precios por periodo con una tarifa guardada en Tarifas y Comparador"
+                            >
+                              <option value="">⚡ Cargar comercializadora…</option>
+                              {tarifasGuardadas.filter((t) => t.tarifa === tarifaBase(b.tarifa)).map((t) => (
+                                <option key={t.id} value={t.id}>{t.nombre} · {t.tarifa}TD</option>
+                              ))}
+                            </select>
+                          )}
+                        </td>
                         {pers.map((q) => (
                           <td key={q} className="py-1 pr-2">
                             <input className={inputMini} inputMode="decimal" value={b.precios_index[q] ?? ''} onChange={(e) => setPrecio(i, 'precios_index', q, e.target.value)} placeholder="0,0000" />

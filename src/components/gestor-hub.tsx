@@ -186,15 +186,10 @@ export function GestorHub({ onIr }: { onIr: (seccion: string) => void }) {
     },
   ];
 
-  const HERRAMIENTAS = [
-    { seccion: 'view', nombre: 'Ver Tarifas', desc: 'Precios por comercializadora', icono: FileSpreadsheet },
-    { seccion: 'create', nombre: 'Crear Tarifa', desc: 'Alta de precios', icono: TrendingUp },
-    { seccion: 'margenes', nombre: 'Comparativa', desc: 'Simulador con fee y comisión', icono: Calculator },
-    { seccion: 'clientes', nombre: 'Gestionar Clientes', desc: 'Clientes de comparativas', icono: Users },
-    { seccion: 'seguimientos', nombre: 'Seguimientos', desc: 'Historial comercial', icono: ClipboardList },
-    { seccion: 'calendario', nombre: 'Calendario', desc: 'Agenda y Google Calendar', icono: CalendarDays },
-    { seccion: 'fotovoltaico', nombre: 'Generador Fotovoltaico', desc: 'Proyectos solares', icono: Sun },
-  ];
+  // Ver Tarifas, Crear Tarifa y Comparativa viven ahora dentro de Gestión Luz
+  // (/gestor/luz/tarifas). El resto de herramientas clásicas ya tienen su
+  // equivalente en los módulos, así que este bloque desaparece del panel.
+  void onIr;
 
   return (
     <div className="space-y-8">
@@ -278,32 +273,6 @@ export function GestorHub({ onIr }: { onIr: (seccion: string) => void }) {
         </div>
       </div>
 
-      {/* ── Herramientas de energía (clásicas) ── */}
-      <div className={ve('herramientas') ? '' : 'hidden'}>
-        <p className="text-[11px] font-bold uppercase tracking-[0.25em] text-muted mb-3">
-          Herramientas de energía
-        </p>
-        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
-          {HERRAMIENTAS.map((h) => {
-            const Icono = h.icono;
-            return (
-              <button
-                key={h.seccion}
-                onClick={() => onIr(h.seccion)}
-                className="group text-left p-4 rounded-xl border border-border/40 bg-surface/50 hover:bg-card/70 hover:border-accent/40 hover:-translate-y-0.5 transition-all duration-200"
-              >
-                <div className="flex items-center gap-2.5 mb-1.5">
-                  <div className="w-8 h-8 rounded-lg bg-accent/10 border border-accent/20 flex items-center justify-center shrink-0 group-hover:bg-accent/20 transition">
-                    <Icono className="w-4 h-4 text-accent" />
-                  </div>
-                  <h4 className="text-sm font-bold text-foreground leading-tight">{h.nombre}</h4>
-                </div>
-                <p className="text-[11px] text-muted leading-snug">{h.desc}</p>
-              </button>
-            );
-          })}
-        </div>
-      </div>
     </div>
   );
 }
