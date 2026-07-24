@@ -7,7 +7,7 @@ import { Map as MapIcon, Navigation, Loader, ExternalLink, X, Pencil, Check, Mou
 import { LuzCliente, LuzCups, LuzOportunidad, LuzVisita } from '@/lib/luz';
 import { Card, Badge, BadgePrioridad, EstadoCarga, useListaLuz, guardarLuz, inputCls, labelCls, btnPrimario, btnSecundario } from '../ui';
 import { leerRutaDia, guardarRutaDia } from './ruta-dia';
-import { ZONAS, zonaDeDireccion } from '@/lib/zonas';
+import { ZONAS, zonaDeParada } from '@/lib/zonas';
 
 // El mapa usa Leaflet (necesita `window`): se carga solo en el navegador, nunca en el servidor.
 const MapaRutas = dynamic(() => import('./mapa').then((m) => m.MapaRutas), {
@@ -42,6 +42,8 @@ export default function RutasPage() {
   const [fVista, setFVista] = useState<'todos' | 'fv' | 'prioridadA' | 'olvidados' | 'visitadosHoy' | 'captacion' | 'facturas'>('todos');
   const [fFechaVisita, setFFechaVisita] = useState('');
   const [fZona, setFZona] = useState('');   // '' = todas · id de zona · 'sin' = sin zona reconocida
+  // Coordenadas geocodificadas por el mapa: con ellas la zona está garantizada para todos
+  const [geoPuntos, setGeoPuntos] = useState<Record<string, { lat: number; lon: number } | null>>({});
   const [seleccion, setSeleccion] = useState<Map<string, Parada>>(new Map());
 
   // ── Ruta del día compartida con Tareas: se carga al entrar y se guarda con cada cambio ──
@@ -122,9 +124,9 @@ export default function RutasPage() {
 
     // Filtro de vista rápida (afecta al mapa y a la lista a la vez)
     const filtrada = lista.filter((p) => {
-      // Filtro por zona de actuación (detectada por el pueblo de la dirección)
+      // Filtro por zona de actuación (pueblo de la dirección o, con el mapa cargado, la más cercana)
       if (fZona) {
-        const z = zonaDeDireccion(p.direccion);
+        const z = zonaDeParada(p.direccion, geoPuntos[p.id]);
         if (fZona === 'sin' ? z != null : z?.id !== fZona) return false;
       }
       // Filtro por día de visita: usa el historial guardado en luz_visitas
@@ -141,7 +143,7 @@ export default function RutasPage() {
       return true;
     });
     return filtrada.sort((a, b) => a.nombre.localeCompare(b.nombre));
-  }, [clientes.datos, cups.datos, buscar, fResp, fVista, interesadosFV, fFechaVisita, visitasPorCliente, fZona]);
+  }, [clientes.datos, cups.datos, buscar, fResp, fVista, interesadosFV, fFechaVisita, visitasPorCliente, fZona, geoPuntos]);
 
   /** Crea la oportunidad de fotovoltaica en el pipeline desde el mapa. */
   async function marcarInteresFV(clienteId: string, nombre: string) {
@@ -304,6 +306,7 @@ export default function RutasPage() {
             onRecargarClientes={() => { clientes.recargar(); cups.recargar(); visitas.recargar(); }}
             modoManual={modoManual}
             onMarcarFV={marcarInteresFV}
+            onUbicaciones={setGeoPuntos}
           />
         </div>
       )}
@@ -329,7 +332,7 @@ export default function RutasPage() {
               <div className="space-y-1.5 max-h-[32rem] overflow-y-auto pr-1">
                 {paradasDisponibles.map((p) => {
                   const marcada = seleccion.has(p.id);
-                  const zona = zonaDeDireccion(p.direccion);
+                  const zona = zonaDeParada(p.direccion, geoPuntos[p.id]);
                   return (
                     <label key={p.id} className={`flex items-center gap-2.5 p-2.5 rounded-lg border cursor-pointer transition ${
                       marcada ? 'border-accent/50 bg-accent/10' : 'border-border/30 bg-card/50 hover:border-border/60'

@@ -197,6 +197,13 @@ export default function TareasLuzPage() {
         <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ background: zona.color }} />
         {zona.nombre}
       </span>
+    ) : cli.direccion_fiscal?.trim() ? (
+      <span
+        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full border border-amber-500/40 text-amber-300 bg-amber-500/10 text-[9px] font-bold whitespace-nowrap"
+        title="No reconozco el pueblo en la dirección: añade el nombre del pueblo a la dirección del cliente y tendrá su zona"
+      >
+        🧭 Zona por asignar
+      </span>
     ) : null;
     if (tareaEnRuta(t.id)) {
       return (

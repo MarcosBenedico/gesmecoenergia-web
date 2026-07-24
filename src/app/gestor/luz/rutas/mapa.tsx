@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import 'leaflet/dist/leaflet.css';
 import { RefreshCw, Layers } from 'lucide-react';
 import { guardarLuz, btnSecundario } from '../ui';
-import { ZONAS, zonaDeDireccion } from '@/lib/zonas';
+import { ZONAS, zonaDeParada } from '@/lib/zonas';
 
 /**
  * Mapa interactivo de Rutas de visitas (Leaflet + OpenStreetMap, sin coste).
@@ -56,9 +56,10 @@ interface Props {
   onRecargarClientes: () => void;
   modoManual: boolean;
   onMarcarFV?: (clienteId: string, nombre: string) => Promise<void>;
+  onUbicaciones?: (puntos: Record<string, { lat: number; lon: number } | null>) => void;
 }
 
-export function MapaRutas({ paradas, seleccion, onAlternar, orden, origenGeo, origenTexto, onRecargarClientes, modoManual, onMarcarFV }: Props) {
+export function MapaRutas({ paradas, seleccion, onAlternar, orden, origenGeo, origenTexto, onRecargarClientes, modoManual, onMarcarFV, onUbicaciones }: Props) {
   const mapaRef = useRef<HTMLDivElement>(null);
   const mapaObj = useRef<import('leaflet').Map | null>(null);
   const capaMarcadores = useRef<import('leaflet').LayerGroup | null>(null);
@@ -86,6 +87,7 @@ export function MapaRutas({ paradas, seleccion, onAlternar, orden, origenGeo, or
       const m: Record<string, { lat: number; lon: number } | null> = {};
       for (const p of json.puntos) m[p.id] = p.lat != null ? { lat: p.lat, lon: p.lon } : null;
       setPuntos(m);
+      onUbicaciones?.(m); // la página usa las coordenadas para asignar zona a todos
       setCargado(true);
     } catch {
       setError('Error de conexión al geocodificar.');
@@ -173,7 +175,8 @@ export function MapaRutas({ paradas, seleccion, onAlternar, orden, origenGeo, or
       const enRuta = ordenMap.get(p.id);
       const marcada = seleccion.has(p.id);
       const visitadoHoy = p.fecha_ultimo_contacto === HOY();
-      const zona = zonaDeDireccion(p.direccion);
+      // Con coordenadas la zona está garantizada: pueblo reconocido o la más cercana
+      const zona = zonaDeParada(p.direccion, geo);
       const color = visitadoHoy ? '#10b981' : marcada ? '#3b82f6' : p.interesFV ? '#eab308' : COLOR_PRIORIDAD[p.prioridad || 'C'];
       // Anillo: negro si está en la ruta calculada; si no, el color de su zona de actuación
       const anillo = enRuta ? '#111827' : zona?.color;
