@@ -157,7 +157,7 @@ export async function compararConComercializadoras(
 
   const { data, error } = await supabase
     .from('precios_comercializadoras')
-    .select('tarifa, precios_energia, precios_potencia, comercializadoras(nombre)')
+    .select('*, comercializadoras(nombre)')
     .eq('tarifa', datos.tarifa);
 
   if (error) {
@@ -174,8 +174,13 @@ export async function compararConComercializadoras(
 
   const consumoAnual = datos.consumosMes.reduce((s, c) => s + (c || 0), 0) * 12;
 
+  // Solo ofertas VIGENTES hoy: sin fechas = siempre válida; con fechas, hoy dentro del rango
+  const hoy = new Date().toISOString().slice(0, 10);
+  const vigente = (row: any) =>
+    (!row.fecha_inicio || row.fecha_inicio <= hoy) && (!row.fecha_fin || row.fecha_fin >= hoy);
+
   const ofertas: OfertaComercializadora[] = (data || [])
-    .filter((row: any) => Array.isArray(row.precios_energia) && Array.isArray(row.precios_potencia))
+    .filter((row: any) => Array.isArray(row.precios_energia) && Array.isArray(row.precios_potencia) && vigente(row))
     .map((row: any) => {
       // Fee sumado SOLO a los precios de energía, nunca a la potencia
       const preciosFeeMin = row.precios_energia.map((p: number) => p + FEE_MIN);

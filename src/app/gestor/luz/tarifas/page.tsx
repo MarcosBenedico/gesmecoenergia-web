@@ -25,8 +25,23 @@ interface PrecioGuardado {
   tarifa: TarifaAcceso;
   precios_energia: number[];
   precios_potencia: number[];
+  fecha_inicio?: string | null;
+  fecha_fin?: string | null;
   comercializadoras?: { nombre: string } | null;
 }
+
+/** Estado de vigencia de una oferta de precios. */
+function vigencia(p: { fecha_inicio?: string | null; fecha_fin?: string | null }) {
+  const hoy = new Date().toISOString().slice(0, 10);
+  if (p.fecha_inicio && p.fecha_inicio > hoy) return 'futura' as const;
+  if (p.fecha_fin && p.fecha_fin < hoy) return 'caducada' as const;
+  return 'vigente' as const;
+}
+const fmtF = (f?: string | null) => (f ? f.split('-').reverse().join('/') : '');
+const textoVigencia = (p: { fecha_inicio?: string | null; fecha_fin?: string | null }) =>
+  p.fecha_inicio || p.fecha_fin
+    ? `${fmtF(p.fecha_inicio) || '…'} → ${fmtF(p.fecha_fin) || 'sin fin'}`
+    : 'Sin fechas (siempre válida)';
 
 const eur = (v: number) => v.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
 const p4 = (v: number) => (Number(v) || 0).toFixed(4).replace('.', ',');
@@ -62,27 +77,40 @@ export default function TarifasLuzPage() {
   // ── Ver / editar ──
   const [fTarifa, setFTarifa] = useState<'' | TarifaAcceso>('');
   const [editando, setEditando] = useState<PrecioGuardado | null>(null);
-  const [formE, setFormE] = useState<{ energia: string[]; potencia: string[] }>({ energia: [], potencia: [] });
+  const [formE, setFormE] = useState<{ energia: string[]; potencia: string[]; fecha_inicio: string; fecha_fin: string }>({ energia: [], potencia: [], fecha_inicio: '', fecha_fin: '' });
+  const [verCaducadas, setVerCaducadas] = useState(false);
 
   const visibles = useMemo(
     () => precios
       .filter((p) => !fTarifa || p.tarifa === fTarifa)
-      .sort((a, b) => (a.comercializadoras?.nombre || '').localeCompare(b.comercializadoras?.nombre || '') || a.tarifa.localeCompare(b.tarifa)),
-    [precios, fTarifa]
+      .filter((p) => verCaducadas || vigencia(p) !== 'caducada')
+      .sort((a, b) =>
+        (a.comercializadoras?.nombre || '').localeCompare(b.comercializadoras?.nombre || '')
+        || a.tarifa.localeCompare(b.tarifa)
+        || (a.fecha_inicio || '').localeCompare(b.fecha_inicio || '')),
+    [precios, fTarifa, verCaducadas]
   );
+  const nCaducadas = useMemo(() => precios.filter((p) => (!fTarifa || p.tarifa === fTarifa) && vigencia(p) === 'caducada').length, [precios, fTarifa]);
 
   function abrirEdicion(p: PrecioGuardado) {
     setEditando(p);
-    setFormE({ energia: p.precios_energia.map(String), potencia: p.precios_potencia.map(String) });
+    setFormE({ energia: p.precios_energia.map(String), potencia: p.precios_potencia.map(String), fecha_inicio: p.fecha_inicio || '', fecha_fin: p.fecha_fin || '' });
   }
+
+  const avisoColumnas = (m: string) =>
+    /fecha_inicio|fecha_fin|column/i.test(m)
+      ? 'Faltan las columnas de fechas: ejecuta supabase_tarifas_fechas.sql en el SQL Editor de Supabase.'
+      : m;
 
   async function guardarEdicion() {
     if (!editando) return;
     const { error } = await supabase.from('precios_comercializadoras').update({
       precios_energia: formE.energia.map(num),
       precios_potencia: formE.potencia.map(num),
+      fecha_inicio: formE.fecha_inicio || null,
+      fecha_fin: formE.fecha_fin || null,
     }).eq('id', editando.id);
-    if (error) { setMsg(error.message); return; }
+    if (error) { setMsg(avisoColumnas(error.message)); return; }
     setMsg('✅ Precios actualizados.');
     setEditando(null);
     cargar();
@@ -96,7 +124,7 @@ export default function TarifasLuzPage() {
   }
 
   // ── Crear ──
-  const [formC, setFormC] = useState({ comercializadora_id: '', nueva: '', tarifa: '2.0' as TarifaAcceso, energia: ['', '', ''], potencia: ['', ''] });
+  const [formC, setFormC] = useState({ comercializadora_id: '', nueva: '', tarifa: '2.0' as TarifaAcceso, energia: ['', '', ''], potencia: ['', ''], fecha_inicio: '', fecha_fin: '' });
 
   function cambiarTarifaCrear(t: TarifaAcceso) {
     const n = nPeriodos(t);
@@ -115,15 +143,28 @@ export default function TarifasLuzPage() {
     }
     if (!comercializadoraId) { setMsg('Elige una comercializadora o escribe una nueva.'); return; }
     if (!formC.energia.some((x) => num(x) > 0)) { setMsg('Rellena al menos un precio de energía.'); return; }
-    const { error } = await supabase.from('precios_comercializadoras').insert({
+    const base = {
       comercializadora_id: comercializadoraId,
       tarifa: formC.tarifa,
       precios_energia: formC.energia.map(num),
       precios_potencia: formC.potencia.map(num),
+    };
+    let { error } = await supabase.from('precios_comercializadoras').insert({
+      ...base,
+      fecha_inicio: formC.fecha_inicio || null,
+      fecha_fin: formC.fecha_fin || null,
     });
-    if (error) { setMsg(error.message); return; }
-    setMsg('✅ Tarifa creada.');
-    setFormC({ comercializadora_id: '', nueva: '', tarifa: '2.0', energia: ['', '', ''], potencia: ['', ''] });
+    // Compatibilidad: si aún no existen las columnas de fechas, se guarda sin ellas y se avisa
+    let sinFechas = false;
+    if (error && /fecha_inicio|fecha_fin|column/i.test(error.message)) {
+      ({ error } = await supabase.from('precios_comercializadoras').insert(base));
+      sinFechas = !error;
+    }
+    if (error) { setMsg(avisoColumnas(error.message)); return; }
+    setMsg(sinFechas
+      ? '⚠️ Guardada SIN fechas: ejecuta supabase_tarifas_fechas.sql en Supabase para activar la vigencia.'
+      : '✅ Tarifa creada.');
+    setFormC({ comercializadora_id: '', nueva: '', tarifa: '2.0', energia: ['', '', ''], potencia: ['', ''], fecha_inicio: '', fecha_fin: '' });
     cargar();
     setPestana('ver');
   }
@@ -201,13 +242,19 @@ export default function TarifasLuzPage() {
       {/* ══ VER TARIFAS ══ */}
       {pestana === 'ver' && (
         <>
-          <div className="flex gap-1.5 flex-wrap">
+          <div className="flex gap-1.5 flex-wrap items-center">
             {(['', '2.0', '3.0', '6.1'] as const).map((t) => (
               <button key={t || 'todas'} onClick={() => setFTarifa(t)}
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold ${fTarifa === t ? 'bg-accent text-white' : 'bg-card/70 text-muted border border-border/50'}`}>
                 {t ? `${t}TD` : 'Todas'}
               </button>
             ))}
+            {nCaducadas > 0 && (
+              <button onClick={() => setVerCaducadas((v) => !v)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold border ${verCaducadas ? 'bg-amber-500/20 text-amber-300 border-amber-500/40' : 'bg-card/70 text-muted border-border/50'}`}>
+                {verCaducadas ? 'Ocultar caducadas' : `Ver caducadas (${nCaducadas})`}
+              </button>
+            )}
           </div>
 
           {cargando ? (
@@ -222,9 +269,17 @@ export default function TarifasLuzPage() {
                 return (
                   <Card key={p.id} className="!p-4">
                     <div className="flex items-center justify-between gap-2 mb-2">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-black text-sm">{p.comercializadoras?.nombre || 'Comercializadora'}</span>
                         <Badge tono="accent">{p.tarifa}TD</Badge>
+                        {(() => {
+                          const v = vigencia(p);
+                          return (
+                            <Badge tono={v === 'vigente' ? 'verde' : v === 'futura' ? 'ambar' : 'rojo'}>
+                              {v === 'vigente' ? '✓ Vigente' : v === 'futura' ? '⏳ Empieza pronto' : '✕ Caducada'} · {textoVigencia(p)}
+                            </Badge>
+                          );
+                        })()}
                       </div>
                       <div className="flex gap-1.5">
                         <button onClick={() => (editandoEste ? setEditando(null) : abrirEdicion(p))} className="text-muted hover:text-accent" title="Editar precios"><Pencil className="w-3.5 h-3.5" /></button>
@@ -238,6 +293,16 @@ export default function TarifasLuzPage() {
                         {filaInputs(formE.energia, (v) => setFormE((f) => ({ ...f, energia: v })), info.periodosEnergia)}
                         <p className="text-[10px] font-bold text-muted uppercase">Potencia €/kW·día</p>
                         {filaInputs(formE.potencia, (v) => setFormE((f) => ({ ...f, potencia: v })), info.periodosPotencia)}
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="block text-[10px] font-bold text-muted uppercase mb-1">Válida desde</label>
+                            <input className={`${inputCls} !py-1.5`} type="date" value={formE.fecha_inicio} onChange={(e) => setFormE((f) => ({ ...f, fecha_inicio: e.target.value }))} />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold text-muted uppercase mb-1">Válida hasta</label>
+                            <input className={`${inputCls} !py-1.5`} type="date" value={formE.fecha_fin} onChange={(e) => setFormE((f) => ({ ...f, fecha_fin: e.target.value }))} />
+                          </div>
+                        </div>
                         <div className="flex gap-2">
                           <button onClick={guardarEdicion} className={btnPrimario}>Guardar</button>
                           <button onClick={() => setEditando(null)} className={btnSecundario}><X className="w-3.5 h-3.5" /> Cancelar</button>
@@ -291,6 +356,17 @@ export default function TarifasLuzPage() {
                   {(['2.0', '3.0', '6.1'] as const).map((t) => <option key={t} value={t}>{TARIFA_INFO[t].nombre} — {TARIFA_INFO[t].descripcion}</option>)}
                 </select>
               </div>
+              <div>
+                <label className={labelCls}>Válida desde (opcional)</label>
+                <input className={inputCls} type="date" value={formC.fecha_inicio} onChange={(e) => setFormC({ ...formC, fecha_inicio: e.target.value })} />
+              </div>
+              <div>
+                <label className={labelCls}>Válida hasta (opcional)</label>
+                <input className={inputCls} type="date" value={formC.fecha_fin} onChange={(e) => setFormC({ ...formC, fecha_fin: e.target.value })} />
+              </div>
+              <p className="text-[11px] text-muted self-end pb-1">
+                Sin fechas = siempre válida. Puedes tener varias ofertas de la misma comercializadora y tarifa con periodos distintos.
+              </p>
             </div>
             <div>
               <p className="text-[10px] font-bold text-muted uppercase mb-1.5">Energía €/kWh</p>

@@ -36,7 +36,15 @@ const numPeriodos = (tarifa: string) => (tarifa === '2.0TD' || tarifa === 'otra'
 /** Tarifa base de las tablas de precios guardados ('2.0' | '3.0' | '6.1'). */
 const tarifaBase = (tarifa: string) => (tarifa === '2.0TD' || tarifa === 'otra' ? '2.0' : tarifa === '3.0TD' ? '3.0' : '6.1');
 
-interface TarifaGuardada { id: number; nombre: string; tarifa: string; precios_energia: number[] }
+interface TarifaGuardada { id: number; nombre: string; tarifa: string; precios_energia: number[]; fecha_inicio?: string | null; fecha_fin?: string | null }
+
+/** Etiqueta de vigencia corta para el desplegable ("hasta 31/07/2027"). */
+function etiquetaVigencia(t: TarifaGuardada): string {
+  const f = (x?: string | null) => (x ? x.split('-').reverse().join('/') : '');
+  if (t.fecha_inicio && t.fecha_inicio > new Date().toISOString().slice(0, 10)) return ` (desde ${f(t.fecha_inicio)})`;
+  if (t.fecha_fin) return ` (hasta ${f(t.fecha_fin)})`;
+  return '';
+}
 
 /** Últimos n meses en formato YYYY-MM (el más antiguo primero). */
 function ultimosMeses(n: number): string[] {
@@ -150,11 +158,14 @@ export default function ProyectosLuzPage() {
   // Precios guardados en Tarifas y Comparador: se cargan aquí con un clic
   const [tarifasGuardadas, setTarifasGuardadas] = useState<TarifaGuardada[]>([]);
   useEffect(() => {
-    supabase.from('precios_comercializadoras').select('id, tarifa, precios_energia, comercializadoras(nombre)')
+    supabase.from('precios_comercializadoras').select('*, comercializadoras(nombre)')
       .then(({ data }) => {
-        setTarifasGuardadas(((data as unknown as { id: number; tarifa: string; precios_energia: number[]; comercializadoras?: { nombre: string } | null }[]) || [])
+        const hoy = new Date().toISOString().slice(0, 10);
+        setTarifasGuardadas(((data as unknown as (TarifaGuardada & { comercializadoras?: { nombre: string } | null })[]) || [])
           .filter((r) => Array.isArray(r.precios_energia))
-          .map((r) => ({ id: r.id, tarifa: r.tarifa, precios_energia: r.precios_energia, nombre: r.comercializadoras?.nombre || 'Comercializadora' })));
+          // fuera las caducadas: solo vigentes y futuras (una oferta que empieza el mes que viene sirve para el proyecto)
+          .filter((r) => !r.fecha_fin || r.fecha_fin >= hoy)
+          .map((r) => ({ ...r, nombre: r.comercializadoras?.nombre || 'Comercializadora' })));
       });
   }, []);
 
@@ -581,7 +592,7 @@ ${resumen}
                             >
                               <option value="">⚡ Cargar comercializadora…</option>
                               {tarifasGuardadas.filter((t) => t.tarifa === tarifaBase(b.tarifa)).map((t) => (
-                                <option key={t.id} value={t.id}>{t.nombre} · {t.tarifa}TD</option>
+                                <option key={t.id} value={t.id}>{t.nombre} · {t.tarifa}TD{etiquetaVigencia(t)}</option>
                               ))}
                             </select>
                           )}
@@ -607,7 +618,7 @@ ${resumen}
                             >
                               <option value="">⚡ Cargar comercializadora…</option>
                               {tarifasGuardadas.filter((t) => t.tarifa === tarifaBase(b.tarifa)).map((t) => (
-                                <option key={t.id} value={t.id}>{t.nombre} · {t.tarifa}TD</option>
+                                <option key={t.id} value={t.id}>{t.nombre} · {t.tarifa}TD{etiquetaVigencia(t)}</option>
                               ))}
                             </select>
                           )}
