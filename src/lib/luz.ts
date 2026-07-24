@@ -133,6 +133,30 @@ export const ESTADO_PIPELINE_LABEL: Record<string, string> = {
 export const PIPELINE_CERRADO: string[] = ['ganado', 'perdido'];
 export const PIPELINE_ABIERTO_SIN_REVISAR: string[] = ['ganado', 'perdido', 'revisar_adelante'];
 
+/**
+ * Color de cada estado del embudo. Es la MISMA escala en Pipeline, Agenda y
+ * Mi Día: así el comercial reconoce en qué punto está un cliente por el color,
+ * sin leer, mire donde mire.
+ *
+ * Va de frío a caliente según se acerca la firma: gris (aún no hay nada) →
+ * azul (tenemos datos) → ámbar (atascado, algo lo frena) → cian y violeta
+ * (oferta en juego) → naranja (a punto de firmar) → verde/rojo (cerrado).
+ */
+export const ESTADO_PIPELINE_TONO: Record<string, string> = {
+  prospecto: 'bg-card/80 text-muted border-border/50',
+  factura_solicitada: 'bg-slate-500/15 text-slate-300 border-slate-500/30',
+  factura_recibida: 'bg-blue-500/15 text-blue-300 border-blue-500/30',
+  doc_incompleta: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
+  pendiente_permanencia: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
+  pendiente_ofertar: 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30',
+  oferta_enviada: 'bg-violet-500/15 text-violet-300 border-violet-500/30',
+  seguimiento: 'bg-violet-500/15 text-violet-300 border-violet-500/30',
+  pendiente_firma: 'bg-orange-500/20 text-orange-300 border-orange-500/40',
+  ganado: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30',
+  perdido: 'bg-red-500/15 text-red-400 border-red-500/30',
+  revisar_adelante: 'bg-card/60 text-muted/70 border-border/30',
+};
+
 // ── Contratos ──
 export const ESTADOS_CONTRATO = [
   'pendiente_preparar', 'enviado_cliente', 'pendiente_firma', 'firmado', 'enviado_comercializadora',

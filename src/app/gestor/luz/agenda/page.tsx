@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { RefreshCw, Check, CalendarClock, Lock, List, CalendarDays, Clock } from 'lucide-react';
 import {
-  LuzTarea, LuzCups, LuzFechaCritica, ResponsableEquipo,
+  LuzTarea, LuzCups, LuzFechaCritica, LuzOportunidad, ResponsableEquipo,
   PRIORIDAD_TONO, fmtFecha,
 } from '@/lib/luz';
 import {
@@ -32,6 +32,7 @@ export default function AgendaPage() {
   const tareas = useListaLuz<LuzTarea>('tareas');
   const cups = useListaLuz<LuzCups>('cups');
   const fechas = useListaLuz<LuzFechaCritica>('fechas', { estado: 'pendiente' });
+  const pipeline = useListaLuz<LuzOportunidad>('pipeline');
   const equipo = useListaLuz<ResponsableEquipo>('responsables', { activo: 'true' });
 
   const [vista, setVista] = useState<'lista' | 'calendario'>('lista');
@@ -48,8 +49,8 @@ export default function AgendaPage() {
   const persona = verDe || (esAdmin ? '' : perfil?.responsable || '');
 
   const todo = useMemo(
-    () => construirAgenda({ tareas: tareas.datos, cups: cups.datos, fechas: fechas.datos }),
-    [tareas.datos, cups.datos, fechas.datos]
+    () => construirAgenda({ tareas: tareas.datos, cups: cups.datos, fechas: fechas.datos, pipeline: pipeline.datos }),
+    [tareas.datos, cups.datos, fechas.datos, pipeline.datos]
   );
   const mios = useMemo(
     () => (persona ? todo.filter((i) => esDe(i.responsable, persona)) : todo),
@@ -104,7 +105,7 @@ export default function AgendaPage() {
     if (item.origen === 'tarea') tareas.recargar(); else fechas.recargar();
   }
 
-  function recargarTodo() { tareas.recargar(); cups.recargar(); fechas.recargar(); }
+  function recargarTodo() { tareas.recargar(); cups.recargar(); fechas.recargar(); pipeline.recargar(); }
 
   /** Una línea de la agenda. Se reutiliza en ambas vistas. */
   const Linea = (i: ItemAgenda) => (
@@ -114,6 +115,12 @@ export default function AgendaPage() {
           <div className="flex items-center gap-1.5 flex-wrap">
             <span className={`px-1.5 py-0.5 rounded-full border text-[9px] font-bold uppercase ${i.tono}`}>{i.tipoLabel}</span>
             <span className={`px-1.5 py-0.5 rounded-full border text-[9px] font-bold ${PRIORIDAD_TONO[i.prioridad] || ''}`}>{i.prioridad}</span>
+            {/* Mismo estado y mismo color que en el Pipeline: todo atado */}
+            {i.estadoPipelineLabel && (
+              <span className={`px-1.5 py-0.5 rounded-full border text-[9px] font-bold uppercase ${i.estadoPipelineTono}`}>
+                {i.estadoPipelineLabel}
+              </span>
+            )}
             {!i.editable && (
               <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-muted/70" title="Sale del suministro: se corrige en la ficha del CUPS">
                 <Lock className="w-2.5 h-2.5" /> automático

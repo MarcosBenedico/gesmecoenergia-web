@@ -19,8 +19,9 @@
  */
 
 import {
-  LuzTarea, LuzCups, LuzFechaCritica,
+  LuzTarea, LuzCups, LuzFechaCritica, LuzOportunidad,
   TIPO_TAREA_LABEL, TIPO_FECHA_LABEL, TIPO_FECHA_TONO,
+  ESTADO_PIPELINE_LABEL, ESTADO_PIPELINE_TONO, PIPELINE_ABIERTO_SIN_REVISAR,
   TAREAS_ABIERTAS, diasHasta, normCups,
 } from './luz';
 
@@ -52,6 +53,10 @@ export interface ItemAgenda {
   cupsTexto: string | null;
   /** Las derivadas no se editan en la agenda: se corrigen en la ficha del CUPS. */
   editable: boolean;
+  /** En qué punto del embudo está ese cliente. Mismo estado y color que el Pipeline. */
+  estadoPipeline?: string | null;
+  estadoPipelineLabel?: string | null;
+  estadoPipelineTono?: string | null;
 }
 
 const TONO_TAREA = 'bg-secondary/15 text-secondary border-secondary/30';
@@ -205,18 +210,59 @@ export function itemsDeFechasManuales(fechas: LuzFechaCritica[]): ItemAgenda[] {
 /** Prioridad A pesa más que D cuando dos cosas vencen el mismo día. */
 const PESO_PRIORIDAD: Record<string, number> = { A: 0, B: 1, C: 2, D: 3 };
 
+/**
+ * Cuelga a cada línea el estado del embudo de su cliente, con la misma
+ * etiqueta y el mismo color que se ven en el Pipeline. Así, mirando la
+ * agenda, se sabe de un vistazo en qué punto está cada uno sin tener que
+ * cambiar de pantalla.
+ *
+ * Se busca primero la oportunidad de ESE suministro y, si no hay, la del
+ * cliente. Manda la abierta: una oportunidad viva describe mejor dónde
+ * está el cliente hoy que una que ya se cerró hace meses.
+ */
+export function conEstadoPipeline(items: ItemAgenda[], pipeline: LuzOportunidad[]): ItemAgenda[] {
+  if (!pipeline || pipeline.length === 0) return items;
+
+  const abierta = (o: LuzOportunidad) => !PIPELINE_ABIERTO_SIN_REVISAR.includes(o.estado);
+  const elegir = (candidatas: LuzOportunidad[]) =>
+    candidatas.find(abierta) || candidatas[0] || null;
+
+  const porCups = new Map<string, LuzOportunidad[]>();
+  const porCliente = new Map<string, LuzOportunidad[]>();
+  for (const o of pipeline) {
+    if (o.cups_id) porCups.set(o.cups_id, [...(porCups.get(o.cups_id) || []), o]);
+    if (o.cliente_id) porCliente.set(o.cliente_id, [...(porCliente.get(o.cliente_id) || []), o]);
+  }
+
+  return items.map((i) => {
+    const op = (i.cupsId && elegir(porCups.get(i.cupsId) || []))
+      || (i.clienteId && elegir(porCliente.get(i.clienteId) || []))
+      || null;
+    if (!op) return i;
+    return {
+      ...i,
+      estadoPipeline: op.estado,
+      estadoPipelineLabel: ESTADO_PIPELINE_LABEL[op.estado] || op.estado,
+      estadoPipelineTono: ESTADO_PIPELINE_TONO[op.estado] || ESTADO_PIPELINE_TONO.prospecto,
+    };
+  });
+}
+
 /** Monta la agenda completa, ya ordenada: lo más urgente y más prioritario arriba. */
 export function construirAgenda(e: {
   tareas: LuzTarea[];
   cups: LuzCups[];
   fechas: LuzFechaCritica[];
+  /** Opcional: si se pasa, cada línea llevará el estado del embudo de su cliente. */
+  pipeline?: LuzOportunidad[];
   horizonteDias?: number;
 }): ItemAgenda[] {
-  return [
+  const base = [
     ...itemsDeTareas(e.tareas),
     ...itemsDeCups(e.cups, e.horizonteDias),
     ...itemsDeFechasManuales(e.fechas),
-  ].sort((a, b) => {
+  ];
+  return conEstadoPipeline(base, e.pipeline || []).sort((a, b) => {
     const ua = ORDEN_URGENCIA.indexOf(a.urgencia);
     const ub = ORDEN_URGENCIA.indexOf(b.urgencia);
     if (ua !== ub) return ua - ub;

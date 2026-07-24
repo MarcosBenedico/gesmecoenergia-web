@@ -61,8 +61,9 @@ export default function MiDiaPage() {
     if (!persona) return null;
 
     // Misma fuente que la Agenda: tareas + vencimientos calculados del CUPS + fechas manuales
-    const todo = construirAgenda({ tareas: tareas.datos, cups: cups.datos, fechas: fechas.datos })
-      .filter((i) => esDe(i.responsable, persona));
+    const todo = construirAgenda({
+      tareas: tareas.datos, cups: cups.datos, fechas: fechas.datos, pipeline: pipeline.datos,
+    }).filter((i) => esDe(i.responsable, persona));
 
     const ordenar = (a: ItemAgenda, b: ItemAgenda) =>
       (PESO[a.prioridad] ?? 2) - (PESO[b.prioridad] ?? 2) || (a.dias ?? 99) - (b.dias ?? 99);
@@ -132,10 +133,17 @@ export default function MiDiaPage() {
           <p className="text-[17px] font-black text-foreground leading-tight truncate">
             {conNombre ? i.clienteNombre : i.titulo}
           </p>
-          {/* Debajo: qué hay que hacer con él. */}
-          <p className="text-[13px] font-semibold text-accent leading-snug">
-            {conNombre ? i.titulo : i.tipoLabel}
-          </p>
+          {/* Debajo: qué hay que hacer con él, y en qué punto del embudo está */}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <p className="text-[13px] font-semibold text-accent leading-snug">
+              {conNombre ? i.titulo : i.tipoLabel}
+            </p>
+            {i.estadoPipelineLabel && (
+              <span className={`px-1.5 py-0.5 rounded-full border text-[9px] font-black uppercase ${i.estadoPipelineTono}`}>
+                {i.estadoPipelineLabel}
+              </span>
+            )}
+          </div>
         </div>
       </>
     );
@@ -266,7 +274,7 @@ export default function MiDiaPage() {
           </div>
 
           {/* Sus clientes en marcha: los que están a punto y los fáciles de recuperar */}
-          <ClientesEnMarcha clientes={dia.misClientes} />
+          <ClientesEnMarcha clientes={dia.misClientes} pipeline={pipeline.datos} />
 
           {/* Oportunidades paradas: dinero suyo que no se está moviendo */}
           {dia.paradas.length > 0 && (

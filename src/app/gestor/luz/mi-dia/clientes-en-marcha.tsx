@@ -2,7 +2,10 @@
 
 import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
-import { LuzCliente, diasHasta } from '@/lib/luz';
+import {
+  LuzCliente, LuzOportunidad, diasHasta,
+  ESTADO_PIPELINE_LABEL, ESTADO_PIPELINE_TONO, PIPELINE_ABIERTO_SIN_REVISAR,
+} from '@/lib/luz';
 import {
   progresoCliente, SIGUIENTE_PASO, A_PUNTO_DE_CERRAR, CLIENTE_CERRADO,
 } from '@/lib/estados-luz';
@@ -23,7 +26,7 @@ import {
 /** Días sin tocar un cliente a partir de los cuales conviene volver a llamar. */
 const DIAS_FRIO = 21;
 
-function Fila({ c, tono }: { c: LuzCliente; tono: 'cerca' | 'frio' }) {
+function Fila({ c, tono, estadoPipe }: { c: LuzCliente; tono: 'cerca' | 'frio'; estadoPipe?: string | null }) {
   const pct = progresoCliente(c.estado_comercial);
   const paso = SIGUIENTE_PASO[c.estado_comercial] || 'Retomar el contacto';
   const dias = diasHasta(c.fecha_ultimo_contacto);
@@ -40,9 +43,17 @@ function Fila({ c, tono }: { c: LuzCliente; tono: 'cerca' | 'frio' }) {
         <div className="min-w-0 flex-1">
           {/* El nombre, lo primero y lo más grande: es como identifica al cliente */}
           <p className="text-[15px] font-black text-foreground truncate leading-tight">{c.nombre}</p>
-          <p className={`text-xs font-semibold mt-0.5 ${tono === 'cerca' ? 'text-emerald-400' : 'text-accent'}`}>
-            {paso}
-          </p>
+          <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+            <p className={`text-xs font-semibold ${tono === 'cerca' ? 'text-emerald-400' : 'text-accent'}`}>
+              {paso}
+            </p>
+            {/* Mismo estado y color que en el Pipeline */}
+            {estadoPipe && (
+              <span className={`px-1.5 py-0.5 rounded-full border text-[9px] font-black uppercase ${ESTADO_PIPELINE_TONO[estadoPipe] || ''}`}>
+                {ESTADO_PIPELINE_LABEL[estadoPipe] || estadoPipe}
+              </span>
+            )}
+          </div>
         </div>
         <div className="shrink-0 text-right">
           <p className={`text-lg font-black tabular-nums leading-none ${tono === 'cerca' ? 'text-emerald-400' : 'text-muted'}`}>
@@ -67,8 +78,17 @@ function Fila({ c, tono }: { c: LuzCliente; tono: 'cerca' | 'frio' }) {
   );
 }
 
-export function ClientesEnMarcha({ clientes }: { clientes: LuzCliente[] }) {
+export function ClientesEnMarcha({ clientes, pipeline = [] }: { clientes: LuzCliente[]; pipeline?: LuzOportunidad[] }) {
   const vivos = clientes.filter((c) => !CLIENTE_CERRADO.includes(c.estado_comercial));
+
+  // Estado del embudo de cada cliente: manda la oportunidad abierta si la tiene
+  const estadoPipeDe = new Map<string, string>();
+  for (const o of pipeline) {
+    if (!o.cliente_id) continue;
+    const previo = estadoPipeDe.get(o.cliente_id);
+    const esAbierta = !PIPELINE_ABIERTO_SIN_REVISAR.includes(o.estado);
+    if (!previo || esAbierta) estadoPipeDe.set(o.cliente_id, o.estado);
+  }
 
   const cerca = vivos
     .filter((c) => A_PUNTO_DE_CERRAR.includes(c.estado_comercial))
@@ -96,7 +116,7 @@ export function ClientesEnMarcha({ clientes }: { clientes: LuzCliente[] }) {
             <span className="text-[10px] text-muted">un empujón y son tuyos</span>
           </div>
           <div className="space-y-2">
-            {cerca.map((c) => <Fila key={c.id} c={c} tono="cerca" />)}
+            {cerca.map((c) => <Fila key={c.id} c={c} tono="cerca" estadoPipe={estadoPipeDe.get(c.id)} />)}
           </div>
         </div>
       )}
@@ -108,7 +128,7 @@ export function ClientesEnMarcha({ clientes }: { clientes: LuzCliente[] }) {
             <span className="text-[10px] text-muted/70">ya los trabajaste, solo falta un toque</span>
           </div>
           <div className="space-y-2">
-            {frios.map((c) => <Fila key={c.id} c={c} tono="frio" />)}
+            {frios.map((c) => <Fila key={c.id} c={c} tono="frio" estadoPipe={estadoPipeDe.get(c.id)} />)}
           </div>
         </div>
       )}
