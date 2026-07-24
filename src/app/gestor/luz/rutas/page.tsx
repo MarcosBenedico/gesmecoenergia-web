@@ -1,11 +1,12 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { Map as MapIcon, Navigation, Loader, ExternalLink, X, Pencil, Check, MousePointerClick } from 'lucide-react';
 import { LuzCliente, LuzCups, LuzOportunidad, LuzVisita } from '@/lib/luz';
 import { Card, Badge, BadgePrioridad, EstadoCarga, useListaLuz, guardarLuz, inputCls, labelCls, btnPrimario, btnSecundario } from '../ui';
+import { leerRutaDia, guardarRutaDia } from './ruta-dia';
 
 // El mapa usa Leaflet (necesita `window`): se carga solo en el navegador, nunca en el servidor.
 const MapaRutas = dynamic(() => import('./mapa').then((m) => m.MapaRutas), {
@@ -18,7 +19,7 @@ const MapaRutas = dynamic(() => import('./mapa').then((m) => m.MapaRutas), {
  * calcula el orden más eficiente y genera el enlace de Google Maps.
  */
 
-interface Parada { id: string; nombre: string; direccion: string; cliente_id: string }
+interface Parada { id: string; nombre: string; direccion: string; cliente_id: string; tarea_id?: string; tarea_desc?: string }
 interface Resultado {
   orden: { id: string; nombre: string; direccion: string; ubicada: boolean; lat: number | null; lon: number | null }[];
   origen_geo: { lat: number; lon: number } | null;
@@ -40,6 +41,31 @@ export default function RutasPage() {
   const [fVista, setFVista] = useState<'todos' | 'fv' | 'prioridadA' | 'olvidados' | 'visitadosHoy' | 'captacion' | 'facturas'>('todos');
   const [fFechaVisita, setFFechaVisita] = useState('');
   const [seleccion, setSeleccion] = useState<Map<string, Parada>>(new Map());
+
+  // ── Ruta del día compartida con Tareas: se carga al entrar y se guarda con cada cambio ──
+  const rutaCargada = useRef(false);
+  useEffect(() => {
+    const guardadas = leerRutaDia();
+    if (guardadas.length) setSeleccion(new Map(guardadas.map((p) => [p.id, p])));
+    rutaCargada.current = true;
+  }, []);
+  useEffect(() => {
+    if (rutaCargada.current) guardarRutaDia(Array.from(seleccion.values()));
+  }, [seleccion]);
+
+  /** Marcar como hecha la tarea asociada a una parada (fin del día). */
+  async function tareaHecha(p: Parada) {
+    if (!p.tarea_id) return;
+    const err = await guardarLuz('tareas', 'PUT', { id: p.tarea_id, estado: 'completada' });
+    if (err) { setError(err); return; }
+    setError('');
+    setSeleccion((prev) => {
+      const m = new Map(prev);
+      const actual = m.get(p.id);
+      if (actual) m.set(p.id, { ...actual, tarea_id: undefined, tarea_desc: undefined });
+      return m;
+    });
+  }
   const [origen, setOrigen] = useState(ORIGEN_DEFECTO);
   const [calculando, setCalculando] = useState(false);
   const [resultado, setResultado] = useState<Resultado | null>(null);
@@ -375,9 +401,23 @@ export default function RutasPage() {
               ) : (
                 <div className="space-y-1 mb-3">
                   {Array.from(seleccion.values()).map((p) => (
-                    <div key={p.id} className="flex items-center justify-between gap-2 p-2 rounded-lg bg-card/60 text-xs">
-                      <span className="truncate font-semibold">{p.nombre}</span>
-                      <button onClick={() => alternar(p)} className="text-muted hover:text-red-400 shrink-0"><X className="w-3.5 h-3.5" /></button>
+                    <div key={p.id} className="p-2 rounded-lg bg-card/60 text-xs">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="truncate font-semibold">{p.nombre}</span>
+                        <button onClick={() => alternar(p)} className="text-muted hover:text-red-400 shrink-0"><X className="w-3.5 h-3.5" /></button>
+                      </div>
+                      {p.tarea_id && (
+                        <div className="flex items-center justify-between gap-2 mt-1 pl-1">
+                          <span className="text-[10px] text-muted truncate">📋 {p.tarea_desc || 'Tarea pendiente'}</span>
+                          <button
+                            onClick={() => tareaHecha(p)}
+                            className="shrink-0 px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 text-[10px] font-bold hover:bg-emerald-500/25 transition"
+                            title="Marcar la tarea como completada"
+                          >
+                            ✓ Hecha
+                          </button>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>

@@ -11,6 +11,7 @@ import {
 import { BotonDescarga, Card, Kpi, Badge, BadgeVencimiento, EstadoCarga, useListaLuz, guardarLuz, inputCls, labelCls, btnPrimario, btnSecundario, SelectorResponsable } from '../ui';
 import { PedirMotivo } from '../motivo';
 import { Consejo } from '../consejo';
+import { anadirARutaDia, tareaEnRuta, leerRutaDia } from '../rutas/ruta-dia';
 import { TableroTareas, bucketDeTarea, BucketTarea } from './tablero';
 import { CalendarioTareas } from './calendario';
 
@@ -40,6 +41,7 @@ export default function TareasLuzPage() {
   const [errorForm, setErrorForm] = useState('');
   const [msg, setMsg] = useState('');
   const [verCompletadas, setVerCompletadas] = useState(false);
+  const [rutaVersion, setRutaVersion] = useState(0); // fuerza repintado al tocar la ruta del día
 
   // Recordar el panel elegido entre sesiones
   useEffect(() => {
@@ -158,6 +160,54 @@ export default function TareasLuzPage() {
 
   const selCls = 'rounded-lg border border-border/40 bg-background/60 px-2 py-1.5 text-xs font-semibold';
 
+  /** Añadir la tarea a la ruta del día. Si el cliente no tiene ubicación, se pide aquí y se guarda en su ficha. */
+  async function tareaARuta(t: LuzTarea) {
+    const cli = clientes.datos.find((c) => c.id === t.cliente_id);
+    if (!cli) return;
+    let dir = cli.direccion_fiscal?.trim() || '';
+    if (!dir) {
+      const v = window.prompt(`«${cli.nombre}» no tiene ubicación.\n\nPega su dirección o un enlace de Google Maps y quedará guardada en la ficha del cliente:`);
+      if (!v?.trim()) return;
+      dir = v.trim();
+      const err = await guardarLuz('clientes', 'PUT', { id: cli.id, direccion_fiscal: dir });
+      if (err) { setMsg(err); return; }
+      clientes.recargar();
+    }
+    anadirARutaDia({
+      id: `c-${cli.id}`, nombre: cli.nombre, direccion: dir, cliente_id: cli.id,
+      tarea_id: t.id, tarea_desc: t.descripcion,
+    });
+    setRutaVersion((v) => v + 1);
+  }
+
+  /** Botón "a la ruta" de cada tarea (tablero y lista). */
+  function BotonRutaTarea({ t }: { t: LuzTarea }) {
+    void rutaVersion; // se repinta al cambiar la ruta
+    if (!t.cliente_id || !TAREAS_ABIERTAS.includes(t.estado)) return null;
+    const cli = clientes.datos.find((c) => c.id === t.cliente_id);
+    if (!cli) return null;
+    if (tareaEnRuta(t.id)) {
+      return (
+        <Link href="/gestor/luz/rutas" onClick={(e) => e.stopPropagation()}
+          className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-400 hover:underline">
+          🗺️ En la ruta →
+        </Link>
+      );
+    }
+    const sinDir = !cli.direccion_fiscal?.trim();
+    return (
+      <button
+        onClick={(e) => { e.stopPropagation(); tareaARuta(t); }}
+        className={`inline-flex items-center gap-1 text-[10px] font-bold hover:underline ${sinDir ? 'text-amber-300' : 'text-accent'}`}
+        title={sinDir ? 'El cliente no tiene ubicación: se pide aquí y se guarda en su ficha' : 'Añadir esta visita a la ruta del día'}
+      >
+        {sinDir ? '📍 Ubicar y a la ruta' : '🗺️ Añadir a la ruta'}
+      </button>
+    );
+  }
+
+  const paradasRutaDia = leerRutaDia().length + rutaVersion * 0; // depende de rutaVersion para refrescarse
+
   // ── Lista profesional: agrupada por estado ──
   const GRUPOS: { estado: string; titulo: string; tono: string }[] = [
     { estado: 'pendiente', titulo: 'Pendientes', tono: 'text-amber-300' },
@@ -194,7 +244,10 @@ export default function TareasLuzPage() {
             {clientes.datos.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
           </select>
           {t.cliente_id && (
-            <Link href={`/gestor/luz/clientes/${t.cliente_id}`} className="block text-[10px] text-accent hover:underline mt-0.5">ver ficha →</Link>
+            <span className="flex items-center gap-2 mt-0.5">
+              <Link href={`/gestor/luz/clientes/${t.cliente_id}`} className="text-[10px] text-accent hover:underline">ver ficha →</Link>
+              <BotonRutaTarea t={t} />
+            </span>
           )}
         </td>
         <td className="px-3 py-2">
@@ -243,6 +296,11 @@ export default function TareasLuzPage() {
           <p className="text-xs text-muted mt-0.5">Qué hay que hacer y quién lo tiene que hacer. Todo cambio se guarda al momento.</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          {paradasRutaDia > 0 && (
+            <Link href="/gestor/luz/rutas" className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/25 transition">
+              🗺️ Ruta del día ({paradasRutaDia}) →
+            </Link>
+          )}
           {/* Vistas */}
           <div className="inline-flex rounded-lg border border-border/50 bg-card/60 p-0.5">
             {([['tablero', 'Tablero', LayoutGrid], ['calendario', 'Calendario', CalendarDays], ['lista', 'Lista', List]] as const).map(([v, n, Icono]) => (
@@ -358,7 +416,8 @@ export default function TareasLuzPage() {
       {!cargando && !error && !faltaMigracion && (
         <>
           {vista === 'tablero' && (
-            <TableroTareas tareas={paraTablero} clientes={clientes.datos} onMover={moverABucket} onBorrar={borrarTarea} onGuardar={guardarCambios} />
+            <TableroTareas tareas={paraTablero} clientes={clientes.datos} onMover={moverABucket} onBorrar={borrarTarea} onGuardar={guardarCambios}
+              extraTarjeta={(t) => <BotonRutaTarea t={t} />} />
           )}
 
           {vista === 'calendario' && (

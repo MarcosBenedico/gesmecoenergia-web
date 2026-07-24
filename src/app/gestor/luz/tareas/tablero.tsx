@@ -52,6 +52,7 @@ interface TableroProps {
   onMover: (t: LuzTarea, bucket: BucketTarea) => Promise<void> | void;
   onBorrar: (t: LuzTarea) => Promise<void> | void;
   onGuardar: (id: string, cambios: Record<string, unknown>) => Promise<void> | void;
+  extraTarjeta?: (t: LuzTarea) => React.ReactNode;
 }
 
 /** Formulario de edición completa de una tarjeta (persiste en base de datos al guardar). */
@@ -112,7 +113,7 @@ function EditorTarjeta({ t, clientes, onGuardar, onCerrar }: {
   );
 }
 
-export function TableroTareas({ tareas, clientes, onMover, onBorrar, onGuardar }: TableroProps) {
+export function TableroTareas({ tareas, clientes, onMover, onBorrar, onGuardar, extraTarjeta }: TableroProps) {
   const [arrastrando, setArrastrando] = useState<string | null>(null);
   const [columnaActiva, setColumnaActiva] = useState<BucketTarea | null>(null);
   const [editando, setEditando] = useState<string | null>(null);
@@ -209,6 +210,7 @@ export function TableroTareas({ tareas, clientes, onMover, onBorrar, onGuardar }
                         {t.responsable && <Badge>{t.responsable}</Badge>}
                         {!hecha && clave !== 'sin_fecha' && t.fecha_limite && <BadgeVencimiento fecha={t.fecha_limite} />}
                         {hecha && <span className="text-[10px] text-muted">{fmtFecha(t.actualizado_en)}</span>}
+                        {extraTarjeta?.(t)}
                       </div>
 
                       {editando === t.id && (
