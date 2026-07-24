@@ -13,6 +13,7 @@ import {
 } from '../../ui';
 import { PedirMotivo } from '../../motivo';
 import { supabase } from '@/lib/supabase';
+import { useUsuario } from '@/lib/usuario';
 
 /* ══════════════ Próxima acción: dato único sincronizado con el Pipeline ══════════════ */
 export function ProximaAccion({ cliente, oportunidades, onGuardado }: {
@@ -523,6 +524,90 @@ export function VisitasYFV({ cliente, oportunidades, onRecargar }: {
               </button>
             </div>
           ))}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+/* ══════════════ Seguimiento del cliente: observaciones con fecha, hora y autor ══════════════ */
+/* Cada apunte se guarda encima del anterior dentro de luz_clientes.observaciones,
+   con el formato "[dd/mm/aaaa HH:MM · Nombre] texto" — no se pierde nada. */
+export function SeguimientoCliente({ cliente, onRecargar }: {
+  cliente: LuzCliente;
+  onRecargar: () => void;
+}) {
+  const { perfil } = useUsuario();
+  const [texto, setTexto] = useState('');
+  const [guardando, setGuardando] = useState(false);
+  const [err, setErr] = useState('');
+
+  // Separar apuntes con formato de las notas antiguas sin formato
+  const lineas = (cliente.observaciones || '').split('\n');
+  const apuntes: { cabecera: string; texto: string }[] = [];
+  const antiguas: string[] = [];
+  for (const l of lineas) {
+    const m = l.match(/^\[(.+?)\]\s*(.*)$/);
+    if (m) apuntes.push({ cabecera: m[1], texto: m[2] });
+    else if (l.trim()) antiguas.push(l);
+  }
+
+  async function anadir(e: React.FormEvent) {
+    e.preventDefault();
+    const t = texto.trim();
+    if (!t) return;
+    setGuardando(true); setErr('');
+    const ahora = new Date();
+    const fecha = ahora.toLocaleDateString('es-ES');
+    const hora = ahora.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+    const autor = perfil?.nombre || perfil?.responsable || 'Equipo';
+    const entrada = `[${fecha} ${hora} · ${autor}] ${t}`;
+    const e2 = await guardarLuz('clientes', 'PUT', {
+      id: cliente.id,
+      observaciones: cliente.observaciones?.trim() ? `${entrada}\n${cliente.observaciones}` : entrada,
+    });
+    setGuardando(false);
+    if (e2) { setErr(e2); return; }
+    setTexto('');
+    onRecargar();
+  }
+
+  return (
+    <Card>
+      <h3 className="font-bold text-foreground mb-1">📝 Seguimiento del cliente</h3>
+      <p className="text-[11px] text-muted mb-3">
+        Apunta aquí lo que va pasando: cada entrada queda guardada con fecha, hora y quién la escribió.
+      </p>
+
+      <form onSubmit={anadir} className="flex gap-2 mb-3">
+        <input
+          className={`${inputCls} flex-1`}
+          value={texto}
+          onChange={(e) => setTexto(e.target.value)}
+          placeholder="Qué ha pasado con este cliente... (Enter para guardar)"
+        />
+        <button type="submit" disabled={guardando || !texto.trim()} className={btnPrimario}>
+          {guardando ? 'Guardando…' : 'Añadir'}
+        </button>
+      </form>
+      {err && <p className="text-xs text-red-400 mb-2">{err}</p>}
+
+      {apuntes.length === 0 && antiguas.length === 0 ? (
+        <p className="text-xs text-muted text-center py-2">Sin apuntes todavía. El primero marca el camino 💪</p>
+      ) : (
+        <div className="space-y-1.5 max-h-72 overflow-y-auto pr-1">
+          {apuntes.map((a, i) => (
+            <div key={i} className="p-2.5 rounded-lg bg-card/50 border border-border/20">
+              <p className="text-[10px] font-bold text-accent mb-0.5">🕐 {a.cabecera}</p>
+              <p className="text-xs whitespace-pre-wrap">{a.texto}</p>
+            </div>
+          ))}
+          {antiguas.length > 0 && (
+            <div className="p-2.5 rounded-lg bg-card/30 border border-border/10">
+              <p className="text-[10px] font-bold text-muted mb-0.5">Notas anteriores (sin fecha)</p>
+              <p className="text-xs text-muted whitespace-pre-wrap">{antiguas.join('\n')}</p>
+            </div>
+          )}
         </div>
       )}
     </Card>
