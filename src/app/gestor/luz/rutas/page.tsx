@@ -7,6 +7,7 @@ import { Map as MapIcon, Navigation, Loader, ExternalLink, X, Pencil, Check, Mou
 import { LuzCliente, LuzCups, LuzOportunidad, LuzVisita } from '@/lib/luz';
 import { Card, Badge, BadgePrioridad, EstadoCarga, useListaLuz, guardarLuz, inputCls, labelCls, btnPrimario, btnSecundario } from '../ui';
 import { leerRutaDia, guardarRutaDia } from './ruta-dia';
+import { ZONAS, zonaDeDireccion } from '@/lib/zonas';
 
 // El mapa usa Leaflet (necesita `window`): se carga solo en el navegador, nunca en el servidor.
 const MapaRutas = dynamic(() => import('./mapa').then((m) => m.MapaRutas), {
@@ -40,6 +41,7 @@ export default function RutasPage() {
   const [fResp, setFResp] = useState('David');
   const [fVista, setFVista] = useState<'todos' | 'fv' | 'prioridadA' | 'olvidados' | 'visitadosHoy' | 'captacion' | 'facturas'>('todos');
   const [fFechaVisita, setFFechaVisita] = useState('');
+  const [fZona, setFZona] = useState('');   // '' = todas · id de zona · 'sin' = sin zona reconocida
   const [seleccion, setSeleccion] = useState<Map<string, Parada>>(new Map());
 
   // ── Ruta del día compartida con Tareas: se carga al entrar y se guarda con cada cambio ──
@@ -120,6 +122,11 @@ export default function RutasPage() {
 
     // Filtro de vista rápida (afecta al mapa y a la lista a la vez)
     const filtrada = lista.filter((p) => {
+      // Filtro por zona de actuación (detectada por el pueblo de la dirección)
+      if (fZona) {
+        const z = zonaDeDireccion(p.direccion);
+        if (fZona === 'sin' ? z != null : z?.id !== fZona) return false;
+      }
       // Filtro por día de visita: usa el historial guardado en luz_visitas
       if (fFechaVisita && !visitasPorCliente.get(p.cliente_id)?.has(fFechaVisita)) return false;
       if (fVista === 'captacion') return (p.via_entrada || 'captacion') === 'captacion';
@@ -134,7 +141,7 @@ export default function RutasPage() {
       return true;
     });
     return filtrada.sort((a, b) => a.nombre.localeCompare(b.nombre));
-  }, [clientes.datos, cups.datos, buscar, fResp, fVista, interesadosFV, fFechaVisita, visitasPorCliente]);
+  }, [clientes.datos, cups.datos, buscar, fResp, fVista, interesadosFV, fFechaVisita, visitasPorCliente, fZona]);
 
   /** Crea la oportunidad de fotovoltaica en el pipeline desde el mapa. */
   async function marcarInteresFV(clienteId: string, nombre: string) {
@@ -250,6 +257,19 @@ export default function RutasPage() {
                 </button>
               ))}
               <span className="flex items-center gap-1 ml-1">
+                <label className="text-[11px] text-muted font-bold">🗂️ Zona:</label>
+                <select
+                  value={fZona}
+                  onChange={(e) => { setFZona(e.target.value); setResultado(null); }}
+                  className="rounded-lg border border-border/50 bg-card/70 px-2 py-1 text-[11px] font-semibold"
+                  style={fZona && fZona !== 'sin' ? { color: ZONAS.find((z) => z.id === fZona)?.color } : undefined}
+                >
+                  <option value="">Todas las zonas</option>
+                  {ZONAS.map((z) => <option key={z.id} value={z.id}>{z.nombre}</option>)}
+                  <option value="sin">Sin zona reconocida</option>
+                </select>
+              </span>
+              <span className="flex items-center gap-1 ml-1">
                 <label className="text-[11px] text-muted font-bold">📅 Visitados el:</label>
                 <input
                   type="date"
@@ -309,6 +329,7 @@ export default function RutasPage() {
               <div className="space-y-1.5 max-h-[32rem] overflow-y-auto pr-1">
                 {paradasDisponibles.map((p) => {
                   const marcada = seleccion.has(p.id);
+                  const zona = zonaDeDireccion(p.direccion);
                   return (
                     <label key={p.id} className={`flex items-center gap-2.5 p-2.5 rounded-lg border cursor-pointer transition ${
                       marcada ? 'border-accent/50 bg-accent/10' : 'border-border/30 bg-card/50 hover:border-border/60'
@@ -316,7 +337,17 @@ export default function RutasPage() {
                       <input type="checkbox" checked={marcada} onChange={() => alternar(p)} className="accent-[#e11d48] w-4 h-4 shrink-0" />
                       <BadgePrioridad prioridad={p.prioridad} />
                       <div className="min-w-0 flex-1">
-                        <p className="text-xs font-bold truncate">{p.interesFV && <span title="Interesado en fotovoltaica">☀️ </span>}{p.nombre}</p>
+                        <p className="text-xs font-bold truncate flex items-center gap-1.5">
+                          {p.interesFV && <span title="Interesado en fotovoltaica">☀️</span>}
+                          <span className="truncate">{p.nombre}</span>
+                          {zona && (
+                            <span className="shrink-0 inline-flex items-center gap-1 px-1.5 py-px rounded-full border text-[9px] font-bold whitespace-nowrap"
+                              style={{ borderColor: `${zona.color}66`, color: zona.color, background: `${zona.color}14` }} title={`Zona: ${zona.nombre}`}>
+                              <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ background: zona.color }} />
+                              {zona.nombre}
+                            </span>
+                          )}
+                        </p>
                         {editando?.id === p.id ? (
                           <span className="flex items-center gap-1 mt-0.5" onClick={(e) => e.preventDefault()}>
                             <input

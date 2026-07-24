@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import 'leaflet/dist/leaflet.css';
 import { RefreshCw, Layers } from 'lucide-react';
 import { guardarLuz, btnSecundario } from '../ui';
+import { ZONAS, zonaDeDireccion } from '@/lib/zonas';
 
 /**
  * Mapa interactivo de Rutas de visitas (Leaflet + OpenStreetMap, sin coste).
@@ -172,8 +173,10 @@ export function MapaRutas({ paradas, seleccion, onAlternar, orden, origenGeo, or
       const enRuta = ordenMap.get(p.id);
       const marcada = seleccion.has(p.id);
       const visitadoHoy = p.fecha_ultimo_contacto === HOY();
+      const zona = zonaDeDireccion(p.direccion);
       const color = visitadoHoy ? '#10b981' : marcada ? '#3b82f6' : p.interesFV ? '#eab308' : COLOR_PRIORIDAD[p.prioridad || 'C'];
-      const anillo = enRuta ? '#111827' : undefined;
+      // Anillo: negro si está en la ruta calculada; si no, el color de su zona de actuación
+      const anillo = enRuta ? '#111827' : zona?.color;
       const marker = L.marker([geo.lat, geo.lon], { icon: iconoPunto(color, enRuta, anillo, p.interesFV) }).addTo(capaMarcadores.current!);
       bounds.push([geo.lat, geo.lon]);
 
@@ -188,6 +191,7 @@ export function MapaRutas({ paradas, seleccion, onAlternar, orden, origenGeo, or
       div.innerHTML = `
         <p style="font-weight:800;font-size:13px;margin-bottom:2px">${p.nombre}</p>
         <p style="font-size:11px;color:#666;margin-bottom:4px">📍 ${p.direccion}</p>
+        ${zona ? `<p style="font-size:11px;font-weight:700;margin-bottom:4px;color:${zona.color}">🗂️ Zona: ${zona.nombre}</p>` : ''}
         <p style="font-size:11px;color:${dias != null && dias > 30 ? '#d97706' : '#666'};margin-bottom:6px">${textoContacto}</p>
         ${p.interesFV ? '<p style="font-size:11px;color:#a16207;font-weight:700;margin-bottom:6px">☀️ Interesado en fotovoltaica</p>' : ''}
         ${visitadoHoy ? '<p style="font-size:11px;color:#10b981;font-weight:700;margin-bottom:6px">✓ Visitado hoy</p>' : ''}
@@ -288,6 +292,18 @@ export function MapaRutas({ paradas, seleccion, onAlternar, orden, origenGeo, or
           <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-[#10b981] inline-block" /> Visitado hoy</span>
           <span className="flex items-center gap-1">🏠 Punto de salida</span>
           {modoManual && <span className="text-accent font-bold">🖱️ Modo manual: clic en un pin = añadir/quitar de la ruta</span>}
+        </div>
+      )}
+
+      {cargado && (
+        <div className="flex flex-wrap gap-x-3 gap-y-1 px-3 pb-2 text-[10px] text-muted items-center">
+          <span className="font-bold">🗂️ Zonas (anillo del pin):</span>
+          {ZONAS.map((z) => (
+            <span key={z.id} className="flex items-center gap-1">
+              <span className="w-2.5 h-2.5 rounded-full inline-block border-2" style={{ borderColor: z.color }} />
+              {z.nombre}
+            </span>
+          ))}
         </div>
       )}
     </div>

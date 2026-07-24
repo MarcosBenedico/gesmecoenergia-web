@@ -12,6 +12,7 @@ import { BotonDescarga, Card, Kpi, Badge, BadgeVencimiento, EstadoCarga, useList
 import { PedirMotivo } from '../motivo';
 import { Consejo } from '../consejo';
 import { anadirARutaDia, tareaEnRuta, leerRutaDia } from '../rutas/ruta-dia';
+import { zonaDeDireccion } from '@/lib/zonas';
 import { TableroTareas, bucketDeTarea, BucketTarea } from './tablero';
 import { CalendarioTareas } from './calendario';
 
@@ -180,29 +181,46 @@ export default function TareasLuzPage() {
     setRutaVersion((v) => v + 1);
   }
 
-  /** Botón "a la ruta" de cada tarea (tablero y lista). */
+  /** Botón "a la ruta" de cada tarea + zona de actuación (tablero y lista). */
   function BotonRutaTarea({ t }: { t: LuzTarea }) {
     void rutaVersion; // se repinta al cambiar la ruta
     if (!t.cliente_id || !TAREAS_ABIERTAS.includes(t.estado)) return null;
     const cli = clientes.datos.find((c) => c.id === t.cliente_id);
     if (!cli) return null;
+    const zona = zonaDeDireccion(cli.direccion_fiscal);
+    const chipZona = zona ? (
+      <span
+        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full border text-[9px] font-bold whitespace-nowrap"
+        style={{ borderColor: `${zona.color}66`, color: zona.color, background: `${zona.color}14` }}
+        title={`Zona de actuación: ${zona.nombre}`}
+      >
+        <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ background: zona.color }} />
+        {zona.nombre}
+      </span>
+    ) : null;
     if (tareaEnRuta(t.id)) {
       return (
-        <Link href="/gestor/luz/rutas" onClick={(e) => e.stopPropagation()}
-          className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-400 hover:underline">
-          🗺️ En la ruta →
-        </Link>
+        <span className="inline-flex items-center gap-1.5 flex-wrap">
+          {chipZona}
+          <Link href="/gestor/luz/rutas" onClick={(e) => e.stopPropagation()}
+            className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-400 hover:underline">
+            🗺️ En la ruta →
+          </Link>
+        </span>
       );
     }
     const sinDir = !cli.direccion_fiscal?.trim();
     return (
-      <button
-        onClick={(e) => { e.stopPropagation(); tareaARuta(t); }}
-        className={`inline-flex items-center gap-1 text-[10px] font-bold hover:underline ${sinDir ? 'text-amber-300' : 'text-accent'}`}
-        title={sinDir ? 'El cliente no tiene ubicación: se pide aquí y se guarda en su ficha' : 'Añadir esta visita a la ruta del día'}
-      >
-        {sinDir ? '📍 Ubicar y a la ruta' : '🗺️ Añadir a la ruta'}
-      </button>
+      <span className="inline-flex items-center gap-1.5 flex-wrap">
+        {chipZona}
+        <button
+          onClick={(e) => { e.stopPropagation(); tareaARuta(t); }}
+          className={`inline-flex items-center gap-1 text-[10px] font-bold hover:underline ${sinDir ? 'text-amber-300' : 'text-accent'}`}
+          title={sinDir ? 'El cliente no tiene ubicación: se pide aquí y se guarda en su ficha' : 'Añadir esta visita a la ruta del día'}
+        >
+          {sinDir ? '📍 Ubicar y a la ruta' : '🗺️ Añadir a la ruta'}
+        </button>
+      </span>
     );
   }
 
