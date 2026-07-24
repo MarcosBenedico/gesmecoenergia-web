@@ -117,6 +117,44 @@ export function estadoClienteDesdeCups(estadosCups: string[]): string | null {
   return null;
 }
 
+/* ═══════════ EL VIAJE DEL CLIENTE, VISTO POR EL COMERCIAL ═══════════ */
+
+/**
+ * Los 8 peldaños que sube un cliente desde que se detecta hasta que factura
+ * con nosotros. Sirve para enseñarle a David cuánto le queda a cada uno:
+ * ver la barra casi llena empuja mucho más que cualquier recordatorio.
+ */
+export const ESCALERA_CLIENTE: string[] = [
+  'detectado', 'contacto_iniciado', 'factura_solicitada', 'doc_recibida',
+  'en_analisis', 'pendiente_decision', 'contrato_tramite', 'activo',
+];
+
+/** Qué toca hacer ahora mismo con un cliente, en su idioma. Nada de jerga de estados. */
+export const SIGUIENTE_PASO: Record<string, string> = {
+  detectado: 'Llamarle y presentarte',
+  contacto_iniciado: 'Pedirle la factura de la luz',
+  factura_solicitada: 'Recoger la factura',
+  doc_recibida: 'Pasarla a estudio',
+  en_analisis: 'Nicola está con el estudio',
+  pendiente_decision: 'Llamarle: ¿qué le parece la oferta?',
+  contrato_tramite: 'Seguir la firma hasta el final',
+  activo: 'Ya es cliente 🎉',
+  revisar_adelante: 'Volver a la carga más adelante',
+};
+
+/** Estados en los que el cliente está a un paso de entrar: aquí es donde más rinde insistir. */
+export const A_PUNTO_DE_CERRAR: string[] = ['pendiente_decision', 'contrato_tramite'];
+
+/** Cerrados: ni cuentan como trabajo pendiente ni se le recuerdan a nadie. */
+export const CLIENTE_CERRADO: string[] = ['activo', 'perdido', 'no_viable'];
+
+/** % del viaje recorrido (0-100). Un cliente activo está al 100. */
+export function progresoCliente(estado: string): number {
+  const i = ESCALERA_CLIENTE.indexOf(estado);
+  if (i < 0) return 0;
+  return Math.round((i / (ESCALERA_CLIENTE.length - 1)) * 100);
+}
+
 /**
  * ¿Debe el CUPS adoptar este estado nuevo?
  *

@@ -144,7 +144,9 @@ export function itemsDeCups(cups: LuzCups[], horizonteDias = 180): ItemAgenda[] 
         tipo,
         tipoLabel: TIPO_FECHA_LABEL[tipo] || tipo,
         tono: TIPO_FECHA_TONO[tipo] || TONO_TAREA,
-        titulo: `${texto} · ${nombre}`,
+        // El nombre del cliente NO va aquí: viaja en `clienteNombre` para que
+        // cada pantalla decida cuánto lo destaca (en Mi Día es el titular).
+        titulo: texto,
         detalle: [c.comercializadora_actual, c.alias_suministro].filter(Boolean).join(' · ') || null,
         fecha,
         dias,

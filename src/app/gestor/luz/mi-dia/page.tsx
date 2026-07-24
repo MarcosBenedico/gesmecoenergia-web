@@ -4,13 +4,14 @@ import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Sun, AlertTriangle, Check, Target, ArrowRight, Flame } from 'lucide-react';
 import {
-  LuzCups, LuzFechaCritica, LuzOportunidad, LuzTarea,
+  LuzCliente, LuzCups, LuzFechaCritica, LuzOportunidad, LuzTarea,
   PIPELINE_CERRADO, diasHasta,
 } from '@/lib/luz';
 import { construirAgenda, esDe, ItemAgenda } from '@/lib/agenda';
 import { fmtEur0 } from '@/lib/correbin';
 import { useUsuario } from '@/lib/usuario';
 import { Card, EstadoCarga, useListaLuz, guardarLuz, SelectorResponsable } from '../ui';
+import { ClientesEnMarcha } from './clientes-en-marcha';
 
 /**
  * MI DÍA — la pantalla de David.
@@ -47,6 +48,7 @@ export default function MiDiaPage() {
   const [verComo, setVerComo] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState('');
 
+  const clientes = useListaLuz<LuzCliente>('clientes');
   const cups = useListaLuz<LuzCups>('cups');
   const fechas = useListaLuz<LuzFechaCritica>('fechas', { estado: 'pendiente' });
   const pipeline = useListaLuz<LuzOportunidad>('pipeline');
@@ -87,9 +89,10 @@ export default function MiDiaPage() {
       atrasadas: hoy.filter((i) => (i.dias ?? 0) < 0).length,
       clientesA: hoy.filter((i) => i.prioridad === 'A').length,
       paradas,
+      misClientes: clientes.datos.filter((c) => esDe(c.responsable, persona)),
       comisionEnJuego: miPipe.reduce((s, o) => s + (Number(o.comision_potencial) || 0), 0),
     };
-  }, [persona, tareas.datos, cups.datos, fechas.datos, pipeline.datos]);
+  }, [persona, tareas.datos, cups.datos, fechas.datos, pipeline.datos, clientes.datos]);
 
   async function completar(i: ItemAgenda) {
     if (!i.id) return;
@@ -102,12 +105,17 @@ export default function MiDiaPage() {
     if (i.origen === 'tarea') tareas.recargar(); else fechas.recargar();
   }
 
-  /** Una acción, tan grande y clara como para tocarla desde el móvil en la calle. */
+  /**
+   * Una acción. El NOMBRE DEL CLIENTE es el titular —así se identifica de un
+   * vistazo desde el coche—; lo que hay que hacer va justo debajo.
+   * Botón grande, pensado para el dedo.
+   */
   const Accion = ({ i, apagado = false }: { i: ItemAgenda; apagado?: boolean }) => {
     const atrasada = (i.dias ?? 0) < 0;
-    return (
-      <div className={`fv-fade-in rounded-xl bg-card/60 ${BANDA[i.prioridad] || BANDA.C} ${apagado ? 'opacity-70' : ''} p-3 flex items-center gap-3`}>
-        <div className="min-w-0 flex-1 space-y-0.5">
+    const conNombre = !!i.clienteNombre;
+    const Contenido = (
+      <>
+        <div className="min-w-0 flex-1 space-y-1">
           <div className="flex items-center gap-1.5 flex-wrap">
             {i.prioridad === 'A' && (
               <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-red-500/15 text-red-300 border border-red-500/30 text-[9px] font-black uppercase">
@@ -119,27 +127,40 @@ export default function MiDiaPage() {
                 {Math.abs(i.dias!)} {Math.abs(i.dias!) === 1 ? 'día' : 'días'} de retraso
               </span>
             )}
-            <span className="text-[9px] font-bold text-muted/70 uppercase">{i.tipoLabel}</span>
           </div>
-          <p className="text-[15px] font-bold text-foreground leading-snug">{i.titulo}</p>
-          {i.clienteId ? (
-            <Link href={`/gestor/luz/clientes/${i.clienteId}`} className="text-xs text-accent hover:underline font-semibold inline-block">
-              {i.clienteNombre || 'Ver cliente'} →
-            </Link>
-          ) : <span className="text-xs text-muted/60">Sin cliente</span>}
+          {/* Titular: quién. Lo que más rápido tiene que reconocer. */}
+          <p className="text-[17px] font-black text-foreground leading-tight truncate">
+            {conNombre ? i.clienteNombre : i.titulo}
+          </p>
+          {/* Debajo: qué hay que hacer con él. */}
+          <p className="text-[13px] font-semibold text-accent leading-snug">
+            {conNombre ? i.titulo : i.tipoLabel}
+          </p>
         </div>
+      </>
+    );
+
+    return (
+      <div className={`fv-fade-in rounded-xl bg-card/60 ${BANDA[i.prioridad] || BANDA.C} ${apagado ? 'opacity-70' : ''} p-3 flex items-center gap-3`}>
+        {i.clienteId ? (
+          <Link href={`/gestor/luz/clientes/${i.clienteId}`} className="min-w-0 flex-1 flex group">
+            {Contenido}
+          </Link>
+        ) : (
+          <div className="min-w-0 flex-1 flex">{Contenido}</div>
+        )}
         {i.editable ? (
           <button
             onClick={() => completar(i)}
             disabled={ocupado === i.clave}
-            className="shrink-0 h-11 w-11 rounded-full bg-emerald-500/10 border-2 border-emerald-500/30 text-emerald-400 flex items-center justify-center hover:bg-emerald-500/25 active:scale-95 transition disabled:opacity-40"
+            className="shrink-0 h-12 w-12 rounded-full bg-emerald-500/10 border-2 border-emerald-500/30 text-emerald-400 flex items-center justify-center hover:bg-emerald-500/25 active:scale-95 transition disabled:opacity-40"
             title="Hecho"
             aria-label="Marcar como hecho"
           >
-            <Check className="w-5 h-5" />
+            <Check className="w-6 h-6" />
           </button>
         ) : (
-          <span className="shrink-0 text-[9px] font-bold text-muted/50 uppercase text-center w-11">Aviso<br />auto</span>
+          <span className="shrink-0 text-[9px] font-bold text-muted/50 uppercase text-center w-12 leading-tight">Aviso<br />auto</span>
         )}
       </div>
     );
@@ -243,6 +264,9 @@ export default function MiDiaPage() {
               <div className="space-y-2">{dia.manana.map((i) => <Accion key={i.clave} i={i} apagado />)}</div>
             )}
           </div>
+
+          {/* Sus clientes en marcha: los que están a punto y los fáciles de recuperar */}
+          <ClientesEnMarcha clientes={dia.misClientes} />
 
           {/* Oportunidades paradas: dinero suyo que no se está moviendo */}
           {dia.paradas.length > 0 && (
