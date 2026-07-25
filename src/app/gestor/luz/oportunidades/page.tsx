@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
-import { Radar, Loader, Info, Search, Trash2 } from 'lucide-react';
+import { Radar, Loader, Info, Search, Trash2, Map as MapIcon, Target } from 'lucide-react';
 import {
   ProspectoGuardado, EstadoProspecto, ESTADOS_PROSPECTO, ESTADO_PROSPECTO_LABEL,
   ESTADO_PROSPECTO_COLOR, TIPO_PROSPECTO_LABEL, TipoProspecto, CATEGORIAS_NAVES, categoriaDeNaves,
@@ -10,6 +10,7 @@ import {
 import { ZONAS } from '@/lib/zonas';
 import { Card, EstadoCarga, useListaLuz, guardarLuz, inputCls, labelCls, btnPrimario } from '../ui';
 import { tokenSesion } from '@/lib/usuario';
+import { Objetivos } from './objetivos';
 
 // Leaflet necesita `window`: solo en el navegador
 const MapaOportunidades = dynamic(() => import('./mapa-oportunidades').then((m) => m.MapaOportunidades), {
@@ -47,6 +48,9 @@ export default function OportunidadesPage() {
   const [buscar, setBuscar] = useState('');
   const [orden, setOrden] = useState<(typeof ORDENES)[number]['clave']>('puntuacion');
   const [seleccionado, setSeleccionado] = useState<ProspectoGuardado | null>(null);
+  // Dos formas de mirar lo mismo: el mapa para descubrir y decidir, la lista de
+  // objetivos para trabajar lo ya decidido.
+  const [vista, setVista] = useState<'mapa' | 'objetivos'>('mapa');
 
   // ── Barrido de una zona ──
   const [zonaId, setZonaId] = useState(ZONAS[0]?.id || '');
@@ -181,6 +185,18 @@ export default function OportunidadesPage() {
         {error && <p className="text-[11px] text-amber-300 mt-2 bg-amber-500/10 border border-amber-500/20 rounded-lg p-2">⚠️ {error}</p>}
       </Card>
 
+      {/* Descubrir vs. trabajar: son dos tareas distintas y piden pantallas distintas */}
+      <div className="flex gap-1.5">
+        {([['mapa', 'Mapa', MapIcon], ['objetivos', `Objetivos${paraVisitar ? ` (${paraVisitar})` : ''}`, Target]] as const).map(([v, texto, Icono]) => (
+          <button key={v} onClick={() => setVista(v)}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+              vista === v ? 'bg-accent text-white' : 'bg-card/80 text-muted border border-border/50 hover:text-foreground'
+            }`}>
+            <Icono className="w-3.5 h-3.5" /> {texto}
+          </button>
+        ))}
+      </div>
+
       <EstadoCarga
         cargando={prospectos.cargando}
         error={prospectos.error}
@@ -214,6 +230,13 @@ export default function OportunidadesPage() {
             </p>
           )}
 
+          {vista === 'objetivos' ? (
+            <Objetivos
+              objetivos={prospectos.datos.filter((p) => p.estado === 'para_visitar')}
+              onCambio={() => prospectos.recargar()}
+            />
+          ) : (
+          <>
           {/* ── Filtros ── */}
           <Card>
             <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-2">
@@ -298,6 +321,9 @@ export default function OportunidadesPage() {
               dato: el real no es público. Púlsalos para ver la foto aérea y decidir.
             </p>
           </div>
+
+          </>
+          )}
 
           {/* Papelera: los descartados siguen ahí, apagados, para no volver a mirarlos */}
           {(porEstado['descartado'] || 0) > 0 && (

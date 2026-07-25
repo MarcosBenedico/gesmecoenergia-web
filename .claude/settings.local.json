@@ -403,7 +403,8 @@
       "Bash(time curl -s -X POST https://overpass.kumi.systems/api/interpreter -A \"GesmecoEnergia-Prospeccion/1.0 \\(gesmecoenergia.com\\)\" --data-urlencode \"data@ovR.txt\" -o ovR2.json -w \"HTTP %{http_code} %{size_download}b\\\\n\")",
       "Bash(rm -f _t.mjs _d.mjs _ov.json)",
       "Bash(rm -f _t.mjs _ovr.json)",
-      "Bash(rm -f _sim.mjs)"
+      "Bash(rm -f _sim.mjs)",
+      "Bash(grep -n \"return NextResponse.json\\({ datos\\\\|NextResponse.json\\({ ok: true, datos\" src/app/api/luz/\\\\[tabla\\\\]/route.ts)"
     ]
   }
 }
