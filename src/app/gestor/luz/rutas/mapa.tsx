@@ -5,7 +5,6 @@ import 'leaflet/dist/leaflet.css';
 import { RefreshCw, Layers, MapPinned, Info, ChevronDown, Eye, EyeOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { guardarLuz, btnSecundario, btnPrimario } from '../ui';
-import { zonaDeParada } from '@/lib/zonas';
 import { ProspectoGuardado, TipoProspecto, TIPO_PROSPECTO_LABEL, categoriaDeNaves } from '@/lib/prospeccion';
 import { urlOrtofoto } from './foto-aerea';
 import {
@@ -84,10 +83,10 @@ const EMOJI_PROSPECTO: Record<TipoProspecto, string> = {
  *
  * Y lo que se ha SACADO del pin, a conciencia:
  *
- *   · La zona ya es un filtro arriba y un anillo de siete colores era el que
- *     más ruido metía: competía con el relleno y ninguno de los dos ganaba.
- *   · El interés en fotovoltaica también es un filtro. Para verlos, se filtra
- *     y salen ellos solos, que es justo para lo que sirve un filtro.
+ *   · La zona. Un anillo de siete colores era lo que más ruido metía —competía
+ *     con el relleno y no ganaba ninguno—, y para planificar no hacía falta.
+ *   · El interés en fotovoltaica. Es un filtro de arriba: se marca y salen
+ *     ellos solos, que es justo para lo que sirve un filtro.
  *   · Sector, metros, consumo y foto viven en el globo, donde no compiten.
  *
  * Macizo contra hueco es la distinción más rápida que existe de un vistazo, y
@@ -179,7 +178,6 @@ interface Props {
   onRecargarClientes: () => void;
   modoManual: boolean;
   onMarcarFV?: (clienteId: string, nombre: string) => Promise<void>;
-  onUbicaciones?: (puntos: Record<string, { lat: number; lon: number } | null>) => void;
   /** Oportunidades ya aprobadas para visitar: se pintan con su emoji sobre la ruta. */
   prospectos?: ProspectoGuardado[];
   /** Crea la ficha del candidato y lo mete como parada. Devuelve el error, si lo hay. */
@@ -190,7 +188,7 @@ interface Props {
   onResolverVisita?: (clienteId: string, nombre: string) => void;
 }
 
-export function MapaRutas({ paradas, seleccion, onAlternar, orden, origenGeo, origenTexto, onRecargarClientes, modoManual, onMarcarFV, onUbicaciones, prospectos, onProspectoARuta, prospectosAnadidos, onResolverVisita }: Props) {
+export function MapaRutas({ paradas, seleccion, onAlternar, orden, origenGeo, origenTexto, onRecargarClientes, modoManual, onMarcarFV, prospectos, onProspectoARuta, prospectosAnadidos, onResolverVisita }: Props) {
   const mapaRef = useRef<HTMLDivElement>(null);
   const mapaObj = useRef<import('leaflet').Map | null>(null);
   const capaMarcadores = useRef<import('leaflet').LayerGroup | null>(null);
@@ -232,7 +230,6 @@ export function MapaRutas({ paradas, seleccion, onAlternar, orden, origenGeo, or
       const m: Record<string, { lat: number; lon: number } | null> = {};
       for (const p of json.puntos) m[p.id] = p.lat != null ? { lat: p.lat, lon: p.lon } : null;
       setPuntos(m);
-      onUbicaciones?.(m); // la página usa las coordenadas para asignar zona a todos
       setCargado(true);
     } catch {
       setError('Error de conexión al geocodificar.');
@@ -356,9 +353,6 @@ export function MapaRutas({ paradas, seleccion, onAlternar, orden, origenGeo, or
       // En qué quedó la última visita. Es lo que da color a un pin ya resuelto.
       const sello = p.visita?.resultado ? PINTA_VISITA[p.visita.resultado] : null;
       const yaVisitado = !!p.visita;
-      // La zona ya no va en el pin —era el anillo que ensuciaba el mapa— pero
-      // sigue haciendo falta para el globo y para el filtro de zona.
-      const zona = zonaDeParada(p.direccion, geo);
       // Ocultar lo ya resuelto deja el mapa con lo que queda por hacer, que es
       // como se planifica una mañana. Los de la ruta nunca se esconden.
       if (ocultarVisitados && yaVisitado && !enRuta && !marcada) continue;
@@ -384,7 +378,6 @@ export function MapaRutas({ paradas, seleccion, onAlternar, orden, origenGeo, or
       div.innerHTML = `
         <p style="font-weight:800;font-size:13px;margin-bottom:2px">${p.nombre}</p>
         <p style="font-size:11px;color:#666;margin-bottom:4px">📍 ${p.direccion}</p>
-        ${zona ? `<p style="font-size:11px;font-weight:700;margin-bottom:4px;color:${zona.color}">🗂️ Zona: ${zona.nombre}</p>` : ''}
         <p style="font-size:11px;color:${dias != null && dias > 30 ? '#d97706' : '#666'};margin-bottom:6px">${textoContacto}</p>
         ${sello ? `<p style="font-size:11px;font-weight:700;color:${sello.color};margin-bottom:6px">
             ${sello.icono} Última visita: ${sello.texto}</p>` : ''}
