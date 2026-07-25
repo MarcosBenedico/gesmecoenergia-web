@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import 'leaflet/dist/leaflet.css';
-import { RefreshCw, Layers, MapPinned, Info, ChevronDown } from 'lucide-react';
+import { RefreshCw, Layers, MapPinned, Info, ChevronDown, Eye, EyeOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { guardarLuz, btnSecundario, btnPrimario } from '../ui';
 import { ZONAS, zonaDeParada } from '@/lib/zonas';
@@ -23,7 +23,24 @@ export interface ParadaMapa {
   id: string; nombre: string; direccion: string; cliente_id: string;
   prioridad?: string; tipo: 'cliente' | 'cups'; fecha_ultimo_contacto?: string | null;
   interesFV?: boolean;
+  /** Última visita registrada y en qué quedó. */
+  visita?: { fecha: string; resultado?: string | null };
 }
+
+/**
+ * Cómo se pinta una parada según su última visita.
+ *
+ * Lo importante no es "visitado sí o no", sino EN QUÉ QUEDÓ: a uno que dijo que
+ * no no se vuelve, a uno que no estaba hay que volver esta semana, y a uno que
+ * dio la factura le toca oferta, no otra visita. Si el mapa no distingue eso,
+ * David repite puertas y se salta las que tocan.
+ */
+const PINTA_VISITA: Record<string, { color: string; icono: string; texto: string }> = {
+  factura: { color: '#10b981', icono: '🧾', texto: 'Dio la factura' },
+  volver: { color: '#f59e0b', icono: '🕐', texto: 'Hay que volver' },
+  no_estaba: { color: '#64748b', icono: '🚪', texto: 'No estaba' },
+  no_interesa: { color: '#7f1d1d', icono: '✕', texto: 'Dijo que no' },
+};
 
 const HOY = () => new Date().toISOString().slice(0, 10);
 
@@ -76,20 +93,39 @@ function iconoProspecto(p: ProspectoGuardado, yaEsta: boolean) {
       ${p.ya_tiene_placas ? `<div style="position:absolute;top:-4px;right:-4px;width:14px;height:14px;
                   border-radius:9999px;background:#fbbf24;border:1.5px solid white;font-size:8px;
                   display:flex;align-items:center;justify-content:center">☀️</div>` : ''}
+      <!-- La estrella dice que esto NO es un cliente: es un objetivo marcado a
+           mano para aprovechar cuando se pase por la zona. Sin ella se confunde
+           con la cartera y se pierde la diferencia, que es justo la que importa. -->
+      <div style="position:absolute;top:-6px;left:-6px;width:16px;height:16px;border-radius:9999px;
+                  background:#8b5cf6;border:2px solid white;display:flex;align-items:center;
+                  justify-content:center;font-size:9px;color:white;font-weight:900;
+                  box-shadow:0 1px 3px rgba(0,0,0,.4)">★</div>
     </div>`;
   return L.divIcon({ html, className: '', iconSize: [px, px], iconAnchor: [px / 2, px / 2], popupAnchor: [0, -px / 2] });
 }
 
-function iconoPunto(color: string, numero?: number, anillo?: string, sol?: boolean) {
+function iconoPunto(
+  color: string,
+  numero?: number,
+  anillo?: string,
+  sol?: boolean,
+  visitado?: { icono: string; color: string } | null
+) {
   // Divicon con SVG inline: evita el problema de rutas de los iconos por defecto de Leaflet con bundlers
   const L = (window as unknown as { L: typeof import('leaflet') }).L;
+  // Lo ya visitado se apaga y lleva su sello: deja de competir por la atención
+  // con lo que queda por hacer, pero sigue viéndose que se estuvo allí.
+  const opacidad = visitado ? 0.55 : 1;
   const html = `
-    <div style="position:relative;width:30px;height:30px;">
+    <div style="position:relative;width:30px;height:30px;opacity:${opacidad}">
       ${anillo ? `<div style="position:absolute;inset:-4px;border-radius:9999px;border:2.5px solid ${anillo};"></div>` : ''}
       <svg width="30" height="30" viewBox="0 0 30 30">
         <circle cx="15" cy="15" r="11" fill="${color}" stroke="white" stroke-width="2.5"/>
         ${numero != null ? `<text x="15" y="19.5" text-anchor="middle" font-size="12" font-weight="900" fill="white" font-family="sans-serif">${numero}</text>` : ''}
       </svg>
+      ${visitado ? `<div style="position:absolute;bottom:-5px;right:-5px;width:17px;height:17px;border-radius:9999px;
+            background:${visitado.color};border:2px solid white;display:flex;align-items:center;justify-content:center;
+            font-size:9px;box-shadow:0 1px 3px rgba(0,0,0,.4)">${visitado.icono}</div>` : ''}
       ${sol ? `<div style="position:absolute;top:-7px;right:-7px;width:16px;height:16px;border-radius:9999px;background:#fbbf24;border:1.5px solid white;display:flex;align-items:center;justify-content:center;font-size:9px;box-shadow:0 1px 3px rgba(0,0,0,.35)">☀️</div>` : ''}
     </div>`;
   return L.divIcon({ html, className: '', iconSize: [30, 30], iconAnchor: [15, 15], popupAnchor: [0, -14] });
@@ -132,6 +168,8 @@ export function MapaRutas({ paradas, seleccion, onAlternar, orden, origenGeo, or
   const [capa, setCapa] = useState<ClaveCapa>('hibrido');
   const capasFondo = useRef<import('leaflet').Layer[]>([]);
   const [verLeyenda, setVerLeyenda] = useState(true);
+  /** Esconde lo ya resuelto para dejar en el mapa lo que queda por hacer. */
+  const [ocultarVisitados, setOcultarVisitados] = useState(false);
 
   /** Geocodifica (una vez) las paradas visibles con el filtro actual. */
   const cargarUbicaciones = useCallback(async () => {
@@ -263,12 +301,21 @@ export function MapaRutas({ paradas, seleccion, onAlternar, orden, origenGeo, or
       const enRuta = ordenMap.get(p.id);
       const marcada = seleccion.has(p.id);
       const visitadoHoy = p.fecha_ultimo_contacto === HOY();
+      // El sello de la última visita: qué pasó, no solo que se estuvo
+      const sello = p.visita?.resultado ? PINTA_VISITA[p.visita.resultado] : null;
+      const yaVisitado = !!p.visita;
       // Con coordenadas la zona está garantizada: pueblo reconocido o la más cercana
       const zona = zonaDeParada(p.direccion, geo);
       const color = visitadoHoy ? '#10b981' : marcada ? '#3b82f6' : p.interesFV ? '#eab308' : COLOR_PRIORIDAD[p.prioridad || 'C'];
       // Anillo: negro si está en la ruta calculada; si no, el color de su zona de actuación
       const anillo = enRuta ? '#111827' : zona?.color;
-      const marker = L.marker([geo.lat, geo.lon], { icon: iconoPunto(color, enRuta, anillo, p.interesFV) }).addTo(capaMarcadores.current!);
+      // Ocultar lo ya resuelto deja el mapa con lo que queda por hacer, que es
+      // como se planifica una mañana. Los de la ruta nunca se esconden.
+      if (ocultarVisitados && yaVisitado && !enRuta && !marcada) continue;
+
+      const marker = L.marker([geo.lat, geo.lon], {
+        icon: iconoPunto(color, enRuta, anillo, p.interesFV, sello ? { icono: sello.icono, color: sello.color } : yaVisitado ? { icono: '✓', color: '#10b981' } : null),
+      }).addTo(capaMarcadores.current!);
       bounds.push([geo.lat, geo.lon]);
 
       const dias = diasDesde(p.fecha_ultimo_contacto);
@@ -284,6 +331,8 @@ export function MapaRutas({ paradas, seleccion, onAlternar, orden, origenGeo, or
         <p style="font-size:11px;color:#666;margin-bottom:4px">📍 ${p.direccion}</p>
         ${zona ? `<p style="font-size:11px;font-weight:700;margin-bottom:4px;color:${zona.color}">🗂️ Zona: ${zona.nombre}</p>` : ''}
         <p style="font-size:11px;color:${dias != null && dias > 30 ? '#d97706' : '#666'};margin-bottom:6px">${textoContacto}</p>
+        ${sello ? `<p style="font-size:11px;font-weight:700;color:${sello.color};margin-bottom:6px">
+            ${sello.icono} Última visita: ${sello.texto}</p>` : ''}
         ${p.interesFV ? '<p style="font-size:11px;color:#a16207;font-weight:700;margin-bottom:6px">☀️ Interesado en fotovoltaica</p>' : ''}
         ${visitadoHoy ? '<p style="font-size:11px;color:#10b981;font-weight:700;margin-bottom:6px">✓ Visitado hoy</p>' : ''}
         ${enRuta ? `<p style="font-size:11px;color:#111827;font-weight:700;margin-bottom:6px">🔢 Parada nº ${enRuta} de la ruta</p>` : ''}
@@ -345,6 +394,8 @@ export function MapaRutas({ paradas, seleccion, onAlternar, orden, origenGeo, or
       div.innerHTML = `
         <img src="${urlOrtofoto(pr.lat, pr.lon, 320, 460, 260)}" alt=""
              style="width:100%;height:130px;object-fit:cover;border-radius:8px;margin-bottom:6px;background:#e5e7eb" />
+        <p style="display:inline-block;background:#8b5cf6;color:white;font-size:9px;font-weight:900;
+                  padding:2px 6px;border-radius:9999px;margin-bottom:4px">★ OBJETIVO · AÚN NO ES CLIENTE</p>
         <p style="font-weight:800;font-size:13px;margin-bottom:1px">${pr.nombre || TIPO_PROSPECTO_LABEL[pr.tipo]}</p>
         <p style="font-size:11px;color:#666;margin-bottom:4px">
           ${TIPO_PROSPECTO_LABEL[pr.tipo]}${pr.municipio ? ` · ${pr.municipio}` : ''}
@@ -414,10 +465,14 @@ export function MapaRutas({ paradas, seleccion, onAlternar, orden, origenGeo, or
       mapa.invalidateSize(); // por si el contenedor acaba de hacerse visible
       try { mapa.fitBounds(bounds as [number, number][], { padding: [30, 30], maxZoom: 14 }); } catch { /* rango insuficiente */ }
     }
-  }, [puntos, seleccion, orden, origenGeo, paradas, modoManual, origenTexto, pintar, prospectos, prospectosAnadidos, capa]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [puntos, seleccion, orden, origenGeo, paradas, modoManual, origenTexto, pintar, prospectos, prospectosAnadidos, capa, ocultarVisitados]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const visitadasHoy = paradas.filter((p) => puntos[p.id] && p.fecha_ultimo_contacto === HOY()).length;
   const ubicadas = Object.values(puntos).filter(Boolean).length;
+  /** Ya visitados alguna vez: lo que NO hay que volver a llamar a ciegas. */
+  const yaVisitados = paradas.filter((p) => puntos[p.id] && p.visita).length;
+  /** Objetivos marcados a mano para aprovechar el viaje. */
+  const objetivos = prospectos?.length ?? 0;
 
   const oscura = esOscura(capa);
 
@@ -434,8 +489,9 @@ export function MapaRutas({ paradas, seleccion, onAlternar, orden, origenGeo, or
               {[
                 { n: ubicadas, de: paradas.length, t: 'ubicadas', c: 'text-foreground' },
                 { n: seleccion.size, de: null, t: 'en la ruta', c: 'text-blue-400' },
-                { n: visitadasHoy, de: null, t: 'visitadas hoy', c: 'text-emerald-400' },
-                { n: paradas.filter((p) => p.interesFV).length, de: null, t: 'interesados FV', c: 'text-amber-400' },
+                { n: yaVisitados, de: null, t: 'ya visitados', c: 'text-emerald-400' },
+                { n: objetivos, de: null, t: 'objetivos', c: 'text-violet-400' },
+                ...(visitadasHoy > 0 ? [{ n: visitadasHoy, de: null, t: 'hoy', c: 'text-emerald-300' }] : []),
               ].map(({ n, de, t, c }) => (
                 <span key={t} className="flex items-baseline gap-1">
                   <motion.b
@@ -513,6 +569,22 @@ export function MapaRutas({ paradas, seleccion, onAlternar, orden, origenGeo, or
             </div>
           </div>
 
+          {/* Esconder lo ya resuelto: la forma más rápida de dejar en el mapa
+              solo lo que queda por hacer. */}
+          {yaVisitados > 0 && (
+            <button
+              onClick={() => setOcultarVisitados((v) => !v)}
+              className={`absolute bottom-3 right-3 z-[500] inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-bold shadow-lg border transition ${
+                ocultarVisitados
+                  ? 'bg-accent text-white border-accent'
+                  : 'bg-background/85 backdrop-blur text-muted border-border/50 hover:text-foreground'
+              }`}
+            >
+              {ocultarVisitados ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+              {ocultarVisitados ? `${yaVisitados} visitados ocultos` : 'Ocultar ya visitados'}
+            </button>
+          )}
+
           {/* Aviso del modo manual, encima del mapa donde se está mirando */}
           <AnimatePresence>
             {modoManual && (
@@ -553,7 +625,29 @@ export function MapaRutas({ paradas, seleccion, onAlternar, orden, origenGeo, or
                 transition={{ duration: 0.22, ease: 'easeOut' }}
                 className="overflow-hidden"
               >
-                <div className="px-3 pb-3 space-y-2">
+                <div className="px-3 pb-3 space-y-2.5">
+                  {/* Tres familias, y conviene no confundirlas nunca */}
+                  <div className="grid sm:grid-cols-3 gap-2">
+                    <div className="rounded-lg bg-card/60 border border-border/30 p-2">
+                      <p className="text-[10px] font-black text-foreground mb-0.5">🔴 Clientes por visitar</p>
+                      <p className="text-[10px] text-muted leading-snug">
+                        Pin liso. El color es la prioridad; el anillo, su zona.
+                      </p>
+                    </div>
+                    <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/25 p-2">
+                      <p className="text-[10px] font-black text-emerald-400 mb-0.5">✓ Ya visitados</p>
+                      <p className="text-[10px] text-muted leading-snug">
+                        Pin apagado con sello: 🧾 dio factura · 🕐 hay que volver · 🚪 no estaba · ✕ dijo que no.
+                      </p>
+                    </div>
+                    <div className="rounded-lg bg-violet-500/10 border border-violet-500/25 p-2">
+                      <p className="text-[10px] font-black text-violet-400 mb-0.5">★ Objetivos marcados</p>
+                      <p className="text-[10px] text-muted leading-snug">
+                        Aún NO son clientes. Los marcaste tú para aprovechar cuando se pase por la zona.
+                      </p>
+                    </div>
+                  </div>
+
                   <div className="flex flex-wrap gap-x-3 gap-y-1.5 text-[10px] text-muted">
                     {([
                       ['#ef4444', 'Prioridad A'],
@@ -570,10 +664,11 @@ export function MapaRutas({ paradas, seleccion, onAlternar, orden, origenGeo, or
                     <span className="flex items-center gap-1">🏠 Punto de salida</span>
                   </div>
 
-                  {(prospectos?.length ?? 0) > 0 && (
+                  {objetivos > 0 && (
                     <p className="text-[10px] text-muted">
-                      <b className="text-foreground">Oportunidades:</b> el emoji es el sector y el número de la esquina
-                      son las naves. Vienen aprobadas del Mapa de oportunidades.
+                      <b className="text-violet-400">★ Los {objetivos} objetivos</b> llevan el emoji de su sector y el
+                      número de naves en la esquina. Vienen del Mapa de oportunidades, donde los aprobaste con
+                      «Que vaya David». Al añadir uno a la ruta se le crea la ficha de cliente.
                     </p>
                   )}
 

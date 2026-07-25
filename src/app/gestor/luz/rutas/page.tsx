@@ -175,18 +175,36 @@ export default function RutasPage() {
     return m;
   }, [visitas.datos]);
 
+  /**
+   * La ÚLTIMA visita de cada cliente, con lo que pasó en ella.
+   *
+   * "Visitado" a secas no dice nada: uno al que se pasó ayer y dijo que no
+   * tiene poco que ver con otro al que se pasó ayer y dio la factura. En el
+   * mapa esa diferencia tiene que verse sin abrir nada.
+   */
+  const ultimaVisita = useMemo(() => {
+    const m = new Map<string, { fecha: string; resultado?: string | null }>();
+    for (const v of visitas.datos) {
+      const previa = m.get(v.cliente_id);
+      if (!previa || v.fecha > previa.fecha) {
+        m.set(v.cliente_id, { fecha: v.fecha, resultado: (v as { resultado?: string | null }).resultado ?? null });
+      }
+    }
+    return m;
+  }, [visitas.datos]);
+
   /** Posibles paradas: clientes con dirección + CUPS con dirección de suministro. */
   const paradasDisponibles = useMemo(() => {
     const HOY = new Date().toISOString().slice(0, 10);
     const q = buscar.trim().toLowerCase();
     const deResp = (r: string | null) => !fResp || (r || '').toLowerCase().includes(fResp.toLowerCase());
-    const lista: (Parada & { tipo: 'cliente' | 'cups'; prioridad?: string; fecha_ultimo_contacto?: string | null; interesFV?: boolean; via_entrada?: string | null })[] = [];
+    const lista: (Parada & { tipo: 'cliente' | 'cups'; prioridad?: string; fecha_ultimo_contacto?: string | null; interesFV?: boolean; via_entrada?: string | null; visita?: { fecha: string; resultado?: string | null } })[] = [];
 
     for (const c of clientes.datos) {
       if (!c.direccion_fiscal?.trim()) continue;
       if (!deResp(c.responsable)) continue;
       if (q && !c.nombre.toLowerCase().includes(q)) continue;
-      lista.push({ id: `c-${c.id}`, cliente_id: c.id, nombre: c.nombre, direccion: c.direccion_fiscal, tipo: 'cliente', prioridad: c.prioridad, fecha_ultimo_contacto: c.fecha_ultimo_contacto, interesFV: interesadosFV.has(c.id), via_entrada: c.via_entrada });
+      lista.push({ id: `c-${c.id}`, cliente_id: c.id, nombre: c.nombre, direccion: c.direccion_fiscal, tipo: 'cliente', prioridad: c.prioridad, fecha_ultimo_contacto: c.fecha_ultimo_contacto, interesFV: interesadosFV.has(c.id), via_entrada: c.via_entrada, visita: ultimaVisita.get(c.id) });
     }
     for (const s of cups.datos) {
       if (!s.direccion_suministro?.trim()) continue;
@@ -218,7 +236,7 @@ export default function RutasPage() {
       return true;
     });
     return filtrada.sort((a, b) => a.nombre.localeCompare(b.nombre));
-  }, [clientes.datos, cups.datos, buscar, fResp, fVista, interesadosFV, fFechaVisita, visitasPorCliente, fZona, geoPuntos]);
+  }, [clientes.datos, cups.datos, buscar, fResp, fVista, interesadosFV, fFechaVisita, visitasPorCliente, ultimaVisita, fZona, geoPuntos]);
 
   /** Crea la oportunidad de fotovoltaica en el pipeline desde el mapa. */
   async function marcarInteresFV(clienteId: string, nombre: string) {
