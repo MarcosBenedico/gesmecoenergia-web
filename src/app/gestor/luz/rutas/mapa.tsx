@@ -5,8 +5,7 @@ import 'leaflet/dist/leaflet.css';
 import { RefreshCw, Layers } from 'lucide-react';
 import { guardarLuz, btnSecundario } from '../ui';
 import { ZONAS, zonaDeParada } from '@/lib/zonas';
-import { Prospecto, TipoProspecto, TIPO_PROSPECTO_LABEL, nivelInteres } from '@/lib/prospeccion';
-import { textoRango } from '@/lib/consumo-estimado';
+import { ProspectoGuardado, TipoProspecto, TIPO_PROSPECTO_LABEL, categoriaDeNaves } from '@/lib/prospeccion';
 import { urlOrtofoto } from './foto-aerea';
 
 /**
@@ -47,33 +46,31 @@ const EMOJI_PROSPECTO: Record<TipoProspecto, string> = {
 };
 
 /**
- * Pin de un candidato. El emoji dice QUÉ es y el tamaño dice CUÁNTO consume:
- * los grandes consumidores se ven más gordos en el mapa, que es la forma más
- * rápida de decidir por dónde empezar la mañana. El borde de color repite el
- * nivel de interés para quien distinga mal los tamaños.
+ * Pin de una oportunidad aprobada. Dice tres cosas de golpe: el emoji es el
+ * tipo de sitio, el número de la esquina son las NAVES —la medida que usa el
+ * sector y la que mejor predice la factura— y el tamaño acompaña, para que las
+ * explotaciones grandes salten a la vista sin leer nada.
  */
-function iconoProspecto(p: Prospecto) {
+function iconoProspecto(p: ProspectoGuardado, yaEsta: boolean) {
   const L = (window as unknown as { L: typeof import('leaflet') }).L;
-  const kwh = p.consumo?.centro || 0;
-  const grande = kwh >= 100000;
-  const medio = kwh >= 30000;
-  const px = grande ? 40 : medio ? 32 : 25;
-  const nivel = nivelInteres(p.puntuacion).tono;
-  const borde = { alto: '#10b981', medio: '#f59e0b', bajo: '#94a3b8' }[nivel];
+  const cat = categoriaDeNaves(p.n_edificios);
+  const px = p.n_edificios >= 5 ? 38 : p.n_edificios >= 3 ? 32 : 27;
 
   const html = `
-    <div style="position:relative;width:${px}px;height:${px}px;">
+    <div style="position:relative;width:${px}px;height:${px}px;opacity:${yaEsta ? 0.55 : 1}">
       <div style="width:${px}px;height:${px}px;border-radius:9999px;background:#fffbeb;
-                  border:3px solid ${borde};display:flex;align-items:center;justify-content:center;
-                  font-size:${Math.round(px * 0.52)}px;box-shadow:0 2px 6px rgba(0,0,0,.35)">
-        ${EMOJI_PROSPECTO[p.tipo]}
+                  border:3px solid ${yaEsta ? '#10b981' : cat.color};display:flex;align-items:center;
+                  justify-content:center;font-size:${Math.round(px * 0.46)}px;
+                  box-shadow:0 2px 5px rgba(0,0,0,.3)">
+        ${EMOJI_PROSPECTO[p.tipo] || '❓'}
       </div>
-      ${grande ? `<div style="position:absolute;bottom:-4px;right:-4px;background:${borde};color:white;
-                    font-size:8px;font-weight:900;border-radius:9999px;padding:1px 4px;border:1.5px solid white;
-                    white-space:nowrap">GRAN</div>` : ''}
-      ${p.ya_tiene_placas ? `<div style="position:absolute;top:-5px;right:-5px;width:15px;height:15px;border-radius:9999px;
-                    background:#fbbf24;border:1.5px solid white;display:flex;align-items:center;justify-content:center;
-                    font-size:8px">☀️</div>` : ''}
+      <div style="position:absolute;bottom:-3px;right:-3px;background:${cat.color};color:white;
+                  min-width:15px;height:15px;border-radius:9999px;border:1.5px solid white;
+                  font-size:9px;font-weight:900;display:flex;align-items:center;justify-content:center;
+                  padding:0 2px">${p.n_edificios}</div>
+      ${p.ya_tiene_placas ? `<div style="position:absolute;top:-4px;right:-4px;width:14px;height:14px;
+                  border-radius:9999px;background:#fbbf24;border:1.5px solid white;font-size:8px;
+                  display:flex;align-items:center;justify-content:center">☀️</div>` : ''}
     </div>`;
   return L.divIcon({ html, className: '', iconSize: [px, px], iconAnchor: [px / 2, px / 2], popupAnchor: [0, -px / 2] });
 }
@@ -104,11 +101,11 @@ interface Props {
   modoManual: boolean;
   onMarcarFV?: (clienteId: string, nombre: string) => Promise<void>;
   onUbicaciones?: (puntos: Record<string, { lat: number; lon: number } | null>) => void;
-  /** Candidatos de "Aprovechar el viaje": se pintan con su emoji sobre la ruta. */
-  prospectos?: Prospecto[];
+  /** Oportunidades ya aprobadas para visitar: se pintan con su emoji sobre la ruta. */
+  prospectos?: ProspectoGuardado[];
   /** Crea la ficha del candidato y lo mete como parada. Devuelve el error, si lo hay. */
-  onProspectoARuta?: (p: Prospecto) => Promise<string | null>;
-  /** Candidatos que ya se han pasado a la ruta, por id de OSM. */
+  onProspectoARuta?: (p: ProspectoGuardado) => Promise<string | null>;
+  /** Las que ya se han pasado a la ruta, por id. */
   prospectosAnadidos?: Record<string, boolean>;
 }
 
@@ -288,44 +285,39 @@ export function MapaRutas({ paradas, seleccion, onAlternar, orden, origenGeo, or
       if (modoManual) marker.on('click', () => onAlternar({ id: p.id, nombre: p.nombre, direccion: p.direccion, cliente_id: p.cliente_id }));
     }
 
-    // ── Candidatos de "Aprovechar el viaje" ──
-    // No son clientes todavía: se distinguen por el emoji de su actividad y por
-    // el tamaño del pin, que va con el consumo estimado. Al pulsarlos sale la
-    // foto aérea, que es lo que de verdad decide si merece parar.
+    // ── Oportunidades aprobadas para visitar ──
+    // Vienen ya filtradas del Mapa de oportunidades: aquí no se busca nada.
+    // El número del pin son las naves; al pulsarlo sale la foto aérea.
     for (const pr of prospectos || []) {
       const yaEsta = !!prospectosAnadidos?.[pr.id];
+      const cat = categoriaDeNaves(pr.n_edificios);
       const marker = L.marker([pr.lat, pr.lon], {
-        icon: iconoProspecto(pr),
+        icon: iconoProspecto(pr, yaEsta),
         // Por debajo de las paradas: los clientes mandan sobre los candidatos
         zIndexOffset: -200,
-        opacity: yaEsta ? 0.55 : 1,
       }).addTo(capaMarcadores.current!);
       bounds.push([pr.lat, pr.lon]);
 
       const div = document.createElement('div');
       div.style.width = '230px';
       div.style.fontFamily = 'inherit';
-      const nivel = nivelInteres(pr.puntuacion);
-      const colorNivel = { alto: '#059669', medio: '#b45309', bajo: '#64748b' }[nivel.tono];
       div.innerHTML = `
         <img src="${urlOrtofoto(pr.lat, pr.lon, 320, 460, 260)}" alt=""
              style="width:100%;height:130px;object-fit:cover;border-radius:8px;margin-bottom:6px;background:#e5e7eb" />
         <p style="font-weight:800;font-size:13px;margin-bottom:1px">${pr.nombre || TIPO_PROSPECTO_LABEL[pr.tipo]}</p>
         <p style="font-size:11px;color:#666;margin-bottom:4px">
           ${TIPO_PROSPECTO_LABEL[pr.tipo]}${pr.municipio ? ` · ${pr.municipio}` : ''}
-          · a ${pr.km_desvio < 0.1 ? 'pie de ruta' : `${pr.km_desvio.toFixed(1)} km`}
         </p>
-        ${pr.consumo ? `<p style="font-size:11px;font-weight:700;color:#047857;margin-bottom:4px">
-            ⚡ ${textoRango(pr.consumo)} <span style="font-weight:400;color:#666">estimados</span></p>` : ''}
-        <p style="font-size:11px;color:#666;margin-bottom:4px">
-          🏗️ ${pr.m2_construidos.toLocaleString('es-ES')} m² en ${pr.n_edificios} ${pr.n_edificios === 1 ? 'nave' : 'naves'}
-          ${pr.nave_mayor ? ` · mayor ${pr.nave_mayor.largo}×${pr.nave_mayor.ancho} m` : ''}
-          ${pr.tiene_balsa ? ' · 💧 balsa al lado' : ''}
+        <p style="font-size:11px;font-weight:700;color:${cat.color};margin-bottom:4px">
+          ${cat.etiqueta} · ${pr.m2_construidos.toLocaleString('es-ES')} m²
+          ${pr.nave_largo ? ` · mayor ${pr.nave_largo}×${pr.nave_ancho} m` : ''}
         </p>
+        ${pr.consumo_estimado_kwh ? `<p style="font-size:11px;font-weight:700;color:#047857;margin-bottom:4px">
+            ⚡ ~${pr.consumo_estimado_kwh.toLocaleString('es-ES')} kWh/año
+            <span style="font-weight:400;color:#666">estimados</span></p>` : ''}
+        ${pr.tiene_balsa ? '<p style="font-size:11px;color:#0891b2;margin-bottom:4px">💧 Balsa al lado</p>' : ''}
         ${pr.ya_tiene_placas ? '<p style="font-size:11px;color:#b45309;font-weight:700;margin-bottom:4px">☀️ Ya figura con placas</p>' : ''}
-        <p style="font-size:11px;font-weight:700;color:${colorNivel};margin-bottom:4px">${nivel.texto}</p>
-        ${pr.que_mirar.length ? `<p style="font-size:10px;color:#666;margin-bottom:6px;line-height:1.35">
-            <b>👁 En la foto:</b> ${pr.que_mirar[0]}</p>` : ''}
+        ${pr.catastro_anio ? `<p style="font-size:10px;color:#666;margin-bottom:6px">Catastro: ${pr.catastro_uso || ''} · de ${pr.catastro_anio}</p>` : ''}
       `;
 
       if (onProspectoARuta) {

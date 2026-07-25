@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard, Users, Plug, CalendarClock, Target, FileSignature,
-  Euro, ArrowDownUp, Settings, ChevronLeft, ChevronDown, Zap, UserCog, ShieldCheck, Route, History, Sun, UserPlus, BookOpen, Calculator, FileText, TrendingUp, Trash2,
+  Euro, ArrowDownUp, Settings, ChevronLeft, ChevronDown, Zap, UserCog, ShieldCheck, Route, History, Sun, UserPlus, Radar, BookOpen, Calculator, FileText, TrendingUp, Trash2,
 } from 'lucide-react';
 import { GuardiaModulo } from '@/components/guardia-modulo';
 import { useUsuario } from '@/lib/usuario';
@@ -57,6 +57,7 @@ const BLOQUES: Bloque[] = [
     pista: 'Negocio, equipo y control',
     secciones: [
       { href: '/gestor/luz', icono: LayoutDashboard, nombre: 'Dashboard Luz' },
+      { href: '/gestor/luz/oportunidades', icono: Radar, nombre: 'Mapa de oportunidades', soloAdmin: true },
       { href: '/gestor/luz/mercado', icono: TrendingUp, nombre: 'Precio de la luz', soloAdmin: true },
       { href: '/gestor/luz/comisiones', icono: Euro, nombre: 'Comisiones' },
       { href: '/gestor/luz/equipo', icono: UserCog, nombre: 'Equipo y Logros' },

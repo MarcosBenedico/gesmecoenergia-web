@@ -1,162 +1,152 @@
 'use client';
 
-import { useState } from 'react';
-import { Radar, Loader, Info, MapPin } from 'lucide-react';
-import { Prospecto, TIPO_PROSPECTO_LABEL } from '@/lib/prospeccion';
-import { Card, btnSecundario } from '../ui';
+import { useMemo } from 'react';
+import Link from 'next/link';
+import { Truck, Info, MapPin, ExternalLink } from 'lucide-react';
+import {
+  ProspectoGuardado, TIPO_PROSPECTO_LABEL, categoriaDeNaves, kmALaRuta,
+} from '@/lib/prospeccion';
+import { Card } from '../ui';
 
 /**
- * APROVECHAR EL VIAJE — buscador de candidatos.
+ * OPORTUNIDADES APROBADAS QUE PILLAN DE CAMINO.
  *
- * Los resultados NO se listan aquí: se pintan en el mapa de arriba, cada uno
- * con el emoji de su actividad y del tamaño que le toca por consumo. En una
- * lista no se ve lo único que importa de verdad para decidir —si pilla de
- * camino o hay que cruzar la comarca—, y el mapa lo dice sin leer nada.
+ * Ya no se busca nada aquí. Las oportunidades se barren y se filtran en el
+ * Mapa de oportunidades, y a esta pantalla solo llegan las que Marcos ha
+ * marcado como "que vaya David". Así David no tiene que elegir entre
+ * trescientos puntos: recibe la lista ya decidida.
  *
- * Este panel se queda con lo que la lista no puede dar: los mandos, el
- * recuento y la leyenda.
+ * De esas, se destacan las que quedan cerca del recorrido de hoy, que son las
+ * que puede encajar sin perder la mañana.
  */
 
 interface Props {
+  /** Por dónde pasa la ruta calculada. Vacío si aún no se ha calculado. */
   ruta: { lat: number; lon: number }[];
-  yaClientes: { lat: number; lon: number }[];
-  /** Los resultados suben a la página, que se los pasa al mapa. */
-  onResultados: (p: Prospecto[]) => void;
-  prospectos: Prospecto[];
+  /** Todas las aprobadas para visitar. */
+  aprobadas: ProspectoGuardado[];
+  /** Cuáles ya se han metido en la ruta, por id. */
+  anadidas: Record<string, boolean>;
+  cargando?: boolean;
 }
 
-/** Orden de la leyenda: de más a menos interesante para el negocio. */
-const LEYENDA: Prospecto['tipo'][] = [
-  'granja_intensiva', 'industria', 'granja', 'invernadero', 'nave', 'riego', 'comercio', 'sin_clasificar',
-];
+/** Hasta dónde se considera que algo "pilla de camino". */
+const KM_DE_CAMINO = 4;
 
-export function Prospectos({ ruta, yaClientes, onResultados, prospectos }: Props) {
-  const [radio, setRadio] = useState(2);
-  const [buscando, setBuscando] = useState(false);
-  const [error, setError] = useState('');
-  const [buscado, setBuscado] = useState(false);
-  /** La consulta va por tramos: si alguno falla, hay resultados pero incompletos. */
-  const [aviso, setAviso] = useState('');
+export function Prospectos({ ruta, aprobadas, anadidas, cargando }: Props) {
+  const { deCamino, lejos } = useMemo(() => {
+    if (!ruta.length) return { deCamino: [], lejos: aprobadas };
+    const conDistancia = aprobadas.map((p) => ({ p, km: kmALaRuta({ lat: p.lat, lon: p.lon }, ruta) }));
+    return {
+      deCamino: conDistancia.filter((x) => x.km <= KM_DE_CAMINO).sort((a, b) => a.km - b.km),
+      lejos: conDistancia.filter((x) => x.km > KM_DE_CAMINO).map((x) => x.p),
+    };
+  }, [ruta, aprobadas]);
 
-  async function buscar() {
-    setBuscando(true); setError(''); setAviso(''); onResultados([]);
-    try {
-      const res = await fetch('/api/luz/prospectar', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ruta, radio_km: radio, excluir: yaClientes }),
-      });
-      const json = await res.json();
-      if (!res.ok) { setError(json.error || 'No se pudo buscar.'); return; }
-      onResultados(json.prospectos || []);
-      setAviso(json.aviso || '');
-      setBuscado(true);
-    } catch {
-      setError('No se pudo conectar con el buscador.');
-    } finally {
-      setBuscando(false);
-    }
-  }
-
-  const hayRuta = ruta.length > 0;
-  const porTipo = LEYENDA.map((t) => ({ tipo: t, n: prospectos.filter((p) => p.tipo === t).length })).filter((x) => x.n > 0);
-  const grandes = prospectos.filter((p) => (p.consumo?.centro || 0) >= 100000).length;
+  const pendientes = aprobadas.filter((p) => !anadidas[p.id]).length;
 
   return (
     <Card className="!border-secondary/40">
       <div className="flex items-start gap-2 mb-1">
-        <Radar className="w-4 h-4 text-secondary shrink-0 mt-0.5" />
+        <Truck className="w-4 h-4 text-secondary shrink-0 mt-0.5" />
         <div>
-          <h3 className="font-bold text-sm">Aprovechar el viaje</h3>
+          <h3 className="font-bold text-sm">Oportunidades para visitar</h3>
           <p className="text-[11px] text-muted">
-            Granjas, naves y negocios de camino que aún no son clientes. Salen <b className="text-foreground">en el mapa de arriba</b>.
+            Las que están aprobadas en el <Link href="/gestor/luz/oportunidades" className="text-accent hover:underline">Mapa de oportunidades</Link>.
+            Salen en el mapa de arriba con su emoji.
           </p>
         </div>
       </div>
 
-      {!hayRuta ? (
-        <p className="text-[11px] text-muted bg-card/60 rounded-lg p-2.5 mt-2">
-          Calcula primero la ruta: hace falta saber por dónde se pasa.
-        </p>
+      {cargando ? (
+        <p className="text-[11px] text-muted mt-2">Cargando…</p>
+      ) : aprobadas.length === 0 ? (
+        <div className="mt-2 rounded-lg bg-card/60 p-2.5">
+          <p className="text-[11px] text-muted">
+            Todavía no hay ninguna aprobada. En el{' '}
+            <Link href="/gestor/luz/oportunidades" className="text-accent hover:underline font-bold">Mapa de oportunidades</Link>{' '}
+            se barre una zona y se marcan las que merezcan una visita con <b className="text-foreground">«Que vaya David»</b>.
+          </p>
+          <Link href="/gestor/luz/oportunidades"
+            className="inline-flex items-center gap-1 mt-2 text-[11px] font-bold text-secondary hover:underline">
+            <ExternalLink className="w-3 h-3" /> Ir al mapa de oportunidades
+          </Link>
+        </div>
       ) : (
         <>
-          <div className="flex items-end gap-2 mt-3">
-            <label className="text-[11px] font-bold text-muted">
-              Cuánto me desvío
-              <select value={radio} onChange={(e) => setRadio(Number(e.target.value))}
-                className="block mt-1 rounded-lg border border-border/40 bg-background/60 px-2 py-1.5 text-xs font-semibold">
-                <option value={1}>Hasta 1 km</option>
-                <option value={2}>Hasta 2 km</option>
-                <option value={3}>Hasta 3 km</option>
-                <option value={5}>Hasta 5 km</option>
-              </select>
-            </label>
-            <button onClick={buscar} disabled={buscando} className={`${btnSecundario} flex-1 justify-center`}>
-              {buscando ? <><Loader className="w-4 h-4 animate-spin" /> Mirando la zona…</> : <><Radar className="w-4 h-4" /> Buscar por la zona</>}
-            </button>
+          <div className="mt-3 rounded-lg bg-secondary/10 border border-secondary/25 p-2.5">
+            <p className="text-sm font-black text-secondary">
+              {aprobadas.length} aprobadas
+              {pendientes > 0 && <span className="text-foreground font-bold"> · {pendientes} sin meter en la ruta</span>}
+            </p>
+            <p className="text-[10px] text-muted mt-0.5 flex items-center gap-1">
+              <MapPin className="w-3 h-3" /> Púlsalas en el mapa para ver la foto aérea y añadirlas.
+            </p>
           </div>
 
-          {buscando && <p className="text-[10px] text-muted mt-2">Puede tardar unos segundos: se consulta el mapa público.</p>}
-          {error && <p className="text-[11px] text-red-400 mt-2 bg-red-500/10 border border-red-500/20 rounded-lg p-2">{error}</p>}
-          {aviso && <p className="text-[11px] text-amber-300 mt-2 bg-amber-500/10 border border-amber-500/20 rounded-lg p-2">⚠️ {aviso}</p>}
-
-          {buscado && prospectos.length === 0 && !buscando && (
-            <p className="text-[11px] text-muted mt-3 bg-card/60 rounded-lg p-2.5">
-              No sale nada por aquí. Puede que no haya, o que el mapa esté poco detallado en esta zona — prueba a ampliar el desvío.
+          {!ruta.length ? (
+            <p className="text-[11px] text-muted mt-2">
+              Calcula la ruta y te digo cuáles pillan de camino.
             </p>
-          )}
-
-          {prospectos.length > 0 && (
+          ) : (
             <>
-              <div className="mt-3 rounded-lg bg-secondary/10 border border-secondary/25 p-2.5">
-                <p className="text-sm font-black text-secondary">
-                  {prospectos.length} sitios de camino
-                  {grandes > 0 && <span className="text-foreground font-bold"> · {grandes} de consumo alto</span>}
-                </p>
-                <p className="text-[10px] text-muted mt-0.5 flex items-center gap-1">
-                  <MapPin className="w-3 h-3" /> Púlsalos en el mapa para ver la foto aérea y añadirlos a la ruta.
-                </p>
-              </div>
-
-              {/* Leyenda: qué significa cada pin */}
-              <div className="mt-2.5 space-y-1.5">
-                <p className="text-[10px] font-black text-muted">QUÉ HAY</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {porTipo.map(({ tipo, n }) => (
-                    <span key={tipo}
-                      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full border border-border/40 bg-card/70 text-[10px] font-bold">
-                      {TIPO_PROSPECTO_LABEL[tipo]} <span className="text-muted">{n}</span>
-                    </span>
-                  ))}
-                </div>
-
-                <p className="text-[10px] font-black text-muted pt-1">CÓMO LEER EL MAPA</p>
-                <div className="text-[10px] text-muted space-y-1">
-                  <p className="flex items-center gap-1.5">
-                    <span className="inline-flex items-center justify-center rounded-full bg-amber-50 border-2 border-emerald-500 w-6 h-6 text-[11px]">🐖</span>
-                    <span className="inline-flex items-center justify-center rounded-full bg-amber-50 border-2 border-emerald-500 w-4 h-4 text-[8px]">🐖</span>
-                    <b className="text-foreground">El tamaño del pin es el consumo</b> estimado: cuanto más gordo, más factura.
+              {deCamino.length > 0 && (
+                <div className="mt-3">
+                  <p className="text-[10px] font-black text-emerald-400 mb-1.5">
+                    DE CAMINO ({deCamino.length})
                   </p>
-                  <p>
-                    <b className="text-foreground">El borde es el interés</b>: verde merece la pena, ámbar si cuadra, gris solo si sobra tiempo.
-                  </p>
-                  <p>Los que llevan <b className="text-foreground">☀️</b> ya figuran con placas puestas.</p>
+                  <ul className="space-y-1">
+                    {deCamino.map(({ p, km }) => {
+                      const cat = categoriaDeNaves(p.n_edificios);
+                      return (
+                        <li key={p.id}
+                          className={`flex items-center gap-2 rounded-lg border px-2 py-1.5 ${
+                            anadidas[p.id] ? 'border-emerald-500/40 bg-emerald-500/10' : 'border-border/40 bg-card/60'
+                          }`}>
+                          <span className="shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[11px]"
+                            style={{ background: `${cat.color}22`, border: `1.5px solid ${cat.color}` }}>
+                            {p.n_edificios}
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-[11px] font-bold truncate">
+                              {p.nombre || TIPO_PROSPECTO_LABEL[p.tipo]}
+                            </p>
+                            <p className="text-[10px] text-muted">
+                              {cat.etiqueta}
+                              {p.municipio && ` · ${p.municipio}`}
+                              {` · a ${km < 0.2 ? 'pie de ruta' : `${km.toFixed(1)} km`}`}
+                            </p>
+                          </div>
+                          {anadidas[p.id] && <span className="text-[10px] font-bold text-emerald-400 shrink-0">✓ en ruta</span>}
+                        </li>
+                      );
+                    })}
+                  </ul>
                 </div>
-              </div>
+              )}
 
-              <div className="flex items-start gap-1.5 text-[10px] text-muted mt-2.5 bg-card/60 rounded-lg p-2">
-                <Info className="w-3.5 h-3.5 shrink-0 mt-px" />
-                <p>
-                  <b className="text-foreground">El consumo es una estimación, no un dato.</b> El real no es público: se
-                  calcula por tipo de sitio y metros construidos, solo para ordenar a quién visitar.
-                  <b className="text-foreground"> La foto manda</b> — mira los silos, la balsa y si ya tienen placas.
+              {deCamino.length === 0 && (
+                <p className="text-[11px] text-muted mt-2 bg-card/60 rounded-lg p-2.5">
+                  Ninguna de las aprobadas pilla cerca de esta ruta. Salen todas en el mapa de todas formas, por si
+                  compensa dar un rodeo.
                 </p>
-              </div>
+              )}
 
-              <p className="text-[10px] text-muted mt-2">
-                Que algo no salga no quiere decir que no exista: el mapa lo hacen voluntarios y hay zonas con poco detalle.
-              </p>
+              {lejos.length > 0 && (
+                <p className="text-[10px] text-muted mt-2">
+                  Otras {lejos.length} aprobadas quedan a más de {KM_DE_CAMINO} km de esta ruta.
+                </p>
+              )}
             </>
           )}
+
+          <div className="flex items-start gap-1.5 text-[10px] text-muted mt-2.5 bg-card/60 rounded-lg p-2">
+            <Info className="w-3.5 h-3.5 shrink-0 mt-px" />
+            <p>
+              El número del pin son las <b className="text-foreground">naves</b>. Al añadir una se le crea la ficha de
+              cliente, para que la visita quede registrada y no se pierda.
+            </p>
+          </div>
         </>
       )}
     </Card>

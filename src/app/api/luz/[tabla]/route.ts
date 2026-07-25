@@ -108,6 +108,23 @@ const TABLAS: Record<string, DefTabla> = {
     buscarEn: 'titulo',
     orden: { col: 'creado_en', asc: false },
   },
+  // Mapa de oportunidades: granjas y naves detectadas en el mapa público que
+  // todavía no son clientes. Se barre una zona una vez y se van filtrando.
+  prospectos: {
+    tabla: 'luz_prospectos',
+    select: '*',
+    columnas: [
+      'osm_id', 'nombre', 'tipo', 'lat', 'lon', 'municipio', 'm2_construidos', 'n_edificios',
+      'nave_largo', 'nave_ancho', 'tiene_balsa', 'ya_tiene_placas', 'consumo_estimado_kwh',
+      'puntuacion', 'motivos', 'catastro_referencia', 'catastro_uso', 'catastro_m2',
+      'catastro_anio', 'catastro_direccion', 'estado', 'motivo_descarte', 'notas',
+      'responsable', 'cliente_id',
+    ],
+    filtros: ['estado', 'tipo', 'municipio', 'responsable'],
+    buscarEn: 'nombre',
+    // Lo mejor primero: es una cola de revisión, no un listado alfabético
+    orden: { col: 'puntuacion', asc: false },
+  },
   config: {
     tabla: 'luz_config',
     select: '*',
@@ -181,6 +198,7 @@ async function recalcularEstadoCliente(supabase: Supa, clienteId: string | null 
  */
 const CON_PAPELERA = new Set([
   'clientes', 'cups', 'fechas', 'pipeline', 'contratos', 'comisiones', 'tareas', 'visitas', 'proyectos',
+  'prospectos',
 ]);
 
 /**

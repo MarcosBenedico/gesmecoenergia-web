@@ -649,6 +649,120 @@ export function puntuar(
   return { puntuacion: Math.max(0, Math.min(100, n)), motivos };
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+//  EL CANDIDATO GUARDADO Y SU TRABAJO COMERCIAL
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Estados por los que pasa una oportunidad. La gracia de guardarlas es poder
+ * DESCARTAR: lo que se mira y no vale no vuelve a aparecer, y así el mapa
+ * mejora con el uso en vez de repetir siempre lo mismo.
+ */
+export const ESTADOS_PROSPECTO = ['nuevo', 'interesante', 'para_visitar', 'descartado', 'convertido'] as const;
+export type EstadoProspecto = (typeof ESTADOS_PROSPECTO)[number];
+
+export const ESTADO_PROSPECTO_LABEL: Record<EstadoProspecto, string> = {
+  nuevo: 'Sin revisar',
+  interesante: 'Interesa',
+  para_visitar: 'Para visitar',
+  descartado: 'Descartado',
+  convertido: 'Ya es cliente',
+};
+
+export const ESTADO_PROSPECTO_COLOR: Record<EstadoProspecto, string> = {
+  nuevo: '#64748b',
+  interesante: '#f59e0b',
+  para_visitar: '#10b981',
+  descartado: '#475569',
+  convertido: '#3b82f6',
+};
+
+/** Fila de `luz_prospectos`. */
+export interface ProspectoGuardado {
+  id: string;
+  osm_id: string;
+  nombre: string | null;
+  tipo: TipoProspecto;
+  lat: number;
+  lon: number;
+  municipio: string | null;
+  m2_construidos: number;
+  n_edificios: number;
+  nave_largo: number | null;
+  nave_ancho: number | null;
+  tiene_balsa: boolean;
+  ya_tiene_placas: boolean;
+  consumo_estimado_kwh: number | null;
+  puntuacion: number;
+  motivos: string | null;
+  catastro_referencia?: string | null;
+  catastro_uso?: string | null;
+  catastro_m2?: number | null;
+  catastro_anio?: number | null;
+  catastro_direccion?: string | null;
+  estado: EstadoProspecto;
+  motivo_descarte: string | null;
+  notas: string | null;
+  responsable: string | null;
+  cliente_id: string | null;
+  creado_en?: string;
+}
+
+/**
+ * TAMAÑO POR NÚMERO DE NAVES.
+ *
+ * En ganadería de la zona, el número de naves es la medida que todo el mundo
+ * usa y la que mejor se corresponde con la factura: cada nave lleva su
+ * ventilación, sus motores de alimentación y su iluminación. Dos granjas de los
+ * mismos metros pero una con dos naves y otra con ocho no se parecen en nada.
+ */
+export interface CategoriaNaves {
+  clave: string;
+  etiqueta: string;
+  /** Cuántas naves como mínimo. */
+  desde: number;
+  color: string;
+  descripcion: string;
+}
+
+export const CATEGORIAS_NAVES: CategoriaNaves[] = [
+  { clave: 'muy_grande', etiqueta: '8+ naves', desde: 8, color: '#7c3aed',
+    descripcion: 'Explotación grande. Aquí está el dinero.' },
+  { clave: 'grande', etiqueta: '5-7 naves', desde: 5, color: '#e11d48',
+    descripcion: 'Explotación seria, de las que compensan de sobra.' },
+  { clave: 'media', etiqueta: '3-4 naves', desde: 3, color: '#f59e0b',
+    descripcion: 'Tamaño medio: la mayoría de la comarca.' },
+  { clave: 'pequena', etiqueta: '2 naves', desde: 2, color: '#0891b2',
+    descripcion: 'Explotación pequeña, pero con consumo constante.' },
+  { clave: 'suelta', etiqueta: '1 nave', desde: 1, color: '#64748b',
+    descripcion: 'Una sola nave: puede ser almacén y no granja.' },
+];
+
+export function categoriaDeNaves(n: number): CategoriaNaves {
+  return CATEGORIAS_NAVES.find((c) => n >= c.desde) || CATEGORIAS_NAVES[CATEGORIAS_NAVES.length - 1];
+}
+
+/** Pasa un candidato recién detectado a fila lista para guardar. */
+export function aFilaGuardable(p: Prospecto): Record<string, unknown> {
+  return {
+    osm_id: p.id,
+    nombre: p.nombre,
+    tipo: p.tipo,
+    lat: p.lat,
+    lon: p.lon,
+    municipio: p.municipio,
+    m2_construidos: p.m2_construidos,
+    n_edificios: p.n_edificios,
+    nave_largo: p.nave_mayor?.largo ?? null,
+    nave_ancho: p.nave_mayor?.ancho ?? null,
+    tiene_balsa: p.tiene_balsa,
+    ya_tiene_placas: p.ya_tiene_placas,
+    consumo_estimado_kwh: p.consumo?.centro ?? null,
+    puntuacion: p.puntuacion,
+    motivos: p.motivos.join('\n· '),
+  };
+}
+
 /** Etiqueta corta del interés, para no obligar a interpretar un número. */
 export function nivelInteres(puntuacion: number): { texto: string; tono: 'alto' | 'medio' | 'bajo' } {
   if (puntuacion >= 65) return { texto: 'Merece la pena', tono: 'alto' };
