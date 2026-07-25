@@ -432,7 +432,8 @@
       "Bash(python \"C:/Users/Usuario/AppData/Local/Temp/claude/C--Users-Usuario-Desktop-calude-web/e5b35bc9-b92f-4067-8c4a-db31794ae8b2/scratchpad/sin_zonas3.py\")",
       "Bash(node scripts/test-bandeja.mjs)",
       "Bash(gestor/luz/bandeja)",
-      "Bash(src/lib/bandeja.ts)"
+      "Bash(src/lib/bandeja.ts)",
+      "Bash(git commit -q -m 'Guia: rutas de la Bandeja, que se comio el shell al escribirlas *)"
     ]
   }
 }
