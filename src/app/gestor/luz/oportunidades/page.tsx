@@ -9,6 +9,7 @@ import {
 } from '@/lib/prospeccion';
 import { ZONAS } from '@/lib/zonas';
 import { Card, EstadoCarga, useListaLuz, guardarLuz, inputCls, labelCls, btnPrimario } from '../ui';
+import { tokenSesion } from '@/lib/usuario';
 
 // Leaflet necesita `window`: solo en el navegador
 const MapaOportunidades = dynamic(() => import('./mapa-oportunidades').then((m) => m.MapaOportunidades), {
@@ -59,8 +60,12 @@ export default function OportunidadesPage() {
     if (!zona) return;
     setBarriendo(true); setError(''); setMensaje('');
     try {
+      // Sin la sesión, Supabase ve la petición como anónima y RLS rechaza el
+      // guardado: la política de la tabla es sólo para usuarios autenticados.
+      const token = await tokenSesion();
       const res = await fetch('/api/luz/barrer', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify({ centro: zona.centro, radio_km: radioBarrido }),
       });
       const json = await res.json();

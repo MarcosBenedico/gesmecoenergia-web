@@ -95,15 +95,19 @@ export async function POST(req: NextRequest) {
       const filas = nuevos.map((p) => ({ ...aFilaGuardable(p), estado: 'nuevo' }));
       const { error: errIns } = await supa.from('luz_prospectos').insert(filas);
       if (errIns) {
-        // Sin la tabla no se puede guardar nada: hay que decir qué falta
-        const falta = /relation .*luz_prospectos.* does not exist|Could not find the table/i.test(errIns.message);
+        // Los dos fallos previsibles tienen causa concreta y arreglo concreto:
+        // decirlos en cristiano ahorra media hora de búsqueda a ciegas.
+        const faltaTabla = /relation .*luz_prospectos.* does not exist|Could not find the table/i.test(errIns.message);
+        const sinPermiso = /row-level security|violates row-level/i.test(errIns.message);
         return NextResponse.json(
           {
-            error: falta
+            error: faltaTabla
               ? 'Falta la tabla de oportunidades: ejecuta supabase_prospectos.sql en Supabase.'
-              : `No se pudieron guardar: ${errIns.message}`,
+              : sinPermiso
+                ? 'La sesión no ha llegado al servidor y Supabase rechaza el guardado. Vuelve a entrar en el panel y prueba otra vez.'
+                : `No se pudieron guardar: ${errIns.message}`,
           },
-          { status: falta ? 400 : 500 }
+          { status: faltaTabla || sinPermiso ? 400 : 500 }
         );
       }
       guardados = filas.length;
