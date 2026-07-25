@@ -40,6 +40,7 @@ const BLOQUES: Bloque[] = [
     titulo: 'Oficina',
     pista: 'Dar de alta, tramitar y ordenar',
     secciones: [
+      { href: '/gestor/luz/captura', icono: Zap, nombre: 'Captura rápida' },
       { href: '/gestor/luz/guia', icono: BookOpen, nombre: 'Guía rápida' },
       { href: '/gestor/luz/alta', icono: UserPlus, nombre: 'Alta guiada de cliente' },
       { href: '/gestor/luz/clientes', icono: Users, nombre: 'Clientes Energía' },
@@ -78,11 +79,16 @@ export default function LuzLayout({ children }: { children: ReactNode }) {
   const activa = (href: string) =>
     href === '/gestor/luz' ? pathname === href : pathname === href || pathname.startsWith(href + '/');
 
-  // Cada persona pliega los bloques que no usa; su elección se recuerda en este navegador
+  // Cada persona pliega los bloques que no usa; su elección se recuerda en este navegador.
+  // Se lee en un efecto y no en el estado inicial a propósito: localStorage no existe en
+  // el servidor, y leerlo al inicializar haría que el HTML del servidor y el del navegador
+  // no coincidieran. El aviso del linter es correcto en general, pero aquí el efecto es la
+  // forma segura de hacerlo.
   const [plegados, setPlegados] = useState<string[]>([]);
   useEffect(() => {
     try {
       const guardado = localStorage.getItem(CLAVE_PLEGADOS);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       if (guardado) setPlegados(JSON.parse(guardado));
     } catch { /* sin preferencia guardada: todos abiertos */ }
   }, []);
