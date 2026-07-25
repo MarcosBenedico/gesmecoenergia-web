@@ -9,6 +9,8 @@ import { Card, Badge, BadgePrioridad, EstadoCarga, useListaLuz, guardarLuz, inpu
 import { leerRutaDia, guardarRutaDia } from './ruta-dia';
 import { ZONAS, zonaDeParada } from '@/lib/zonas';
 import { Prospectos } from './prospectos';
+import { Prospecto, TIPO_PROSPECTO_LABEL } from '@/lib/prospeccion';
+import { textoRango } from '@/lib/consumo-estimado';
 
 // El mapa usa Leaflet (necesita `window`): se carga solo en el navegador, nunca en el servidor.
 const MapaRutas = dynamic(() => import('./mapa').then((m) => m.MapaRutas), {
@@ -75,6 +77,54 @@ export default function RutasPage() {
   const [calculando, setCalculando] = useState(false);
   const [resultado, setResultado] = useState<Resultado | null>(null);
   const [error, setError] = useState('');
+
+  // ── Aprovechar el viaje: candidatos que no son clientes todavía ──
+  const [prospectos, setProspectos] = useState<Prospecto[]>([]);
+  const [prospectosAnadidos, setProspectosAnadidos] = useState<Record<string, boolean>>({});
+
+  /**
+   * Pasa un candidato del mapa a la ruta. Le crea la ficha en el CRM y lo mete
+   * como parada de una sola vez: si se va a visitar, tiene que estar en la
+   * cartera, y obligar a darlo de alta aparte es justo el rodeo que hace que
+   * la visita acabe sin registrar.
+   *
+   * El nombre se pone solo. Se puede cambiar luego en la ficha, y David lo
+   * confirma al pasar por allí; parar aquí a preguntarlo rompería el ritmo de
+   * ir marcando sitios en el mapa.
+   */
+  async function prospectoARuta(p: Prospecto): Promise<string | null> {
+    const nombre =
+      p.nombre ||
+      `${TIPO_PROSPECTO_LABEL[p.tipo].replace(/^\S+\s/, '')} sin identificar${p.municipio ? ` · ${p.municipio}` : ''}`;
+    const direccion = `${p.lat.toFixed(6)}, ${p.lon.toFixed(6)}`;
+
+    const observaciones = ['Detectado al preparar una ruta. Sin verificar sobre el terreno.', ...p.motivos].join('\n· ');
+    const creado = await guardarLuz('clientes', 'POST', {
+      nombre,
+      tipo_cliente: p.tipo === 'industria' || p.tipo === 'nave' ? 'industria' : 'pyme',
+      direccion_fiscal: direccion,
+      via_entrada: 'captacion',
+      estado_comercial: 'detectado',
+      prioridad: p.puntuacion >= 65 ? 'B' : 'C',
+      responsable: 'David',
+      potencial_comercial: p.consumo
+        ? `Consumo estimado ${textoRango(p.consumo)} (orden de magnitud por tipo y tamaño, sin factura).`
+        : '',
+      observaciones: `· ${observaciones}`,
+    });
+    if (creado) return creado;
+
+    // La parada se identifica por el sitio de OSM, no por el cliente: aún no
+    // sabemos su id y volver a pedir la lista solo para esto sería lentísimo.
+    setSeleccion((prev) => {
+      const m = new Map(prev);
+      m.set(`p-${p.id}`, { id: `p-${p.id}`, nombre, direccion, cliente_id: '' });
+      return m;
+    });
+    setProspectosAnadidos((a) => ({ ...a, [p.id]: true }));
+    clientes.recargar();
+    return null;
+  }
 
   /** Por dónde pasa la ruta ya calculada: origen + paradas ubicadas, en orden. */
   const puntosRuta = useMemo(() => {
@@ -330,6 +380,9 @@ export default function RutasPage() {
             modoManual={modoManual}
             onMarcarFV={marcarInteresFV}
             onUbicaciones={setGeoPuntos}
+            prospectos={prospectos}
+            onProspectoARuta={prospectoARuta}
+            prospectosAnadidos={prospectosAnadidos}
           />
         </div>
       )}
@@ -518,11 +571,13 @@ export default function RutasPage() {
               </Card>
             )}
 
-            {/* Con la ruta ya trazada, qué más hay de camino que no sea cliente todavía */}
+            {/* Con la ruta ya trazada, qué más hay de camino que no sea cliente todavía.
+                Los resultados se pintan en el mapa de arriba, no aquí. */}
             <Prospectos
               ruta={puntosRuta}
               yaClientes={clientesUbicados}
-              onClienteCreado={() => clientes.recargar()}
+              prospectos={prospectos}
+              onResultados={setProspectos}
             />
 
             <p className="text-[11px] text-muted">
