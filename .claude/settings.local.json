@@ -375,7 +375,18 @@
       "Bash(curl -s -X POST http://localhost:3000/api/que-he-firmado -H \"Content-Type: application/json\" -d '{}')",
       "Bash(curl -s --max-time 15 https://tienda-camisetas-9o5n.vercel.app/legal/aviso-legal)",
       "Bash(curl -s --max-time 20 https://tienda-camisetas-9o5n.vercel.app/legal/aviso-legal)",
-      "Bash(git commit -q -m '@ *)"
+      "Bash(git commit -q -m '@ *)",
+      "Bash(curl -s -X POST https://overpass-api.de/api/interpreter --data-urlencode \"data@ov.txt\" -o ovout.json -w \"HTTP %{http_code} %{size_download}b\\\\n\")",
+      "Bash(curl -s -X POST https://overpass-api.de/api/interpreter -A \"GesmecoEnergia-Prospeccion/1.0 \\(gesmecoenergia.com\\)\" --data-urlencode \"data@ov.txt\" -o ovout.json -w \"HTTP %{http_code} %{size_download}b\\\\n\")",
+      "Bash(node scripts/test-prospeccion.mjs)",
+      "Bash(curl -s -X POST http://localhost:51356/api/luz/prospectar -H \"Content-Type: application/json\" -d '{\"ruta\":[{\"lat\":41.8517,\"lon\":0.2937},{\"lat\":41.8632,\"lon\":0.3520},{\"lat\":41.8710,\"lon\":0.4130}],\"radio_km\":2}' -o pros.json -w \"HTTP %{http_code} %{size_download}b %{time_total}s\\\\n\")",
+      "Bash(sed -i \"s|'./src/lib/prospeccion.ts'|'C:/Users/Usuario/Desktop/calude_web/src/lib/prospeccion.ts'|\" /tmp/real.mjs)",
+      "Bash(node /tmp/real.mjs)",
+      "Bash(cp /tmp/ov2.json ./_ov2.json)",
+      "Bash(sed -i \"s|'C:/Users/Usuario/Desktop/calude_web/src/lib/prospeccion.ts'|'./src/lib/prospeccion.ts'|; s|'C:/Users/Usuario/AppData/Local/Temp/ov2.json'|'./_ov2.json'|\" /tmp/real.mjs)",
+      "Bash(cp /tmp/real.mjs ./_real.mjs)",
+      "Bash(node ./_real.mjs)",
+      "Bash(rm -f _real.mjs _dbg.mjs _ov2.json)"
     ]
   }
 }

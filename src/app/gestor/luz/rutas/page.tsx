@@ -8,6 +8,7 @@ import { LuzCliente, LuzCups, LuzOportunidad, LuzVisita } from '@/lib/luz';
 import { Card, Badge, BadgePrioridad, EstadoCarga, useListaLuz, guardarLuz, inputCls, labelCls, btnPrimario, btnSecundario } from '../ui';
 import { leerRutaDia, guardarRutaDia } from './ruta-dia';
 import { ZONAS, zonaDeParada } from '@/lib/zonas';
+import { Prospectos } from './prospectos';
 
 // El mapa usa Leaflet (necesita `window`): se carga solo en el navegador, nunca en el servidor.
 const MapaRutas = dynamic(() => import('./mapa').then((m) => m.MapaRutas), {
@@ -74,6 +75,28 @@ export default function RutasPage() {
   const [calculando, setCalculando] = useState(false);
   const [resultado, setResultado] = useState<Resultado | null>(null);
   const [error, setError] = useState('');
+
+  /** Por dónde pasa la ruta ya calculada: origen + paradas ubicadas, en orden. */
+  const puntosRuta = useMemo(() => {
+    if (!resultado) return [];
+    const pts = resultado.origen_geo ? [resultado.origen_geo] : [];
+    for (const p of resultado.orden) {
+      if (p.lat != null && p.lon != null) pts.push({ lat: p.lat, lon: p.lon });
+    }
+    return pts;
+  }, [resultado]);
+
+  /**
+   * Coordenadas de lo que ya es cartera, para no proponer visitar a un cliente.
+   * Salen del mapa (que geocodifica todas las paradas del filtro) y de la propia
+   * ruta calculada.
+   */
+  const clientesUbicados = useMemo(() => {
+    const pts: { lat: number; lon: number }[] = [];
+    for (const g of Object.values(geoPuntos)) if (g) pts.push(g);
+    for (const p of resultado?.orden || []) if (p.lat != null && p.lon != null) pts.push({ lat: p.lat, lon: p.lon });
+    return pts;
+  }, [geoPuntos, resultado]);
 
   const responsables = useMemo(() => {
     const s = new Set<string>();
@@ -494,6 +517,13 @@ export default function RutasPage() {
                 </p>
               </Card>
             )}
+
+            {/* Con la ruta ya trazada, qué más hay de camino que no sea cliente todavía */}
+            <Prospectos
+              ruta={puntosRuta}
+              yaClientes={clientesUbicados}
+              onClienteCreado={() => clientes.recargar()}
+            />
 
             <p className="text-[11px] text-muted">
               💡 ¿Falta alguien en la lista? Entra en su <Link href="/gestor/luz/clientes" className="text-accent hover:underline">ficha de cliente</Link> y

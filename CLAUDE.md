@@ -18,6 +18,7 @@ npm run smoke      # checklist de humo contra producción
 BASE=http://localhost:3000 npm run smoke   # smoke contra local
 node scripts/test-fv.mjs                   # tests de la lógica FV
 npm run test:estados                       # tests de sincronización de estados (Gestión Luz)
+npm run test:prospeccion                   # tests de la prospección sobre la ruta
 npm run verify:supabase                    # comprueba conexión Supabase
 ```
 
@@ -37,6 +38,7 @@ No hay suite de tests formal; la verificación es `npm run build` + `scripts/smo
   - `gestor/luz/` — Gestión Luz: cartera energética. El menú está organizado en **3 bloques por forma de trabajar** (`layout.tsx`), no por tipo de dato: **Calle** (David: mi-día, agenda, rutas, alta, pipeline, clientes), **Oficina** (Nicola: cups, contratos, proyectos, importar, guía) y **Dirección** (Marcos: dashboard, comisiones, equipo, FV, control, usuarios, configuración). Cada uno puede plegar los bloques que no usa (se recuerda en localStorage).
     - **Agenda** (`gestor/luz/agenda`, lógica en `src/lib/agenda.ts`) — única lista de trabajo del equipo; sustituye en el menú a "Tareas" + "Fechas Críticas" (esas páginas siguen existiendo para crear/editar en detalle). Los vencimientos de contrato/permanencia/preaviso **no se guardan**: se calculan en vivo desde el CUPS, así nunca quedan desfasados.
     - **Estado único del viaje comercial** (`src/lib/estados-luz.ts`) — el **CUPS es la fuente de verdad**; pipeline y contrato empujan su estado (traducción por tabla), y el estado comercial del cliente **se deriva** de todos sus CUPS. La sincronización vive en el PUT/POST de `src/app/api/luz/[tabla]/route.ts`. Nunca retrocede un suministro por accidente (`debeAplicarseAlCups`). Cubierto por `npm run test:estados`.
+    - **Prospección sobre la ruta** (`gestor/luz/rutas`, lógica en `src/lib/prospeccion.ts`) — con la ruta ya trazada, busca en OpenStreetMap (Overpass) granjas, naves y negocios que quedan de camino y no están en la cartera, los puntúa por interés y permite crearles ficha. **Nunca estima consumo** (no es público): puntúa señales físicas —tipo de sitio, metros de tejado, desvío—. El kWp solo se da cuando sale de tejados dibujados; de una parcela se dice el tamaño y que hay que verlo. Cubierto por `npm run test:prospeccion`.
   - `gestor/luz/fv/` — **Calculadora FV** (solo admin): presupuestador fotovoltaico. Lógica en `src/lib/fv.ts`, UI en `page.tsx` + `energia.tsx`. Dos flujos: "presupuesto de Óscar" (instalador) y "presupuestar desde consumos". Incluye escenarios, algoritmo de batería por amortización (`optimizarBateria`), simulación horaria 24h (`simularDiaFV`), comparador de equipos reales y oferta PDF. `hipotesis.pct_autoconsumo` es la **fuente única** del autoconsumo efectivo en toda la oferta.
   - `gestor/correbin/` — vencimientos de seguros.
   - `gestor/clientes-app/` — App Clientes.
