@@ -11,7 +11,7 @@
 
 const {
   areaPoligono, dentroDe, distKm, kmALaRuta, kmAlTramo, dimensionesNave, pareceNave,
-  centroDe, procesarElementos, puntuar, nivelInteres, densificarRuta,
+  centroDe, procesarElementos, puntuar, nivelInteres, densificarRuta, coordsDeTexto, nombreComparable,
 } = await import('../src/lib/prospeccion.ts');
 const { estimarConsumo, tramoConsumo, textoRango } = await import('../src/lib/consumo-estimado.ts');
 
@@ -168,6 +168,23 @@ eq('se conserva el destino', densa[densa.length - 1].lat, rutaLarga[1].lat, 0.00
 eq('una ruta corta no se toca', densificarRuta([{ lat: 41.85, lon: 0.29 }, { lat: 41.86, lon: 0.30 }], 5).length, 2);
 eq('un solo punto se devuelve igual', densificarRuta([{ lat: 41.85, lon: 0.29 }], 5).length, 1);
 eq('sin ruta no hay nada que rellenar', densificarRuta([], 5).length, 0);
+
+console.log('\n── No proponer a quien ya es cliente ──');
+// FALLO REAL: al pasar de "buscar cada vez" a "guardar", se perdió el filtro
+// que excluía la cartera propia. El mapa proponía visitar a clientes de la casa.
+eq('coordenadas escritas a pelo', coordsDeTexto('41.85, 0.294').lat, 41.85);
+eq('dentro de un enlace de Google Maps', coordsDeTexto('https://maps.google.com/?q=41.87,0.43').lon, 0.43);
+eq('en la forma larga de Maps', coordsDeTexto('https://www.google.com/maps/place/X/@41.8739,0.3782,17z').lat, 41.8739);
+eq('una dirección de calle no lleva coordenadas', coordsDeTexto('Avenida de Aragón 50, Binéfar'), null);
+eq('sin texto tampoco', coordsDeTexto(null), null);
+
+// El nombre se compara sin acentos ni forma jurídica: en la cartera y en el
+// mapa la misma empresa casi nunca está escrita igual.
+eq('la forma jurídica no cuenta', nombreComparable('Casa Guardia S.L.'), nombreComparable('casa guardia'));
+eq('los acentos tampoco', nombreComparable('Explotación Ganadera'), nombreComparable('explotacion ganadera'));
+cierto('dos empresas distintas no se confunden',
+  nombreComparable('Granja Norte') !== nombreComparable('Granja Sur'));
+eq('sin nombre no hay nada que comparar', nombreComparable(null), '');
 
 console.log(`\n${fallos === 0 ? '✅' : '❌'} ${ok} correctos, ${fallos} fallos\n`);
 process.exit(fallos === 0 ? 0 : 1);

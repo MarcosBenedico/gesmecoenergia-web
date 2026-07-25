@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
-import { Radar, Loader, Info, Search, Trash2, Map as MapIcon, Target, Crosshair, List } from 'lucide-react';
+import { Radar, Loader, Info, Search, Trash2, Map as MapIcon, Target, Crosshair, List, Zap, Layers } from 'lucide-react';
 import {
   ProspectoGuardado, EstadoProspecto, ESTADOS_PROSPECTO, ESTADO_PROSPECTO_LABEL,
   ESTADO_PROSPECTO_COLOR, TIPO_PROSPECTO_LABEL, TipoProspecto, CATEGORIAS_NAVES, categoriaDeNaves,
@@ -12,6 +12,7 @@ import { Card, EstadoCarga, useListaLuz, guardarLuz, inputCls, labelCls, btnPrim
 import { tokenSesion } from '@/lib/usuario';
 import { Objetivos } from './objetivos';
 import { ListaOportunidades } from './lista';
+import { RevisionRapida } from './revision';
 
 // Leaflet necesita `window`: solo en el navegador
 const MapaOportunidades = dynamic(() => import('./mapa-oportunidades').then((m) => m.MapaOportunidades), {
@@ -50,7 +51,9 @@ export default function OportunidadesPage() {
   const [orden, setOrden] = useState<(typeof ORDENES)[number]['clave']>('puntuacion');
   // Dos formas de mirar lo mismo: el mapa para descubrir y decidir, la lista de
   // objetivos para trabajar lo ya decidido.
-  const [vista, setVista] = useState<'mapa' | 'lista' | 'objetivos'>('mapa');
+  const [vista, setVista] = useState<'revisar' | 'mapa' | 'lista' | 'objetivos'>('mapa');
+  /** Zonas ya barridas, para ver los huecos del territorio. */
+  const [mostrarCobertura, setMostrarCobertura] = useState(true);
 
   // ── Barrido de una zona ──
   const [radioBarrido, setRadioBarrido] = useState(3);
@@ -92,8 +95,12 @@ export default function OportunidadesPage() {
             (json.actualizados ? ` · ${json.actualizados} ya las teníamos` : '')
           : `Nada nuevo por ${nombreCentro}: las ${json.actualizados} que hay ya estaban.`
       );
+      if (json.ya_clientes > 0) {
+        setMensaje((m) => `${m}. Se han dejado fuera ${json.ya_clientes} que ya son clientes vuestros.`);
+      }
       if (json.aviso) setError(json.aviso);
       prospectos.recargar();
+      config.recargar(); // el barrido queda apuntado en el cuaderno
     } catch {
       setError('No se pudo conectar para barrer la zona.');
     } finally {
@@ -106,6 +113,20 @@ export default function OportunidadesPage() {
     if (err) { setError(err); return; }
     prospectos.recargar();
   }
+
+  /**
+   * Cuaderno de barridos: se guarda en `luz_config` (clave/valor) para no
+   * obligar a otra migración por algo que es una simple bitácora.
+   */
+  const config = useListaLuz<{ clave: string; valor: string }>('config');
+  const barridos = useMemo(() => {
+    const fila = config.datos.find((c) => c.clave === 'prospeccion_barridos');
+    if (!fila?.valor) return [];
+    try {
+      const arr = JSON.parse(fila.valor);
+      return Array.isArray(arr) ? arr : [];
+    } catch { return []; }
+  }, [config.datos]);
 
   const municipios = useMemo(
     () => Array.from(new Set(prospectos.datos.map((p) => p.municipio).filter(Boolean))).sort() as string[],
@@ -146,6 +167,7 @@ export default function OportunidadesPage() {
   }, [filtrados]);
 
   const paraVisitar = porEstado['para_visitar'] || 0;
+  const sinRevisar = porEstado['nuevo'] || 0;
 
   return (
     <div className="space-y-4">
@@ -246,6 +268,7 @@ export default function OportunidadesPage() {
       {/* Descubrir vs. trabajar: son dos tareas distintas y piden pantallas distintas */}
       <div className="flex gap-1.5">
         {([
+          ['revisar', `Revisar${sinRevisar ? ` (${sinRevisar})` : ''}`, Zap],
           ['mapa', 'Mapa', MapIcon],
           ['lista', 'Lista', List],
           ['objetivos', `Objetivos${paraVisitar ? ` (${paraVisitar})` : ''}`, Target],
@@ -279,6 +302,8 @@ export default function OportunidadesPage() {
           radioBarridoKm={radioBarrido}
           eligiendoCentro={eligiendoCentro}
           onElegirCentro={elegirCentro}
+          barridos={barridos}
+          mostrarCobertura={mostrarCobertura}
         />
       )}
 
@@ -306,7 +331,13 @@ export default function OportunidadesPage() {
             </p>
           )}
 
-          {vista === 'objetivos' ? (
+          {vista === 'revisar' ? (
+            <RevisionRapida
+              pendientes={prospectos.datos.filter((p) => p.estado === 'nuevo')}
+              onDecidir={cambiarEstado}
+              totalGuardadas={prospectos.datos.length}
+            />
+          ) : vista === 'objetivos' ? (
             <Objetivos
               objetivos={prospectos.datos.filter((p) => p.estado === 'para_visitar')}
               onCambio={() => prospectos.recargar()}
@@ -393,7 +424,25 @@ export default function OportunidadesPage() {
             radioBarridoKm={radioBarrido}
             eligiendoCentro={eligiendoCentro}
             onElegirCentro={elegirCentro}
+            barridos={barridos}
+            mostrarCobertura={mostrarCobertura}
           />
+
+          {/* Cobertura: los huecos son el trabajo pendiente */}
+          <div className="flex items-center justify-between gap-2 flex-wrap text-[11px]">
+            <label className="inline-flex items-center gap-1.5 font-bold text-muted cursor-pointer">
+              <input type="checkbox" checked={mostrarCobertura}
+                onChange={(e) => setMostrarCobertura(e.target.checked)}
+                className="accent-[var(--color-accent,#e11d48)]" />
+              <Layers className="w-3.5 h-3.5" /> Enseñar lo ya barrido
+            </label>
+            {barridos.length > 0 && (
+              <span className="text-muted">
+                {barridos.length} {barridos.length === 1 ? 'barrido hecho' : 'barridos hechos'}. Lo gris ya se ha
+                mirado; lo que quede en blanco, nunca.
+              </span>
+            )}
+          </div>
 
           {/* El navegador se atasca antes que la base de datos: hay que decirlo */}
           {filtrados.length > 800 && (

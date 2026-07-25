@@ -1,8 +1,8 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
-import { ExternalLink } from 'lucide-react';
+import { ExternalLink, Loader } from 'lucide-react';
 import {
   ProspectoGuardado, EstadoProspecto, ESTADO_PROSPECTO_LABEL, ESTADO_PROSPECTO_COLOR,
   ESTADOS_PROSPECTO, TIPO_PROSPECTO_LABEL, categoriaDeNaves,
@@ -25,6 +25,26 @@ interface Props {
 }
 
 export function ListaOportunidades({ prospectos, onCambiarEstado }: Props) {
+  /**
+   * Selección para trabajar en bloque. Es lo que convierte "filtra granjas de
+   * 5+ naves en La Litera" en una decisión de un clic en vez de doce.
+   */
+  const [marcados, setMarcados] = useState<Set<string>>(new Set());
+  const [aplicando, setAplicando] = useState(false);
+
+  const alternar = (id: string) =>
+    setMarcados((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+
+  async function aplicarATodos(estado: EstadoProspecto) {
+    const lista = prospectos.filter((p) => marcados.has(p.id));
+    if (!lista.length) return;
+    setAplicando(true);
+    // En serie: son escrituras y no compensa saturar la base de datos
+    for (const p of lista) await onCambiarEstado(p, estado);
+    setMarcados(new Set());
+    setAplicando(false);
+  }
+
   /** Zona y sector calculados una vez, que se usan para pintar y ordenar. */
   const filas = useMemo(
     () =>
@@ -44,12 +64,46 @@ export function ListaOportunidades({ prospectos, onCambiarEstado }: Props) {
     return <Card><p className="text-sm text-muted">No hay nada con estos filtros.</p></Card>;
   }
 
+  const todosMarcados = marcados.size === filas.length && filas.length > 0;
+
   return (
+    <>
+    {/* Barra de acciones: solo aparece cuando hay algo marcado */}
+    {marcados.size > 0 && (
+      <div className="flex items-center justify-between gap-2 flex-wrap rounded-xl border border-accent/40 bg-accent/10 px-3 py-2 mb-2">
+        <p className="text-xs font-black">
+          {marcados.size} {marcados.size === 1 ? 'seleccionada' : 'seleccionadas'}
+        </p>
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {aplicando && <Loader className="w-3.5 h-3.5 animate-spin text-muted" />}
+          {([
+            ['interesante', '★ Me interesan', 'border-amber-500/50 bg-amber-500/15 text-amber-300'],
+            ['para_visitar', '🚚 Que vaya David', 'border-emerald-500/50 bg-emerald-500/15 text-emerald-400'],
+            ['descartado', '✕ Descartar', 'border-red-500/50 bg-red-500/15 text-red-400'],
+          ] as const).map(([estado, texto, clases]) => (
+            <button key={estado} onClick={() => aplicarATodos(estado as EstadoProspecto)} disabled={aplicando}
+              className={`px-2 py-1 rounded-lg border text-[11px] font-bold transition disabled:opacity-50 ${clases}`}>
+              {texto}
+            </button>
+          ))}
+          <button onClick={() => setMarcados(new Set())} disabled={aplicando}
+            className="px-2 py-1 rounded-lg border border-border/50 bg-card/80 text-[11px] font-bold text-muted hover:text-foreground transition">
+            Quitar selección
+          </button>
+        </div>
+      </div>
+    )}
+
     <Card className="!p-0 overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full text-xs">
           <thead className="bg-card/70 text-[10px] uppercase text-muted font-bold text-left">
             <tr className="border-b border-border/40">
+              <th className="px-3 py-2.5 w-8">
+                <input type="checkbox" checked={todosMarcados}
+                  onChange={() => setMarcados(todosMarcados ? new Set() : new Set(filas.map((f) => f.p.id)))}
+                  title="Marcar todas las de la vista" className="accent-[var(--color-accent,#e11d48)]" />
+              </th>
               <th className="px-3 py-2.5">Sitio</th>
               <th className="px-3 py-2.5">Zona</th>
               <th className="px-3 py-2.5">Sector</th>
@@ -62,7 +116,11 @@ export function ListaOportunidades({ prospectos, onCambiarEstado }: Props) {
           </thead>
           <tbody>
             {filas.map(({ p, zona, zonaColor, cat }) => (
-              <tr key={p.id} className="border-b border-border/20 hover:bg-card/50 transition">
+              <tr key={p.id} className={`border-b border-border/20 transition ${marcados.has(p.id) ? 'bg-accent/10' : 'hover:bg-card/50'}`}>
+                <td className="px-3 py-2">
+                  <input type="checkbox" checked={marcados.has(p.id)} onChange={() => alternar(p.id)}
+                    className="accent-[var(--color-accent,#e11d48)]" />
+                </td>
                 <td className="px-3 py-2">
                   <Link href={`/gestor/luz/oportunidades/${p.id}`} className="font-semibold hover:text-accent transition">
                     {p.nombre || <span className="text-muted italic">Sin nombre</span>}
@@ -125,7 +183,9 @@ export function ListaOportunidades({ prospectos, onCambiarEstado }: Props) {
       </div>
       <p className="text-[10px] text-muted px-3 py-2 border-t border-border/25">
         El consumo es una estimación por sector y metros, no un dato. El color del número de naves marca el tamaño.
+        Marca varias con las casillas para decidirlas de golpe.
       </p>
     </Card>
+    </>
   );
 }

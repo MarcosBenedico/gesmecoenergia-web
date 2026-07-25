@@ -246,6 +246,45 @@ export function densificarRuta(
   return salida;
 }
 
+/**
+ * Coordenadas escritas a mano ("41.85, 0.29") o dentro de un enlace de Maps.
+ *
+ * Sirve para saber dónde está un cliente sin llamar a ningún geocodificador:
+ * los que entran desde el mapa guardan sus coordenadas tal cual, y los que se
+ * meten pegando un enlace de Google Maps también las llevan dentro.
+ */
+export function coordsDeTexto(texto?: string | null): { lat: number; lon: number } | null {
+  if (!texto) return null;
+  const t = texto.trim();
+  const patrones = [
+    /@(-?\d{1,2}\.\d+),(-?\d{1,3}\.\d+)/,          // .../@41.85,0.29,15z
+    /[?&]q=(-?\d{1,2}\.\d+),(-?\d{1,3}\.\d+)/,     // ?q=41.85,0.29
+    /!3d(-?\d{1,2}\.\d+)!4d(-?\d{1,3}\.\d+)/,      // !3d41.85!4d0.29
+    /^(-?\d{1,2}\.\d+)\s*,\s*(-?\d{1,3}\.\d+)$/,   // "lat, lon" a pelo
+  ];
+  for (const re of patrones) {
+    const m = t.match(re);
+    if (m) {
+      const lat = parseFloat(m[1]);
+      const lon = parseFloat(m[2]);
+      if (Math.abs(lat) <= 90 && Math.abs(lon) <= 180) return { lat, lon };
+    }
+  }
+  return null;
+}
+
+/** Nombre comparable: sin acentos, sin forma jurídica y sin dobles espacios. */
+export function nombreComparable(nombre?: string | null): string {
+  if (!nombre) return '';
+  return nombre
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/\b(s\.?l\.?u?\.?|s\.?a\.?|c\.?b\.?|s\.?c\.?|sociedad limitada|sociedad anonima)\b/g, '')
+    .replace(/[^a-z0-9 ]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 /** Área de un polígono en m² (fórmula de Gauss sobre metros proyectados). */
 export function areaPoligono(puntos: { lat: number; lon: number }[]): number {
   if (puntos.length < 3) return 0;

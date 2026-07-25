@@ -404,7 +404,8 @@
       "Bash(rm -f _t.mjs _d.mjs _ov.json)",
       "Bash(rm -f _t.mjs _ovr.json)",
       "Bash(rm -f _sim.mjs)",
-      "Bash(grep -n \"return NextResponse.json\\({ datos\\\\|NextResponse.json\\({ ok: true, datos\" src/app/api/luz/\\\\[tabla\\\\]/route.ts)"
+      "Bash(grep -n \"return NextResponse.json\\({ datos\\\\|NextResponse.json\\({ ok: true, datos\" src/app/api/luz/\\\\[tabla\\\\]/route.ts)",
+      "Bash(sed -i \"s|  centroDe, procesarElementos, puntuar, nivelInteres, densificarRuta,|  centroDe, procesarElementos, puntuar, nivelInteres, densificarRuta, coordsDeTexto, nombreComparable,|\" scripts/test-prospeccion.mjs)"
     ]
   }
 }

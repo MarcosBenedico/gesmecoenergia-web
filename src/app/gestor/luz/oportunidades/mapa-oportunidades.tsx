@@ -38,17 +38,23 @@ interface Props {
   /** Con esto activo, pulsar en el mapa coloca el centro. */
   eligiendoCentro?: boolean;
   onElegirCentro?: (punto: { lat: number; lon: number }) => void;
+  /** Zonas ya barridas: se pintan en gris para ver los huecos. */
+  barridos?: { lat: number; lon: number; radio_km: number; fecha: string }[];
+  mostrarCobertura?: boolean;
 }
 
 export function MapaOportunidades({
   prospectos, onSeleccionar, onCambiarEstado,
   centroBarrido, radioBarridoKm = 3, eligiendoCentro, onElegirCentro,
+  barridos, mostrarCobertura,
 }: Props) {
   const contenedor = useRef<HTMLDivElement>(null);
   const mapa = useRef<import('leaflet').Map | null>(null);
   const capa = useRef<import('leaflet').LayerGroup | null>(null);
   /** El círculo del área a barrer, aparte de los pines para no repintarlo todo. */
   const capaBarrido = useRef<import('leaflet').LayerGroup | null>(null);
+  /** Lo ya barrido, en su propia capa: cambia poco y se pinta aparte. */
+  const capaCobertura = useRef<import('leaflet').LayerGroup | null>(null);
   /** El manejador de clic se recrea al cambiar el modo: se guarda para quitarlo. */
   const alPulsar = useRef<((e: { latlng: { lat: number; lng: number } }) => void) | null>(null);
   const [listo, setListo] = useState(false);
@@ -66,6 +72,7 @@ export function MapaOportunidades({
         attribution: '© OpenStreetMap · CARTO', subdomains: 'abcd', maxZoom: 20,
       }).addTo(m);
       capa.current = L.layerGroup().addTo(m);
+      capaCobertura.current = L.layerGroup().addTo(m);
       capaBarrido.current = L.layerGroup().addTo(m);
       mapa.current = m;
       requestAnimationFrame(() => m.invalidateSize());
@@ -102,6 +109,30 @@ export function MapaOportunidades({
     m.on('click', manejador);
     return () => { m.off('click', manejador); };
   }, [listo, eligiendoCentro, onElegirCentro]);
+
+  /**
+   * Lo que ya se ha barrido, en gris. Los huecos son el trabajo pendiente:
+   * de un vistazo se ve qué comarca no se ha mirado nunca, que es la pregunta
+   * que uno se acaba haciendo ("¿miré Albelda?") y no tenía respuesta.
+   */
+  useEffect(() => {
+    const m = mapa.current;
+    const L = (window as unknown as { L?: typeof import('leaflet') }).L;
+    if (!m || !L || !capaCobertura.current) return;
+    capaCobertura.current.clearLayers();
+    if (!mostrarCobertura) return;
+
+    for (const b of barridos || []) {
+      const dias = Math.floor((Date.now() - new Date(b.fecha).getTime()) / 86400000);
+      // Lo barrido hace mucho se ve más tenue: el mapa público cambia, y a los
+      // meses conviene volver a pasar por allí.
+      const opacidad = dias > 180 ? 0.05 : dias > 60 ? 0.09 : 0.14;
+      L.circle([b.lat, b.lon], {
+        radius: b.radio_km * 1000,
+        color: '#64748b', weight: 1, fillColor: '#64748b', fillOpacity: opacidad, interactive: false,
+      }).addTo(capaCobertura.current);
+    }
+  }, [barridos, mostrarCobertura, listo]);
 
   /** El área que se va a barrer, dibujada para no barrer a ciegas. */
   useEffect(() => {
