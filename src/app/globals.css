@@ -671,3 +671,221 @@ input:focus, textarea:focus, select:focus {
 .fv-paso-linea:last-child::before {
   display: none;
 }
+
+/* ══════════════════════════════════════
+   QUÉ HE FIRMADO — tema institucional
+
+   La web pública es oscura y de marketing. Este servicio necesita lo
+   contrario: fondo claro, alto contraste, cero adornos. Todo va bajo `.qhf`
+   para no tocar el resto del sitio, y lo primero es desactivar los estilos
+   globales (transiciones, brillos en botones, inputs oscuros) que aquí
+   restarían seriedad.
+══════════════════════════════════════ */
+
+.qhf {
+  --qhf-papel: #ffffff;
+  --qhf-fondo: #eef0f3;
+  --qhf-panel: #f7f8fa;
+  --qhf-tinta: #14171c;
+  --qhf-tinta-2: #4c535d;
+  --qhf-tinta-3: #6f7681;
+  --qhf-linea: #d0d5db;
+  --qhf-linea-fuerte: #a9b0b9;
+  --qhf-marca: #8f1a1a;
+  --qhf-marca-clara: #fdf3f3;
+  --qhf-azul: #14507d;
+  --qhf-azul-claro: #eef4f9;
+  --qhf-alta: #a5231a;
+  --qhf-alta-fondo: #fdf1ef;
+  --qhf-media: #8a5300;
+  --qhf-media-fondo: #fdf6e8;
+  --qhf-baja: #14603f;
+  --qhf-baja-fondo: #eef7f2;
+
+  background: var(--qhf-fondo);
+  color: var(--qhf-tinta);
+  min-height: 100vh;
+  font-family: var(--font-inter), system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-feature-settings: "tnum";
+  letter-spacing: 0;
+  -webkit-font-smoothing: antialiased;
+}
+
+.qhf *,
+.qhf *::before,
+.qhf *::after {
+  transition: none;
+}
+
+.qhf button::before,
+.qhf [role="button"]::before {
+  display: none;
+  content: none;
+}
+
+.qhf button:hover,
+.qhf [role="button"]:hover {
+  transform: none;
+  box-shadow: none;
+}
+
+/* Ojo con la cascada: las reglas globales de este archivo van sin `@layer`, así
+   que ganan a las utilidades de Tailwind pase lo que pase con la especificidad.
+   Por eso los tamaños de titular y los colores de párrafo se fijan aquí y no
+   con clases en el JSX: una sola fuente de verdad, sin clases muertas. */
+
+.qhf h1,
+.qhf h2,
+.qhf h3,
+.qhf h4 {
+  color: var(--qhf-tinta);
+  letter-spacing: -0.015em;
+  font-feature-settings: "tnum";
+  line-height: 1.2;
+}
+
+.qhf h1 {
+  font-size: 1.75rem;
+  font-weight: 700;
+}
+
+.qhf h2 {
+  font-size: 1.0625rem;
+  font-weight: 700;
+}
+
+.qhf h3 {
+  font-size: 1rem;
+  font-weight: 650;
+}
+
+@media (min-width: 640px) {
+  .qhf h1 {
+    font-size: 2.125rem;
+  }
+}
+
+/* Titular de la ficha del documento: el único h2 que va a mayor tamaño */
+.qhf .qhf-h2-ficha {
+  font-size: 1.375rem;
+}
+
+@media (min-width: 640px) {
+  .qhf .qhf-h2-ficha {
+    font-size: 1.5rem;
+  }
+}
+
+.qhf p,
+.qhf li {
+  color: var(--qhf-tinta-2);
+  line-height: 1.65;
+}
+
+/* Respuestas y titulares de bloque: tinta plena, no el gris de apoyo */
+.qhf .qhf-fuerte {
+  color: var(--qhf-tinta);
+}
+
+.qhf button,
+.qhf [role="button"] {
+  font-weight: 600;
+  letter-spacing: 0;
+  overflow: visible;
+}
+
+.qhf input,
+.qhf select,
+.qhf textarea {
+  background: var(--qhf-papel);
+  border: 1px solid var(--qhf-linea-fuerte);
+  color: var(--qhf-tinta);
+  border-radius: 3px;
+  box-shadow: none;
+}
+
+.qhf input:focus,
+.qhf select:focus,
+.qhf textarea:focus {
+  background: var(--qhf-papel);
+  border-color: var(--qhf-azul);
+  box-shadow: none;
+}
+
+/* Foco siempre visible: es un servicio que tiene que ser navegable con teclado */
+.qhf a:focus-visible,
+.qhf button:focus-visible,
+.qhf [tabindex]:focus-visible {
+  outline: 3px solid var(--qhf-azul);
+  outline-offset: 2px;
+}
+
+.qhf ::-webkit-scrollbar-track {
+  background: var(--qhf-fondo);
+}
+
+.qhf ::-webkit-scrollbar-thumb {
+  background: var(--qhf-linea-fuerte);
+  border-radius: 0;
+}
+
+/* Sello superior: la franja fina es lo que da lectura de "documento oficial" */
+.qhf-franja {
+  height: 4px;
+  background: linear-gradient(
+    to right,
+    var(--qhf-marca) 0 33.33%,
+    var(--qhf-tinta) 33.33% 66.66%,
+    var(--qhf-azul) 66.66% 100%
+  );
+}
+
+.qhf-caja {
+  background: var(--qhf-papel);
+  border: 1px solid var(--qhf-linea);
+  border-radius: 4px;
+}
+
+.qhf .qhf-etiqueta {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--qhf-tinta-3);
+}
+
+.qhf-zona-soltar {
+  border: 2px dashed var(--qhf-linea-fuerte);
+  background: var(--qhf-panel);
+  border-radius: 4px;
+}
+
+.qhf-zona-soltar[data-activa="true"] {
+  border-color: var(--qhf-azul);
+  background: var(--qhf-azul-claro);
+}
+
+@keyframes qhf-barrido {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(400%); }
+}
+
+.qhf-barrido {
+  animation: qhf-barrido 1.4s ease-in-out infinite;
+}
+
+/* Impresión: la ficha tiene que poder llevarse en papel a la ventanilla */
+@media print {
+  .qhf {
+    background: #fff;
+  }
+
+  .qhf-no-imprimir {
+    display: none !important;
+  }
+
+  .qhf-caja {
+    border-color: #999;
+    break-inside: avoid;
+  }
+}
