@@ -32,12 +32,25 @@ interface Props {
   seleccionado: string | null;
   onSeleccionar: (p: ProspectoGuardado | null) => void;
   onCambiarEstado: (p: ProspectoGuardado, estado: EstadoProspecto) => Promise<void>;
+  /** Centro elegido para el próximo barrido. Se dibuja con su círculo. */
+  centroBarrido?: { lat: number; lon: number } | null;
+  radioBarridoKm?: number;
+  /** Con esto activo, pulsar en el mapa coloca el centro. */
+  eligiendoCentro?: boolean;
+  onElegirCentro?: (punto: { lat: number; lon: number }) => void;
 }
 
-export function MapaOportunidades({ prospectos, seleccionado, onSeleccionar, onCambiarEstado }: Props) {
+export function MapaOportunidades({
+  prospectos, seleccionado, onSeleccionar, onCambiarEstado,
+  centroBarrido, radioBarridoKm = 3, eligiendoCentro, onElegirCentro,
+}: Props) {
   const contenedor = useRef<HTMLDivElement>(null);
   const mapa = useRef<import('leaflet').Map | null>(null);
   const capa = useRef<import('leaflet').LayerGroup | null>(null);
+  /** El círculo del área a barrer, aparte de los pines para no repintarlo todo. */
+  const capaBarrido = useRef<import('leaflet').LayerGroup | null>(null);
+  /** El manejador de clic se recrea al cambiar el modo: se guarda para quitarlo. */
+  const alPulsar = useRef<((e: { latlng: { lat: number; lng: number } }) => void) | null>(null);
   const [listo, setListo] = useState(false);
   const [primeraVez, setPrimeraVez] = useState(true);
 
@@ -53,6 +66,7 @@ export function MapaOportunidades({ prospectos, seleccionado, onSeleccionar, onC
         attribution: '© OpenStreetMap · CARTO', subdomains: 'abcd', maxZoom: 20,
       }).addTo(m);
       capa.current = L.layerGroup().addTo(m);
+      capaBarrido.current = L.layerGroup().addTo(m);
       mapa.current = m;
       requestAnimationFrame(() => m.invalidateSize());
       setListo(true);
@@ -67,6 +81,50 @@ export function MapaOportunidades({ prospectos, seleccionado, onSeleccionar, onC
     obs.observe(contenedor.current);
     return () => obs.disconnect();
   }, [listo]);
+
+  /**
+   * Elegir el centro del barrido pulsando en el mapa.
+   *
+   * Las zonas de actuación son un atajo cómodo, pero no cubren todo: para ir a
+   * por un polígono concreto o una vaguada donde se sabe que hay granjas, lo
+   * natural es señalarlo con el dedo.
+   */
+  useEffect(() => {
+    const m = mapa.current;
+    if (!m) return;
+    if (alPulsar.current) { m.off('click', alPulsar.current); alPulsar.current = null; }
+    const contenedorDiv = contenedor.current;
+    if (contenedorDiv) contenedorDiv.style.cursor = eligiendoCentro ? 'crosshair' : '';
+    if (!eligiendoCentro || !onElegirCentro) return;
+    const manejador = (e: { latlng: { lat: number; lng: number } }) =>
+      onElegirCentro({ lat: e.latlng.lat, lon: e.latlng.lng });
+    alPulsar.current = manejador;
+    m.on('click', manejador);
+    return () => { m.off('click', manejador); };
+  }, [listo, eligiendoCentro, onElegirCentro]);
+
+  /** El área que se va a barrer, dibujada para no barrer a ciegas. */
+  useEffect(() => {
+    const m = mapa.current;
+    const L = (window as unknown as { L?: typeof import('leaflet') }).L;
+    if (!m || !L || !capaBarrido.current) return;
+    capaBarrido.current.clearLayers();
+    if (!centroBarrido) return;
+
+    L.circle([centroBarrido.lat, centroBarrido.lon], {
+      radius: radioBarridoKm * 1000,
+      color: '#8b5cf6', weight: 2, fillColor: '#8b5cf6', fillOpacity: 0.08, dashArray: '6 5',
+    }).addTo(capaBarrido.current);
+
+    L.marker([centroBarrido.lat, centroBarrido.lon], {
+      icon: L.divIcon({
+        html: `<div style="width:22px;height:22px;border-radius:9999px;background:#8b5cf6;
+                 border:3px solid white;box-shadow:0 2px 6px rgba(0,0,0,.4)"></div>`,
+        className: '', iconSize: [22, 22], iconAnchor: [11, 11],
+      }),
+      zIndexOffset: 900,
+    }).addTo(capaBarrido.current);
+  }, [centroBarrido, radioBarridoKm, listo]);
 
   // Repintar
   useEffect(() => {

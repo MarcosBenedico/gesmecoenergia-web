@@ -2,13 +2,13 @@
 
 import { useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
-import { Radar, Loader, Info, Search, Trash2, Map as MapIcon, Target } from 'lucide-react';
+import { Radar, Loader, Info, Search, Trash2, Map as MapIcon, Target, Crosshair } from 'lucide-react';
 import {
   ProspectoGuardado, EstadoProspecto, ESTADOS_PROSPECTO, ESTADO_PROSPECTO_LABEL,
   ESTADO_PROSPECTO_COLOR, TIPO_PROSPECTO_LABEL, TipoProspecto, CATEGORIAS_NAVES, categoriaDeNaves,
 } from '@/lib/prospeccion';
 import { ZONAS } from '@/lib/zonas';
-import { Card, EstadoCarga, useListaLuz, guardarLuz, inputCls, labelCls, btnPrimario } from '../ui';
+import { Card, EstadoCarga, useListaLuz, guardarLuz, inputCls, labelCls, btnPrimario, btnSecundario } from '../ui';
 import { tokenSesion } from '@/lib/usuario';
 import { Objetivos } from './objetivos';
 
@@ -53,15 +53,27 @@ export default function OportunidadesPage() {
   const [vista, setVista] = useState<'mapa' | 'objetivos'>('mapa');
 
   // ── Barrido de una zona ──
-  const [zonaId, setZonaId] = useState(ZONAS[0]?.id || '');
   const [radioBarrido, setRadioBarrido] = useState(3);
   const [barriendo, setBarriendo] = useState(false);
   const [mensaje, setMensaje] = useState('');
   const [error, setError] = useState('');
+  /** Dónde se va a barrer. Empieza en Binéfar, que es la base. */
+  const [centro, setCentro] = useState<{ lat: number; lon: number }>(
+    ZONAS.find((z) => z.id === 'binefar')?.centro || ZONAS[0].centro
+  );
+  /** Con esto activo, pulsar en el mapa recoloca el centro. */
+  const [eligiendoCentro, setEligiendoCentro] = useState(false);
+  const [nombreCentro, setNombreCentro] = useState(
+    ZONAS.find((z) => z.id === 'binefar')?.nombre || ZONAS[0].nombre
+  );
 
-  async function barrerZona() {
-    const zona = ZONAS.find((z) => z.id === zonaId);
-    if (!zona) return;
+  function elegirCentro(punto: { lat: number; lon: number }) {
+    setCentro(punto);
+    setNombreCentro(`punto elegido (${punto.lat.toFixed(4)}, ${punto.lon.toFixed(4)})`);
+    setEligiendoCentro(false);
+  }
+
+  async function barrer() {
     setBarriendo(true); setError(''); setMensaje('');
     try {
       // Sin la sesión, Supabase ve la petición como anónima y RLS rechaza el
@@ -70,15 +82,15 @@ export default function OportunidadesPage() {
       const res = await fetch('/api/luz/barrer', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        body: JSON.stringify({ centro: zona.centro, radio_km: radioBarrido }),
+        body: JSON.stringify({ centro, radio_km: radioBarrido }),
       });
       const json = await res.json();
       if (!res.ok) { setError(json.error || 'No se pudo barrer la zona.'); return; }
       setMensaje(
         json.guardados > 0
-          ? `${json.guardados} oportunidades nuevas en ${zona.nombre}` +
+          ? `${json.guardados} oportunidades nuevas alrededor de ${nombreCentro}` +
             (json.actualizados ? ` · ${json.actualizados} ya las teníamos` : '')
-          : `Nada nuevo en ${zona.nombre}: las ${json.actualizados} que hay ya estaban.`
+          : `Nada nuevo por ${nombreCentro}: las ${json.actualizados} que hay ya estaban.`
       );
       if (json.aviso) setError(json.aviso);
       prospectos.recargar();
@@ -156,29 +168,75 @@ export default function OportunidadesPage() {
             </p>
           </div>
         </div>
-        <div className="grid sm:grid-cols-[2fr_1fr_auto] gap-2 items-end">
+        {/* Dónde: un atajo por zona conocida, o el dedo en el mapa */}
+        <div className="grid sm:grid-cols-[1fr_auto] gap-2 items-end">
           <label className="block">
-            <span className={labelCls}>Zona de actuación</span>
-            <select value={zonaId} onChange={(e) => setZonaId(e.target.value)} className={inputCls}>
+            <span className={labelCls}>Ir a una zona conocida</span>
+            <select
+              value=""
+              onChange={(e) => {
+                const z = ZONAS.find((x) => x.id === e.target.value);
+                if (!z) return;
+                setCentro(z.centro);
+                setNombreCentro(z.nombre);
+                setEligiendoCentro(false);
+              }}
+              className={inputCls}
+            >
+              <option value="">Elegir zona…</option>
               {ZONAS.map((z) => <option key={z.id} value={z.id}>{z.nombre}</option>)}
             </select>
           </label>
-          <label className="block">
-            <span className={labelCls}>Radio</span>
-            <select value={radioBarrido} onChange={(e) => setRadioBarrido(Number(e.target.value))} className={inputCls}>
-              <option value={2}>2 km</option>
-              <option value={3}>3 km</option>
-              <option value={4}>4 km</option>
-              <option value={6}>6 km</option>
-            </select>
-          </label>
-          <button onClick={barrerZona} disabled={barriendo} className={btnPrimario}>
-            {barriendo ? <><Loader className="w-4 h-4 animate-spin" /> Barriendo…</> : <><Radar className="w-4 h-4" /> Barrer</>}
+          <button
+            onClick={() => setEligiendoCentro((v) => !v)}
+            className={eligiendoCentro ? btnPrimario : btnSecundario}
+          >
+            <Crosshair className="w-4 h-4" />
+            {eligiendoCentro ? 'Pulsa en el mapa…' : 'Poner el centro a mano'}
           </button>
         </div>
+
+        {eligiendoCentro && (
+          <p className="text-[11px] text-secondary mt-2 bg-secondary/10 border border-secondary/25 rounded-lg p-2">
+            Pulsa en el mapa el punto exacto desde el que quieres buscar. El círculo te enseña qué se va a barrer.
+          </p>
+        )}
+
+        {/* Cuánto: el radio se ve dibujado antes de gastar la consulta */}
+        <div className="mt-3">
+          <div className="flex items-center justify-between gap-2">
+            <span className={labelCls}>Radio de búsqueda</span>
+            <span className="text-sm font-black text-secondary tabular-nums">{radioBarrido} km</span>
+          </div>
+          <input
+            type="range" min={1} max={6} step={0.5}
+            value={radioBarrido}
+            onChange={(e) => setRadioBarrido(Number(e.target.value))}
+            className="w-full accent-[var(--color-secondary,#8b5cf6)]"
+          />
+          <div className="flex justify-between text-[10px] text-muted">
+            <span>1 km</span><span>6 km</span>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between gap-2 mt-3 flex-wrap">
+          <p className="text-[11px] text-muted">
+            Centro: <b className="text-foreground">{nombreCentro}</b>
+          </p>
+          <button onClick={barrer} disabled={barriendo} className={btnPrimario}>
+            {barriendo ? <><Loader className="w-4 h-4 animate-spin" /> Barriendo…</> : <><Radar className="w-4 h-4" /> Barrer esta zona</>}
+          </button>
+        </div>
+
         {barriendo && (
           <p className="text-[11px] text-muted mt-2">
             Puede tardar medio minuto: se consulta el mapa público por tramos.
+          </p>
+        )}
+        {radioBarrido >= 5 && !barriendo && (
+          <p className="text-[11px] text-amber-300/90 mt-2">
+            Con {radioBarrido} km se consulta mucho territorio y el mapa público puede no dar abasto. Si falla algún
+            tramo, te lo digo y basta con repetirlo en un rato.
           </p>
         )}
         {mensaje && <p className="text-[11px] text-emerald-400 mt-2 bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-2">✓ {mensaje}</p>}
@@ -205,6 +263,21 @@ export default function OportunidadesPage() {
         textoVacio="Todavía no hay ninguna oportunidad guardada. Barre una zona ahí arriba para empezar."
         sqlFile="supabase_prospectos.sql"
       />
+
+      {/* Aunque no haya nada guardado, el mapa se enseña: es donde se elige
+          dónde buscar, y sin él no se podría empezar. */}
+      {prospectos.datos.length === 0 && !prospectos.cargando && (
+        <MapaOportunidades
+          prospectos={[]}
+          seleccionado={null}
+          onSeleccionar={() => {}}
+          onCambiarEstado={async () => {}}
+          centroBarrido={centro}
+          radioBarridoKm={radioBarrido}
+          eligiendoCentro={eligiendoCentro}
+          onElegirCentro={elegirCentro}
+        />
+      )}
 
       {prospectos.datos.length > 0 && (
         <>
@@ -310,7 +383,19 @@ export default function OportunidadesPage() {
             seleccionado={seleccionado?.id || null}
             onSeleccionar={setSeleccionado}
             onCambiarEstado={cambiarEstado}
+            centroBarrido={centro}
+            radioBarridoKm={radioBarrido}
+            eligiendoCentro={eligiendoCentro}
+            onElegirCentro={elegirCentro}
           />
+
+          {/* El navegador se atasca antes que la base de datos: hay que decirlo */}
+          {filtrados.length > 800 && (
+            <p className="text-[11px] text-amber-300 bg-amber-500/10 border border-amber-500/20 rounded-lg p-2">
+              ⚠️ {filtrados.length.toLocaleString('es-ES')} pines en el mapa. A partir de unos 800 el mapa se mueve con
+              tirones: filtra por estado, tamaño o municipio para trabajar más cómodo.
+            </p>
+          )}
 
           <div className="flex items-start gap-1.5 text-[10px] text-muted bg-card/60 rounded-lg p-2">
             <Info className="w-3.5 h-3.5 shrink-0 mt-px" />
