@@ -95,7 +95,7 @@ const TABLAS: Record<string, DefTabla> = {
   visitas: {
     tabla: 'luz_visitas',
     select: '*, luz_clientes(nombre)',
-    columnas: ['cliente_id', 'fecha', 'notas', 'responsable'],
+    columnas: ['cliente_id', 'fecha', 'notas', 'responsable', 'resultado', 'proxima_visita', 'registrada_por'],
     filtros: ['cliente_id', 'responsable'],
     orden: { col: 'fecha', asc: false },
     colFecha: 'fecha',

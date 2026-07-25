@@ -9,6 +9,7 @@ import { Card, Badge, BadgePrioridad, EstadoCarga, useListaLuz, guardarLuz, inpu
 import { leerRutaDia, guardarRutaDia } from './ruta-dia';
 import { ZONAS, zonaDeParada } from '@/lib/zonas';
 import { Prospectos } from './prospectos';
+import { ResolverVisita } from '../resolver-visita';
 import { ProspectoGuardado, TIPO_PROSPECTO_LABEL } from '@/lib/prospeccion';
 
 // El mapa usa Leaflet (necesita `window`): se carga solo en el navegador, nunca en el servidor.
@@ -82,6 +83,8 @@ export default function RutasPage() {
   // David", para que él no tenga que elegir entre trescientos puntos.
   const prospectosAprobados = useListaLuz<ProspectoGuardado>('prospectos', { estado: 'para_visitar' });
   const [prospectosAnadidos, setProspectosAnadidos] = useState<Record<string, boolean>>({});
+  /** Visita que se está resolviendo desde el mapa. */
+  const [visitando, setVisitando] = useState<{ id: string; nombre: string } | null>(null);
 
   /**
    * Pasa un candidato del mapa a la ruta. Le crea la ficha en el CRM y lo mete
@@ -381,6 +384,7 @@ export default function RutasPage() {
             prospectos={prospectosAprobados.datos}
             onProspectoARuta={prospectoARuta}
             prospectosAnadidos={prospectosAnadidos}
+            onResolverVisita={(id, nombre) => setVisitando({ id, nombre })}
           />
         </div>
       )}
@@ -584,6 +588,19 @@ export default function RutasPage() {
             </p>
           </div>
         </div>
+      )}
+
+      {visitando && (
+        <ResolverVisita
+          clienteId={visitando.id}
+          clienteNombre={visitando.nombre}
+          pipelineId={pipeline.datos.find((o) => o.cliente_id === visitando.id && o.estado !== 'ganado' && o.estado !== 'perdido')?.id || null}
+          onCerrar={() => setVisitando(null)}
+          onHecho={() => {
+            setVisitando(null);
+            clientes.recargar(); visitas.recargar(); pipeline.recargar();
+          }}
+        />
       )}
     </div>
   );

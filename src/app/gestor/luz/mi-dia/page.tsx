@@ -15,6 +15,7 @@ import { ClientesEnMarcha } from './clientes-en-marcha';
 import { AccionesContacto } from '../acciones-contacto';
 import { FotoSitio } from '../foto-sitio';
 import { BotonRuta } from '../boton-ruta';
+import { ResolverVisita } from '../resolver-visita';
 
 /**
  * MI DÍA — la pantalla de David.
@@ -104,6 +105,9 @@ export default function MiDiaPage() {
     () => new Map(clientes.datos.map((c) => [c.id, c])),
     [clientes.datos]
   );
+
+  /** Cliente cuya visita se está resolviendo, si hay alguno. */
+  const [visitando, setVisitando] = useState<{ id: string; nombre: string; responsable?: string | null } | null>(null);
 
   async function completar(i: ItemAgenda) {
     if (!i.id) return;
@@ -199,6 +203,14 @@ export default function MiDiaPage() {
               tareaId={i.origen === 'tarea' ? i.id ?? undefined : undefined}
               tareaDesc={i.titulo}
             />
+            {/* Y al salir de la puerta, en qué quedó. Es el dato que mueve
+                todo lo demás, así que el botón está donde ya está mirando. */}
+            <button
+              onClick={() => setVisitando({ id: ficha.id, nombre: ficha.nombre, responsable: ficha.responsable })}
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-accent/50 bg-accent/15 text-accent text-[11px] font-bold hover:bg-accent/25 transition"
+            >
+              ✅ Ya he ido
+            </button>
           </div>
         )}
       </div>
@@ -339,6 +351,22 @@ export default function MiDiaPage() {
             </Card>
           </Link>
         </>
+      )}
+
+      {/* La visita se resuelve encima de todo, sin cambiar de pantalla */}
+      {visitando && (
+        <ResolverVisita
+          clienteId={visitando.id}
+          clienteNombre={visitando.nombre}
+          responsable={visitando.responsable}
+          pipelineId={pipeline.datos.find((o) => o.cliente_id === visitando.id && !PIPELINE_CERRADO.includes(o.estado))?.id || null}
+          onCerrar={() => setVisitando(null)}
+          onHecho={() => {
+            setVisitando(null);
+            // Todo se mueve a la vez: la visita cambia tareas, pipeline y cliente
+            tareas.recargar(); pipeline.recargar(); clientes.recargar(); cups.recargar();
+          }}
+        />
       )}
     </div>
   );

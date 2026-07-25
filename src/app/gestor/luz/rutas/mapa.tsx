@@ -107,9 +107,11 @@ interface Props {
   onProspectoARuta?: (p: ProspectoGuardado) => Promise<string | null>;
   /** Las que ya se han pasado a la ruta, por id. */
   prospectosAnadidos?: Record<string, boolean>;
+  /** Abre la hoja de "¿qué tal ha ido?" para ese cliente. */
+  onResolverVisita?: (clienteId: string, nombre: string) => void;
 }
 
-export function MapaRutas({ paradas, seleccion, onAlternar, orden, origenGeo, origenTexto, onRecargarClientes, modoManual, onMarcarFV, onUbicaciones, prospectos, onProspectoARuta, prospectosAnadidos }: Props) {
+export function MapaRutas({ paradas, seleccion, onAlternar, orden, origenGeo, origenTexto, onRecargarClientes, modoManual, onMarcarFV, onUbicaciones, prospectos, onProspectoARuta, prospectosAnadidos, onResolverVisita }: Props) {
   const mapaRef = useRef<HTMLDivElement>(null);
   const mapaObj = useRef<import('leaflet').Map | null>(null);
   const capaMarcadores = useRef<import('leaflet').LayerGroup | null>(null);
@@ -257,9 +259,12 @@ export function MapaRutas({ paradas, seleccion, onAlternar, orden, origenGeo, or
       div.appendChild(btnRuta);
 
       const btnVisita = document.createElement('button');
-      btnVisita.textContent = '✓ Marcar visitado hoy';
+      btnVisita.textContent = onResolverVisita ? '✅ Ya he ido — ¿qué tal?' : '✓ Marcar visitado hoy';
       btnVisita.style.cssText = `width:100%;margin-bottom:4px;padding:6px 8px;border-radius:8px;border:none;font-weight:700;font-size:11px;cursor:pointer;background:#d1fae5;color:#065f46`;
-      btnVisita.onclick = () => marcarVisitado(p.cliente_id);
+      // Registrar solo la fecha no dice nada: lo que mueve el sistema es el
+      // resultado. Si hay dónde resolverla, se abre; si no, se apunta a secas.
+      btnVisita.onclick = () =>
+        onResolverVisita ? onResolverVisita(p.cliente_id, p.nombre) : marcarVisitado(p.cliente_id);
       div.appendChild(btnVisita);
 
       // Marcar interés en fotovoltaica: crea la oportunidad real en el pipeline
