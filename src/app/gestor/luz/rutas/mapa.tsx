@@ -2,11 +2,16 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import 'leaflet/dist/leaflet.css';
-import { RefreshCw, Layers } from 'lucide-react';
-import { guardarLuz, btnSecundario } from '../ui';
+import { RefreshCw, Layers, MapPinned, Info, ChevronDown } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import { guardarLuz, btnSecundario, btnPrimario } from '../ui';
 import { ZONAS, zonaDeParada } from '@/lib/zonas';
 import { ProspectoGuardado, TipoProspecto, TIPO_PROSPECTO_LABEL, categoriaDeNaves } from '@/lib/prospeccion';
 import { urlOrtofoto } from './foto-aerea';
+import {
+  CAPAS, ClaveCapa, TESELAS_CALLES, TESELAS_ROTULOS, WMS_PNOA, WMS_IGN_BASE,
+  capaGuardada, esOscura, CLAVE_CAPA_GUARDADA,
+} from './capas';
 
 /**
  * Mapa interactivo de Rutas de visitas (Leaflet + OpenStreetMap, sin coste).
@@ -123,6 +128,10 @@ export function MapaRutas({ paradas, seleccion, onAlternar, orden, origenGeo, or
   const [cargado, setCargado] = useState(false);
   const [error, setError] = useState('');
   const [pintar, setPintar] = useState(0); // señal para repintar marcadores cuando el mapa termina de crearse
+  /** Capa de fondo elegida. Se recuerda: cada uno trabaja mejor con una. */
+  const [capa, setCapa] = useState<ClaveCapa>('hibrido');
+  const capasFondo = useRef<import('leaflet').Layer[]>([]);
+  const [verLeyenda, setVerLeyenda] = useState(true);
 
   /** Geocodifica (una vez) las paradas visibles con el filtro actual. */
   const cargarUbicaciones = useCallback(async () => {
@@ -160,13 +169,7 @@ export function MapaRutas({ paradas, seleccion, onAlternar, orden, origenGeo, or
       (window as unknown as { L: typeof L }).L = L;
       if (cancelado || !mapaRef.current || mapaObj.current) return;
       const mapa = L.map(mapaRef.current, { zoomControl: true }).setView([41.85, 0.29], 10); // Binéfar
-
-      // Una sola vista, estilo Google Maps: calles, carreteras y pueblos bien legibles.
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-        attribution: '© OpenStreetMap · CARTO',
-        subdomains: 'abcd',
-        maxZoom: 20,
-      }).addTo(mapa);
+      setCapa(capaGuardada());
 
       capaMarcadores.current = L.layerGroup().addTo(mapa);
       mapaObj.current = mapa;
@@ -180,6 +183,39 @@ export function MapaRutas({ paradas, seleccion, onAlternar, orden, origenGeo, or
       mapaObj.current = null;
     };
   }, [cargado]);
+
+  /**
+   * Monta la capa de fondo elegida.
+   *
+   * En zona rural el satélite no es un capricho: un cliente no es una calle con
+   * número, es "la nave larga pasada la balsa". El híbrido —ortofoto del IGN
+   * con los nombres encima— es el que mejor funciona para preparar una ruta,
+   * y por eso es el que sale por defecto.
+   */
+  useEffect(() => {
+    const mapa = mapaObj.current;
+    const L = (window as unknown as { L?: typeof import('leaflet') }).L;
+    if (!mapa || !L) return;
+
+    for (const c of capasFondo.current) mapa.removeLayer(c);
+    capasFondo.current = [];
+    const añadir = (c: import('leaflet').Layer) => { c.addTo(mapa); capasFondo.current.push(c); };
+
+    if (capa === 'calles') {
+      añadir(L.tileLayer(TESELAS_CALLES.url, TESELAS_CALLES.opciones));
+    } else if (capa === 'relieve') {
+      añadir(L.tileLayer.wms(WMS_IGN_BASE.url, WMS_IGN_BASE.opciones));
+    } else {
+      añadir(L.tileLayer.wms(WMS_PNOA.url, WMS_PNOA.opciones));
+      // El híbrido lleva los rótulos encima; el satélite se deja limpio para
+      // poder mirar cubiertas y balsas sin nada que estorbe.
+      if (capa === 'hibrido') añadir(L.tileLayer(TESELAS_ROTULOS.url, TESELAS_ROTULOS.opciones));
+    }
+
+    // Las capas de fondo van debajo de todo lo demás
+    for (const c of capasFondo.current) (c as import('leaflet').TileLayer).bringToBack();
+    try { localStorage.setItem(CLAVE_CAPA_GUARDADA, capa); } catch { /* sin espacio */ }
+  }, [capa, cargado, pintar]);
 
   // Si el panel cambia de tamaño (redimensionar ventana, plegar menú), Leaflet se entera
   useEffect(() => {
@@ -362,7 +398,15 @@ export function MapaRutas({ paradas, seleccion, onAlternar, orden, origenGeo, or
       const linea: [number, number][] = [[origenGeo.lat, origenGeo.lon]];
       for (const o of orden) if (o.lat != null && o.lon != null) linea.push([o.lat, o.lon]);
       if (linea.length > 1) {
-        capaRuta.current = L.polyline(linea, { color: '#e11d48', weight: 3, opacity: 0.75, dashArray: '6 6' }).addTo(mapa);
+        // Sobre la ortofoto un trazo fino se pierde entre los campos: se pinta
+        // más grueso y con un halo blanco debajo para que destaque siempre.
+        const oscura = esOscura(capa);
+        if (oscura) {
+          capaRuta.current = L.polyline(linea, { color: '#ffffff', weight: 7, opacity: 0.55 }).addTo(mapa);
+          L.polyline(linea, { color: '#f43f5e', weight: 3.5, opacity: 1, dashArray: '8 6' }).addTo(mapa);
+        } else {
+          capaRuta.current = L.polyline(linea, { color: '#e11d48', weight: 3, opacity: 0.75, dashArray: '6 6' }).addTo(mapa);
+        }
       }
     }
 
@@ -370,65 +414,182 @@ export function MapaRutas({ paradas, seleccion, onAlternar, orden, origenGeo, or
       mapa.invalidateSize(); // por si el contenedor acaba de hacerse visible
       try { mapa.fitBounds(bounds as [number, number][], { padding: [30, 30], maxZoom: 14 }); } catch { /* rango insuficiente */ }
     }
-  }, [puntos, seleccion, orden, origenGeo, paradas, modoManual, origenTexto, pintar, prospectos, prospectosAnadidos]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [puntos, seleccion, orden, origenGeo, paradas, modoManual, origenTexto, pintar, prospectos, prospectosAnadidos, capa]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const visitadasHoy = paradas.filter((p) => puntos[p.id] && p.fecha_ultimo_contacto === HOY()).length;
   const ubicadas = Object.values(puntos).filter(Boolean).length;
 
+  const oscura = esOscura(capa);
+
   return (
     <div className="rounded-2xl border border-border/40 bg-surface/40 overflow-hidden">
-      <div className="flex items-center justify-between gap-2 p-2.5 border-b border-border/30 flex-wrap">
-        <div className="flex items-center gap-2 text-xs">
-          <Layers className="w-4 h-4 text-accent shrink-0" />
-          <span className="font-bold">Mapa interactivo</span>
-          {cargado && <span className="text-muted">· {ubicadas}/{paradas.length} ubicadas · {visitadasHoy} visitadas hoy · ☀️ {paradas.filter((p) => p.interesFV).length} interesados FV</span>}
+      {/* Cabecera: los números del mapa en grande, que es lo que se mira */}
+      <div className="flex items-center justify-between gap-2 p-3 border-b border-border/30 flex-wrap">
+        <div className="flex items-center gap-3 flex-wrap">
+          <span className="flex items-center gap-1.5 font-black text-sm">
+            <Layers className="w-4 h-4 text-accent shrink-0" /> Mapa
+          </span>
+          {cargado && (
+            <div className="flex items-center gap-3">
+              {[
+                { n: ubicadas, de: paradas.length, t: 'ubicadas', c: 'text-foreground' },
+                { n: seleccion.size, de: null, t: 'en la ruta', c: 'text-blue-400' },
+                { n: visitadasHoy, de: null, t: 'visitadas hoy', c: 'text-emerald-400' },
+                { n: paradas.filter((p) => p.interesFV).length, de: null, t: 'interesados FV', c: 'text-amber-400' },
+              ].map(({ n, de, t, c }) => (
+                <span key={t} className="flex items-baseline gap-1">
+                  <motion.b
+                    key={`${t}-${n}`}
+                    initial={{ scale: 1.35, opacity: 0.4 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    transition={{ type: 'spring', stiffness: 400, damping: 22 }}
+                    className={`text-base font-black tabular-nums ${c}`}
+                  >
+                    {n}{de != null ? `/${de}` : ''}
+                  </motion.b>
+                  <span className="text-[10px] uppercase font-bold text-muted">{t}</span>
+                </span>
+              ))}
+            </div>
+          )}
         </div>
         <button onClick={cargarUbicaciones} disabled={cargando} className={btnSecundario}>
           <RefreshCw className={`w-3.5 h-3.5 ${cargando ? 'animate-spin' : ''}`} />
-          {cargando ? 'Ubicando…' : cargado ? 'Actualizar mapa' : 'Cargar mapa'}
+          {cargando ? 'Ubicando…' : cargado ? 'Actualizar' : 'Cargar mapa'}
         </button>
       </div>
 
-      {error && <p className="text-[11px] text-red-400 px-2.5 py-1.5">{error}</p>}
+      {error && <p className="text-[11px] text-red-400 px-3 py-1.5">{error}</p>}
 
       {!cargado && !cargando && (
-        <div className="p-6 text-center text-xs text-muted">
-          📍 Pulsa <b>«Cargar mapa»</b> para situar en el plano las {paradas.length} ubicación(es) del filtro actual.
+        <div className="p-8 text-center">
+          <MapPinned className="w-10 h-10 mx-auto text-muted/40 mb-2" />
+          <p className="text-sm font-bold">Sitúa las visitas sobre el terreno</p>
+          <p className="text-xs text-muted mt-1">
+            {paradas.length} ubicaciones con el filtro actual.
+          </p>
+          <button onClick={cargarUbicaciones} className={`${btnPrimario} mt-3 mx-auto`}>
+            <MapPinned className="w-4 h-4" /> Cargar mapa
+          </button>
         </div>
       )}
 
       {/* Sin transiciones ni altura 0: una transición CSS de height dejaba el
           contenedor a 0 px mientras Leaflet medía, y el mapa salía vacío. */}
       {cargado && (
-        <div
-          ref={mapaRef}
-          className="w-full"
-          style={{ height: '28rem', position: 'relative', zIndex: 0, isolation: 'isolate', background: '#e8e4dc', transition: 'none' }}
-        />
-      )}
+        <div className="relative">
+          <div
+            ref={mapaRef}
+            className="w-full"
+            style={{ height: '34rem', position: 'relative', zIndex: 0, isolation: 'isolate', background: '#e8e4dc', transition: 'none' }}
+          />
 
-      {cargado && (
-        <div className="flex flex-wrap gap-3 px-3 py-2 border-t border-border/30 text-[10px] text-muted">
-          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-[#ef4444] inline-block" /> Prioridad A</span>
-          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-[#f59e0b] inline-block" /> Prioridad B</span>
-          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-[#6b7280] inline-block" /> Sin prioridad alta</span>
-          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-[#eab308] inline-block" /> ☀️ Interesado en fotovoltaica</span>
-          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-[#3b82f6] inline-block" /> En la ruta</span>
-          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-[#10b981] inline-block" /> Visitado hoy</span>
-          <span className="flex items-center gap-1">🏠 Punto de salida</span>
-          {modoManual && <span className="text-accent font-bold">🖱️ Modo manual: clic en un pin = añadir/quitar de la ruta</span>}
+          {/* Selector de capas, flotando sobre el mapa como en cualquier mapa
+              serio. En zona rural cambiar a satélite es la diferencia entre ver
+              carreteras y reconocer la nave a la que se va. */}
+          <div className="absolute top-3 right-3 z-[500]">
+            <div className="flex flex-col gap-1 p-1 rounded-xl bg-background/85 backdrop-blur border border-border/50 shadow-lg">
+              {CAPAS.map((c) => {
+                const activa = capa === c.clave;
+                return (
+                  <button
+                    key={c.clave}
+                    onClick={() => setCapa(c.clave)}
+                    title={c.pista}
+                    className="relative flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition"
+                  >
+                    {activa && (
+                      <motion.span
+                        layoutId="capa-activa"
+                        className="absolute inset-0 rounded-lg bg-accent"
+                        transition={{ type: 'spring', stiffness: 450, damping: 32 }}
+                      />
+                    )}
+                    <span className={`relative z-10 ${activa ? 'text-white' : 'text-muted'}`}>{c.emoji}</span>
+                    <span className={`relative z-10 ${activa ? 'text-white' : 'text-muted'}`}>{c.nombre}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Aviso del modo manual, encima del mapa donde se está mirando */}
+          <AnimatePresence>
+            {modoManual && (
+              <motion.div
+                initial={{ y: -12, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                exit={{ y: -12, opacity: 0 }}
+                className="absolute top-3 left-3 z-[500] px-3 py-2 rounded-xl bg-accent text-white text-[11px] font-black shadow-lg"
+              >
+                Toca un pin para meterlo o sacarlo de la ruta
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       )}
 
+      {/* Leyenda plegable: hace falta al principio y estorba en cuanto se
+          conocen los colores. */}
       {cargado && (
-        <div className="flex flex-wrap gap-x-3 gap-y-1 px-3 pb-2 text-[10px] text-muted items-center">
-          <span className="font-bold">🗂️ Zonas (anillo del pin):</span>
-          {ZONAS.map((z) => (
-            <span key={z.id} className="flex items-center gap-1">
-              <span className="w-2.5 h-2.5 rounded-full inline-block border-2" style={{ borderColor: z.color }} />
-              {z.nombre}
+        <div className="border-t border-border/30">
+          <button
+            onClick={() => setVerLeyenda((v) => !v)}
+            className="w-full flex items-center justify-between gap-2 px-3 py-2 text-[11px] font-bold text-muted hover:text-foreground transition"
+          >
+            <span className="flex items-center gap-1.5">
+              <Info className="w-3.5 h-3.5" /> Qué significa cada pin
+              {oscura && <span className="text-[10px] font-normal">· vista aérea del IGN</span>}
             </span>
-          ))}
+            <ChevronDown className={`w-4 h-4 transition-transform ${verLeyenda ? '' : '-rotate-90'}`} />
+          </button>
+
+          <AnimatePresence initial={false}>
+            {verLeyenda && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.22, ease: 'easeOut' }}
+                className="overflow-hidden"
+              >
+                <div className="px-3 pb-3 space-y-2">
+                  <div className="flex flex-wrap gap-x-3 gap-y-1.5 text-[10px] text-muted">
+                    {([
+                      ['#ef4444', 'Prioridad A'],
+                      ['#f59e0b', 'Prioridad B'],
+                      ['#6b7280', 'Sin prioridad alta'],
+                      ['#eab308', 'Interesado en fotovoltaica'],
+                      ['#3b82f6', 'En la ruta'],
+                      ['#10b981', 'Visitado hoy'],
+                    ] as const).map(([color, texto]) => (
+                      <span key={texto} className="flex items-center gap-1">
+                        <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ background: color }} /> {texto}
+                      </span>
+                    ))}
+                    <span className="flex items-center gap-1">🏠 Punto de salida</span>
+                  </div>
+
+                  {(prospectos?.length ?? 0) > 0 && (
+                    <p className="text-[10px] text-muted">
+                      <b className="text-foreground">Oportunidades:</b> el emoji es el sector y el número de la esquina
+                      son las naves. Vienen aprobadas del Mapa de oportunidades.
+                    </p>
+                  )}
+
+                  <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-muted items-center">
+                    <span className="font-bold">Zonas (anillo del pin):</span>
+                    {ZONAS.map((z) => (
+                      <span key={z.id} className="flex items-center gap-1">
+                        <span className="w-2.5 h-2.5 rounded-full inline-block border-2" style={{ borderColor: z.color }} />
+                        {z.nombre}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       )}
     </div>

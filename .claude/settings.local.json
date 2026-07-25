@@ -406,7 +406,14 @@
       "Bash(rm -f _sim.mjs)",
       "Bash(grep -n \"return NextResponse.json\\({ datos\\\\|NextResponse.json\\({ ok: true, datos\" src/app/api/luz/\\\\[tabla\\\\]/route.ts)",
       "Bash(sed -i \"s|  centroDe, procesarElementos, puntuar, nivelInteres, densificarRuta,|  centroDe, procesarElementos, puntuar, nivelInteres, densificarRuta, coordsDeTexto, nombreComparable,|\" scripts/test-prospeccion.mjs)",
-      "Bash(node scripts/test-visitas.mjs)"
+      "Bash(node scripts/test-visitas.mjs)",
+      "Bash(awk '/^  return \\\\\\(/{p=1} p' src/app/gestor/luz/rutas/mapa.tsx)",
+      "Bash(python \"C:/Users/Usuario/AppData/Local/Temp/claude/C--Users-Usuario-Desktop-calude-web/e5b35bc9-b92f-4067-8c4a-db31794ae8b2/scratchpad/parche_mapa.py\")",
+      "Bash(curl -s -m 40 \"https://www.ign.es/wms-inspire/pnoa-ma?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetMap&LAYERS=OI.OrthoimageCoverage&SRS=EPSG:3857&BBOX=32000,5140000,34000,5142000&WIDTH=256&HEIGHT=256&FORMAT=image/jpeg&STYLES=\" -o wms1.jpg -w \"1.1.1/3857 → HTTP %{http_code} %{content_type} %{size_download}b\\\\n\")",
+      "Bash(curl -s -m 40 \"https://www.ign.es/wms-inspire/ign-base?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetMap&LAYERS=IGNBaseTodo&SRS=EPSG:3857&BBOX=32000,5140000,34000,5142000&WIDTH=256&HEIGHT=256&FORMAT=image/png&STYLES=\" -o wms2.png -w \"ign-base → HTTP %{http_code} %{content_type} %{size_download}b\\\\n\")",
+      "Bash(curl -s -m 25 \"https://a.basemaps.cartocdn.com/rastertiles/voyager_only_labels/12/2050/1550.png\" -o lab.png -w \"rotulos → HTTP %{http_code} %{content_type} %{size_download}b\\\\n\")",
+      "Bash(curl -s -m 25 \"https://a.basemaps.cartocdn.com/rastertiles/voyager_only_labels/12/2051/1522.png\" -o lab2.png -w \"Binefar → HTTP %{http_code} %{size_download}b\\\\n\")",
+      "Bash(python \"C:/Users/Usuario/AppData/Local/Temp/claude/C--Users-Usuario-Desktop-calude-web/e5b35bc9-b92f-4067-8c4a-db31794ae8b2/scratchpad/parche_panel.py\")"
     ]
   }
 }

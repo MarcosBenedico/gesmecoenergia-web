@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
-import { Map as MapIcon, Navigation, Loader, ExternalLink, X, Pencil, Check, MousePointerClick } from 'lucide-react';
+import { Map as MapIcon, Navigation, Loader, ExternalLink, X, Pencil, Check, MousePointerClick, MapPinned } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import { LuzCliente, LuzCups, LuzOportunidad, LuzVisita } from '@/lib/luz';
 import { Card, Badge, BadgePrioridad, EstadoCarga, useListaLuz, guardarLuz, inputCls, labelCls, btnPrimario, btnSecundario } from '../ui';
 import { leerRutaDia, guardarRutaDia } from './ruta-dia';
@@ -502,37 +503,75 @@ export default function RutasPage() {
           {/* ── Derecha: la ruta ── */}
           <div className="space-y-4 lg:sticky lg:top-20">
             <Card>
-              <h3 className="font-bold text-sm mb-2">🚐 Ruta ({seleccion.size} parada{seleccion.size === 1 ? '' : 's'})</h3>
+              {/* El número de paradas, en grande: es el estado de la ruta */}
+              <div className="flex items-baseline gap-2 mb-3">
+                <motion.span
+                  key={seleccion.size}
+                  initial={{ scale: 1.4, opacity: 0.3 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ type: 'spring', stiffness: 420, damping: 24 }}
+                  className="text-3xl font-black tabular-nums text-accent leading-none"
+                >
+                  {seleccion.size}
+                </motion.span>
+                <span className="text-sm font-bold text-muted">
+                  {seleccion.size === 1 ? 'parada en la ruta' : 'paradas en la ruta'}
+                </span>
+              </div>
+
               <div className="mb-3">
                 <label className={labelCls}>Punto de salida</label>
                 <input className={inputCls} value={origen} onChange={(e) => { setOrigen(e.target.value); setResultado(null); }} />
               </div>
 
               {seleccion.size === 0 ? (
-                <p className="text-xs text-muted text-center py-4">Marca clientes o CUPS de la lista para añadirlos a la ruta.</p>
+                <div className="text-center py-6 rounded-xl border border-dashed border-border/40">
+                  <MapPinned className="w-8 h-8 mx-auto text-muted/40 mb-2" />
+                  <p className="text-xs font-bold">La ruta está vacía</p>
+                  <p className="text-[11px] text-muted mt-0.5 px-4">
+                    Marca clientes en la lista, o toca sus pines en el mapa.
+                  </p>
+                </div>
               ) : (
-                <div className="space-y-1 mb-3">
-                  {Array.from(seleccion.values()).map((p) => (
-                    <div key={p.id} className="p-2 rounded-lg bg-card/60 text-xs">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="truncate font-semibold">{p.nombre}</span>
-                        <button onClick={() => alternar(p)} className="text-muted hover:text-red-400 shrink-0"><X className="w-3.5 h-3.5" /></button>
-                      </div>
-                      {p.tarea_id && (
-                        <div className="flex items-center justify-between gap-2 mt-1 pl-1">
-                          <span className="text-[10px] text-muted truncate">📋 {p.tarea_desc || 'Tarea pendiente'}</span>
-                          <button
-                            onClick={() => tareaHecha(p)}
-                            className="shrink-0 px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 text-[10px] font-bold hover:bg-emerald-500/25 transition"
-                            title="Marcar la tarea como completada"
-                          >
-                            ✓ Hecha
+                <ul className="space-y-1.5 mb-3">
+                  <AnimatePresence initial={false}>
+                    {Array.from(seleccion.values()).map((p, idx) => (
+                      <motion.li
+                        key={p.id}
+                        layout
+                        initial={{ opacity: 0, x: -14 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: 14, height: 0, marginBottom: 0 }}
+                        transition={{ type: 'spring', stiffness: 420, damping: 32 }}
+                        className="p-2 rounded-lg bg-card/60 border border-border/30 text-xs overflow-hidden"
+                      >
+                        <div className="flex items-center gap-2">
+                          {/* El número de orden: se lee la secuencia sin contar */}
+                          <span className="shrink-0 w-5 h-5 rounded-full bg-accent/15 text-accent border border-accent/30 flex items-center justify-center font-black text-[10px]">
+                            {idx + 1}
+                          </span>
+                          <span className="truncate font-semibold flex-1">{p.nombre}</span>
+                          <button onClick={() => alternar(p)} title="Quitar de la ruta"
+                            className="text-muted hover:text-red-400 shrink-0 p-1 -m-1">
+                            <X className="w-3.5 h-3.5" />
                           </button>
                         </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
+                        {p.tarea_id && (
+                          <div className="flex items-center justify-between gap-2 mt-1.5 pl-7">
+                            <span className="text-[10px] text-muted truncate">📋 {p.tarea_desc || 'Tarea pendiente'}</span>
+                            <button
+                              onClick={() => tareaHecha(p)}
+                              className="shrink-0 px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 text-[10px] font-bold hover:bg-emerald-500/25 transition"
+                              title="Marcar la tarea como completada"
+                            >
+                              ✓ Hecha
+                            </button>
+                          </div>
+                        )}
+                      </motion.li>
+                    ))}
+                  </AnimatePresence>
+                </ul>
               )}
 
               <button onClick={generarRuta} disabled={calculando || seleccion.size === 0} className={`${btnPrimario} w-full justify-center`}>
