@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
-import { Radar, Loader, Info, Search, Trash2, Map as MapIcon, Target, Crosshair } from 'lucide-react';
+import { Radar, Loader, Info, Search, Trash2, Map as MapIcon, Target, Crosshair, List } from 'lucide-react';
 import {
   ProspectoGuardado, EstadoProspecto, ESTADOS_PROSPECTO, ESTADO_PROSPECTO_LABEL,
   ESTADO_PROSPECTO_COLOR, TIPO_PROSPECTO_LABEL, TipoProspecto, CATEGORIAS_NAVES, categoriaDeNaves,
@@ -11,6 +11,7 @@ import { ZONAS } from '@/lib/zonas';
 import { Card, EstadoCarga, useListaLuz, guardarLuz, inputCls, labelCls, btnPrimario, btnSecundario } from '../ui';
 import { tokenSesion } from '@/lib/usuario';
 import { Objetivos } from './objetivos';
+import { ListaOportunidades } from './lista';
 
 // Leaflet necesita `window`: solo en el navegador
 const MapaOportunidades = dynamic(() => import('./mapa-oportunidades').then((m) => m.MapaOportunidades), {
@@ -47,10 +48,9 @@ export default function OportunidadesPage() {
   const [fMunicipio, setFMunicipio] = useState('');
   const [buscar, setBuscar] = useState('');
   const [orden, setOrden] = useState<(typeof ORDENES)[number]['clave']>('puntuacion');
-  const [seleccionado, setSeleccionado] = useState<ProspectoGuardado | null>(null);
   // Dos formas de mirar lo mismo: el mapa para descubrir y decidir, la lista de
   // objetivos para trabajar lo ya decidido.
-  const [vista, setVista] = useState<'mapa' | 'objetivos'>('mapa');
+  const [vista, setVista] = useState<'mapa' | 'lista' | 'objetivos'>('mapa');
 
   // ── Barrido de una zona ──
   const [radioBarrido, setRadioBarrido] = useState(3);
@@ -245,7 +245,11 @@ export default function OportunidadesPage() {
 
       {/* Descubrir vs. trabajar: son dos tareas distintas y piden pantallas distintas */}
       <div className="flex gap-1.5">
-        {([['mapa', 'Mapa', MapIcon], ['objetivos', `Objetivos${paraVisitar ? ` (${paraVisitar})` : ''}`, Target]] as const).map(([v, texto, Icono]) => (
+        {([
+          ['mapa', 'Mapa', MapIcon],
+          ['lista', 'Lista', List],
+          ['objetivos', `Objetivos${paraVisitar ? ` (${paraVisitar})` : ''}`, Target],
+        ] as const).map(([v, texto, Icono]) => (
           <button key={v} onClick={() => setVista(v)}
             className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition ${
               vista === v ? 'bg-accent text-white' : 'bg-card/80 text-muted border border-border/50 hover:text-foreground'
@@ -269,7 +273,6 @@ export default function OportunidadesPage() {
       {prospectos.datos.length === 0 && !prospectos.cargando && (
         <MapaOportunidades
           prospectos={[]}
-          seleccionado={null}
           onSeleccionar={() => {}}
           onCambiarEstado={async () => {}}
           centroBarrido={centro}
@@ -378,10 +381,13 @@ export default function OportunidadesPage() {
             </p>
           </Card>
 
+          {vista === 'lista' ? (
+            <ListaOportunidades prospectos={filtrados} onCambiarEstado={cambiarEstado} />
+          ) : (
+          <>
           <MapaOportunidades
             prospectos={filtrados}
-            seleccionado={seleccionado?.id || null}
-            onSeleccionar={setSeleccionado}
+            onSeleccionar={() => {}}
             onCambiarEstado={cambiarEstado}
             centroBarrido={centro}
             radioBarridoKm={radioBarrido}
@@ -395,6 +401,9 @@ export default function OportunidadesPage() {
               ⚠️ {filtrados.length.toLocaleString('es-ES')} pines en el mapa. A partir de unos 800 el mapa se mueve con
               tirones: filtra por estado, tamaño o municipio para trabajar más cómodo.
             </p>
+          )}
+
+          </>
           )}
 
           <div className="flex items-start gap-1.5 text-[10px] text-muted bg-card/60 rounded-lg p-2">

@@ -29,7 +29,7 @@ const EMOJI: Record<TipoProspecto, string> = {
 
 interface Props {
   prospectos: ProspectoGuardado[];
-  seleccionado: string | null;
+  /** Se avisa al pulsar un pin, para que la lista lateral lo destaque. */
   onSeleccionar: (p: ProspectoGuardado | null) => void;
   onCambiarEstado: (p: ProspectoGuardado, estado: EstadoProspecto) => Promise<void>;
   /** Centro elegido para el próximo barrido. Se dibuja con su círculo. */
@@ -41,7 +41,7 @@ interface Props {
 }
 
 export function MapaOportunidades({
-  prospectos, seleccionado, onSeleccionar, onCambiarEstado,
+  prospectos, onSeleccionar, onCambiarEstado,
   centroBarrido, radioBarridoKm = 3, eligiendoCentro, onElegirCentro,
 }: Props) {
   const contenedor = useRef<HTMLDivElement>(null);
@@ -138,18 +138,17 @@ export function MapaOportunidades({
     for (const p of prospectos) {
       const cat = categoriaDeNaves(p.n_edificios);
       const color = ESTADO_PROSPECTO_COLOR[p.estado] || '#64748b';
-      const activo = seleccionado === p.id;
       // Los descartados se ven, pero apagados: dejan constancia de que ya se
       // miraron sin robarle atención a lo que queda por hacer.
       const apagado = p.estado === 'descartado';
-      const px = activo ? 44 : p.n_edificios >= 5 ? 38 : p.n_edificios >= 3 ? 32 : 27;
+      const px = p.n_edificios >= 5 ? 38 : p.n_edificios >= 3 ? 32 : 27;
 
       const html = `
         <div style="position:relative;width:${px}px;height:${px}px;opacity:${apagado ? 0.4 : 1}">
           <div style="width:${px}px;height:${px}px;border-radius:9999px;background:#fffbeb;
                       border:3px solid ${color};display:flex;align-items:center;justify-content:center;
                       font-size:${Math.round(px * 0.46)}px;
-                      box-shadow:0 2px ${activo ? 10 : 5}px rgba(0,0,0,${activo ? 0.55 : 0.3})">
+                      box-shadow:0 2px 5px rgba(0,0,0,.3)">
             ${EMOJI[p.tipo] || '❓'}
           </div>
           <div style="position:absolute;bottom:-3px;right:-3px;background:${cat.color};color:white;
@@ -163,7 +162,7 @@ export function MapaOportunidades({
 
       const marcador = L.marker([p.lat, p.lon], {
         icon: L.divIcon({ html, className: '', iconSize: [px, px], iconAnchor: [px / 2, px / 2], popupAnchor: [0, -px / 2] }),
-        zIndexOffset: activo ? 1000 : apagado ? -500 : 0,
+        zIndexOffset: apagado ? -500 : 0,
       }).addTo(capa.current!);
       limites.push([p.lat, p.lon]);
 
@@ -224,7 +223,11 @@ export function MapaOportunidades({
       m.invalidateSize();
       try { m.fitBounds(limites, { padding: [40, 40], maxZoom: 13 }); setPrimeraVez(false); } catch { /* rango insuficiente */ }
     }
-  }, [prospectos, seleccionado, listo]); // eslint-disable-line react-hooks/exhaustive-deps
+    // OJO con las dependencias: `seleccionado` NO puede estar aquí. Al pulsar un
+    // pin se marca como seleccionado, eso volvía a entrar aquí, `clearLayers()`
+    // destruía el marcador justo cuando iba a abrir su ficha, y no se abría
+    // nada. La selección se refleja en la lista, no repintando el mapa.
+  }, [prospectos, listo]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return <div ref={contenedor} className="w-full h-[34rem] rounded-2xl border border-border/40 overflow-hidden" />;
 }

@@ -41,8 +41,17 @@ export default function FichaObjetivoPage() {
   const [error, setError] = useState('');
   const catastroPedido = useRef(false);
 
+  // Mismo patrón para todos los campos de texto: se guarda solo lo escrito, y
+  // mientras no se toque nada se enseña lo que hay en la ficha.
+  const [nombreBorrador, setNombreBorrador] = useState<string | null>(null);
+  const [municipioBorrador, setMunicipioBorrador] = useState<string | null>(null);
+
   const notas = borrador ?? (p?.notas || '');
   const notasCambiadas = borrador !== null && borrador !== (p?.notas || '');
+  const nombre = nombreBorrador ?? (p?.nombre || '');
+  const nombreCambiado = nombreBorrador !== null && nombreBorrador !== (p?.nombre || '');
+  const municipio = municipioBorrador ?? (p?.municipio || '');
+  const municipioCambiado = municipioBorrador !== null && municipioBorrador !== (p?.municipio || '');
 
   /**
    * La ficha del Catastro se pide una sola vez y se GUARDA en la fila: es un
@@ -225,7 +234,47 @@ export default function FichaObjetivoPage() {
 
       {/* ── Trabajo sobre el objetivo ── */}
       <Card>
-        <h2 className="font-bold text-sm mb-2">Decisión</h2>
+        <h2 className="font-bold text-sm mb-2">Ficha del posible cliente</h2>
+        <p className="text-[11px] text-muted mb-3">
+          Lo que sale del mapa es una suposición. En cuanto sepas el nombre real o a qué se dedican, corrígelo aquí:
+          es lo que verá David al ir, y lo que se copiará en su ficha de cliente al pasarlo al sistema.
+        </p>
+
+        {/* Identidad: lo que el mapa adivina y nosotros sabemos mejor */}
+        <div className="grid sm:grid-cols-2 gap-3 mb-3">
+          <label className="block sm:col-span-2">
+            <span className={labelCls}>Nombre</span>
+            <input
+              value={nombre}
+              onChange={(e) => setNombreBorrador(e.target.value)}
+              onBlur={async () => { if (nombreCambiado) { await cambiar({ nombre: nombre.trim() || null }); setNombreBorrador(null); } }}
+              placeholder={nombreSugerido(p)}
+              className={inputCls}
+            />
+            {!p.nombre && <span className="block text-[10px] text-muted mt-1">El mapa no le sabe el nombre. Si lo averiguas, ponlo aquí.</span>}
+          </label>
+          <label className="block">
+            <span className={labelCls}>Sector</span>
+            <select value={p.tipo} disabled={guardando}
+              onChange={(e) => cambiar({ tipo: e.target.value })} className={inputCls}>
+              {(Object.keys(TIPO_PROSPECTO_LABEL) as (keyof typeof TIPO_PROSPECTO_LABEL)[]).map((t) => (
+                <option key={t} value={t}>{TIPO_PROSPECTO_LABEL[t]}</option>
+              ))}
+            </select>
+          </label>
+          <label className="block">
+            <span className={labelCls}>Municipio</span>
+            <input
+              value={municipio}
+              onChange={(e) => setMunicipioBorrador(e.target.value)}
+              onBlur={async () => { if (municipioCambiado) { await cambiar({ municipio: municipio.trim() || null }); setMunicipioBorrador(null); } }}
+              placeholder="Sin municipio"
+              className={inputCls}
+            />
+          </label>
+        </div>
+
+        <h3 className="font-bold text-xs text-muted uppercase mb-2">Decisión</h3>
         <div className="grid sm:grid-cols-2 gap-3">
           <label className="block">
             <span className={labelCls}>Estado</span>
@@ -249,7 +298,7 @@ export default function FichaObjetivoPage() {
             value={notas}
             onChange={(e) => setBorrador(e.target.value)}
             rows={3}
-            placeholder="Lo que sepas de este sitio: quién es el dueño, si ya se le visitó, qué se habló…"
+            placeholder="Lo que sepas y lo que David tenga que hacer al llegar: quién es el dueño, por dónde se entra, qué preguntar…"
             className={inputCls}
           />
         </label>
