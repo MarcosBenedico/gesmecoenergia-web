@@ -39,7 +39,7 @@ const TABLAS: Record<string, DefTabla> = {
   clientes: {
     tabla: 'luz_clientes',
     select: '*',
-    columnas: ['nombre', 'nif', 'tipo_cliente', 'persona_contacto', 'telefono', 'email', 'direccion_fiscal', 'responsable', 'prioridad', 'estado_comercial', 'potencial_comercial', 'origen_cliente', 'via_entrada', 'observaciones', 'fecha_ultimo_contacto', 'fecha_proxima_accion', 'proxima_accion'],
+    columnas: ['nombre', 'nif', 'tipo_cliente', 'persona_contacto', 'telefono', 'email', 'direccion_fiscal', 'responsable', 'prioridad', 'estado_comercial', 'potencial_comercial', 'origen_cliente', 'via_entrada', 'observaciones', 'fecha_ultimo_contacto', 'fecha_proxima_accion', 'proxima_accion', 'foto_path'],
     filtros: ['tipo_cliente', 'responsable', 'prioridad', 'estado_comercial', 'via_entrada'],
     buscarEn: 'nombre',
     orden: { col: 'nombre', asc: true },

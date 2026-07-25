@@ -272,6 +272,8 @@ export interface LuzCliente {
   fecha_ultimo_contacto: string | null;
   fecha_proxima_accion: string | null;
   proxima_accion: string | null;
+  /** Ruta de la foto del sitio en el bucket privado. Se firma al mostrarla. */
+  foto_path?: string | null;
   creado_en?: string;
   actualizado_en?: string;
 }

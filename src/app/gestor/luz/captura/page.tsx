@@ -9,6 +9,7 @@ import {
 } from '@/lib/luz';
 import { tokenSesion } from '@/lib/usuario';
 import { Card, inputCls, labelCls, btnPrimario, btnSecundario, useListaLuz } from '../ui';
+import { subirFotoSitio, FotoSitio } from '../foto-sitio';
 
 /**
  * CAPTURA RÁPIDA — la pieza que une WhatsApp con el panel.
@@ -65,8 +66,11 @@ export default function CapturaPage() {
   const clientes = useListaLuz<LuzCliente>('clientes');
 
   const fileRef = useRef<HTMLInputElement>(null);
+  const fotoRef = useRef<HTMLInputElement>(null);
   const [f, setF] = useState(VACIO);
   const [factura, setFactura] = useState<FacturaLeida | null>(null);
+  const [fotoPath, setFotoPath] = useState<string | null>(null);
+  const [subiendoFoto, setSubiendoFoto] = useState(false);
   const [leyendo, setLeyendo] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState('');
@@ -109,6 +113,15 @@ export default function CapturaPage() {
     }
   }, [f.nombre]);
 
+  /** Sube la foto del sitio que David mandó al grupo. */
+  async function cargarFoto(archivo: File) {
+    setSubiendoFoto(true); setError('');
+    const { path, error: err } = await subirFotoSitio(archivo);
+    setSubiendoFoto(false);
+    if (err) { setError(err); return; }
+    setFotoPath(path);
+  }
+
   /** Crea de una vez cliente + suministro + oportunidad + tarea. */
   async function capturar() {
     if (!f.nombre.trim()) { setError('El nombre del cliente es obligatorio.'); return; }
@@ -137,6 +150,8 @@ export default function CapturaPage() {
       fecha_ultimo_contacto: HOY(),
       proxima_accion: f.accion.trim() || null,
       fecha_proxima_accion: f.fecha_accion || null,
+      // La foto va con el cliente: es lo que verá el comercial antes de llegar
+      ...(fotoPath ? { foto_path: fotoPath } : {}),
     });
     if (!rCli?.ok) {
       setGuardando(false);
@@ -196,11 +211,14 @@ export default function CapturaPage() {
       pasos.push(`Tarea asignada a ${f.responsable || 'nadie'} para el ${fmtFecha(f.fecha_accion)}`);
     }
 
+    if (fotoPath) pasos.push('Foto del sitio guardada');
+
     setGuardando(false);
     setHecho(pasos);
     // Se limpia todo menos el responsable: lo normal es encadenar varias capturas
     setF({ ...VACIO, responsable: f.responsable });
     setFactura(null);
+    setFotoPath(null);
     clientes.recargar();
   }
 
@@ -305,6 +323,37 @@ export default function CapturaPage() {
         </Card>
 
         <div className="space-y-4">
+          {/* Foto del sitio: lo que le permite reconocer la nave antes de llegar */}
+          <Card className="space-y-2">
+            <h3 className="font-bold text-sm flex items-center gap-2">
+              <Camera className="w-4 h-4 text-accent" /> Foto del sitio
+            </h3>
+            <p className="text-[11px] text-muted">
+              La que mandó al grupo. La verá en su Mi Día antes de ir: en granjas y naves,
+              desde la carretera son todas iguales.
+            </p>
+            <input ref={fotoRef} type="file" accept="image/*" className="hidden"
+              onChange={(e) => { const a = e.target.files?.[0]; if (a) cargarFoto(a); e.target.value = ''; }} />
+            {fotoPath ? (
+              <div className="fv-fade-in flex items-center gap-2">
+                <FotoSitio path={fotoPath} alt="Sitio" className="h-16 w-16" />
+                <div className="min-w-0">
+                  <p className="text-[11px] font-black text-emerald-400">✓ Foto lista</p>
+                  <button onClick={() => setFotoPath(null)} className="text-[10px] text-muted hover:text-foreground underline">
+                    Quitar
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button onClick={() => fotoRef.current?.click()} disabled={subiendoFoto}
+                className={`${btnSecundario} w-full justify-center`}>
+                {subiendoFoto
+                  ? <><Loader className="w-4 h-4 animate-spin" /> Subiendo…</>
+                  : <><Camera className="w-4 h-4" /> Subir foto del sitio</>}
+              </button>
+            )}
+          </Card>
+
           {/* Factura: aquí es donde se ahorra el tecleo de verdad */}
           <Card className="space-y-2">
             <h3 className="font-bold text-sm flex items-center gap-2"><Camera className="w-4 h-4 text-secondary" /> ¿Mandó la factura?</h3>

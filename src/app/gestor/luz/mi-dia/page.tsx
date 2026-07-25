@@ -12,6 +12,8 @@ import { fmtEur0 } from '@/lib/correbin';
 import { useUsuario } from '@/lib/usuario';
 import { Card, EstadoCarga, useListaLuz, guardarLuz, SelectorResponsable } from '../ui';
 import { ClientesEnMarcha } from './clientes-en-marcha';
+import { AccionesContacto } from '../acciones-contacto';
+import { FotoSitio } from '../foto-sitio';
 
 /**
  * MI DÍA — la pantalla de David.
@@ -95,6 +97,13 @@ export default function MiDiaPage() {
     };
   }, [persona, tareas.datos, cups.datos, fechas.datos, pipeline.datos, clientes.datos]);
 
+  // Teléfono, dirección y foto de cada cliente: la agenda no los lleva, y son
+  // justo lo que hace falta para llamar o arrancar la navegación desde aquí
+  const fichaCliente = useMemo(
+    () => new Map(clientes.datos.map((c) => [c.id, c])),
+    [clientes.datos]
+  );
+
   async function completar(i: ItemAgenda) {
     if (!i.id) return;
     setOcupado(i.clave);
@@ -114,6 +123,7 @@ export default function MiDiaPage() {
   const Accion = ({ i, apagado = false }: { i: ItemAgenda; apagado?: boolean }) => {
     const atrasada = (i.dias ?? 0) < 0;
     const conNombre = !!i.clienteNombre;
+    const ficha = i.clienteId ? fichaCliente.get(i.clienteId) : null;
     const Contenido = (
       <>
         <div className="min-w-0 flex-1 space-y-1">
@@ -149,7 +159,10 @@ export default function MiDiaPage() {
     );
 
     return (
-      <div className={`fv-fade-in rounded-xl bg-card/60 ${BANDA[i.prioridad] || BANDA.C} ${apagado ? 'opacity-70' : ''} p-3 flex items-center gap-3`}>
+      <div className={`fv-fade-in rounded-xl bg-card/60 ${BANDA[i.prioridad] || BANDA.C} ${apagado ? 'opacity-70' : ''} p-3`}>
+        <div className="flex items-center gap-3">
+        {/* La foto del sitio: reconocer la nave antes de llegar vale media visita */}
+        <FotoSitio path={ficha?.foto_path} alt={i.clienteNombre || ''} className="h-14 w-14" />
         {i.clienteId ? (
           <Link href={`/gestor/luz/clientes/${i.clienteId}`} className="min-w-0 flex-1 flex group">
             {Contenido}
@@ -169,6 +182,17 @@ export default function MiDiaPage() {
           </button>
         ) : (
           <span className="shrink-0 text-[9px] font-bold text-muted/50 uppercase text-center w-12 leading-tight">Aviso<br />auto</span>
+        )}
+        </div>
+        {/* Llamar, WhatsApp y navegación: lo que de verdad se pulsa desde la furgoneta */}
+        {ficha && (ficha.telefono || ficha.direccion_fiscal) && (
+          <div className="mt-2 pt-2 border-t border-border/25">
+            <AccionesContacto
+              telefono={ficha.telefono}
+              ubicacion={ficha.direccion_fiscal}
+              nombre={ficha.nombre}
+            />
+          </div>
         )}
       </div>
     );

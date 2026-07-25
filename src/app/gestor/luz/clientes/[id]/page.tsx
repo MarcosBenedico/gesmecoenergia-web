@@ -18,6 +18,8 @@ import {
 } from '../../ui';
 import { ProximaAccion, TareasCliente, HistorialCliente, VisitasYFV, SeguimientoCliente } from './componentes';
 import { PedirMotivo } from '../../motivo';
+import { AccionesContacto } from '../../acciones-contacto';
+import { FotoSitio } from '../../foto-sitio';
 
 const CUPS_VACIO = {
   cups: '', alias_suministro: '', direccion_suministro: '', tarifa_acceso: '2.0TD',
@@ -305,6 +307,9 @@ export default function FichaClienteLuz() {
               ))}
             </div>
 
+            {/* La foto que mandó David de la visita: sitúa el caso de un vistazo */}
+            <FotoSitio path={cliente.foto_path} alt={`Sitio de ${cliente.nombre}`} className="h-40 w-full max-w-sm" />
+
             <div className="grid md:grid-cols-2 gap-x-8 gap-y-1 text-sm text-muted">
               <p>Contacto: <b className="text-foreground">{cliente.persona_contacto || '—'}</b></p>
               <p>Teléfono: <b className="text-foreground">{cliente.telefono || '—'}</b></p>
@@ -318,6 +323,9 @@ export default function FichaClienteLuz() {
                 {!cliente.direccion_fiscal && <span className="text-[11px] text-amber-400 ml-2">(sin dirección no sale en las Rutas de visitas)</span>}
               </p>
             </div>
+            {(cliente.telefono || cliente.direccion_fiscal) && (
+              <AccionesContacto telefono={cliente.telefono} ubicacion={cliente.direccion_fiscal} nombre={cliente.nombre} />
+            )}
             {cliente.potencial_comercial && (
               <p className="text-sm text-secondary bg-secondary/10 border border-secondary/25 rounded-lg p-2.5">💡 {cliente.potencial_comercial}</p>
             )}
