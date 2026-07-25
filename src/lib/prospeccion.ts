@@ -1,145 +1,168 @@
 /**
- * PROSPECCIÓN SOBRE LA RUTA — aprovechar el viaje.
- *
- * Cuando David sale a ver a un cliente, pasa por delante de granjas y naves que
- * no están en la cartera. Esto las saca a la luz: coge el corredor de la ruta y
- * enseña qué hay alrededor que merezca una parada.
+ * PROSPECCIÓN — encontrar a quién venderle placas antes de que nos llame.
  *
  * ─────────────────────────────────────────────────────────────────────────────
- * DE DÓNDE SALEN LOS DATOS Y QUÉ FIABILIDAD TIENEN — leer antes de fiarse:
+ * QUÉ BUSCA ESTO, Y QUÉ NO
  *
- * La fuente es OpenStreetMap (Overpass), que es un mapa hecho por voluntarios.
- * Eso significa dos cosas, y las dos importan:
+ * Busca CONSUMO, no tejado. Lo que se vende es ahorro en la factura: un almacén
+ * enorme que enciende dos bombillas no vale nada, y una granja mediana con
+ * ventilación las 24 horas vale mucho. Los metros solo cuentan porque más nave
+ * son más animales, y más animales son más ventilación.
  *
- *   1. NO sabemos el consumo de nadie. Eso no está en ningún mapa público.
- *      Lo que se ve aquí son SEÑALES FÍSICAS de que probablemente haya consumo:
- *      que sea una granja, que sea una nave, cuántos metros de tejado tiene.
- *      La puntuación es una prioridad de visita, no una estimación de factura.
+ * NO sabe el consumo de nadie: eso no es público. Da un ORDEN DE MAGNITUD a
+ * partir del tipo de sitio y su tamaño (ver `consumo-estimado.ts`), que sirve
+ * para decidir a quién visitar primero y para nada más.
  *
- *   2. La cobertura es incompleta y desigual. En la Litera y el Cinca hay
- *      bastantes granjas mapeadas, pero faltan muchas, y muchas otras están
- *      como "edificio" a secas, sin decir qué son. Que algo no salga aquí no
- *      quiere decir que no exista.
+ * ─────────────────────────────────────────────────────────────────────────────
+ * CÓMO RECONOCE UNA GRANJA CUANDO EL MAPA NO LO DICE
  *
- * Los kWp son orientativos: salen de los metros de tejado, no de un estudio.
- * Sirven para decidir a quién visitar, no para ofertar.
+ * En la Litera, casi ninguna granja está etiquetada como tal en OpenStreetMap:
+ * las naves aparecen como `building=yes` a secas. Buscando etiquetas se queda
+ * fuera justo lo que más interesa.
+ *
+ * Lo que sí se puede leer es la FORMA, que en ganadería intensiva es
+ * inconfundible: naves largas y estrechas (60-100 m por 12-18 m), varias
+ * paralelas, aisladas en el campo, y una balsa al lado. La balsa sí suele estar
+ * mapeada, y una balsa junto a naves alargadas es purín.
+ *
+ * Por eso aquí no se clasifican edificios sueltos sino SITIOS: se agrupan los
+ * edificios cercanos y se mira el conjunto. Además así una granja de cuatro
+ * naves es una visita y no cuatro.
+ *
+ * La especie —cerdos, pollos, vacas— NO se puede deducir de forma fiable: las
+ * naves se parecen demasiado. Eso lo resuelve la foto aérea, que se enseña al
+ * lado: con los silos de pienso y el color de la balsa se ve en dos segundos.
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
+// Con extensión y separando los tipos para que Node pueda ejecutar este
+// archivo tal cual en los tests, sin compilar nada.
+import type { ActividadConsumo, RangoConsumo } from './consumo-estimado.ts';
+import { estimarConsumo, tramoConsumo } from './consumo-estimado.ts';
+
 export type TipoProspecto =
+  | 'granja_intensiva'
   | 'granja'
-  | 'nave'
-  | 'industrial'
   | 'invernadero'
-  | 'silo'
+  | 'industria'
+  | 'nave'
   | 'riego'
   | 'comercio'
-  | 'edificio_grande';
+  | 'sin_clasificar';
 
 export interface Prospecto {
-  /** id de OSM, con prefijo de tipo: 'way/123456'. Estable entre consultas. */
+  /** id de OSM del elemento principal del sitio: 'way/123456'. */
   id: string;
   tipo: TipoProspecto;
-  /** Nombre si OSM lo tiene. Muchas veces no lo tiene. */
   nombre: string | null;
   lat: number;
   lon: number;
-  /** Superficie del polígono en m². 0 si es un punto. */
-  area_m2: number;
-  /**
-   * true si `area_m2` es la parcela entera (una granja, un polígono), no un
-   * tejado. Cambia por completo lo que se puede deducir: en una parcela solo
-   * una parte está construida.
-   */
-  es_parcela: boolean;
+
+  /** Metros construidos sumando todas las naves del sitio. */
+  m2_construidos: number;
+  /** Cuántas naves/edificios forman el sitio. */
+  n_edificios: number;
+  /** Medidas de la nave más grande, que es lo que delata el uso. */
+  nave_mayor: { largo: number; ancho: number } | null;
+  /** Hay una balsa al lado (purines, o riego). */
+  tiene_balsa: boolean;
+
   /** Distancia en línea recta al punto más cercano de la ruta, en km. */
   km_desvio: number;
-  /** Tejado aprovechable estimado → kWp. Orientativo. */
-  kwp_estimado: number;
-  /**
-   * true solo si el kWp sale de tejados medidos en el mapa. Cuando sale de una
-   * parcela es una regla de tres sobre cuánto suele estar construido, y dar un
-   * número concreto sería engañar: se enseña el tamaño del recinto y se dice
-   * que el tejado hay que verlo.
-   */
-  kwp_fiable: boolean;
+  /** Orden de magnitud del consumo. null si no hay base para decir nada. */
+  consumo: RangoConsumo | null;
   /** OSM dice que ya tiene placas. */
   ya_tiene_placas: boolean;
-  /** 0-100. Prioridad de visita, no estimación de consumo. */
+
+  /** 0-100. Prioridad de visita. */
   puntuacion: number;
-  /** Por qué puntúa así, en lenguaje llano. Se enseña siempre. */
+  /** Por qué puntúa así, en lenguaje llano. */
   motivos: string[];
-  /** Pueblo/municipio si OSM lo trae. */
+  /** Lo que hay que mirar en la foto aérea para confirmar de qué va esto. */
+  que_mirar: string[];
   municipio: string | null;
 }
 
 export const TIPO_PROSPECTO_LABEL: Record<TipoProspecto, string> = {
-  granja: '🐖 Granja',
-  nave: '🏭 Nave',
-  industrial: '🏗️ Polígono / industria',
+  granja_intensiva: '🐖 Granja intensiva',
+  granja: '🚜 Explotación ganadera',
   invernadero: '🌱 Invernadero',
-  silo: '🌾 Silo / almacén agrícola',
-  riego: '💧 Riego / bombeo',
-  comercio: '🏪 Comercio o taller',
-  edificio_grande: '📦 Edificio grande sin clasificar',
+  industria: '🏭 Industria',
+  nave: '📦 Nave / almacén',
+  riego: '💧 Riego o bombeo',
+  comercio: '🏪 Taller o comercio',
+  sin_clasificar: '❓ Por identificar',
 };
 
-/**
- * Puntos base por tipo. El criterio es el perfil de consumo típico:
- * una granja de porcino o avícola ventila y alimenta las 24 horas —consumo alto
- * y constante, que es justo donde el autoconsumo amortiza mejor—, mientras que
- * un comercio consume menos y de forma más irregular.
- */
-const PUNTOS_TIPO: Record<TipoProspecto, number> = {
-  granja: 40,
-  industrial: 36,
-  nave: 34,
-  invernadero: 28,
-  riego: 26,
-  silo: 20,
-  comercio: 14,
-  edificio_grande: 12,
+const ACTIVIDAD: Record<TipoProspecto, ActividadConsumo> = {
+  granja_intensiva: 'granja_intensiva',
+  granja: 'granja_generica',
+  invernadero: 'invernadero',
+  industria: 'industria',
+  nave: 'nave_almacen',
+  riego: 'riego',
+  comercio: 'taller_comercio',
+  sin_clasificar: 'desconocido',
 };
 
-const MOTIVO_TIPO: Record<TipoProspecto, string> = {
-  granja: 'Granja: ventilación y alimentación funcionan casi todo el día, que es donde el autoconsumo cunde más.',
-  industrial: 'Suelo industrial: consumo en horario de trabajo, que coincide con las horas de sol.',
-  nave: 'Nave: mucho tejado y consumo en horario diurno.',
-  invernadero: 'Invernadero: climatización y riego, con consumo sostenido.',
-  riego: 'Bombeo de riego: consumo muy concentrado y caro en campaña.',
-  silo: 'Almacén agrícola: menos consumo, pero suele haber tejado grande y contacto fácil.',
-  comercio: 'Comercio o taller: consumo menor, pero es visita rápida.',
-  edificio_grande: 'Edificio grande sin clasificar en el mapa: puede ser una nave. Habría que verlo al pasar.',
-};
+// ── Umbrales de forma ────────────────────────────────────────────────────────
+/** Una nave ganadera o industrial es larga y estrecha; una casa, no. */
+const NAVE_RATIO_MIN = 2.8;
+const NAVE_ANCHO_MIN = 7;
+const NAVE_ANCHO_MAX = 40;
+const NAVE_LARGO_MIN = 30;
+/** Edificios a menos de esto son el mismo sitio. */
+export const KM_MISMO_SITIO = 0.1;
+/** Una balsa a menos de esto de las naves es de la explotación. */
+const KM_BALSA_CERCA = 0.35;
+/** Por debajo de esto no merece ni aparecer. */
+const M2_MINIMOS = 250;
 
 /**
- * Metros cuadrados de tejado que hacen falta por cada kWp instalado.
- * Con paneles actuales (~450 W en ~2 m²) salen ~4,2 m²/kWp en el papel; se
- * usa 5,5 para dejar sitio a pasillos, sombras y orientación.
+ * Topes para no confundir una explotación con media población.
+ *
+ * Agrupando por cercanía sin límite pasa lo que tenía que pasar: los edificios
+ * se van encadenando —A cerca de B, B cerca de C— y acaba saliendo un "sitio"
+ * de 42 naves que en realidad es un pueblo entero o un polígono. En una prueba
+ * real, el complejo del Servicio Aragonés de Salud salió como granja intensiva
+ * la primera de la lista. Una explotación de verdad tiene pocas naves y ocupa
+ * poco terreno; lo que se pase de esto es tejido urbano y no un cliente.
  */
-const M2_POR_KWP = 5.5;
-/** Fracción del tejado realmente aprovechable (lucernarios, extractores, canalones). */
-const FRACCION_UTIL = 0.6;
+const MAX_EDIFICIOS_SITIO = 14;
+const MAX_DIAMETRO_SITIO_KM = 0.4;
+
 /**
- * Qué parte de una parcela está construida. En una granja de la zona, entre las
- * naves, el estercolero, los silos y los viales, el tejado viene a ser un cuarto
- * del recinto. Es una regla gruesa, y por eso el número se marca como estimado.
+ * AISLAMIENTO: la señal que de verdad separa el campo del pueblo.
+ *
+ * No se puede confiar en que el casco urbano esté dibujado en el mapa: en
+ * Binéfar no lo está, y por eso una manzana de casas adosadas —largas,
+ * estrechas, pegadas unas a otras— salía como "granja intensiva" la primera de
+ * la lista, con 730 MWh estimados. La ortofoto lo dejó claro de un vistazo.
+ *
+ * Lo que no falla es que una explotación ganadera está SOLA en medio de los
+ * campos. Se cuentan los edificios que hay alrededor y, si hay multitud, es
+ * tejido urbano por mucho que las formas engañen.
  */
-const OCUPACION_PARCELA = 0.25;
+const KM_RADIO_VECINDARIO = 0.25;
+/** Por encima de esto es pueblo o polígono: no se sabe quién es quién. */
+const VECINOS_URBANO = 28;
+/** Por encima de esto ya no es una explotación aislada, aunque lo parezca. */
+const VECINOS_AISLADO = 12;
 
-/** Metros de TEJADO a partir del polígono, sea parcela o edificio. */
-export function tejadoDesdeArea(area_m2: number, es_parcela: boolean): number {
-  if (area_m2 <= 0) return 0;
-  return es_parcela ? area_m2 * OCUPACION_PARCELA : area_m2;
-}
+/**
+ * Nada de esto se visita para venderle placas por esta vía: son equipamientos
+ * públicos, religiosos o deportivos. Alguno podría ser cliente, pero no se
+ * capta llamando a la puerta de una granja.
+ */
+const ETIQUETAS_VETADAS = [
+  'amenity', 'healthcare', 'leisure', 'tourism', 'historic', 'military', 'aeroway', 'public_transport',
+];
+const USOS_VETADOS = /^(church|chapel|cathedral|mosque|school|university|hospital|public|civic|government|train_station|transportation|sports_hall|stadium|toilets|service|kindergarten)$/;
 
-export function kwpDesdeArea(area_m2: number, es_parcela = false): number {
-  const tejado = tejadoDesdeArea(area_m2, es_parcela);
-  if (tejado <= 0) return 0;
-  return Math.round((tejado * FRACCION_UTIL) / M2_POR_KWP);
-}
+// ═══════════════════════════════════════════════════════════════════════════
+//  GEOMETRÍA
+// ═══════════════════════════════════════════════════════════════════════════
 
-/** Distancia haversine en km. */
 export function distKm(a: { lat: number; lon: number }, b: { lat: number; lon: number }): number {
   const R = 6371;
   const dLat = ((b.lat - a.lat) * Math.PI) / 180;
@@ -150,12 +173,7 @@ export function distKm(a: { lat: number; lon: number }, b: { lat: number; lon: n
   return 2 * R * Math.asin(Math.sqrt(x));
 }
 
-/**
- * Distancia en km de un punto al TRAMO que va de `a` a `b`.
- *
- * Se proyecta a metros alrededor del punto y se resuelve en plano: a estas
- * distancias la curvatura de la Tierra no cambia nada.
- */
+/** Distancia en km de un punto al tramo a→b (proyectando a metros; en plano). */
 export function kmAlTramo(
   p: { lat: number; lon: number },
   a: { lat: number; lon: number },
@@ -163,28 +181,20 @@ export function kmAlTramo(
 ): number {
   const mLat = 111132;
   const mLon = 111320 * Math.cos((p.lat * Math.PI) / 180);
-  const px = 0, py = 0;
   const ax = (a.lon - p.lon) * mLon, ay = (a.lat - p.lat) * mLat;
   const bx = (b.lon - p.lon) * mLon, by = (b.lat - p.lat) * mLat;
-
   const dx = bx - ax, dy = by - ay;
   const largo2 = dx * dx + dy * dy;
-  // Tramo de longitud cero: es un punto
-  if (largo2 === 0) return Math.hypot(ax - px, ay - py) / 1000;
-
-  // Dónde cae la proyección dentro del tramo, recortada a sus extremos
-  const t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / largo2));
-  return Math.hypot(ax + t * dx - px, ay + t * dy - py) / 1000;
+  if (largo2 === 0) return Math.hypot(ax, ay) / 1000;
+  const t = Math.max(0, Math.min(1, (-ax * dx - ay * dy) / largo2));
+  return Math.hypot(ax + t * dx, ay + t * dy) / 1000;
 }
 
 /**
- * Distancia al punto más cercano del RECORRIDO, contando los tramos enteros y
- * no solo las paradas.
- *
- * Es importante que sea así: entre Binéfar y Tamarite hay 11 km, y una granja
- * a pie de carretera a mitad de camino está a 5,5 km de las dos paradas pero a
- * 100 m de la ruta. Midiendo solo a las paradas se quedaba fuera justo lo que
- * más interesa, que es lo que se ve por la ventanilla.
+ * Distancia al RECORRIDO, contando los tramos enteros y no solo las paradas.
+ * Entre Binéfar y Tamarite hay 11 km: una granja a pie de carretera a mitad de
+ * camino está a 5,5 km de las dos paradas pero a 100 m de la ruta. Es justo lo
+ * que se ve por la ventanilla, y midiendo a las paradas se quedaba fuera.
  */
 export function kmALaRuta(p: { lat: number; lon: number }, ruta: { lat: number; lon: number }[]): number {
   if (!ruta.length) return 0;
@@ -197,23 +207,54 @@ export function kmALaRuta(p: { lat: number; lon: number }, ruta: { lat: number; 
   return min;
 }
 
-/**
- * Área de un polígono en m² por la fórmula del área de Gauss, proyectando
- * grados a metros. A estas latitudes y con parcelas de este tamaño el error
- * es despreciable frente a la incertidumbre del propio dato.
- */
+/** Área de un polígono en m² (fórmula de Gauss sobre metros proyectados). */
 export function areaPoligono(puntos: { lat: number; lon: number }[]): number {
   if (puntos.length < 3) return 0;
   const latMedia = (puntos.reduce((s, p) => s + p.lat, 0) / puntos.length) * (Math.PI / 180);
-  const mPorGradoLat = 111132;
-  const mPorGradoLon = 111320 * Math.cos(latMedia);
+  const mLat = 111132;
+  const mLon = 111320 * Math.cos(latMedia);
   let suma = 0;
   for (let i = 0; i < puntos.length; i++) {
-    const a = puntos[i];
-    const b = puntos[(i + 1) % puntos.length];
-    suma += a.lon * mPorGradoLon * (b.lat * mPorGradoLat) - b.lon * mPorGradoLon * (a.lat * mPorGradoLat);
+    const a = puntos[i], b = puntos[(i + 1) % puntos.length];
+    suma += a.lon * mLon * (b.lat * mLat) - b.lon * mLon * (a.lat * mLat);
   }
   return Math.abs(suma) / 2;
+}
+
+/**
+ * Largo y ancho REALES del edificio, en metros.
+ *
+ * No vale la caja norte-sur: una nave girada 45° daría un cuadrado y parecería
+ * un almacén cuadrado en vez de una nave alargada. Se prueban rotaciones y se
+ * coge la caja de menor área, que es la que se ajusta al edificio.
+ */
+export function dimensionesNave(puntos: { lat: number; lon: number }[]): { largo: number; ancho: number } {
+  if (puntos.length < 3) return { largo: 0, ancho: 0 };
+  const latMedia = (puntos.reduce((s, p) => s + p.lat, 0) / puntos.length) * (Math.PI / 180);
+  const mLon = 111320 * Math.cos(latMedia);
+  const pts = puntos.map((p) => ({ x: p.lon * mLon, y: p.lat * 111132 }));
+
+  let mejor = { area: Infinity, largo: 0, ancho: 0 };
+  // Cada 3° basta: el error en las medidas es menor que el del propio dibujo
+  for (let deg = 0; deg < 90; deg += 3) {
+    const a = (deg * Math.PI) / 180, ca = Math.cos(a), sa = Math.sin(a);
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    for (const p of pts) {
+      const x = p.x * ca + p.y * sa, y = -p.x * sa + p.y * ca;
+      if (x < minX) minX = x; if (x > maxX) maxX = x;
+      if (y < minY) minY = y; if (y > maxY) maxY = y;
+    }
+    const w = maxX - minX, h = maxY - minY;
+    if (w * h < mejor.area) mejor = { area: w * h, largo: Math.max(w, h), ancho: Math.min(w, h) };
+  }
+  return { largo: Math.round(mejor.largo), ancho: Math.round(mejor.ancho) };
+}
+
+/** ¿Tiene forma de nave? Largo, estrecho y de tamaño de explotación. */
+export function pareceNave(d: { largo: number; ancho: number }): boolean {
+  if (d.ancho < NAVE_ANCHO_MIN || d.ancho > NAVE_ANCHO_MAX) return false;
+  if (d.largo < NAVE_LARGO_MIN) return false;
+  return d.largo / d.ancho >= NAVE_RATIO_MIN;
 }
 
 /** ¿Está el punto dentro del polígono? (ray casting). Para descartar cascos urbanos. */
@@ -221,67 +262,15 @@ export function dentroDe(p: { lat: number; lon: number }, poligono: { lat: numbe
   if (poligono.length < 3) return false;
   let dentro = false;
   for (let i = 0, j = poligono.length - 1; i < poligono.length; j = i++) {
-    const a = poligono[i];
-    const b = poligono[j];
-    const cruza = a.lat > p.lat !== b.lat > p.lat;
-    if (cruza && p.lon < ((b.lon - a.lon) * (p.lat - a.lat)) / (b.lat - a.lat) + a.lon) dentro = !dentro;
+    const a = poligono[i], b = poligono[j];
+    if (a.lat > p.lat !== b.lat > p.lat &&
+        p.lon < ((b.lon - a.lon) * (p.lat - a.lat)) / (b.lat - a.lat) + a.lon) dentro = !dentro;
   }
   return dentro;
 }
 
-/**
- * Puntúa un candidato. 0-100.
- *
- * Reparto: tipo de actividad (hasta 40), tamaño del tejado (hasta 30),
- * lo poco que hay que desviarse (hasta 20), y algún extra (hasta 10).
- * Si ya tiene placas baja mucho, pero no desaparece: sigue habiendo batería
- * y ampliación, y la comercializadora se le puede cambiar igual.
- */
-export function puntuar(
-  p: Omit<Prospecto, 'puntuacion' | 'motivos' | 'kwp_estimado' | 'kwp_fiable'>,
-  radioKm: number
-): { puntuacion: number; motivos: string[]; kwp_estimado: number; kwp_fiable: boolean } {
-  const motivos: string[] = [];
-  let n = PUNTOS_TIPO[p.tipo];
-  motivos.push(MOTIVO_TIPO[p.tipo]);
-
-  // Tamaño: se puntúa por el tejado, no por el recinto. 1.200 m² es el máximo.
-  const tejado = tejadoDesdeArea(p.area_m2, p.es_parcela);
-  n += Math.min(30, Math.round(tejado / 40));
-  const kwp = kwpDesdeArea(p.area_m2, p.es_parcela);
-  if (tejado >= 300) {
-    motivos.push(
-      p.es_parcela
-        ? `Recinto de ~${Math.round(p.area_m2).toLocaleString('es-ES')} m². Los tejados no están dibujados en el mapa, así que la superficie aprovechable hay que verla allí.`
-        : `Unos ${Math.round(tejado).toLocaleString('es-ES')} m² de tejado medidos en el mapa: darían para ~${kwp} kWp (orientativo).`
-    );
-  } else if (tejado > 0) {
-    motivos.push(`Tejado pequeño (~${Math.round(tejado)} m²): poco recorrido para placas.`);
-  }
-
-  // Desvío: cuanto menos haya que salirse de la ruta, mejor
-  const cerca = Math.max(0, 1 - p.km_desvio / Math.max(radioKm, 0.1));
-  n += Math.round(20 * cerca);
-  if (p.km_desvio < 0.5) motivos.push('Prácticamente de paso: no supone desvío.');
-  else motivos.push(`A ${p.km_desvio.toFixed(1)} km de la ruta.`);
-
-  if (p.nombre) { n += 5; motivos.push(`Sale con nombre en el mapa («${p.nombre}»): más fácil de identificar y buscar.`); }
-
-  if (p.ya_tiene_placas) {
-    n -= 40;
-    motivos.push('⚠️ En el mapa ya figura con placas. Aun así se le puede ofrecer batería, ampliación o cambio de comercializadora.');
-  }
-
-  return {
-    puntuacion: Math.max(0, Math.min(100, n)),
-    motivos,
-    kwp_estimado: kwp,
-    kwp_fiable: !p.es_parcela,
-  };
-}
-
 // ═══════════════════════════════════════════════════════════════════════════
-//  DE OPENSTREETMAP A CANDIDATOS
+//  DE OPENSTREETMAP A SITIOS
 // ═══════════════════════════════════════════════════════════════════════════
 
 export interface ElementoOSM {
@@ -296,11 +285,9 @@ export interface ElementoOSM {
 }
 
 /**
- * Dónde está el elemento.
- *
- * Overpass no siempre devuelve lo mismo: al pedir `geom` manda `bounds` y
- * `geometry` pero NO `center`, mientras que sin `geom` manda `center`. Hay que
- * aceptar las tres formas o se cae todo sin decir por qué.
+ * Dónde está el elemento. Overpass no siempre manda lo mismo: al pedir `geom`
+ * llegan `bounds` y `geometry` pero NO `center`. Hay que aceptar las tres
+ * formas o se cae todo sin decir por qué.
  */
 export function centroDe(e: ElementoOSM): { lat: number; lon: number } | null {
   if (e.center) return e.center;
@@ -318,91 +305,229 @@ export function centroDe(e: ElementoOSM): { lat: number; lon: number } | null {
   return null;
 }
 
-/** Superficie mínima para que un edificio sin clasificar merezca aparecer. */
-export const AREA_MIN_EDIFICIO_GRANDE = 500;
-/** Dos polígonos a menos de esto son el mismo sitio (la parcela y su nave). */
-export const KM_MISMO_SITIO = 0.06;
-/** Dos polígonos con el MISMO nombre a menos de esto son el mismo negocio. */
-export const KM_MISMO_NEGOCIO = 1.5;
-/**
- * Un recinto industrial por encima de esto no es una empresa: es el polígono
- * entero, con docenas de naves dentro. Ofrecerlo como un candidato daría un
- * número de kWp enorme y falso, y además no se sabría ni a quién visitar.
- * Las naves de dentro salen igualmente por su cuenta, que es lo que interesa.
- */
-export const AREA_MAX_RECINTO_INDUSTRIAL = 30000;
+interface Edificio {
+  id: string;
+  lat: number;
+  lon: number;
+  area: number;
+  dims: { largo: number; ancho: number };
+  esNave: boolean;
+  tags: Record<string, string>;
+}
 
-/** Clasifica según las etiquetas de OSM. null = no interesa. */
-export function clasificar(t: Record<string, string>): TipoProspecto | null {
-  const b = t.building || '';
-  const lu = t.landuse || '';
+/** Un sitio: uno o varios edificios que son la misma explotación o empresa. */
+interface Sitio {
+  edificios: Edificio[];
+  lat: number;
+  lon: number;
+}
 
-  if (lu === 'farmyard' || t.animal_keeping || /^(farm_auxiliary|barn|stable|cowshed|sty|chicken_coop)$/.test(b)) return 'granja';
-  if (lu === 'greenhouse_horticulture' || b === 'greenhouse') return 'invernadero';
-  if (t.man_made === 'silo' || t.man_made === 'storage_tank' || b === 'silo') return 'silo';
-  if (t.man_made === 'pumping_station' || t.man_made === 'water_well' || lu === 'basin') return 'riego';
-  if (lu === 'industrial' || b === 'industrial' || b === 'factory') return 'industrial';
-  if (b === 'warehouse' || t.industrial) return 'nave';
-  if (t.shop || t.craft || t.office || b === 'commercial' || b === 'retail') return 'comercio';
-  // Edificio sin clasificar: solo si además es grande y está fuera del casco urbano
-  if (b === 'yes' || b === 'roof') return 'edificio_grande';
-  return null;
+/** Diámetro del sitio en km: lo que hay entre sus dos edificios más separados. */
+function diametroKm(eds: Edificio[]): number {
+  let max = 0;
+  for (let i = 0; i < eds.length; i++) {
+    for (let j = i + 1; j < eds.length; j++) {
+      const d = distKm(eds[i], eds[j]);
+      if (d > max) max = d;
+    }
+  }
+  return max;
 }
 
 /**
- * Convierte la respuesta cruda de Overpass en candidatos puntuados.
+ * Agrupa edificios cercanos: una granja son sus cuatro naves, y es UNA visita.
  *
- * Aquí se cae casi todo lo que llega: cascos urbanos, edificios pequeños,
- * comercios anónimos, lo que queda fuera del radio y los duplicados. De unos
- * 800 elementos suelen salir 30-60 candidatos.
+ * El agrupamiento no crece sin límite. Si al meter un edificio el conjunto se
+ * pasa de tamaño, no se mete: ese edificio abre su propio sitio. Sin este freno
+ * los edificios se encadenan y acaba saliendo un "sitio" que es un pueblo.
+ */
+function agruparEnSitios(edificios: Edificio[]): Sitio[] {
+  const sitios: Sitio[] = [];
+  for (const ed of edificios) {
+    const cerca = sitios.find(
+      (s) =>
+        s.edificios.length < MAX_EDIFICIOS_SITIO &&
+        s.edificios.some((o) => distKm(o, ed) < KM_MISMO_SITIO) &&
+        diametroKm([...s.edificios, ed]) <= MAX_DIAMETRO_SITIO_KM
+    );
+    if (cerca) {
+      cerca.edificios.push(ed);
+      cerca.lat = cerca.edificios.reduce((t, e) => t + e.lat, 0) / cerca.edificios.length;
+      cerca.lon = cerca.edificios.reduce((t, e) => t + e.lon, 0) / cerca.edificios.length;
+    } else {
+      sitios.push({ edificios: [ed], lat: ed.lat, lon: ed.lon });
+    }
+  }
+  return sitios;
+}
+
+/** Equipamientos públicos y similares: no son clientes de esta vía. */
+function estaVetado(tags: Record<string, string>): boolean {
+  if (ETIQUETAS_VETADAS.some((k) => tags[k])) return true;
+  if (USOS_VETADOS.test(tags.building || '')) return true;
+  return false;
+}
+
+/**
+ * Qué es este sitio. Primero se hace caso a las etiquetas cuando las hay, y si
+ * no —que es lo normal— se deduce de la forma.
+ */
+function clasificarSitio(
+  s: Sitio,
+  tieneBalsa: boolean,
+  aislado: boolean
+): { tipo: TipoProspecto; queMirar: string[] } {
+  const tags = Object.assign({}, ...s.edificios.map((e) => e.tags)) as Record<string, string>;
+  const naves = s.edificios.filter((e) => e.esNave);
+  const queMirar: string[] = [];
+
+  const etiquetaGranja =
+    tags.landuse === 'farmyard' || !!tags.animal_keeping ||
+    /^(farm_auxiliary|barn|stable|cowshed|sty|chicken_coop)$/.test(tags.building || '');
+
+  // Ganadería intensiva: varias naves largas juntas, o una nave y una balsa,
+  // Y sola en el campo. Sin la condición de aislamiento, una manzana de casas
+  // adosadas cumple lo de "varias naves largas juntas" y se cuela arriba.
+  const patronIntensivo = aislado && (naves.length >= 2 || (naves.length >= 1 && tieneBalsa));
+
+  if (etiquetaGranja || patronIntensivo) {
+    if (patronIntensivo) {
+      queMirar.push(
+        tieneBalsa
+          ? 'Hay una balsa al lado: si es oscura, es de purines → cerdos o vacuno. Si es de agua limpia, riego.'
+          : 'Mira si hay balsa fuera del encuadre y silos de pienso pegados a las naves.'
+      );
+      queMirar.push('Silos de pienso (cilindros metálicos junto a la nave) = ganadería intensiva confirmada.');
+      queMirar.push('Extractores en el testero de la nave = ventilación forzada, que es el consumo gordo.');
+    }
+    return { tipo: patronIntensivo ? 'granja_intensiva' : 'granja', queMirar };
+  }
+
+  if (tags.landuse === 'greenhouse_horticulture' || tags.building === 'greenhouse') {
+    return { tipo: 'invernadero', queMirar };
+  }
+  if (tags.man_made === 'pumping_station' || tags.man_made === 'water_well') {
+    return { tipo: 'riego', queMirar };
+  }
+  if (tags.landuse === 'industrial' || /^(industrial|factory)$/.test(tags.building || '')) {
+    queMirar.push('Camiones o muelles de carga = actividad real, no nave parada.');
+    return { tipo: 'industria', queMirar };
+  }
+  if (tags.building === 'warehouse' || tags.industrial) {
+    queMirar.push('¿Se ve equipo de frío en cubierta? Si hay cámara, el consumo se multiplica.');
+    return { tipo: 'nave', queMirar };
+  }
+  if (tags.shop || tags.craft || tags.office || /^(commercial|retail)$/.test(tags.building || '')) {
+    return { tipo: 'comercio', queMirar };
+  }
+
+  // Sin etiquetas y sin patrón: una nave suelta grande en el campo
+  if (naves.length >= 1 && aislado) {
+    queMirar.push('Nave aislada sin identificar: mira si hay silos (granja), muelle (almacén) o coches (taller).');
+    return { tipo: 'nave', queMirar };
+  }
+  queMirar.push('El mapa no dice qué es. La foto es la única pista: mira accesos, vehículos y depósitos.');
+  return { tipo: 'sin_clasificar', queMirar };
+}
+
+/**
+ * Convierte la respuesta cruda de Overpass en sitios puntuados.
+ *
+ * Se cae casi todo lo que llega: cascos urbanos, edificios pequeños, y lo que
+ * queda fuera del radio. De unos 800 elementos suelen salir 30-60 sitios.
  */
 export function procesarElementos(
   elementos: ElementoOSM[],
   ruta: { lat: number; lon: number }[],
   radioKm: number
 ): Prospecto[] {
-  // Para no proponer cada casa de cada pueblo como "edificio grande"
   const zonasResidenciales = elementos
     .filter((e) => e.tags?.landuse === 'residential' && e.geometry && e.geometry.length >= 3)
     .map((e) => e.geometry!);
 
-  const candidatos: Prospecto[] = [];
+  const esUrbano = (p: { lat: number; lon: number }) => zonasResidenciales.some((z) => dentroDe(p, z));
+
+  // Balsas: la pista de que unas naves son una explotación ganadera
+  const balsas: { lat: number; lon: number }[] = [];
+  const edificios: Edificio[] = [];
+  /** TODOS los edificios del mapa, viviendas incluidas: es el censo con el que
+   *  se mide si un sitio está solo en el campo o metido en el pueblo. */
+  const censo: { lat: number; lon: number }[] = [];
 
   for (const e of elementos) {
     const tags = e.tags || {};
-    if (tags.landuse === 'residential') continue;
-
-    const tipo = clasificar(tags);
-    if (!tipo) continue;
-
     const centro = centroDe(e);
     if (!centro) continue;
+    if (tags.building) censo.push(centro);
 
-    const area = e.geometry && e.geometry.length >= 3 ? areaPoligono(e.geometry) : 0;
-
-    if (tipo === 'edificio_grande') {
-      if (area < AREA_MIN_EDIFICIO_GRANDE) continue;
-      // Dentro del pueblo, un edificio grande casi siempre es un bloque de pisos
-      if (zonasResidenciales.some((z) => dentroDe(centro, z))) continue;
+    if (tags.water === 'basin' || tags.landuse === 'basin' || tags.man_made === 'storage_tank') {
+      balsas.push(centro);
+      continue;
     }
-    // El recinto del polígono industrial no es un cliente: sus naves ya salen sueltas
-    if (tipo === 'industrial' && tags.landuse === 'industrial' && area > AREA_MAX_RECINTO_INDUSTRIAL) continue;
-    // Un comercio sin nombre no aporta nada: no se sabe ni a quién se visita
-    if (tipo === 'comercio' && !tags.name) continue;
+    if (tags.landuse === 'residential') continue;
+    // Un recinto (landuse) no es un edificio: sus naves ya vienen por su cuenta
+    if (tags.landuse && !tags.building) continue;
+    if (!tags.building && !tags.man_made) continue;
+    // Viviendas: nunca interesan
+    if (/^(house|residential|apartments|detached|hut|garage|garages|shed)$/.test(tags.building || '')) continue;
+    // Colegios, centros de salud, iglesias, polideportivos…
+    if (estaVetado(tags)) continue;
 
-    const kmDesvio = kmALaRuta(centro, ruta);
+    const geom = e.geometry && e.geometry.length >= 3 ? e.geometry : null;
+    const area = geom ? areaPoligono(geom) : 0;
+    const dims = geom ? dimensionesNave(geom) : { largo: 0, ancho: 0 };
+
+    edificios.push({
+      id: `${e.type}/${e.id}`,
+      lat: centro.lat, lon: centro.lon,
+      area, dims, esNave: pareceNave(dims), tags,
+    });
+  }
+
+  const prospectos: Prospecto[] = [];
+
+  for (const sitio of agruparEnSitios(edificios)) {
+    const m2 = Math.round(sitio.edificios.reduce((t, e) => t + e.area, 0));
+    if (m2 < M2_MINIMOS) continue;
+    // Dentro del pueblo casi todo lo grande es un bloque de pisos
+    if (esUrbano(sitio)) continue;
+
+    const kmDesvio = kmALaRuta(sitio, ruta);
     if (kmDesvio > radioKm) continue;
 
+    // Cuántos edificios hay alrededor: pueblo o campo
+    const vecinos = censo.reduce((t, c) => t + (distKm(c, sitio) < KM_RADIO_VECINDARIO ? 1 : 0), 0);
+    // En el meollo del pueblo no se puede decir quién es quién: no se propone nada
+    if (vecinos > VECINOS_URBANO) continue;
+
+    const tieneBalsa = balsas.some((b) => distKm(b, sitio) < KM_BALSA_CERCA);
+    const { tipo, queMirar } = clasificarSitio(sitio, tieneBalsa, vecinos <= VECINOS_AISLADO);
+
+    // Siempre lo primero que hay que mirar. OSM apenas registra instalaciones
+    // solares: en una prueba, una industria con placas bien visibles en la
+    // ortofoto figuraba en el mapa como si no tuviera nada. Ir a ofrecer
+    // placas a quien ya las tiene es la peor forma de empezar una visita.
+    queMirar.unshift('¿Se ven placas en la cubierta o en el aparcamiento? El mapa casi nunca lo registra; la foto sí.');
+
+    const tags = Object.assign({}, ...sitio.edificios.map((e) => e.tags)) as Record<string, string>;
+    const naveMayor = sitio.edificios
+      .filter((e) => e.esNave)
+      .sort((a, b) => b.dims.largo * b.dims.ancho - a.dims.largo * a.dims.ancho)[0];
+    // El edificio más grande da el id del sitio: es el que mejor lo representa
+    const principal = [...sitio.edificios].sort((a, b) => b.area - a.area)[0];
+
     const base = {
-      id: `${e.type}/${e.id}`,
+      id: principal.id,
       tipo,
       nombre: tags.name || tags.operator || tags['addr:housename'] || null,
-      lat: centro.lat,
-      lon: centro.lon,
-      area_m2: Math.round(area),
-      // `landuse` delimita el recinto entero; `building`, solo el tejado
-      es_parcela: !!tags.landuse,
+      lat: sitio.lat,
+      lon: sitio.lon,
+      m2_construidos: m2,
+      n_edificios: sitio.edificios.length,
+      nave_mayor: naveMayor ? naveMayor.dims : null,
+      tiene_balsa: tieneBalsa,
       km_desvio: Math.round(kmDesvio * 100) / 100,
+      consumo: estimarConsumo(ACTIVIDAD[tipo], m2),
       ya_tiene_placas:
         tags['generator:source'] === 'solar' ||
         tags.power === 'generator' ||
@@ -410,22 +535,70 @@ export function procesarElementos(
       municipio: tags['addr:city'] || tags['addr:place'] || null,
     };
 
-    candidatos.push({ ...base, ...puntuar(base, radioKm) });
+    prospectos.push({ ...base, que_mirar: queMirar, ...puntuar(base, radioKm) });
   }
 
-  // La parcela de la granja y sus naves salen por separado, y una granja con
-  // cuatro naves sale cuatro veces. Nos quedamos con el mejor de cada grupo,
-  // que es el que lleva más información: es UNA visita, no cuatro.
-  const unicos: Prospecto[] = [];
-  for (const p of candidatos.sort((a, b) => b.puntuacion - a.puntuacion)) {
-    const repetido = unicos.some(
-      (u) =>
-        distKm(u, p) < KM_MISMO_SITIO ||
-        (!!p.nombre && u.nombre === p.nombre && distKm(u, p) < KM_MISMO_NEGOCIO)
+  return prospectos.sort((a, b) => b.puntuacion - a.puntuacion);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  PUNTUACIÓN
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Prioridad de visita, 0-100. Manda el consumo estimado (hasta 40 puntos),
+ * porque es lo que decide si merece la pena una oferta. Después, lo bien que
+ * encaja ese consumo con las horas de sol (hasta 20), lo poco que hay que
+ * desviarse (hasta 20) y las pistas de que la cosa va en serio (hasta 20).
+ */
+export function puntuar(
+  p: Omit<Prospecto, 'puntuacion' | 'motivos' | 'que_mirar'>,
+  radioKm: number
+): { puntuacion: number; motivos: string[] } {
+  const motivos: string[] = [];
+  let n = 0;
+
+  if (p.consumo) {
+    const tramo = tramoConsumo(p.consumo.centro);
+    n += tramo.peso;
+    motivos.push(
+      `${tramo.texto}: del orden de ${p.consumo.min.toLocaleString('es-ES')}–${p.consumo.max.toLocaleString('es-ES')} kWh/año por tipo y tamaño. Es una estimación, no un dato.`
     );
-    if (!repetido) unicos.push(p);
+    motivos.push(p.consumo.perfil.motor);
+
+    const encaje = { excelente: 20, bueno: 12, regular: 4 }[p.consumo.perfil.encaje_solar];
+    n += encaje;
+    if (p.consumo.perfil.encaje_solar === 'excelente') {
+      motivos.push('El consumo cae en horas de sol: es donde el autoconsumo amortiza mejor.');
+    } else if (p.consumo.perfil.encaje_solar === 'regular') {
+      motivos.push('⚠️ Puede que consuma poco de día, y entonces las placas rinden menos.');
+    }
+  } else {
+    motivos.push('No hay base para estimar el consumo: habría que verlo.');
   }
-  return unicos;
+
+  // Señales de que es una explotación de verdad y no una nave parada
+  if (p.n_edificios >= 3) { n += 8; motivos.push(`${p.n_edificios} naves juntas: explotación de tamaño, no un cobertizo.`); }
+  else if (p.n_edificios === 2) { n += 4; motivos.push('Dos naves: explotación pequeña o mediana.'); }
+
+  if (p.nave_mayor && p.nave_mayor.largo >= 60) {
+    n += 6;
+    motivos.push(`Nave de ${p.nave_mayor.largo} × ${p.nave_mayor.ancho} m: medidas de nave ganadera o industrial.`);
+  }
+  if (p.tiene_balsa) { n += 6; motivos.push('Balsa al lado: casi seguro explotación ganadera con purines, o riego.'); }
+  if (p.nombre) { n += 4; motivos.push(`Sale con nombre en el mapa («${p.nombre}»): se puede buscar antes de ir.`); }
+
+  // Desvío
+  const cerca = Math.max(0, 1 - p.km_desvio / Math.max(radioKm, 0.1));
+  n += Math.round(20 * cerca);
+  motivos.push(p.km_desvio < 0.4 ? 'Prácticamente de paso: no supone desvío.' : `A ${p.km_desvio.toFixed(1)} km de la ruta.`);
+
+  if (p.ya_tiene_placas) {
+    n -= 40;
+    motivos.push('⚠️ En el mapa ya figura con placas. Aun así se le puede ofrecer batería, ampliación o cambio de comercializadora.');
+  }
+
+  return { puntuacion: Math.max(0, Math.min(100, n)), motivos };
 }
 
 /** Etiqueta corta del interés, para no obligar a interpretar un número. */

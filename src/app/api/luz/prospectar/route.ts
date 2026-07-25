@@ -36,18 +36,24 @@ const CACHE_MS = 30 * 60 * 1000;
 
 function consultaOverpass(ruta: { lat: number; lon: number }[], radioM: number): string {
   const a = `around:${Math.round(radioM)},${ruta.map((p) => `${p.lat.toFixed(5)},${p.lon.toFixed(5)}`).join(',')}`;
-  // La última cláusula (residential) no son candidatos: son los cascos urbanos,
-  // que se usan para descartar los edificios grandes que caen dentro del pueblo.
-  return `[out:json][timeout:45];
+  // Se piden TODOS los edificios, no solo los etiquetados: en esta zona las
+  // naves de las granjas están como `building=yes` a secas, y filtrando por
+  // etiqueta se quedaba fuera justo lo que más interesa. La criba se hace
+  // luego por forma y tamaño, en procesarElementos().
+  //
+  // Las balsas no son candidatos: son la pista de que unas naves son una
+  // explotación ganadera. Y `residential` marca los cascos urbanos, para
+  // descartar lo que cae dentro del pueblo.
+  return `[out:json][timeout:60];
 (
-  way["landuse"="farmyard"](${a});
-  way["building"~"^(farm_auxiliary|barn|stable|cowshed|sty|chicken_coop|greenhouse|warehouse|industrial|factory|commercial|retail|silo)$"](${a});
-  way["landuse"~"^(industrial|greenhouse_horticulture)$"](${a});
-  way["man_made"~"^(silo|storage_tank|pumping_station)$"](${a});
-  way["building"="yes"](${a});
+  way["building"](${a});
+  way["landuse"~"^(farmyard|industrial|greenhouse_horticulture)$"](${a});
+  way["man_made"~"^(silo|storage_tank|pumping_station|water_well)$"](${a});
+  way["water"="basin"](${a});
+  way["landuse"="basin"](${a});
   way["landuse"="residential"](${a});
 );
-out center tags geom 2500;`;
+out tags geom 6000;`;
 }
 
 export async function POST(req: NextRequest) {
