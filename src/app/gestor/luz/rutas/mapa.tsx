@@ -510,11 +510,11 @@ export function MapaRutas({ paradas, seleccion, onAlternar, orden, origenGeo, or
       {/* Cabecera: los números del mapa en grande, que es lo que se mira */}
       <div className="flex items-center justify-between gap-2 p-3 border-b border-border/30 flex-wrap">
         <div className="flex items-center gap-3 flex-wrap">
-          <span className="flex items-center gap-1.5 font-black text-sm">
-            <Layers className="w-4 h-4 text-accent shrink-0" /> Mapa
+          <span className="flex items-center gap-2 font-black text-base">
+            <Layers className="w-5 h-5 text-accent shrink-0" /> Mapa
           </span>
           {cargado && (
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-5 flex-wrap">
               {[
                 { n: ubicadas, de: paradas.length, t: 'ubicadas', c: 'text-foreground' },
                 { n: seleccion.size, de: null, t: 'en la ruta', c: 'text-blue-400' },
@@ -522,17 +522,17 @@ export function MapaRutas({ paradas, seleccion, onAlternar, orden, origenGeo, or
                 { n: objetivos, de: null, t: 'objetivos', c: 'text-violet-400' },
                 ...(visitadasHoy > 0 ? [{ n: visitadasHoy, de: null, t: 'hoy', c: 'text-emerald-300' }] : []),
               ].map(({ n, de, t, c }) => (
-                <span key={t} className="flex items-baseline gap-1">
+                <span key={t} className="flex items-baseline gap-1.5">
                   <motion.b
                     key={`${t}-${n}`}
                     initial={{ scale: 1.35, opacity: 0.4 }}
                     animate={{ scale: 1, opacity: 1 }}
                     transition={{ type: 'spring', stiffness: 400, damping: 22 }}
-                    className={`text-base font-black tabular-nums ${c}`}
+                    className={`text-2xl font-black tabular-nums leading-none ${c}`}
                   >
                     {n}{de != null ? `/${de}` : ''}
                   </motion.b>
-                  <span className="text-[10px] uppercase font-bold text-muted">{t}</span>
+                  <span className="text-xs font-bold text-muted">{t}</span>
                 </span>
               ))}
             </div>
@@ -581,7 +581,7 @@ export function MapaRutas({ paradas, seleccion, onAlternar, orden, origenGeo, or
                     key={c.clave}
                     onClick={() => setCapa(c.clave)}
                     title={c.pista}
-                    className="relative flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition"
+                    className="relative flex items-center gap-2 px-3.5 py-2.5 rounded-lg text-sm font-bold transition"
                   >
                     {activa && (
                       <motion.span
@@ -603,34 +603,34 @@ export function MapaRutas({ paradas, seleccion, onAlternar, orden, origenGeo, or
           <div className="absolute top-3 left-3 z-[500] flex flex-col gap-1.5">
             <button
               onClick={() => setVerClientes((v) => !v)}
-              className={`inline-flex items-center gap-2 px-3 py-2 rounded-xl text-[11px] font-black shadow-lg border transition ${
+              className={`inline-flex items-center gap-2.5 px-4 py-3 rounded-xl text-sm font-black shadow-lg border transition ${
                 verClientes ? 'bg-background/90 backdrop-blur text-foreground border-border/50'
                             : 'bg-background/60 backdrop-blur text-muted/60 border-border/30'
               }`}
             >
-              <span className="w-3 h-3 rounded-full bg-red-500 border-2 border-white shrink-0" />
+              <span className="w-4 h-4 rounded-full bg-red-500 border-2 border-white shrink-0" />
               Clientes
               <span className="tabular-nums opacity-70">{ubicadas}</span>
-              {verClientes ? <Eye className="w-3.5 h-3.5 opacity-60" /> : <EyeOff className="w-3.5 h-3.5 opacity-60" />}
+              {verClientes ? <Eye className="w-4 h-4 opacity-60" /> : <EyeOff className="w-4 h-4 opacity-60" />}
             </button>
 
             {(prospectos?.length ?? 0) > 0 && (
               <button
                 onClick={() => setVerObjetivos((v) => !v)}
-                className={`inline-flex items-center gap-2 px-3 py-2 rounded-xl text-[11px] font-black shadow-lg border transition ${
+                className={`inline-flex items-center gap-2.5 px-4 py-3 rounded-xl text-sm font-black shadow-lg border transition ${
                   verObjetivos ? 'bg-violet-600 text-white border-violet-400'
                                : 'bg-background/60 backdrop-blur text-muted/60 border-border/30'
                 }`}
               >
-                <span className="w-3 h-3 rounded-full bg-violet-500 border-2 border-white shrink-0" />
+                <span className="w-4 h-4 rounded-full bg-violet-500 border-2 border-white shrink-0" />
                 Objetivos
                 <span className="tabular-nums opacity-70">{prospectos?.length}</span>
-                {verObjetivos ? <Eye className="w-3.5 h-3.5 opacity-60" /> : <EyeOff className="w-3.5 h-3.5 opacity-60" />}
+                {verObjetivos ? <Eye className="w-4 h-4 opacity-60" /> : <EyeOff className="w-4 h-4 opacity-60" />}
               </button>
             )}
 
             {verObjetivos && zoom < 12 && (
-              <p className="max-w-[11rem] px-2.5 py-1.5 rounded-lg bg-violet-600/90 text-white text-[10px] font-bold shadow-lg">
+              <p className="max-w-[13rem] px-3 py-2 rounded-lg bg-violet-600/90 text-white text-xs font-bold shadow-lg">
                 Acércate para verlos con su número de naves.
               </p>
             )}
@@ -641,13 +641,13 @@ export function MapaRutas({ paradas, seleccion, onAlternar, orden, origenGeo, or
           {yaVisitados > 0 && (
             <button
               onClick={() => setOcultarVisitados((v) => !v)}
-              className={`absolute bottom-3 right-3 z-[500] inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-bold shadow-lg border transition ${
+              className={`absolute bottom-3 right-3 z-[500] inline-flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-bold shadow-lg border transition ${
                 ocultarVisitados
                   ? 'bg-accent text-white border-accent'
                   : 'bg-background/85 backdrop-blur text-muted border-border/50 hover:text-foreground'
               }`}
             >
-              {ocultarVisitados ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+              {ocultarVisitados ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               {ocultarVisitados ? `${yaVisitados} visitados ocultos` : 'Ocultar ya visitados'}
             </button>
           )}
@@ -659,7 +659,7 @@ export function MapaRutas({ paradas, seleccion, onAlternar, orden, origenGeo, or
                 initial={{ y: -12, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
                 exit={{ y: -12, opacity: 0 }}
-                className="absolute top-3 left-3 z-[500] px-3 py-2 rounded-xl bg-accent text-white text-[11px] font-black shadow-lg"
+                className="absolute bottom-3 left-3 z-[500] px-4 py-3 rounded-xl bg-accent text-white text-sm font-black shadow-lg"
               >
                 Toca un pin para meterlo o sacarlo de la ruta
               </motion.div>
@@ -674,11 +674,11 @@ export function MapaRutas({ paradas, seleccion, onAlternar, orden, origenGeo, or
         <div className="border-t border-border/30">
           <button
             onClick={() => setVerLeyenda((v) => !v)}
-            className="w-full flex items-center justify-between gap-2 px-3 py-2 text-[11px] font-bold text-muted hover:text-foreground transition"
+            className="w-full flex items-center justify-between gap-2 px-4 py-3 text-sm font-bold text-muted hover:text-foreground transition"
           >
             <span className="flex items-center gap-1.5">
-              <Info className="w-3.5 h-3.5" /> Qué significa cada pin
-              {oscura && <span className="text-[10px] font-normal">· vista aérea del IGN</span>}
+              <Info className="w-4 h-4" /> Qué significa cada pin
+              {oscura && <span className="text-xs font-normal">· vista aérea del IGN</span>}
             </span>
             <ChevronDown className={`w-4 h-4 transition-transform ${verLeyenda ? '' : '-rotate-90'}`} />
           </button>
@@ -692,54 +692,55 @@ export function MapaRutas({ paradas, seleccion, onAlternar, orden, origenGeo, or
                 transition={{ duration: 0.22, ease: 'easeOut' }}
                 className="overflow-hidden"
               >
-                <div className="px-3 pb-3">
-                  {/* Un pin = un color. Cuatro casos y se acabó. */}
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <div className="px-4 pb-4">
+                  {/* Cuatro casos, con el pin de verdad al lado y a tamaño que
+                      se lea. En una pantalla grande no hay excusa para 10 px. */}
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                     {([
-                      { c: '#ef4444', d: '', t: 'Cliente por visitar', s: 'El color es su prioridad' },
+                      { c: '#ef4444', d: '', t: 'Por visitar', s: 'El color es la prioridad' },
                       { c: '#2563eb', d: '3', t: 'En la ruta de hoy', s: 'Con su número de orden' },
                       { c: '#94a3b8', d: '', t: 'Ya visitado', s: 'Apagado, con punto de resultado' },
                       { c: '#8b5cf6', d: '4', t: 'Objetivo marcado', s: 'Aún no es cliente · nº de naves' },
                     ] as const).map((x) => (
-                      <div key={x.t} className="flex items-start gap-2">
+                      <div key={x.t} className="flex items-center gap-3 rounded-xl bg-card/50 border border-border/30 p-3">
                         <span
-                          className="shrink-0 mt-0.5 w-6 h-6 rounded-full border-2 border-white flex items-center justify-center text-[10px] font-black text-white"
-                          style={{ background: x.c, boxShadow: '0 1px 3px rgba(0,0,0,.4)' }}
+                          className="shrink-0 w-9 h-9 rounded-full border-[3px] border-white flex items-center justify-center text-sm font-black text-white"
+                          style={{ background: x.c, boxShadow: '0 2px 5px rgba(0,0,0,.45)' }}
                         >
                           {x.d}
                         </span>
                         <div className="min-w-0">
-                          <p className="text-[11px] font-bold leading-tight">{x.t}</p>
-                          <p className="text-[10px] text-muted leading-tight">{x.s}</p>
+                          <p className="text-sm font-black leading-tight">{x.t}</p>
+                          <p className="text-xs text-muted leading-snug">{x.s}</p>
                         </div>
                       </div>
                     ))}
                   </div>
 
                   {/* El punto pequeño del visitado: en qué quedó */}
-                  <div className="flex flex-wrap gap-x-3 gap-y-1 mt-3 pt-2.5 border-t border-border/25 text-[10px] text-muted">
-                    <span className="font-bold text-foreground">El punto del visitado:</span>
+                  <div className="flex flex-wrap items-center gap-x-5 gap-y-2 mt-4 pt-3 border-t border-border/25 text-sm">
+                    <span className="font-black text-foreground">El punto del visitado dice en qué quedó:</span>
                     {Object.entries(PINTA_VISITA).map(([k, v]) => (
-                      <span key={k} className="flex items-center gap-1">
-                        <span className="w-2.5 h-2.5 rounded-full inline-block border border-white/60" style={{ background: v.color }} />
+                      <span key={k} className="flex items-center gap-1.5 text-muted">
+                        <span className="w-3.5 h-3.5 rounded-full inline-block border-2 border-white/70" style={{ background: v.color }} />
                         {v.texto}
                       </span>
                     ))}
                   </div>
 
-                  <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2 text-[10px] text-muted items-center">
-                    <span className="font-bold text-foreground">El anillo del pin es la zona:</span>
+                  <div className="flex flex-wrap items-center gap-x-5 gap-y-2 mt-3 text-sm">
+                    <span className="font-black text-foreground">El anillo es la zona:</span>
                     {ZONAS.map((z) => (
-                      <span key={z.id} className="flex items-center gap-1">
-                        <span className="w-2.5 h-2.5 rounded-full inline-block border-2" style={{ borderColor: z.color }} />
+                      <span key={z.id} className="flex items-center gap-1.5 text-muted">
+                        <span className="w-3.5 h-3.5 rounded-full inline-block border-[3px]" style={{ borderColor: z.color }} />
                         {z.nombre}
                       </span>
                     ))}
                   </div>
 
-                  <p className="text-[10px] text-muted mt-2 pt-2 border-t border-border/25">
-                    El punto amarillo pequeño marca interés en fotovoltaica. Todo lo demás —sector, metros, consumo y
-                    foto— sale al pulsar el pin.
+                  <p className="text-xs text-muted mt-3 pt-3 border-t border-border/25">
+                    El punto amarillo marca interés en fotovoltaica. Todo lo demás —sector, metros, consumo y foto—
+                    sale al pulsar el pin.
                   </p>
                 </div>
               </motion.div>

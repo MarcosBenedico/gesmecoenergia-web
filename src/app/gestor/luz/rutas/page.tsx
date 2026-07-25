@@ -318,7 +318,7 @@ export default function RutasPage() {
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
           <h2 className="text-xl font-black text-foreground flex items-center gap-2"><MapIcon className="w-5 h-5 text-accent" /> Rutas de visitas</h2>
-          <p className="text-xs text-muted mt-0.5">
+          <p className="text-sm text-muted mt-1">
             Elige a quién visitar, calcula el orden más eficiente y abre la ruta en Google Maps.
             Solo aparecen clientes y CUPS con dirección (se edita en la ficha del cliente).
           </p>
@@ -344,7 +344,7 @@ export default function RutasPage() {
                 <button
                   key={clave}
                   onClick={() => { setFVista(clave); setResultado(null); }}
-                  className={`px-2.5 py-1 rounded-full text-[11px] font-bold border transition ${
+                  className={`px-3.5 py-2 rounded-full text-sm font-bold border transition ${
                     fVista === clave ? 'bg-accent text-white border-accent' : 'bg-card/70 text-muted border-border/50 hover:text-foreground'
                   }`}
                 >
@@ -352,11 +352,11 @@ export default function RutasPage() {
                 </button>
               ))}
               <span className="flex items-center gap-1 ml-1">
-                <label className="text-[11px] text-muted font-bold">🗂️ Zona:</label>
+                <label className="text-sm text-muted font-bold">🗂️ Zona:</label>
                 <select
                   value={fZona}
                   onChange={(e) => { setFZona(e.target.value); setResultado(null); }}
-                  className="rounded-lg border border-border/50 bg-card/70 px-2 py-1 text-[11px] font-semibold"
+                  className="rounded-lg border border-border/50 bg-card/70 px-3 py-2 text-sm font-semibold"
                   style={fZona && fZona !== 'sin' ? { color: ZONAS.find((z) => z.id === fZona)?.color } : undefined}
                 >
                   <option value="">Todas las zonas</option>
@@ -365,12 +365,12 @@ export default function RutasPage() {
                 </select>
               </span>
               <span className="flex items-center gap-1 ml-1">
-                <label className="text-[11px] text-muted font-bold">📅 Visitados el:</label>
+                <label className="text-sm text-muted font-bold">📅 Visitados el:</label>
                 <input
                   type="date"
                   value={fFechaVisita}
                   onChange={(e) => { setFFechaVisita(e.target.value); setResultado(null); }}
-                  className="rounded-lg border border-border/50 bg-card/70 px-2 py-1 text-[11px]"
+                  className="rounded-lg border border-border/50 bg-card/70 px-3 py-2 text-sm"
                 />
                 {fFechaVisita && (
                   <button onClick={() => setFFechaVisita('')} className="text-muted hover:text-red-400" title="Quitar filtro de fecha">
@@ -381,12 +381,12 @@ export default function RutasPage() {
             </div>
             <button
               onClick={() => setModoManual((v) => !v)}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border transition ${
+              className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold border transition ${
                 modoManual ? 'bg-accent text-white border-accent' : 'bg-card/80 text-muted border-border/50 hover:text-foreground'
               }`}
               title="Al activarlo, un clic en cualquier pin del mapa lo añade o lo quita de la ruta"
             >
-              <MousePointerClick className="w-3.5 h-3.5" /> Modo manual: clic en el pin = añadir/quitar
+              <MousePointerClick className="w-4 h-4" /> Modo manual: tocar un pin lo mete o lo saca de la ruta
             </button>
           </div>
           <MapaRutas
@@ -545,8 +545,8 @@ export default function RutasPage() {
               {seleccion.size === 0 ? (
                 <div className="text-center py-6 rounded-xl border border-dashed border-border/40">
                   <MapPinned className="w-8 h-8 mx-auto text-muted/40 mb-2" />
-                  <p className="text-xs font-bold">La ruta está vacía</p>
-                  <p className="text-[11px] text-muted mt-0.5 px-4">
+                  <p className="text-sm font-black">La ruta está vacía</p>
+                  <p className="text-xs text-muted mt-1 px-4">
                     Marca clientes en la lista, o toca sus pines en el mapa.
                   </p>
                 </div>
@@ -561,11 +561,11 @@ export default function RutasPage() {
                         animate={{ opacity: 1, x: 0 }}
                         exit={{ opacity: 0, x: 14, height: 0, marginBottom: 0 }}
                         transition={{ type: 'spring', stiffness: 420, damping: 32 }}
-                        className="p-2 rounded-lg bg-card/60 border border-border/30 text-xs overflow-hidden"
+                        className="p-2.5 rounded-lg bg-card/60 border border-border/30 text-sm overflow-hidden"
                       >
                         <div className="flex items-center gap-2">
                           {/* El número de orden: se lee la secuencia sin contar */}
-                          <span className="shrink-0 w-5 h-5 rounded-full bg-accent/15 text-accent border border-accent/30 flex items-center justify-center font-black text-[10px]">
+                          <span className="shrink-0 w-6 h-6 rounded-full bg-accent/15 text-accent border border-accent/30 flex items-center justify-center font-black text-xs">
                             {idx + 1}
                           </span>
                           <span className="truncate font-semibold flex-1">{p.nombre}</span>
@@ -602,10 +602,10 @@ export default function RutasPage() {
             {resultado && (
               <Card className="!border-emerald-500/40">
                 <h3 className="font-bold text-sm mb-1">✅ Ruta lista{resultado.km_estimados ? ` · ~${resultado.km_estimados} km` : ''}</h3>
-                <p className="text-[11px] text-muted mb-3">Orden optimizado por cercanía desde el punto de salida.</p>
+                <p className="text-xs text-muted mb-3">Orden optimizado por cercanía desde el punto de salida.</p>
                 <ol className="space-y-1.5 mb-3">
                   {resultado.orden.map((p, i) => (
-                    <li key={p.id} className="flex items-start gap-2 text-xs">
+                    <li key={p.id} className="flex items-start gap-2.5 text-sm">
                       <span className="w-5 h-5 rounded-full bg-accent/15 text-accent border border-accent/30 flex items-center justify-center font-black text-[10px] shrink-0">{i + 1}</span>
                       <div className="min-w-0">
                         <p className="font-semibold truncate">{p.nombre} {!p.ubicada && <span className="text-amber-400">⚠️</span>}</p>
