@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { ElementoOSM, Prospecto, distKm, procesarElementos } from '@/lib/prospeccion';
+import { ElementoOSM, Prospecto, densificarRuta, distKm, procesarElementos } from '@/lib/prospeccion';
 
 /**
  * PROSPECCIÓN SOBRE LA RUTA
@@ -21,7 +21,7 @@ import { ElementoOSM, Prospecto, distKm, procesarElementos } from '@/lib/prospec
  * consulta por petición, con timeout y caché en memoria.
  */
 
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 /**
  * Overpass es gratuito y comunitario, y a veces el principal va cargado. Se
@@ -38,9 +38,27 @@ const UA = 'GesmecoEnergia-Prospeccion/1.0 (gesmecoenergia.com)';
 const PERIMETRO_MINIMO_M = 100;
 const RADIO_DEFECTO_KM = 2;
 const RADIO_MAX_KM = 5;
-const MAX_VERTICES_RUTA = 25;
+const MAX_VERTICES_RUTA = 40;
 /** Puntos de ruta por consulta. Con más, Overpass devuelve 504. */
 const PUNTOS_POR_TRAMO = 3;
+/**
+ * Longitud máxima de cada salto del recorrido, en km.
+ *
+ * Lo que ahoga a Overpass es la LONGITUD del corredor, no el número de puntos.
+ * Una ruta de Binéfar a Raimat son solo tres puntos —la salida y dos paradas—
+ * pero 45 km de corredor: trocear "de tres en tres" no partía absolutamente
+ * nada. Por eso primero se rellenan puntos intermedios y luego se agrupan.
+ */
+const KM_MAX_ENTRE_PUNTOS = 5;
+/**
+ * Tiempo total que se le da a la búsqueda. Al agotarse se devuelve lo que haya
+ * con un aviso: mejor media zona que un error, y sobre todo mejor que la
+ * función se quede sin tiempo y el navegador reciba una conexión cortada —que
+ * es justo lo que pasaba.
+ */
+const MS_PRESUPUESTO = 45000;
+/** Lo que se espera a un servidor antes de darlo por perdido y probar otro. */
+const MS_ESPERA_SERVIDOR = 15000;
 const MAX_RESULTADOS = 60;
 const KM_YA_ES_CLIENTE = 0.15;
 
@@ -93,10 +111,15 @@ export async function POST(req: NextRequest) {
 
     const radioKm = Math.min(RADIO_MAX_KM, Math.max(0.3, body.radio_km || RADIO_DEFECTO_KM));
 
-    // Vértices repartidos de forma uniforme a lo largo del recorrido
-    const paso = Math.max(1, Math.ceil(ruta.length / MAX_VERTICES_RUTA));
-    const vertices = ruta.filter((_, i) => i % paso === 0);
-    const ultimo = ruta[ruta.length - 1];
+    // Puntos intermedios para que ningún salto sea largo: sin esto, una ruta de
+    // dos paradas separadas 45 km es un corredor gigante que Overpass rechaza,
+    // y trocear por número de puntos no arregla nada.
+    const densa = densificarRuta(ruta, KM_MAX_ENTRE_PUNTOS);
+
+    // Y si aun así son demasiados (ruta larguísima), se reparten uniformemente
+    const paso = Math.max(1, Math.ceil(densa.length / MAX_VERTICES_RUTA));
+    const vertices = densa.filter((_, i) => i % paso === 0);
+    const ultimo = densa[densa.length - 1];
     if (vertices[vertices.length - 1] !== ultimo) vertices.push(ultimo);
 
     const clave = JSON.stringify({ vertices, radioKm });
@@ -125,16 +148,30 @@ export async function POST(req: NextRequest) {
     let tramosFallidos = 0;
     let ultimoFallo = '';
 
+    // Un servidor que ya ha dicho que está saturado lo seguirá estando dentro
+    // de dos segundos: se aparta para el resto de la búsqueda en vez de volver
+    // a esperarle en cada tramo, que es tiempo tirado del presupuesto.
+    const quemados = new Set<string>();
+
+    const empezado = Date.now();
     for (const tramo of tramos) {
+      // Si se acaba el tiempo se deja de pedir y se devuelve lo que haya: que
+      // la función muera sin responder es lo peor que puede pasar, porque al
+      // navegador le llega una conexión cortada y no se sabe ni por qué.
+      if (Date.now() - empezado > MS_PRESUPUESTO) { tramosFallidos++; continue; }
+
       const consulta = consultaOverpass(tramo, radioKm * 1000);
       let hecho = false;
       for (const servidor of SERVIDORES_OVERPASS) {
+        if (quemados.has(servidor)) continue;
+        const queda = MS_PRESUPUESTO - (Date.now() - empezado);
+        if (queda < 3000) break;
         try {
           const res = await fetch(servidor, {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'User-Agent': UA },
             body: `data=${encodeURIComponent(consulta)}`,
-            signal: AbortSignal.timeout(45000),
+            signal: AbortSignal.timeout(Math.min(MS_ESPERA_SERVIDOR, queda)),
           });
           if (res.ok) {
             const els = ((await res.json()) as { elements?: ElementoOSM[] }).elements || [];
@@ -143,8 +180,11 @@ export async function POST(req: NextRequest) {
             break;
           }
           ultimoFallo = String(res.status);
+          // 429 es "vuelve más tarde": no tiene arreglo dentro de esta búsqueda
+          if (res.status === 429) quemados.add(servidor);
         } catch {
           ultimoFallo = 'sin respuesta';
+          quemados.add(servidor); // no responde: no se le espera otra vez
         }
       }
       if (!hecho) tramosFallidos++;

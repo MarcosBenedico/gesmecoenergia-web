@@ -218,6 +218,34 @@ export function kmALaRuta(p: { lat: number; lon: number }, ruta: { lat: number; 
   return min;
 }
 
+/**
+ * Rellena el recorrido con puntos intermedios para que ningún salto pase de
+ * `kmMax`.
+ *
+ * Existe por un fallo concreto: la consulta al mapa se trocea por número de
+ * puntos, pero lo que ahoga al servidor es la LONGITUD del corredor. Una ruta
+ * de Binéfar a Raimat son solo tres puntos —la salida y dos paradas— y 45 km:
+ * trocear "de tres en tres" no partía nada y la búsqueda seguía muriendo.
+ */
+export function densificarRuta(
+  ruta: { lat: number; lon: number }[],
+  kmMax: number
+): { lat: number; lon: number }[] {
+  if (ruta.length < 2) return [...ruta];
+  const salida = [ruta[0]];
+  for (let i = 1; i < ruta.length; i++) {
+    const a = ruta[i - 1], b = ruta[i];
+    const trozos = Math.max(1, Math.ceil(distKm(a, b) / kmMax));
+    for (let k = 1; k <= trozos; k++) {
+      salida.push({
+        lat: a.lat + ((b.lat - a.lat) * k) / trozos,
+        lon: a.lon + ((b.lon - a.lon) * k) / trozos,
+      });
+    }
+  }
+  return salida;
+}
+
 /** Área de un polígono en m² (fórmula de Gauss sobre metros proyectados). */
 export function areaPoligono(puntos: { lat: number; lon: number }[]): number {
   if (puntos.length < 3) return 0;

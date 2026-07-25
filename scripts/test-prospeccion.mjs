@@ -11,7 +11,7 @@
 
 const {
   areaPoligono, dentroDe, distKm, kmALaRuta, kmAlTramo, dimensionesNave, pareceNave,
-  centroDe, procesarElementos, puntuar, nivelInteres,
+  centroDe, procesarElementos, puntuar, nivelInteres, densificarRuta,
 } = await import('../src/lib/prospeccion.ts');
 const { estimarConsumo, tramoConsumo, textoRango } = await import('../src/lib/consumo-estimado.ts');
 
@@ -149,6 +149,25 @@ eq('los equipamientos públicos se descartan', sanitario.length, 0);
 // Una vivienda grande aislada tampoco
 const casa = procesarElementos([{ type: 'way', id: 901, tags: { building: 'house' }, geometry: rect(41.86, 0.362, 30, 20) }], ruta, 2);
 eq('las viviendas se descartan', casa.length, 0);
+
+console.log('\n── Trocear el recorrido para consultar el mapa ──');
+// FALLO REAL: la consulta al mapa se troceaba por NÚMERO de puntos, pero lo que
+// ahoga al servidor es la LONGITUD del corredor. Una ruta de Binéfar a Raimat
+// son tres puntos —salida y dos paradas— y 45 km: no se partía nada, la función
+// se quedaba sin tiempo y al navegador le llegaba "no se pudo conectar".
+const rutaLarga = [{ lat: 41.8517, lon: 0.2937 }, { lat: 41.6829, lon: 0.5300 }];
+cierto('45 km caben en dos puntos, y ahí estaba la trampa',
+  rutaLarga.length === 2 && distKm(rutaLarga[0], rutaLarga[1]) > 20);
+const densa = densificarRuta(rutaLarga, 5);
+cierto('al rellenar salen bastantes puntos', densa.length > 4);
+let saltoMax = 0;
+for (let i = 1; i < densa.length; i++) saltoMax = Math.max(saltoMax, distKm(densa[i - 1], densa[i]));
+cierto('y ningún salto pasa de 5 km', saltoMax <= 5.01);
+eq('se conserva el punto de salida', densa[0], rutaLarga[0]);
+eq('se conserva el destino', densa[densa.length - 1].lat, rutaLarga[1].lat, 0.0001);
+eq('una ruta corta no se toca', densificarRuta([{ lat: 41.85, lon: 0.29 }, { lat: 41.86, lon: 0.30 }], 5).length, 2);
+eq('un solo punto se devuelve igual', densificarRuta([{ lat: 41.85, lon: 0.29 }], 5).length, 1);
+eq('sin ruta no hay nada que rellenar', densificarRuta([], 5).length, 0);
 
 console.log(`\n${fallos === 0 ? '✅' : '❌'} ${ok} correctos, ${fallos} fallos\n`);
 process.exit(fallos === 0 ? 0 : 1);
