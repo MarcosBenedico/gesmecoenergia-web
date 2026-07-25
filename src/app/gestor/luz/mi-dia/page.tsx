@@ -14,6 +14,7 @@ import { Card, EstadoCarga, useListaLuz, guardarLuz, SelectorResponsable } from 
 import { ClientesEnMarcha } from './clientes-en-marcha';
 import { AccionesContacto } from '../acciones-contacto';
 import { FotoSitio } from '../foto-sitio';
+import { BotonRuta } from '../boton-ruta';
 
 /**
  * MI DÍA — la pantalla de David.
@@ -185,12 +186,18 @@ export default function MiDiaPage() {
         )}
         </div>
         {/* Llamar, WhatsApp y navegación: lo que de verdad se pulsa desde la furgoneta */}
-        {ficha && (ficha.telefono || ficha.direccion_fiscal) && (
-          <div className="mt-2 pt-2 border-t border-border/25">
+        {ficha && (
+          <div className="mt-2 pt-2 border-t border-border/25 flex flex-wrap items-center gap-2">
             <AccionesContacto
               telefono={ficha.telefono}
               ubicacion={ficha.direccion_fiscal}
               nombre={ficha.nombre}
+            />
+            {/* Si al ver la acción decide ir en persona, la ruta se arma desde aquí */}
+            <BotonRuta
+              cliente={ficha}
+              tareaId={i.origen === 'tarea' ? i.id ?? undefined : undefined}
+              tareaDesc={i.titulo}
             />
           </div>
         )}

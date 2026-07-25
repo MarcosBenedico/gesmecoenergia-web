@@ -20,6 +20,7 @@ import { ProximaAccion, TareasCliente, HistorialCliente, VisitasYFV, Seguimiento
 import { PedirMotivo } from '../../motivo';
 import { AccionesContacto } from '../../acciones-contacto';
 import { FotoSitio } from '../../foto-sitio';
+import { BotonRuta } from '../../boton-ruta';
 
 const CUPS_VACIO = {
   cups: '', alias_suministro: '', direccion_suministro: '', tarifa_acceso: '2.0TD',
@@ -323,9 +324,10 @@ export default function FichaClienteLuz() {
                 {!cliente.direccion_fiscal && <span className="text-[11px] text-amber-400 ml-2">(sin dirección no sale en las Rutas de visitas)</span>}
               </p>
             </div>
-            {(cliente.telefono || cliente.direccion_fiscal) && (
+            <div className="flex flex-wrap items-center gap-2">
               <AccionesContacto telefono={cliente.telefono} ubicacion={cliente.direccion_fiscal} nombre={cliente.nombre} />
-            )}
+              <BotonRuta cliente={cliente} />
+            </div>
             {cliente.potencial_comercial && (
               <p className="text-sm text-secondary bg-secondary/10 border border-secondary/25 rounded-lg p-2.5">💡 {cliente.potencial_comercial}</p>
             )}
