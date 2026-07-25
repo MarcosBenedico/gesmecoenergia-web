@@ -422,7 +422,11 @@
       "Bash(python \"C:/Users/Usuario/AppData/Local/Temp/claude/C--Users-Usuario-Desktop-calude-web/e5b35bc9-b92f-4067-8c4a-db31794ae8b2/scratchpad/capas_contenido.py\")",
       "Bash(python \"C:/Users/Usuario/AppData/Local/Temp/claude/C--Users-Usuario-Desktop-calude-web/e5b35bc9-b92f-4067-8c4a-db31794ae8b2/scratchpad/leyenda2.py\")",
       "Bash(python \"C:/Users/Usuario/AppData/Local/Temp/claude/C--Users-Usuario-Desktop-calude-web/e5b35bc9-b92f-4067-8c4a-db31794ae8b2/scratchpad/agrandar.py\")",
-      "Bash(python \"C:/Users/Usuario/AppData/Local/Temp/claude/C--Users-Usuario-Desktop-calude-web/e5b35bc9-b92f-4067-8c4a-db31794ae8b2/scratchpad/leyenda3.py\")"
+      "Bash(python \"C:/Users/Usuario/AppData/Local/Temp/claude/C--Users-Usuario-Desktop-calude-web/e5b35bc9-b92f-4067-8c4a-db31794ae8b2/scratchpad/leyenda3.py\")",
+      "Bash(python \"C:/Users/Usuario/AppData/Local/Temp/claude/C--Users-Usuario-Desktop-calude-web/e5b35bc9-b92f-4067-8c4a-db31794ae8b2/scratchpad/pines_pro.py\")",
+      "Bash(python \"C:/Users/Usuario/AppData/Local/Temp/claude/C--Users-Usuario-Desktop-calude-web/e5b35bc9-b92f-4067-8c4a-db31794ae8b2/scratchpad/usar_pines.py\")",
+      "Bash(python \"C:/Users/Usuario/AppData/Local/Temp/claude/C--Users-Usuario-Desktop-calude-web/e5b35bc9-b92f-4067-8c4a-db31794ae8b2/scratchpad/leyenda_pro.py\")",
+      "Bash(sed -i \"s|import { ZONAS, zonaDeParada } from '@/lib/zonas';|import { zonaDeParada } from '@/lib/zonas';|\" src/app/gestor/luz/rutas/mapa.tsx)"
     ]
   }
 }

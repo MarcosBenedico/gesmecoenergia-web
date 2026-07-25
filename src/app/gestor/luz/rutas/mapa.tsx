@@ -5,7 +5,7 @@ import 'leaflet/dist/leaflet.css';
 import { RefreshCw, Layers, MapPinned, Info, ChevronDown, Eye, EyeOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { guardarLuz, btnSecundario, btnPrimario } from '../ui';
-import { ZONAS, zonaDeParada } from '@/lib/zonas';
+import { zonaDeParada } from '@/lib/zonas';
 import { ProspectoGuardado, TipoProspecto, TIPO_PROSPECTO_LABEL, categoriaDeNaves } from '@/lib/prospeccion';
 import { urlOrtofoto } from './foto-aerea';
 import {
@@ -51,10 +51,6 @@ function diasDesde(fecha?: string | null): number | null {
   return Math.max(0, Math.floor(ms / 86400000));
 }
 
-const COLOR_PRIORIDAD: Record<string, string> = {
-  A: '#ef4444', B: '#f59e0b', C: '#6b7280', D: '#6b7280',
-};
-
 /** Emoji por tipo de sitio: se reconoce de un vistazo sin leer nada. */
 const EMOJI_PROSPECTO: Record<TipoProspecto, string> = {
   granja_intensiva: '🐖',
@@ -68,78 +64,107 @@ const EMOJI_PROSPECTO: Record<TipoProspecto, string> = {
 };
 
 /**
- * LOS PINES, A PROPÓSITO SIMPLES.
+ * ═══════════════════════════════════════════════════════════════════════════
+ *  EL LENGUAJE DE LOS PINES
+ * ═══════════════════════════════════════════════════════════════════════════
  *
- * La primera versión ponía en cada pin un círculo, un emoji, el número de naves
- * y una estrella. Con 149 objetivos en pantalla eso era una pared indistinguible
- * en la que no se leía nada. La lección: a esta densidad, cada adorno resta.
+ * El mapa quería decir OCHO cosas en un círculo de 22 px: si es cliente o
+ * candidato, su prioridad, si ya se visitó, en qué quedó, si está en la ruta,
+ * su zona, si le interesa la fotovoltaica y cuántas naves tiene. Ocho no caben,
+ * y el resultado era que ninguna se leía.
  *
- * Ahora un pin dice UNA cosa con el color y como mucho un número dentro:
+ * Así que se reparte por canales, y cada canal dice UNA cosa:
  *
- *   · MORADO  → objetivo marcado. Dentro, cuántas naves tiene.
- *   · COLOR   → cliente por visitar. El color es su prioridad.
- *   · APAGADO → cliente ya visitado. Un punto pequeño dice en qué quedó.
- *   · AZUL    → está en la ruta de hoy, con su número de orden.
+ *   FORMA    → qué es.        Círculo = cliente. Cuadrado = objetivo (no cliente).
+ *   RELLENO  → si queda algo.  Macizo = pendiente. Hueco = ya resuelto.
+ *   COLOR    → cuánto corre.   En pendientes, la prioridad. En visitados, en qué
+ *                              quedó. Un solo eje de color a la vez, nunca dos.
+ *   TAMAÑO   → si es de hoy.   Lo que está en la ruta manda y se agranda.
+ *   NÚMERO   → una sola cifra: el orden de la ruta, o las naves del objetivo.
  *
- * Todo lo demás —sector, metros, consumo, foto— vive en el globo al pulsarlo,
- * que es donde no compite con nada.
+ * Y lo que se ha SACADO del pin, a conciencia:
+ *
+ *   · La zona ya es un filtro arriba y un anillo de siete colores era el que
+ *     más ruido metía: competía con el relleno y ninguno de los dos ganaba.
+ *   · El interés en fotovoltaica también es un filtro. Para verlos, se filtra
+ *     y salen ellos solos, que es justo para lo que sirve un filtro.
+ *   · Sector, metros, consumo y foto viven en el globo, donde no compiten.
+ *
+ * Macizo contra hueco es la distinción más rápida que existe de un vistazo, y
+ * es la que responde a la única pregunta que importa mirando el mapa: ¿dónde
+ * me queda trabajo?
  */
 
-/** Objetivo marcado: morado, con las naves dentro. Nada más. */
-function iconoObjetivo(p: ProspectoGuardado, yaEsta: boolean, lejos: boolean) {
+/** Colores de prioridad. Un cliente pendiente se pinta con el suyo. */
+const COLOR_PRIORIDAD: Record<string, string> = {
+  A: '#ef4444', B: '#f59e0b', C: '#94a3b8', D: '#94a3b8',
+};
+
+/** Azul de la ruta de hoy: manda sobre cualquier otro color. */
+const AZUL_RUTA = '#2563eb';
+/** Morado de los objetivos: no es cliente todavía. */
+const MORADO_OBJETIVO = '#8b5cf6';
+
+/**
+ * CLIENTE. Círculo.
+ *  · pendiente → macizo, color de su prioridad
+ *  · visitado  → hueco, color de en qué quedó
+ *  · en ruta   → macizo azul, más grande, con su número de orden
+ */
+function iconoCliente(opciones: {
+  prioridad?: string;
+  ordenRuta?: number;
+  /** Color del resultado de la última visita. null si no se ha visitado. */
+  colorVisita?: string | null;
+}) {
   const L = (window as unknown as { L: typeof import('leaflet') }).L;
+  const { prioridad, ordenRuta, colorVisita } = opciones;
 
-  // Muy alejado el mapa: un punto. Si no, no se ve el terreno por los pines.
-  if (lejos) {
-    return L.divIcon({
-      html: `<div style="width:9px;height:9px;border-radius:9999px;background:#8b5cf6;
-              border:1.5px solid rgba(255,255,255,.9);opacity:${yaEsta ? 0.4 : 0.85}"></div>`,
-      className: '', iconSize: [9, 9], iconAnchor: [4.5, 4.5], popupAnchor: [0, -5],
-    });
-  }
+  const enRuta = ordenRuta != null;
+  const visitado = !!colorVisita && !enRuta;
+  const px = enRuta ? 32 : 22;
+  const color = enRuta ? AZUL_RUTA : visitado ? colorVisita! : COLOR_PRIORIDAD[prioridad || 'C'];
 
-  const px = 26;
+  // Hueco = ya resuelto. Macizo = queda por hacer.
+  const fondo = visitado ? 'transparent' : color;
+  const borde = visitado ? `3px solid ${color}` : '2.5px solid rgba(255,255,255,.95)';
+
   const html = `
-    <div style="width:${px}px;height:${px}px;border-radius:9999px;
-                background:${yaEsta ? '#10b981' : '#8b5cf6'};
-                border:2.5px solid white;display:flex;align-items:center;justify-content:center;
-                color:white;font-weight:900;font-size:12px;font-family:sans-serif;
-                box-shadow:0 2px 5px rgba(0,0,0,.45);opacity:${yaEsta ? 0.75 : 1}">
-      ${yaEsta ? '✓' : p.n_edificios}
+    <div style="width:${px}px;height:${px}px;border-radius:9999px;background:${fondo};border:${borde};
+                display:flex;align-items:center;justify-content:center;color:white;font-weight:900;
+                font-size:13px;font-family:sans-serif;
+                box-shadow:${visitado ? '0 0 0 2px rgba(0,0,0,.35)' : '0 2px 6px rgba(0,0,0,.5)'}">
+      ${enRuta ? ordenRuta : ''}
     </div>`;
   return L.divIcon({ html, className: '', iconSize: [px, px], iconAnchor: [px / 2, px / 2], popupAnchor: [0, -px / 2] });
 }
 
 /**
- * Cliente. Círculo liso del color de su prioridad; el anillo, su zona.
- * Si está en la ruta lleva su número de orden y se agranda.
+ * OBJETIVO. Cuadrado redondeado: forma distinta porque es una cosa distinta —
+ * todavía no es cliente. Dentro, las naves, que es su medida.
  */
-function iconoPunto(
-  color: string,
-  numero?: number,
-  anillo?: string,
-  sol?: boolean,
-  visitado?: { icono: string; color: string } | null
-) {
+function iconoObjetivo(p: ProspectoGuardado, yaEnRuta: boolean, lejos: boolean) {
   const L = (window as unknown as { L: typeof import('leaflet') }).L;
-  const enRuta = numero != null;
-  const px = enRuta ? 30 : 22;
-  // Lo visitado se apaga: deja de competir con lo que queda por hacer
-  const opacidad = visitado && !enRuta ? 0.45 : 1;
 
+  // Con el mapa alejado, un punto: si no, no se ve el terreno por los pines
+  if (lejos) {
+    return L.divIcon({
+      html: `<div style="width:9px;height:9px;border-radius:2px;background:${MORADO_OBJETIVO};
+              border:1.5px solid rgba(255,255,255,.9);opacity:${yaEnRuta ? 0.4 : 0.9}"></div>`,
+      className: '', iconSize: [9, 9], iconAnchor: [4.5, 4.5], popupAnchor: [0, -5],
+    });
+  }
+
+  const px = 24;
+  // Ya pasado a la ruta: hueco, igual que un cliente resuelto
   const html = `
-    <div style="position:relative;width:${px}px;height:${px}px;opacity:${opacidad}">
-      ${anillo && !enRuta ? `<div style="position:absolute;inset:-3px;border-radius:9999px;border:2px solid ${anillo}"></div>` : ''}
-      <div style="width:${px}px;height:${px}px;border-radius:9999px;background:${enRuta ? '#2563eb' : color};
-                  border:2.5px solid white;display:flex;align-items:center;justify-content:center;
-                  color:white;font-weight:900;font-size:12px;font-family:sans-serif;
-                  box-shadow:0 2px 5px rgba(0,0,0,.45)">
-        ${enRuta ? numero : ''}
-      </div>
-      ${visitado && !enRuta ? `<div style="position:absolute;bottom:-2px;right:-2px;width:11px;height:11px;
-            border-radius:9999px;background:${visitado.color};border:2px solid white"></div>` : ''}
-      ${sol && !visitado ? `<div style="position:absolute;top:-3px;right:-3px;width:9px;height:9px;
-            border-radius:9999px;background:#fbbf24;border:1.5px solid white"></div>` : ''}
+    <div style="width:${px}px;height:${px}px;border-radius:6px;
+                background:${yaEnRuta ? 'transparent' : MORADO_OBJETIVO};
+                border:${yaEnRuta ? `3px solid ${MORADO_OBJETIVO}` : '2.5px solid rgba(255,255,255,.95)'};
+                display:flex;align-items:center;justify-content:center;
+                color:${yaEnRuta ? MORADO_OBJETIVO : 'white'};font-weight:900;font-size:12px;
+                font-family:sans-serif;box-shadow:0 2px 6px rgba(0,0,0,.5)">
+      ${p.n_edificios}
     </div>`;
   return L.divIcon({ html, className: '', iconSize: [px, px], iconAnchor: [px / 2, px / 2], popupAnchor: [0, -px / 2] });
 }
@@ -328,20 +353,23 @@ export function MapaRutas({ paradas, seleccion, onAlternar, orden, origenGeo, or
       const enRuta = ordenMap.get(p.id);
       const marcada = seleccion.has(p.id);
       const visitadoHoy = p.fecha_ultimo_contacto === HOY();
-      // El sello de la última visita: qué pasó, no solo que se estuvo
+      // En qué quedó la última visita. Es lo que da color a un pin ya resuelto.
       const sello = p.visita?.resultado ? PINTA_VISITA[p.visita.resultado] : null;
       const yaVisitado = !!p.visita;
-      // Con coordenadas la zona está garantizada: pueblo reconocido o la más cercana
+      // La zona ya no va en el pin —era el anillo que ensuciaba el mapa— pero
+      // sigue haciendo falta para el globo y para el filtro de zona.
       const zona = zonaDeParada(p.direccion, geo);
-      const color = visitadoHoy ? '#10b981' : marcada ? '#3b82f6' : p.interesFV ? '#eab308' : COLOR_PRIORIDAD[p.prioridad || 'C'];
-      // Anillo: negro si está en la ruta calculada; si no, el color de su zona de actuación
-      const anillo = enRuta ? '#111827' : zona?.color;
       // Ocultar lo ya resuelto deja el mapa con lo que queda por hacer, que es
       // como se planifica una mañana. Los de la ruta nunca se esconden.
       if (ocultarVisitados && yaVisitado && !enRuta && !marcada) continue;
 
       const marker = L.marker([geo.lat, geo.lon], {
-        icon: iconoPunto(color, enRuta, anillo, p.interesFV, sello ? { icono: sello.icono, color: sello.color } : yaVisitado ? { icono: '✓', color: '#10b981' } : null),
+        icon: iconoCliente({
+          prioridad: p.prioridad,
+          // Marcado a mano cuenta como "de hoy" aunque no se haya calculado el orden
+          ordenRuta: enRuta ?? (marcada ? 0 : undefined),
+          colorVisita: sello?.color || (yaVisitado ? (visitadoHoy ? '#10b981' : '#94a3b8') : null),
+        }),
       }).addTo(capaMarcadores.current!);
       bounds.push([geo.lat, geo.lon]);
 
@@ -692,55 +720,89 @@ export function MapaRutas({ paradas, seleccion, onAlternar, orden, origenGeo, or
                 transition={{ duration: 0.22, ease: 'easeOut' }}
                 className="overflow-hidden"
               >
-                <div className="px-4 pb-4">
-                  {/* Cuatro casos, con el pin de verdad al lado y a tamaño que
-                      se lea. En una pantalla grande no hay excusa para 10 px. */}
-                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                    {([
-                      { c: '#ef4444', d: '', t: 'Por visitar', s: 'El color es la prioridad' },
-                      { c: '#2563eb', d: '3', t: 'En la ruta de hoy', s: 'Con su número de orden' },
-                      { c: '#94a3b8', d: '', t: 'Ya visitado', s: 'Apagado, con punto de resultado' },
-                      { c: '#8b5cf6', d: '4', t: 'Objetivo marcado', s: 'Aún no es cliente · nº de naves' },
-                    ] as const).map((x) => (
-                      <div key={x.t} className="flex items-center gap-3 rounded-xl bg-card/50 border border-border/30 p-3">
-                        <span
-                          className="shrink-0 w-9 h-9 rounded-full border-[3px] border-white flex items-center justify-center text-sm font-black text-white"
-                          style={{ background: x.c, boxShadow: '0 2px 5px rgba(0,0,0,.45)' }}
-                        >
-                          {x.d}
+                <div className="px-4 pb-4 space-y-4">
+                  {/* La leyenda cuenta el sistema, no una lista de colores:
+                      forma = qué es, relleno = si queda algo por hacer. */}
+                  <div className="grid md:grid-cols-2 gap-3">
+                    <div className="rounded-xl border border-border/40 bg-card/40 p-3">
+                      <p className="text-xs font-black uppercase tracking-wide text-muted mb-2.5">
+                        La forma dice qué es
+                      </p>
+                      <div className="flex items-center gap-5">
+                        <span className="flex items-center gap-2.5">
+                          <span className="w-7 h-7 rounded-full bg-red-500 border-[2.5px] border-white shrink-0"
+                            style={{ boxShadow: '0 2px 6px rgba(0,0,0,.5)' }} />
+                          <span className="text-sm font-bold">Cliente</span>
                         </span>
-                        <div className="min-w-0">
-                          <p className="text-sm font-black leading-tight">{x.t}</p>
-                          <p className="text-xs text-muted leading-snug">{x.s}</p>
-                        </div>
+                        <span className="flex items-center gap-2.5">
+                          <span className="w-7 h-7 rounded-md bg-violet-500 border-[2.5px] border-white shrink-0 flex items-center justify-center text-xs font-black text-white"
+                            style={{ boxShadow: '0 2px 6px rgba(0,0,0,.5)' }}>4</span>
+                          <span className="text-sm font-bold">Objetivo <span className="font-normal text-muted">· aún no cliente</span></span>
+                        </span>
                       </div>
-                    ))}
+                    </div>
+
+                    <div className="rounded-xl border border-border/40 bg-card/40 p-3">
+                      <p className="text-xs font-black uppercase tracking-wide text-muted mb-2.5">
+                        El relleno dice si queda trabajo
+                      </p>
+                      <div className="flex items-center gap-5">
+                        <span className="flex items-center gap-2.5">
+                          <span className="w-7 h-7 rounded-full bg-amber-500 border-[2.5px] border-white shrink-0"
+                            style={{ boxShadow: '0 2px 6px rgba(0,0,0,.5)' }} />
+                          <span className="text-sm font-bold">Macizo <span className="font-normal text-muted">· por hacer</span></span>
+                        </span>
+                        <span className="flex items-center gap-2.5">
+                          <span className="w-7 h-7 rounded-full border-[3px] border-slate-400 shrink-0" />
+                          <span className="text-sm font-bold">Hueco <span className="font-normal text-muted">· ya visitado</span></span>
+                        </span>
+                      </div>
+                    </div>
                   </div>
 
-                  {/* El punto pequeño del visitado: en qué quedó */}
-                  <div className="flex flex-wrap items-center gap-x-5 gap-y-2 mt-4 pt-3 border-t border-border/25 text-sm">
-                    <span className="font-black text-foreground">El punto del visitado dice en qué quedó:</span>
-                    {Object.entries(PINTA_VISITA).map(([k, v]) => (
-                      <span key={k} className="flex items-center gap-1.5 text-muted">
-                        <span className="w-3.5 h-3.5 rounded-full inline-block border-2 border-white/70" style={{ background: v.color }} />
-                        {v.texto}
-                      </span>
-                    ))}
+                  <div className="grid md:grid-cols-2 gap-3">
+                    <div className="rounded-xl border border-border/40 bg-card/40 p-3">
+                      <p className="text-xs font-black uppercase tracking-wide text-muted mb-2.5">
+                        El color de un pendiente es su prioridad
+                      </p>
+                      <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+                        {([['#ef4444', 'Prioridad A'], ['#f59e0b', 'Prioridad B'], ['#94a3b8', 'Resto']] as const).map(([c, t]) => (
+                          <span key={t} className="flex items-center gap-2">
+                            <span className="w-5 h-5 rounded-full border-2 border-white shrink-0" style={{ background: c }} />
+                            <span className="text-sm">{t}</span>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border border-border/40 bg-card/40 p-3">
+                      <p className="text-xs font-black uppercase tracking-wide text-muted mb-2.5">
+                        El color de un visitado es en qué quedó
+                      </p>
+                      <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+                        {Object.entries(PINTA_VISITA).map(([k, v]) => (
+                          <span key={k} className="flex items-center gap-2">
+                            <span className="w-5 h-5 rounded-full border-[3px] shrink-0" style={{ borderColor: v.color }} />
+                            <span className="text-sm">{v.texto}</span>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
                   </div>
 
-                  <div className="flex flex-wrap items-center gap-x-5 gap-y-2 mt-3 text-sm">
-                    <span className="font-black text-foreground">El anillo es la zona:</span>
-                    {ZONAS.map((z) => (
-                      <span key={z.id} className="flex items-center gap-1.5 text-muted">
-                        <span className="w-3.5 h-3.5 rounded-full inline-block border-[3px]" style={{ borderColor: z.color }} />
-                        {z.nombre}
-                      </span>
-                    ))}
+                  <div className="rounded-xl border border-blue-500/35 bg-blue-500/10 p-3 flex items-center gap-3">
+                    <span className="w-9 h-9 rounded-full bg-[#2563eb] border-[2.5px] border-white shrink-0 flex items-center justify-center text-sm font-black text-white"
+                      style={{ boxShadow: '0 2px 6px rgba(0,0,0,.5)' }}>3</span>
+                    <p className="text-sm">
+                      <b className="font-black">Azul y más grande: va en la ruta de hoy</b>
+                      <span className="text-muted"> · el número es su orden de parada. Manda sobre cualquier otro color.</span>
+                    </p>
                   </div>
 
-                  <p className="text-xs text-muted mt-3 pt-3 border-t border-border/25">
-                    El punto amarillo marca interés en fotovoltaica. Todo lo demás —sector, metros, consumo y foto—
-                    sale al pulsar el pin.
+                  <p className="text-xs text-muted border-t border-border/25 pt-3">
+                    <b className="text-foreground">Lo que ya no va en el pin, a propósito:</b> la zona y el interés en
+                    fotovoltaica son filtros de arriba —se marcan y salen ellos solos—, y el sector, los metros, el
+                    consumo y la foto salen al pulsarlo. Un pin que intenta decir ocho cosas no dice ninguna.
                   </p>
                 </div>
               </motion.div>
