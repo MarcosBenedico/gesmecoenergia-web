@@ -302,6 +302,8 @@ export interface LuzCups {
   responsable: string | null;
   prioridad: string | null;
   observaciones: string | null;
+  creado_en?: string;
+  actualizado_en?: string;
   luz_clientes?: { nombre: string; nif?: string | null; prioridad?: string } | null;
 }
 
@@ -339,6 +341,8 @@ export interface LuzOportunidad {
   fecha_revision: string | null;
   motivo_perdida: string | null;
   observaciones: string | null;
+  creado_en?: string;
+  actualizado_en?: string;
   luz_clientes?: { nombre: string; prioridad?: string } | null;
 }
 
@@ -360,6 +364,8 @@ export interface LuzContrato {
   incidencia: string | null;
   responsable: string | null;
   observaciones: string | null;
+  creado_en?: string;
+  actualizado_en?: string;
   luz_clientes?: { nombre: string } | null;
   luz_cups?: { cups: string } | null;
 }
@@ -378,6 +384,8 @@ export interface LuzComision {
   estado_comision: string;
   factura_referencia: string | null;
   observaciones: string | null;
+  creado_en?: string;
+  actualizado_en?: string;
   luz_clientes?: { nombre: string } | null;
   luz_cups?: { cups: string } | null;
 }

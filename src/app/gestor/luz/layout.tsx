@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard, Users, Plug, CalendarClock, Target, FileSignature,
-  Euro, ArrowDownUp, Settings, ChevronLeft, ChevronDown, Zap, UserCog, ShieldCheck, Route, History, Sun, UserPlus, Radar, BookOpen, Calculator, FileText, TrendingUp, Trash2,
+  Euro, ArrowDownUp, Settings, ChevronLeft, ChevronDown, Zap, UserCog, ShieldCheck, Route, History, Sun, UserPlus, Radar, Inbox, BookOpen, Calculator, FileText, TrendingUp, Trash2,
 } from 'lucide-react';
 import { GuardiaModulo } from '@/components/guardia-modulo';
 import { useUsuario } from '@/lib/usuario';
@@ -40,6 +40,7 @@ const BLOQUES: Bloque[] = [
     titulo: 'Oficina',
     pista: 'Dar de alta, tramitar y ordenar',
     secciones: [
+      { href: '/gestor/luz/bandeja', icono: Inbox, nombre: 'Bandeja' },
       { href: '/gestor/luz/captura', icono: Zap, nombre: 'Captura rápida' },
       { href: '/gestor/luz/guia', icono: BookOpen, nombre: 'Guía rápida' },
       { href: '/gestor/luz/alta', icono: UserPlus, nombre: 'Alta guiada de cliente' },
