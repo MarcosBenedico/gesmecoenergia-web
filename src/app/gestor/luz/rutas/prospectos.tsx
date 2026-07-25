@@ -35,9 +35,11 @@ export function Prospectos({ ruta, yaClientes, onResultados, prospectos }: Props
   const [buscando, setBuscando] = useState(false);
   const [error, setError] = useState('');
   const [buscado, setBuscado] = useState(false);
+  /** La consulta va por tramos: si alguno falla, hay resultados pero incompletos. */
+  const [aviso, setAviso] = useState('');
 
   async function buscar() {
-    setBuscando(true); setError(''); onResultados([]);
+    setBuscando(true); setError(''); setAviso(''); onResultados([]);
     try {
       const res = await fetch('/api/luz/prospectar', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -46,6 +48,7 @@ export function Prospectos({ ruta, yaClientes, onResultados, prospectos }: Props
       const json = await res.json();
       if (!res.ok) { setError(json.error || 'No se pudo buscar.'); return; }
       onResultados(json.prospectos || []);
+      setAviso(json.aviso || '');
       setBuscado(true);
     } catch {
       setError('No se pudo conectar con el buscador.');
@@ -94,6 +97,7 @@ export function Prospectos({ ruta, yaClientes, onResultados, prospectos }: Props
 
           {buscando && <p className="text-[10px] text-muted mt-2">Puede tardar unos segundos: se consulta el mapa público.</p>}
           {error && <p className="text-[11px] text-red-400 mt-2 bg-red-500/10 border border-red-500/20 rounded-lg p-2">{error}</p>}
+          {aviso && <p className="text-[11px] text-amber-300 mt-2 bg-amber-500/10 border border-amber-500/20 rounded-lg p-2">⚠️ {aviso}</p>}
 
           {buscado && prospectos.length === 0 && !buscando && (
             <p className="text-[11px] text-muted mt-3 bg-card/60 rounded-lg p-2.5">

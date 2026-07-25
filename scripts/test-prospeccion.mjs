@@ -123,6 +123,22 @@ cierto('40 edificios pegados NO son granjas intensivas',
   !rManzana.some((p) => p.tipo === 'granja_intensiva'));
 cierto('en pleno casco urbano no se propone nada', rManzana.length <= 2);
 
+// FALLO REAL (el mismo, reaparecido): al descontar del vecindario los edificios
+// del propio sitio, una manzana crecía hasta absorberse entera, se quedaba sin
+// vecinos ajenos y volvía a colarse como granja la primera de la lista. Por eso
+// el tope de edificios por sitio y este umbral van juntos: tocar uno sin el
+// otro reabre el agujero.
+cierto('una manzana no puede absorberse entera y declararse aislada',
+  !rManzana.some((p) => p.tipo === 'granja_intensiva' || p.tipo === 'granja'));
+
+// La otra cara: una granja grande no se penaliza a sí misma. Sus propias naves
+// no cuentan como vecindario, asi que sigue siendo una explotación aislada.
+const granjaGrande = [];
+for (let i = 0; i < 9; i++) granjaGrande.push(nave(300 + i, 41.8600 + i * 0.0004, 0.3620, 80, 16));
+const rGrande = procesarElementos(granjaGrande, ruta, 2);
+eq('nueve naves en el campo siguen siendo UNA granja', rGrande.length, 1);
+eq('...y se reconoce como intensiva', rGrande[0]?.tipo, 'granja_intensiva');
+
 // Un centro de salud no es un cliente de puerta fría
 const sanitario = procesarElementos(
   [{ type: 'way', id: 900, tags: { building: 'yes', amenity: 'hospital' }, geometry: rect(41.86, 0.362, 120, 40) }],

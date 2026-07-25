@@ -23,11 +23,24 @@ import { ElementoOSM, Prospecto, distKm, procesarElementos } from '@/lib/prospec
 
 export const maxDuration = 60;
 
-const OVERPASS = 'https://overpass-api.de/api/interpreter';
+/**
+ * Overpass es gratuito y comunitario, y a veces el principal va cargado. Se
+ * prueban por orden: si el primero contesta 429 o 504, se va al siguiente en
+ * vez de decirle a David que vuelva en un rato.
+ */
+const SERVIDORES_OVERPASS = [
+  'https://overpass-api.de/api/interpreter',
+  'https://overpass.kumi.systems/api/interpreter',
+  'https://overpass.private.coffee/api/interpreter',
+];
 const UA = 'GesmecoEnergia-Prospeccion/1.0 (gesmecoenergia.com)';
+/** Perímetro mínimo del contorno para que un edificio se traiga del mapa. */
+const PERIMETRO_MINIMO_M = 100;
 const RADIO_DEFECTO_KM = 2;
 const RADIO_MAX_KM = 5;
-const MAX_VERTICES_RUTA = 25;    // con más, el corredor se hace enorme y Overpass se atraganta
+const MAX_VERTICES_RUTA = 25;
+/** Puntos de ruta por consulta. Con más, Overpass devuelve 504. */
+const PUNTOS_POR_TRAMO = 3;
 const MAX_RESULTADOS = 60;
 const KM_YA_ES_CLIENTE = 0.15;
 
@@ -36,22 +49,28 @@ const CACHE_MS = 30 * 60 * 1000;
 
 function consultaOverpass(ruta: { lat: number; lon: number }[], radioM: number): string {
   const a = `around:${Math.round(radioM)},${ruta.map((p) => `${p.lat.toFixed(5)},${p.lon.toFixed(5)}`).join(',')}`;
-  // Se piden TODOS los edificios, no solo los etiquetados: en esta zona las
-  // naves de las granjas están como `building=yes` a secas, y filtrando por
-  // etiqueta se quedaba fuera justo lo que más interesa. La criba se hace
-  // luego por forma y tamaño, en procesarElementos().
+  // No se filtra por etiqueta: en esta zona las naves de las granjas están
+  // como `building=yes` a secas, y buscando etiquetas se pierde justo lo que
+  // más interesa. Se filtra por TAMAÑO, con el perímetro del contorno.
+  //
+  // 100 m de perímetro deja fuera las viviendas (una casa de 12×10 tiene 44 m)
+  // y deja pasar cualquier nave (una de 30×8, la más pequeña que se considera,
+  // tiene 76 m... por eso el corte va por debajo de lo que parecería).
+  //
+  // Hace falta porque pedir todos los edificios con su geometría reventaba la
+  // consulta en cuanto la ruta se alargaba: en una de Binéfar a Raimat, 45 km,
+  // el servidor devolvía 504. Con el filtro, esa misma ruta baja a ~90 KB y
+  // 13 segundos.
   //
   // Las balsas no son candidatos: son la pista de que unas naves son una
-  // explotación ganadera. Y `residential` marca los cascos urbanos, para
-  // descartar lo que cae dentro del pueblo.
-  return `[out:json][timeout:60];
+  // explotación ganadera. Y `residential` marca los cascos urbanos.
+  return `[out:json][timeout:90];
 (
-  way["building"](${a});
-  way["landuse"~"^(farmyard|industrial|greenhouse_horticulture)$"](${a});
+  way["building"](if: length() > ${PERIMETRO_MINIMO_M})(${a});
+  way["landuse"~"^(farmyard|industrial|greenhouse_horticulture|residential)$"](${a});
   way["man_made"~"^(silo|storage_tank|pumping_station|water_well)$"](${a});
   way["water"="basin"](${a});
   way["landuse"="basin"](${a});
-  way["landuse"="residential"](${a});
 );
 out tags geom 6000;`;
 }
@@ -89,31 +108,61 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    let elementos: ElementoOSM[];
-    try {
-      const res = await fetch(OVERPASS, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'User-Agent': UA },
-        body: `data=${encodeURIComponent(consultaOverpass(vertices, radioKm * 1000))}`,
-        signal: AbortSignal.timeout(50000),
-      });
-      if (!res.ok) {
-        return NextResponse.json(
-          {
-            error: res.status === 429 || res.status === 504
-              ? 'El mapa público está saturado ahora mismo. Prueba otra vez en un par de minutos.'
-              : `El servicio de mapas respondió ${res.status}.`,
-          },
-          { status: 503 }
-        );
+    // El recorrido se parte en tramos cortos y se consulta uno a uno.
+    // Overpass no puede con un corredor largo de una vez: una ruta de Binéfar
+    // a Raimat (45 km) devolvía 504 en todos los servidores, mientras que un
+    // tramo de tres puntos se resuelve en dos segundos y medio. Los tramos se
+    // solapan en un punto para que no queden huecos entre ellos.
+    const tramos: { lat: number; lon: number }[][] = [];
+    for (let i = 0; i < vertices.length; i += PUNTOS_POR_TRAMO - 1) {
+      const trozo = vertices.slice(i, i + PUNTOS_POR_TRAMO);
+      if (trozo.length) tramos.push(trozo);
+      if (i + PUNTOS_POR_TRAMO >= vertices.length) break;
+    }
+
+    // Se juntan por id: los tramos solapados devuelven cosas repetidas
+    const porId = new Map<string, ElementoOSM>();
+    let tramosFallidos = 0;
+    let ultimoFallo = '';
+
+    for (const tramo of tramos) {
+      const consulta = consultaOverpass(tramo, radioKm * 1000);
+      let hecho = false;
+      for (const servidor of SERVIDORES_OVERPASS) {
+        try {
+          const res = await fetch(servidor, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'User-Agent': UA },
+            body: `data=${encodeURIComponent(consulta)}`,
+            signal: AbortSignal.timeout(45000),
+          });
+          if (res.ok) {
+            const els = ((await res.json()) as { elements?: ElementoOSM[] }).elements || [];
+            for (const el of els) porId.set(`${el.type}/${el.id}`, el);
+            hecho = true;
+            break;
+          }
+          ultimoFallo = String(res.status);
+        } catch {
+          ultimoFallo = 'sin respuesta';
+        }
       }
-      elementos = ((await res.json()) as { elements?: ElementoOSM[] }).elements || [];
-    } catch {
+      if (!hecho) tramosFallidos++;
+    }
+
+    // Si no se pudo con ninguno, no hay nada que enseñar
+    if (tramosFallidos === tramos.length) {
       return NextResponse.json(
-        { error: 'No se pudo consultar el mapa (OpenStreetMap). Inténtalo de nuevo en un momento.' },
+        { error: `El mapa público no responde ahora mismo (${ultimoFallo}). Vuelve a intentarlo en un par de minutos.` },
         { status: 503 }
       );
     }
+
+    const elementos = Array.from(porId.values());
+    // Con algún tramo caído hay resultados, pero incompletos: hay que decirlo
+    const aviso = tramosFallidos > 0
+      ? `Falta un trozo de la ruta: ${tramosFallidos} de ${tramos.length} tramos no se han podido consultar. Vuelve a buscar en un rato para verlos.`
+      : null;
 
     const prospectos = procesarElementos(elementos, ruta, radioKm);
     cache.set(clave, { en: Date.now(), datos: prospectos });
@@ -122,6 +171,7 @@ export async function POST(req: NextRequest) {
       ok: true,
       radio_km: radioKm,
       revisados: elementos.length,
+      aviso,
       prospectos: quitarClientes(prospectos, body.excluir),
     });
   } catch {

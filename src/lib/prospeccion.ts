@@ -128,7 +128,7 @@ const M2_MINIMOS = 250;
  * la primera de la lista. Una explotación de verdad tiene pocas naves y ocupa
  * poco terreno; lo que se pase de esto es tejido urbano y no un cliente.
  */
-const MAX_EDIFICIOS_SITIO = 14;
+const MAX_EDIFICIOS_SITIO = 10;
 const MAX_DIAMETRO_SITIO_KM = 0.4;
 
 /**
@@ -144,10 +144,21 @@ const MAX_DIAMETRO_SITIO_KM = 0.4;
  * tejido urbano por mucho que las formas engañen.
  */
 const KM_RADIO_VECINDARIO = 0.25;
-/** Por encima de esto es pueblo o polígono: no se sabe quién es quién. */
-const VECINOS_URBANO = 28;
-/** Por encima de esto ya no es una explotación aislada, aunque lo parezca. */
-const VECINOS_AISLADO = 12;
+/**
+ * Se cuentan los edificios AJENOS al sitio: las naves de la propia granja no
+ * cuentan contra ella. Sin esa distinción, una explotación de doce naves se
+ * penalizaría a sí misma y quedaría descartada por "urbana".
+ *
+ * Medido sobre el corredor Binéfar–Tamarite, edificios en 250 m: centro de
+ * Binéfar 17, granja de 8 naves 8, granja de la ortofoto 2. Descontando los
+ * propios, las granjas se quedan en cero y el pueblo sigue teniendo de sobra.
+ *
+ * Esto va de la mano del tope de edificios por sitio: si un grupo pudiera
+ * crecer sin límite, una manzana entera se absorbería a sí misma, se quedaría
+ * sin vecinos ajenos y volvería a colarse como granja. Pasó exactamente eso.
+ */
+const VECINOS_URBANO = 6;
+const VECINOS_AISLADO = 3;
 
 /**
  * Nada de esto se visita para venderle placas por esta vía: son equipamientos
@@ -450,15 +461,19 @@ export function procesarElementos(
   // Balsas: la pista de que unas naves son una explotación ganadera
   const balsas: { lat: number; lon: number }[] = [];
   const edificios: Edificio[] = [];
-  /** TODOS los edificios del mapa, viviendas incluidas: es el censo con el que
-   *  se mide si un sitio está solo en el campo o metido en el pueblo. */
-  const censo: { lat: number; lon: number }[] = [];
+  /**
+   * Censo con el que se mide si un sitio está solo en el campo o metido en el
+   * pueblo. Son los edificios grandes que devuelve el mapa: las viviendas
+   * pequeñas ya no se piden porque barrerlas en una ruta larga tumbaba la
+   * consulta, y resulta que con los grandes la señal se distingue igual.
+   */
+  const censo: { id: string; lat: number; lon: number }[] = [];
 
   for (const e of elementos) {
     const tags = e.tags || {};
     const centro = centroDe(e);
     if (!centro) continue;
-    if (tags.building) censo.push(centro);
+    if (tags.building) censo.push({ id: `${e.type}/${e.id}`, ...centro });
 
     if (tags.water === 'basin' || tags.landuse === 'basin' || tags.man_made === 'storage_tank') {
       balsas.push(centro);
@@ -495,8 +510,13 @@ export function procesarElementos(
     const kmDesvio = kmALaRuta(sitio, ruta);
     if (kmDesvio > radioKm) continue;
 
-    // Cuántos edificios hay alrededor: pueblo o campo
-    const vecinos = censo.reduce((t, c) => t + (distKm(c, sitio) < KM_RADIO_VECINDARIO ? 1 : 0), 0);
+    // Cuántos edificios AJENOS hay alrededor: pueblo o campo. Las naves del
+    // propio sitio no cuentan, o una granja grande se descartaría a sí misma.
+    const propios = new Set(sitio.edificios.map((e) => e.id));
+    const vecinos = censo.reduce(
+      (t, c) => t + (!propios.has(c.id) && distKm(c, sitio) < KM_RADIO_VECINDARIO ? 1 : 0),
+      0
+    );
     // En el meollo del pueblo no se puede decir quién es quién: no se propone nada
     if (vecinos > VECINOS_URBANO) continue;
 
