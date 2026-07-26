@@ -96,6 +96,15 @@ export const DEFINICIONES: DefHueco[] = [
 
   // ── Clientes ──
   {
+    // Va el primero de los de cliente y con el peso más alto de todos: mientras
+    // no esté puesto, no se sabe cuántos clientes hay de verdad, y ese es el
+    // número del que cuelga todo lo demás.
+    clave: 'cli_clasificacion', entidad: 'clientes', campo: 'clasificacion',
+    etiqueta: 'Objetivo · Precliente · Cliente', tipo: 'lista', peso: 99,
+    opciones: ['objetivo', 'precliente', 'cliente'],
+    porque: 'Cliente es el que ha FIRMADO. Precliente nos dio su información pero no ha firmado. Objetivo es una puerta a la que ir. Sin esto no se sabe cuántos clientes hay.',
+  },
+  {
     clave: 'cli_telefono', entidad: 'clientes', campo: 'telefono',
     etiqueta: 'Teléfono', tipo: 'telefono', peso: 95,
     porque: 'Sin teléfono no se puede llamar, y el lunes de David es un día entero de llamadas.',

@@ -10,6 +10,7 @@ import {
 } from '@/lib/luz';
 import { evaluarCliente, tonoCompletitud } from '@/lib/completitud';
 import { Card, BadgePrioridad, Badge, EstadoCarga, useListaLuz, guardarLuz, inputCls, labelCls, btnPrimario, btnSecundario, SelectorResponsable } from '../ui';
+import { CLASIFICACIONES, defDe, ES_CLASIFICACION } from '@/lib/clasificacion';
 
 /**
  * Semáforo de "qué le falta". Rojo = no se puede ni empezar; ámbar = se puede
@@ -64,6 +65,9 @@ function ClientesLuzContenido() {
 
   const [fPrioridad, setFPrioridad] = useState(sp.get('prioridad') || '');
   const [fEstado, setFEstado] = useState('');
+  // Objetivo / precliente / cliente: es el filtro que más se va a usar, porque
+  // responde a «¿cuántos clientes tengo de verdad?» y a «¿a quién puede ir a ver David?».
+  const [fClasif, setFClasif] = useState('');
   const [fTipo, setFTipo] = useState('');
   const [fResp, setFResp] = useState('');
   const [fEspecial, setFEspecial] = useState('');
@@ -106,6 +110,7 @@ function ClientesLuzContenido() {
   const filtrados = useMemo(() => clientes.datos.filter((c) => {
     if (fPrioridad && c.prioridad !== fPrioridad) return false;
     if (fEstado && c.estado_comercial !== fEstado) return false;
+    if (fClasif && ((c as { clasificacion?: string }).clasificacion || 'precliente') !== fClasif) return false;
     if (fTipo && c.tipo_cliente !== fTipo) return false;
     if (fResp && c.responsable !== fResp) return false;
     if (fEspecial === 'sin_accion' && c.proxima_accion) return false;
@@ -117,7 +122,7 @@ function ClientesLuzContenido() {
     if (fDesde && alta < fDesde) return false;
     if (fHasta && alta > fHasta) return false;
     return true;
-  }), [clientes.datos, fPrioridad, fEstado, fTipo, fResp, fEspecial, fVia, fDesde, fHasta, cupsPorCliente]);
+  }), [clientes.datos, fPrioridad, fEstado, fClasif, fTipo, fResp, fEspecial, fVia, fDesde, fHasta, cupsPorCliente]);
 
   async function crear(e: React.FormEvent) {
     e.preventDefault();
@@ -200,6 +205,10 @@ function ClientesLuzContenido() {
       <Card className="!p-3 space-y-2.5">
         <div className="flex gap-2 flex-wrap">
           <input className={`${inputCls} flex-1 min-w-48`} value={buscar} onChange={(e) => setBuscar(e.target.value)} placeholder="🔍 Buscar cliente..." />
+          <select className={selCls} value={fClasif} onChange={(e) => setFClasif(e.target.value)} title="Objetivo, precliente o cliente">
+            <option value="">Objetivo · Precliente · Cliente</option>
+            {CLASIFICACIONES.map((c) => <option key={c.clave} value={c.clave}>{c.emoji} Solo {c.titulo.toLowerCase()}s</option>)}
+          </select>
           <select className={selCls} value={fPrioridad} onChange={(e) => setFPrioridad(e.target.value)}>
             <option value="">Prioridad: todas</option>
             {PRIORIDADES.map((p) => <option key={p} value={p}>Prioridad {p}</option>)}
@@ -246,6 +255,7 @@ function ClientesLuzContenido() {
               <tr className="text-left text-[11px] uppercase tracking-wide text-muted border-b border-border/40">
                 <th className="px-3 py-3">Pr.</th>
                 <th className="px-3 py-3">Cliente</th>
+                <th className="px-3 py-3">Qué es</th>
                 <th className="px-3 py-3">Qué falta</th>
                 <th className="px-3 py-3">Tipo</th>
                 <th className="px-3 py-3 text-center">CUPS</th>
@@ -267,6 +277,19 @@ function ClientesLuzContenido() {
                       <Link href={`/gestor/luz/clientes/${c.id}`} className="font-semibold hover:text-accent transition">{c.nombre}</Link>
                       <span className="block text-[10px] text-muted">{VIA_ENTRADA_CORTA[c.via_entrada || 'captacion']}</span>
                       {c.nif && <span className="block text-[10px] font-mono text-muted">{c.nif}</span>}
+                    </td>
+                    <td className="px-3 py-2">
+                      {(() => {
+                        const bruto = (c as { clasificacion?: string }).clasificacion;
+                        // Sin el SQL ejecutado todavía no hay columna: se enseña
+                        // como precliente, que es lo prudente, y no se rompe nada.
+                        const d = defDe(ES_CLASIFICACION(bruto) ? bruto : 'precliente');
+                        return (
+                          <span className={`inline-block px-2 py-0.5 rounded-full border text-[11px] font-semibold whitespace-nowrap ${d.tono}`}>
+                            {d.emoji} {d.titulo}
+                          </span>
+                        );
+                      })()}
                     </td>
                     <td className="px-3 py-2"><SemaforoCliente cliente={c} cups={cupsPorCliente.get(c.id) || []} /></td>
                     <td className="px-3 py-2"><Badge>{TIPO_CLIENTE_LABEL[c.tipo_cliente] || c.tipo_cliente}</Badge></td>

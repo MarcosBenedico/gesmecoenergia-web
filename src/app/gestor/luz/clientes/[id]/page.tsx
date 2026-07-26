@@ -16,6 +16,10 @@ import {
   Card, Badge, BadgePrioridad, BadgeVencimiento, EstadoCarga, useListaLuz, guardarLuz,
   inputCls, labelCls, btnPrimario, btnSecundario, SelectorResponsable,
 } from '../../ui';
+import {
+  CLASIFICACIONES, clasificacionSugerida, defDe, hayQueRevisar, razonSugerencia,
+  ES_CLASIFICACION, type Clasificacion,
+} from '@/lib/clasificacion';
 import { ProximaAccion, TareasCliente, HistorialCliente, VisitasYFV, SeguimientoCliente } from './componentes';
 import { PedirMotivo } from '../../motivo';
 import { AccionesContacto } from '../../acciones-contacto';
@@ -56,6 +60,33 @@ export default function FichaClienteLuz() {
 
   const consumoTotal = cups.datos.reduce((s, c) => s + (Number(c.consumo_anual_kwh) || 0), 0);
   const tareasAbiertas = tareas.datos.filter((t) => TAREAS_ABIERTAS.includes(t.estado));
+
+  // ── Objetivo · Precliente · Cliente ──
+  // Lo marcado manda, porque los contratos todavía viven en papel. El cálculo
+  // se queda como sugerencia y solo avisa cuando lo marcado va por detrás de
+  // lo que dicen los datos: un precliente que ya firmó es un cliente al que
+  // nadie ha movido de sitio, y eso descuadra el recuento del negocio.
+  const clasifActual: Clasificacion = ES_CLASIFICACION((cliente as { clasificacion?: string } | null)?.clasificacion)
+    ? ((cliente as unknown as { clasificacion: Clasificacion }).clasificacion)
+    : 'precliente';
+  const entradaSug = {
+    estado_comercial: cliente?.estado_comercial,
+    cups: cups.datos.map((c) => ({ estado_cups: c.estado_cups })),
+    contratos: contratos.datos.map((k) => ({ estado_contrato: k.estado_contrato, fecha_firma: k.fecha_firma })),
+  };
+  const clasifSugerida = clasificacionSugerida(entradaSug);
+  const revisarClasif = hayQueRevisar(clasifActual, clasifSugerida);
+  const [cambiandoClasif, setCambiandoClasif] = useState(false);
+
+  async function cambiarClasificacion(nueva: Clasificacion) {
+    if (nueva === clasifActual || cambiandoClasif) return;
+    setCambiandoClasif(true);
+    setMsg('');
+    const err = await guardarLuz('clientes', 'PUT', { id: clienteId, clasificacion: nueva });
+    if (err) setMsg(err.includes('clasificacion') ? 'Falta ejecutar supabase_clasificacion.sql en Supabase.' : err);
+    else await clientes.recargar();
+    setCambiandoClasif(false);
+  }
 
   const setC = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setFormC((f) => ({ ...f, [k]: e.target.value }));
@@ -292,6 +323,52 @@ export default function FichaClienteLuz() {
                 </div>
               </div>
               <button onClick={empezarEdicion} className={btnSecundario}><Pencil className="w-4 h-4" /> Editar</button>
+            </div>
+
+            {/* Objetivo · Precliente · Cliente. Un clic y ya: es la distinción
+                que más se usa al hablar del negocio, así que no se esconde
+                detrás del botón de editar. */}
+            <div className="rounded-xl border border-border/40 bg-card/40 p-3 space-y-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[10px] font-black uppercase tracking-wide text-muted">Qué es</span>
+                <div className="flex flex-wrap gap-1.5">
+                  {CLASIFICACIONES.map((c) => {
+                    const activo = c.clave === clasifActual;
+                    return (
+                      <button
+                        key={c.clave}
+                        type="button"
+                        disabled={cambiandoClasif}
+                        onClick={() => cambiarClasificacion(c.clave)}
+                        title={c.quees}
+                        className={`px-2.5 py-1 rounded-lg border text-xs font-bold transition disabled:opacity-50 ${
+                          activo ? c.tono : 'bg-card/60 text-muted border-border/40 hover:text-foreground'
+                        }`}
+                      >
+                        {c.emoji} {c.titulo}
+                      </button>
+                    );
+                  })}
+                </div>
+                <span className="text-[11px] text-muted ml-auto">{defDe(clasifActual).quees}</span>
+              </div>
+
+              {revisarClasif && (
+                <div className="flex items-start gap-2 text-[11px] text-amber-400 border-t border-border/30 pt-2">
+                  <span className="shrink-0">⚠</span>
+                  <p>
+                    Por los datos debería ser <strong>{defDe(clasifSugerida).titulo.toLowerCase()}</strong>:{' '}
+                    {razonSugerencia(entradaSug)}{' '}
+                    <button
+                      type="button"
+                      onClick={() => cambiarClasificacion(clasifSugerida)}
+                      className="underline font-bold hover:text-amber-300"
+                    >
+                      Pasarlo a {defDe(clasifSugerida).titulo.toLowerCase()}
+                    </button>
+                  </p>
+                </div>
+              )}
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">

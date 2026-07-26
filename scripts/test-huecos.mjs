@@ -97,9 +97,27 @@ eq('...una fecha inventada no pasa', normalizarValor('fecha', 'la semana que vie
 eq('el texto se limpia de espacios', normalizarValor('texto', '  Endesa  '), 'Endesa');
 eq('vacío es null, no cadena vacía', normalizarValor('texto', '   '), null);
 
+console.log('\n── La clasificación es el hueco que más pesa ──');
+// Sin saber quién es cliente de verdad no se sabe ni cuántos clientes hay, así
+// que va por delante de cualquier otro dato que falte.
+const sinClasificar = detectarHuecos({
+  clientes: [{ id: 'c1', nombre: 'X', telefono: '974 000 000', estado_comercial: 'activo' }],
+  cups: [],
+});
+eq('un cliente sin clasificar sale', sinClasificar.find((h) => h.clave === 'cli_clasificacion')?.cuantos, 1);
+eq('...y es el primero de la lista', sinClasificar[0].clave, 'cli_clasificacion');
+eq('...con las tres opciones puestas',
+  sinClasificar[0].opciones, ['objetivo', 'precliente', 'cliente']);
+cierto('...y explicando que cliente es el que ha firmado',
+  /FIRMADO/i.test(sinClasificar[0].porque));
+eq('uno ya clasificado no sale', detectarHuecos({
+  clientes: [{ id: 'c1', nombre: 'X', clasificacion: 'cliente', telefono: '974 000 000', estado_comercial: 'activo' }],
+  cups: [],
+}).find((h) => h.clave === 'cli_clasificacion'), undefined);
+
 console.log('\n── Cartera limpia ──');
 eq('sin huecos, lista vacía', detectarHuecos({
-  clientes: [{ id: 'c1', nombre: 'X', telefono: '974', nif: 'B1', responsable: 'D', direccion_fiscal: 'C/ 1', persona_contacto: 'P', email: 'a@b.c', estado_comercial: 'activo' }],
+  clientes: [{ id: 'c1', nombre: 'X', clasificacion: 'cliente', telefono: '974', nif: 'B1', responsable: 'D', direccion_fiscal: 'C/ 1', persona_contacto: 'P', email: 'a@b.c', estado_comercial: 'activo' }],
   cups: [],
 }).length, 0);
 eq('sin datos tampoco revienta', detectarHuecos({ clientes: [], cups: [] }).length, 0);
