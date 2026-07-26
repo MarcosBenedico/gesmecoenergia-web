@@ -7,18 +7,40 @@ import { construirParte, ENTIDADES, type FilaAuditoria } from '@/lib/parte-diari
  *
  * GET /api/luz/parte?fecha=YYYY-MM-DD
  *
- * SOLO ADMIN, y comprobado aquí en el servidor.
- * Esconder la entrada del menú no protege nada: cualquiera que sepa la URL
- * llamaría igual. Aquí se mira el rol contra `app_usuarios` antes de devolver
- * un solo dato, porque este parte enseña la actividad de todo el equipo
- * persona por persona, y eso no lo puede ver cualquiera.
+ * ─────────────────────────────────────────────────────────────────────────────
+ * SOLO ADMIN, Y PROTEGIDO EN DOS SITIOS
  *
- * De dónde salen los datos: de `app_auditoria`, que llenan los triggers de la
- * base de datos con la fila entera antes y después de cada cambio. No hay que
- * instrumentar nada en la aplicación: si se guarda, queda registrado.
+ * Este parte enseña la actividad de todo el equipo persona por persona, así que
+ * el acceso está cerrado dos veces y a propósito:
+ *
+ *   1. AQUÍ, comprobando el rol contra `app_usuarios` antes de leer nada.
+ *      Sirve para dar un mensaje claro («esto es solo para dirección») en vez de
+ *      devolver una lista vacía que parecería un día sin trabajo.
+ *
+ *   2. EN LA BASE DE DATOS, porque `app_auditoria` ya tiene la política
+ *      `p_auditoria_ver ... USING (es_admin())` de supabase_rls_v2.sql.
+ *
+ * Y por eso todo se lee con la SESIÓN DEL USUARIO y no con la clave de
+ * servicio: usar la de servicio saltaría precisamente la política que protege
+ * esta tabla, y dejaría la seguridad dependiendo solo del punto 1. Además, el
+ * resto del proyecto trata `SUPABASE_SERVICE_ROLE_KEY` como opcional, y esta
+ * ruta no debe ser la única que se caiga sin ella.
+ * ─────────────────────────────────────────────────────────────────────────────
  */
 
 export const maxDuration = 60;
+
+/** Cliente con la sesión de quien llama: las políticas RLS hacen su trabajo. */
+function clienteUsuario(token: string) {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      global: { headers: { Authorization: `Bearer ${token}` } },
+      auth: { persistSession: false, autoRefreshToken: false },
+    }
+  );
+}
 
 /** Un día natural en hora española, en instantes UTC. */
 function limitesDelDia(fecha: string): { desde: string; hasta: string } {
@@ -41,73 +63,44 @@ function limitesDelDia(fecha: string): { desde: string; hasta: string } {
   };
 }
 
-/**
- * Comprueba que quien llama es admin. Devuelve el error listo para responder,
- * o null si puede pasar.
- */
-async function soloAdmin(req: NextRequest): Promise<NextResponse | null> {
-  const cabecera = req.headers.get('authorization') || '';
-  const token = cabecera.replace(/^Bearer\s+/i, '').trim();
+export async function GET(req: NextRequest) {
+  const token = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '').trim();
   if (!token) {
     return NextResponse.json({ error: 'Hace falta iniciar sesión.' }, { status: 401 });
   }
 
-  const publico = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
-  const { data: sesion, error } = await publico.auth.getUser(token);
-  if (error || !sesion?.user) {
-    return NextResponse.json({ error: 'La sesión no es válida. Vuelve a entrar.' }, { status: 401 });
+  const supa = clienteUsuario(token);
+
+  // ── Quién llama ──
+  const { data: sesion, error: errSesion } = await supa.auth.getUser(token);
+  if (errSesion || !sesion?.user) {
+    return NextResponse.json({ error: 'La sesión ha caducado. Vuelve a entrar en el panel.' }, { status: 401 });
   }
 
-  const servicio = clienteServicio();
-  if (!servicio) {
-    return NextResponse.json(
-      { error: 'Falta SUPABASE_SERVICE_ROLE_KEY en el entorno: sin eso no se puede comprobar el rol ni leer la auditoría.' },
-      { status: 500 }
-    );
-  }
-
-  const { data: perfil } = await servicio
+  // ── Y si puede ver esto ──
+  // La política de app_usuarios deja leer la fila propia, así que esta consulta
+  // funciona con la sesión del usuario sin necesitar permisos especiales.
+  const { data: perfil, error: errPerfil } = await supa
     .from('app_usuarios')
-    .select('rol, activo')
+    .select('rol, activo, nombre')
     .eq('id', sesion.user.id)
     .maybeSingle();
 
-  if (!perfil?.activo || perfil.rol !== 'admin') {
+  if (errPerfil) {
     return NextResponse.json(
-      { error: 'El parte del día es solo para dirección.' },
-      { status: 403 }
+      { error: `No se ha podido comprobar tu perfil: ${errPerfil.message}` },
+      { status: 500 }
     );
   }
-  return null;
-}
-
-/**
- * Cliente con clave de servicio. Hace falta porque la auditoría guarda quién
- * hizo qué de todo el equipo: leerla con la sesión del usuario dependería de
- * unas políticas que no existen para esa tabla. El acceso ya se ha cerrado
- * arriba comprobando que es admin.
- */
-function clienteServicio() {
-  const clave = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!clave) return null;
-  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, clave, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-}
-
-export async function GET(req: NextRequest) {
-  const veto = await soloAdmin(req);
-  if (veto) return veto;
+  if (!perfil?.activo || perfil.rol !== 'admin') {
+    return NextResponse.json({ error: 'El parte del día es solo para dirección.' }, { status: 403 });
+  }
 
   const fecha = (req.nextUrl.searchParams.get('fecha') || '').slice(0, 10);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) {
     return NextResponse.json({ error: 'Indica la fecha como AAAA-MM-DD.' }, { status: 400 });
   }
 
-  const supa = clienteServicio()!;
   const { desde, hasta } = limitesDelDia(fecha);
 
   try {
@@ -135,18 +128,19 @@ export async function GET(req: NextRequest) {
 
     const auditoria = (filas || []) as unknown as FilaAuditoria[];
 
-    // Nombres para que el parte hable de personas y de clientes, no de ids.
-    const [{ data: usuarios }, { data: clientes }] = await Promise.all([
+    // Nombres, para que el parte hable de personas y de clientes y no de ids.
+    // Que fallen no puede tumbar el parte: se sale del email y del propio dato.
+    const [usuarios, clientes] = await Promise.all([
       supa.from('app_usuarios').select('email, nombre'),
       supa.from('luz_clientes').select('id, nombre'),
     ]);
 
     const nombresUsuario: Record<string, string> = {};
-    for (const u of usuarios || []) {
+    for (const u of usuarios.data || []) {
       if (u.email) nombresUsuario[u.email as string] = (u.nombre as string) || (u.email as string);
     }
     const mapaClientes: Record<string, string> = {};
-    for (const c of clientes || []) mapaClientes[c.id as string] = c.nombre as string;
+    for (const c of clientes.data || []) mapaClientes[c.id as string] = c.nombre as string;
 
     const parte = construirParte({ fecha, auditoria, nombresUsuario, clientes: mapaClientes });
 
