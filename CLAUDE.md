@@ -26,6 +26,7 @@ npm run test:parte                         # tests del parte del día (auditorí
 npm run test:huecos                        # tests de los huecos de la cartera (rellenar en tanda)
 npm run test:clasificacion                 # tests de objetivo / precliente / cliente
 npm run test:agenda-calle                  # tests de la agenda por zonas (vista Calle)
+npm run test:rutas                         # tests del plan de rutas y del montador de rutas
 npm run verify:supabase                    # comprueba conexión Supabase
 ```
 
@@ -59,6 +60,12 @@ No hay suite de tests formal; la verificación es `npm run build` + `scripts/smo
       - Todo a un toque y con el pulgar: llamar, WhatsApp con mensaje ya escrito, abrir el mapa, **resolver la visita** (que desde la Agenda no se podía y por eso había cero visitas registradas) y aplazar. Filtros por objetivo/precliente/cliente y por «listos para cerrar».
       - **Marcador de puertas del día** contra el objetivo de 9, que sale de su propio ritmo demostrado.
       - `municipioDe()` saca el municipio de direcciones escritas de tres maneras distintas usando el **código postal como ancla**, que es lo único fiable que tienen todas. Cubierto por `npm run test:agenda-calle`.
+    - **Plan de rutas y montador** (`src/lib/plan-rutas.ts` + `src/lib/ruta-optima.ts`, UI en `mi-dia/montar-ruta.tsx`) — los días de calle están **diseñados de antemano** para quitar la decisión de en medio, que es lo que se comía las mañanas.
+      - **Rotación de 3 semanas × 3 días de calle** (martes, miércoles, jueves) sobre las 7 zonas de `zonas.ts`. Nueve salidas por ciclo: **lo cercano y denso se pisa dos veces, lo lejano una**. Así ninguna zona queda huérfana y ninguna mañana se va en carretera. La semana ISO hace avanzar el ciclo solo.
+      - **Los objetivos de puertas NO son iguales cada día**: cerca 10, media 9, lejos 7. Un día en Fraga se come hora y media en desplazamientos, y pedir diez puertas allí es la forma más rápida de que el plan deje de creerse. Lunes teléfono, viernes cierres, fin de semana `descanso` — no hereda el viernes, que salía «cerrar y firmar» en domingo.
+      - **`oportunidadesDePaso()`** es la pieza que más rinde: mide contra **todo el recorrido**, no contra la parada más cercana, así que un sitio a 300 m del tramo Binéfar–Tamarite sale como «de paso» aunque esté a 8 km de las dos paradas. Eso convierte una ruta de seis clientes en una mañana de nueve puertas **sin conducir un kilómetro más**. Solo propone prospectos en `para_visitar`, o sea lo que Marcos ya decidió.
+      - `ordenarPorCercania()` es vecino más cercano y sirve **para leer la lista**; la optimización buena la hace Google con `optimize:true`, que conoce las carreteras. `cabeEnLaManana()` avisa si la ruta se pasa de la mañana (20 min por parada, sacados de sus días buenos).
+      - Cubierto por `npm run test:rutas`.
     - **Objetivo · Precliente · Cliente** (`src/lib/clasificacion.ts`, campo `luz_clientes.clasificacion`) — la distinción que faltaba: **objetivo** es un sitio al que se puede ir (David mira estos cuando está en una zona), **precliente** nos ha dado su información pero **no ha firmado nada**, y **cliente** ha firmado luz o placas. Se cambia de un clic desde la cabecera de la ficha, hay filtro y columna en la lista, y está en `rellenar` con el peso más alto de todos.
       - **NO confundir con `estado_comercial`**, que es otro eje: ese dice *por dónde va* el viaje (detectado → activo), este dice *qué tipo de relación es*. Conviven y ninguno sustituye al otro.
       - **Es un campo y no un cálculo, a propósito.** Hoy los contratos se llevan en papel y en las apps de las comercializadoras, así que hay clientes de verdad sin un contrato registrado: un cálculo diría que son preclientes y estaría equivocado. Manda lo que marque una persona. El cálculo se queda como **sugerencia** (`clasificacionSugerida`) y solo avisa cuando lo marcado va *por detrás* de los datos — un precliente que ya firmó. Al revés no avisa: un cliente con el contrato en papel es la situación normal hoy, y avisar de eso llenaría la pantalla de falsos positivos.

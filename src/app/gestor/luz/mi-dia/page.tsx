@@ -16,6 +16,8 @@ import { AccionesContacto } from '../acciones-contacto';
 import { FotoSitio } from '../foto-sitio';
 import { BotonRuta } from '../boton-ruta';
 import { ResolverVisita } from '../resolver-visita';
+import { MontarRuta } from './montar-ruta';
+import { ProspectoGuardado } from '@/lib/prospeccion';
 
 /**
  * MI DÍA — la pantalla de David.
@@ -57,6 +59,9 @@ export default function MiDiaPage() {
   const fechas = useListaLuz<LuzFechaCritica>('fechas', { estado: 'pendiente' });
   const pipeline = useListaLuz<LuzOportunidad>('pipeline');
   const tareas = useListaLuz<LuzTarea>('tareas');
+  // Solo los que Marcos ha marcado para que vaya David: el resto del mapa no
+  // es trabajo decidido, y meterlo aquí sería devolverle el problema de elegir.
+  const prospectos = useListaLuz<ProspectoGuardado>('prospectos', { estado: 'para_visitar' });
 
   const persona = verComo ?? perfil?.responsable ?? null;
   const cargando = cargandoPerfil || tareas.cargando || cups.cargando || fechas.cargando;
@@ -315,6 +320,10 @@ export default function MiDiaPage() {
               <div className="space-y-2">{dia.manana.map((i) => <Accion key={i.clave} i={i} apagado />)}</div>
             )}
           </div>
+
+          {/* La zona que toca hoy y el montador de rutas: quita la decisión de en
+              medio, que es lo que se comía las mañanas. */}
+          <MontarRuta clientes={dia.misClientes} cups={cups.datos} prospectos={prospectos.datos} />
 
           {/* Sus clientes en marcha: los que están a punto y los fáciles de recuperar */}
           <ClientesEnMarcha clientes={dia.misClientes} pipeline={pipeline.datos} />
