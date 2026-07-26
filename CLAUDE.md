@@ -127,6 +127,21 @@ No hay suite de tests formal; la verificación es `npm run build` + `scripts/smo
 - `src/lib/` — lógica de negocio: `fv.ts` (fotovoltaica), `luz.ts`, `correbin.ts`, `tarifas.ts`, `auth.ts`/`usuario.ts` (roles), `supabase.ts` (cliente), generadores de PDF/Excel.
 - `src/components/` — componentes compartidos (web pública y gestor).
 
+## Estilo: dos sistemas de titulares, a propósito
+
+En `globals.css` los tamaños de titular **estaban sin `@layer`**, y una regla sin capa gana a cualquier utilidad de Tailwind pase lo que pase con la especificidad. Medido antes de arreglarlo: el título del gestor pedía `text-sm` (14 px) y se veía a **56 px, cortado a un quinto de su ancho**; «Agenda» pedía `text-xl` (20 px) y salía a 36. Había **141 titulares en el gestor con una clase de tamaño que no pintaba nada**.
+
+Ahora hay dos sistemas y cada uno tiene su motivo:
+
+- **La web pública** lleva la clase `web-publica` en su layout, y sus tamaños siguen fijos en CSS **sin capa**. Es un escaparate: interesa que todos los titulares midan lo mismo sin depender de que alguien acierte con la clase. Los valores son exactamente los que ya se veían, así que **la web no cambió ni un píxel**.
+- **El gestor** usa las utilidades de Tailwind. Es una herramienta densa donde cada pantalla necesita su jerarquía y manda quien escribe el JSX.
+
+Los tamaños de `@layer base` son solo el valor por defecto: cualquier `text-*` los pisa. Orden de capas resultante: `properties → theme → base → components → utilities`, y sin capa por encima de todas.
+
+**Al tocar estilos del gestor:** las clases `text-*` ya funcionan, no hace falta pelearse con el CSS. **Al tocar la web pública:** los tamaños de titular se cambian en `globals.css`, no en el JSX.
+
+Y para las pantallas de calle hay `btnTactil` / `btnTactilPrimario` en el kit de UI: **44 px de alto mínimo**, que es lo cómodo para el pulgar. En la oficina da igual que un botón mida 30 px porque hay ratón; en la calle se falla y se acaba no usando la pantalla.
+
 ## Usuarios y permisos
 
 Login por Supabase Auth. Roles: `admin` / `estándar` / `lectura`, con módulos asignados por usuario y RLS activado en BD. Equipo real: Marcos (admin), Nicola (administración), David (comercial de calle). Hay reparto automático de tareas por rol. El antiguo "acceso maestro" se eliminó — no reintroducirlo.

@@ -13,7 +13,7 @@ import {
   telefonoMarcable, SIN_ZONA, MAX_PARADAS_RUTA, type ItemCalle,
 } from '@/lib/agenda-calle';
 import { CLASIFICACIONES, defDe, type Clasificacion } from '@/lib/clasificacion';
-import { Card, btnPrimario, btnSecundario } from '../ui';
+import { Card, btnPrimario, btnSecundario, btnTactil, btnTactilPrimario } from '../ui';
 
 /**
  * LA AGENDA VISTA DESDE LA FURGONETA.
@@ -107,7 +107,7 @@ export function VistaCalle({
               <p className="text-xl font-black tabular-nums text-foreground leading-none">
                 {visitasHoy}<span className="text-sm text-muted font-bold"> / {OBJETIVO_PUERTAS}</span>
               </p>
-              <p className="text-[10px] text-muted uppercase tracking-wide font-bold">puertas hoy</p>
+              <p className="text-[11px] text-muted uppercase tracking-wide font-bold">puertas hoy</p>
             </div>
           </div>
 
@@ -120,7 +120,7 @@ export function VistaCalle({
                 style={{ width: `${Math.min(100, (visitasHoy / OBJETIVO_PUERTAS) * 100)}%` }}
               />
             </div>
-            <p className="text-[10px] text-muted mt-1">
+            <p className="text-[11px] text-muted mt-1">
               {visitasHoy >= OBJETIVO_PUERTAS
                 ? '¡Objetivo hecho! Lo de más ya es propina.'
                 : `Faltan ${OBJETIVO_PUERTAS - visitasHoy} para el día completo.`}
@@ -296,8 +296,8 @@ function Linea({
           ) : (
             <span className="font-bold text-foreground">{item.titulo}</span>
           )}
-          <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold border ${d.tono}`}>{d.emoji} {d.titulo}</span>
-          <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold border ${URGENCIA_TONO[item.urgencia]}`}>
+          <span className={`px-1.5 py-0.5 rounded text-[11px] font-bold border ${d.tono}`}>{d.emoji} {d.titulo}</span>
+          <span className={`px-1.5 py-0.5 rounded-full text-[11px] font-bold border ${URGENCIA_TONO[item.urgencia]}`}>
             {item.dias != null && item.dias < 0 ? `${-item.dias} d de retraso` : URGENCIA_LABEL[item.urgencia]}
           </span>
         </div>
@@ -317,17 +317,17 @@ function Linea({
         {/* Todo lo que se puede hacer desde aquí, con el pulgar */}
         <div className="flex flex-wrap gap-1.5 mt-2">
           {tel && (
-            <a href={`tel:${tel}`} className={`${btnSecundario} !py-1 !px-2 !text-[11px]`} title={item.telefono || ''}>
+            <a href={`tel:${tel}`} className={btnTactil} title={item.telefono || ''}>
               <Phone className="w-3.5 h-3.5" /> Llamar
             </a>
           )}
           {wa && (
-            <a href={wa} target="_blank" rel="noopener noreferrer" className={`${btnSecundario} !py-1 !px-2 !text-[11px]`}>
+            <a href={wa} target="_blank" rel="noopener noreferrer" className={btnTactil}>
               <MessageCircle className="w-3.5 h-3.5" /> WhatsApp
             </a>
           )}
           {mapa && (
-            <a href={mapa} target="_blank" rel="noopener noreferrer" className={`${btnSecundario} !py-1 !px-2 !text-[11px]`}>
+            <a href={mapa} target="_blank" rel="noopener noreferrer" className={btnTactil}>
               <Map className="w-3.5 h-3.5" /> Ir
             </a>
           )}
@@ -335,7 +335,7 @@ function Linea({
             <button
               type="button"
               onClick={() => onResolverVisita(item.clienteId!, item.clienteNombre || item.titulo)}
-              className={`${btnPrimario} !py-1 !px-2 !text-[11px]`}
+              className={btnTactilPrimario}
             >
               <CheckCircle2 className="w-3.5 h-3.5" /> Ya he ido
             </button>
@@ -343,11 +343,11 @@ function Linea({
           {item.editable && (
             <>
               <button type="button" disabled={trabajando} onClick={() => onAplazar(item)}
-                className={`${btnSecundario} !py-1 !px-2 !text-[11px]`}>
+                className={btnTactil}>
                 <Clock className="w-3.5 h-3.5" /> Otro día
               </button>
               <button type="button" disabled={trabajando} onClick={() => onCompletar(item)}
-                className={`${btnSecundario} !py-1 !px-2 !text-[11px]`}>
+                className={btnTactil}>
                 <CheckCircle2 className="w-3.5 h-3.5" /> Hecho
               </button>
             </>

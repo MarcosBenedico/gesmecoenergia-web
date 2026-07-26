@@ -9,7 +9,7 @@ import { ProspectoGuardado, TIPO_PROSPECTO_LABEL } from '@/lib/prospeccion';
 import { ZONAS, zonaDeParada } from '@/lib/zonas';
 import { planDelDia, esDiaDeCalle, letraCiclo } from '@/lib/plan-rutas';
 import {
-  ordenarPorCercania, kmRuta, cabeEnLaManana, oportunidadesDePaso, enlaceRutaOptima,
+  ordenarPorCercania, cabeEnLaManana, oportunidadesDePaso, enlaceRutaOptima,
   MAX_PARADAS, type Parada,
 } from '@/lib/ruta-optima';
 import { municipioDe, coordsDe } from '@/lib/agenda-calle';
@@ -132,7 +132,7 @@ export function MontarRuta({ clientes, cups, prospectos }: Props) {
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
           <RouteIcon className="w-4 h-4 text-accent shrink-0" />
           <p className="font-black text-foreground">{plan.que}</p>
-          <span className="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-card/80 text-muted border border-border/40">
+          <span className="text-[11px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-card/80 text-muted border border-border/40">
             {plan.nombre} · semana {letraCiclo(hoy)}
           </span>
           {esDiaDeCalle(hoy) && (
@@ -191,7 +191,7 @@ export function MontarRuta({ clientes, cups, prospectos }: Props) {
                   ? `Cabe en la mañana y sobran unos ${encaje.sobran} min de margen.`
                   : `Se pasa unos ${-encaje.sobran} min de la mañana. Quita una parada o déjala para el próximo día de esta zona.`}
               </p>
-              <p className="text-[10px] text-muted">
+              <p className="text-[11px] text-muted">
                 El orden de la lista es por cercanía; en Maps va con <b>optimizar</b> puesto, que conoce las carreteras
                 mejor que nosotros. Vuelve a la oficina al final.
               </p>
@@ -231,7 +231,7 @@ export function MontarRuta({ clientes, cups, prospectos }: Props) {
                       <button
                         type="button"
                         onClick={() => setExtras((e) => (puesto ? e.filter((x) => x !== p.id) : [...e, p.id]))}
-                        className={`${puesto ? btnPrimario : btnSecundario} !py-0.5 !px-1.5 !text-[10px] ml-auto shrink-0`}
+                        className={`${puesto ? btnPrimario : btnSecundario} !py-0.5 !px-1.5 !text-[11px] ml-auto shrink-0`}
                       >
                         {puesto ? <><Check className="w-3 h-3" /> puesta</> : <><Plus className="w-3 h-3" /> añadir</>}
                       </button>
@@ -287,7 +287,7 @@ export function MontarRuta({ clientes, cups, prospectos }: Props) {
                     </span>
                   </span>
                   {esDeHoy && (
-                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0"
+                    <span className="text-[11px] font-bold px-1.5 py-0.5 rounded shrink-0"
                       style={{ background: `${zonaHoy?.color}22`, color: zonaHoy?.color }}>
                       hoy toca
                     </span>

@@ -6,7 +6,10 @@ import { Background3D } from "@/components/background-3d";
 
 export default function SiteLayout({ children }: { children: ReactNode }) {
   return (
-    <div className="bg-background text-foreground">
+    // `web-publica` fija la escala de titulares en CSS (ver globals.css): en el
+    // escaparate interesa que todos midan lo mismo sin depender del JSX. El
+    // gestor no lleva esta clase y usa las utilidades de Tailwind.
+    <div className="web-publica bg-background text-foreground">
       <Background3D />
       <div className="relative z-10">
         <Navbar />

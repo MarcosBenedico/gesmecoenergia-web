@@ -21,6 +21,20 @@ export const btnPrimario =
 export const btnSecundario =
   'inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-card/80 text-foreground border border-border/50 text-sm font-semibold hover:bg-card transition disabled:opacity-50';
 
+/**
+ * Botones para las pantallas de calle.
+ *
+ * `min-h-11` son 44 px, que es el mínimo cómodo para el pulgar. En la oficina da
+ * igual que un botón mida 30 px porque hay ratón; en la calle, con prisa y a
+ * veces con guantes, un botón de 30 px se falla y se acaba no usando la
+ * pantalla. Medido: 10 de 33 botones del panel se quedaban en 30-34 px.
+ */
+export const btnTactil =
+  'inline-flex items-center justify-center gap-1.5 min-h-11 px-3 rounded-lg bg-card/80 text-foreground border border-border/50 text-xs font-bold hover:bg-card active:scale-95 transition disabled:opacity-50';
+
+export const btnTactilPrimario =
+  'inline-flex items-center justify-center gap-1.5 min-h-11 px-3 rounded-lg bg-accent text-white text-xs font-bold hover:bg-accent/90 active:scale-95 transition disabled:opacity-50';
+
 export function Card({ children, className = '' }: { children: React.ReactNode; className?: string }) {
   return (
     <div className={`card rounded-2xl p-5 bg-surface/50 border border-border/40 ${className}`}>

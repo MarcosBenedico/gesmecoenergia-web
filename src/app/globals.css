@@ -152,28 +152,49 @@ li {
   line-height: 1.6;
 }
 
-h1, h2, h3, h4, h5, h6 {
-  font-weight: 700;
-  letter-spacing: -0.8px;
-  line-height: 1.1;
-  color: var(--color-foreground);
+/* ═══════════════════════════════════════════════════════════════════════════
+   TITULARES: DOS SISTEMAS, A PROPÓSITO
+
+   Antes estos tamaños estaban aquí sin `@layer`, y una regla sin capa gana a
+   cualquier utilidad de Tailwind pase lo que pase con la especificidad. El
+   resultado, medido: el título del gestor pedía `text-sm` (14 px) y se veía a
+   56 px, cortado a un quinto de su ancho; «Agenda» pedía `text-xl` (20 px) y
+   salía a 36. Había 141 titulares en el gestor con una clase de tamaño que no
+   pintaba nada. Clases muertas que la gente escribe y revisa para nada.
+
+   Ahora hay dos sistemas y cada uno tiene su motivo:
+
+   · LA WEB PÚBLICA (`.web-publica`) mantiene la escala fija en CSS, sin capa.
+     Es un escaparate: interesa que todos los titulares midan lo mismo pase lo
+     que pase, y que no dependa de que alguien acierte con la clase. Los
+     tamaños de aquí son EXACTAMENTE los que ya se veían, así que la web no
+     cambia ni un píxel.
+
+   · EL GESTOR usa las utilidades de Tailwind. Es una herramienta densa donde
+     cada pantalla necesita su jerarquía, y ahí manda quien escribe el JSX.
+
+   Los tamaños de `@layer base` son solo el valor por defecto: cualquier clase
+   `text-*` los pisa, que es justo lo que se quiere.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@layer base {
+  h1, h2, h3, h4, h5, h6 {
+    font-weight: 700;
+    letter-spacing: -0.8px;
+    line-height: 1.1;
+    color: var(--color-foreground);
+  }
+
+  h1 { font-size: 3.5rem; font-weight: 800; letter-spacing: -1px; }
+  h2 { font-size: 2.25rem; font-weight: 700; }
+  h3 { font-size: 1.5rem; font-weight: 600; }
 }
 
-h1 {
-  font-size: 3.5rem;
-  font-weight: 800;
-  letter-spacing: -1px;
-}
-
-h2 {
-  font-size: 2.25rem;
-  font-weight: 700;
-}
-
-h3 {
-  font-size: 1.5rem;
-  font-weight: 600;
-}
+/* La escala del escaparate, sin capa y por tanto intocable desde el JSX.
+   Son los mismos valores que ya se estaban viendo. */
+.web-publica h1 { font-size: 3.5rem; font-weight: 800; letter-spacing: -1px; }
+.web-publica h2 { font-size: 2.25rem; font-weight: 700; }
+.web-publica h3 { font-size: 1.5rem; font-weight: 600; }
 
 /* Cards mejoradas */
 .card {

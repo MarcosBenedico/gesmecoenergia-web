@@ -281,17 +281,17 @@ export default function MiDiaPage() {
                   </p>
                   <div className="flex items-center justify-center gap-2 flex-wrap mt-2">
                     {dia.atrasadas > 0 && (
-                      <span className="px-2 py-0.5 rounded-full bg-red-500/15 text-red-300 border border-red-500/30 text-[10px] font-black uppercase">
+                      <span className="px-2 py-0.5 rounded-full bg-red-500/15 text-red-300 border border-red-500/30 text-[11px] font-black uppercase">
                         {dia.atrasadas} de días anteriores
                       </span>
                     )}
                     {dia.clientesA > 0 && (
-                      <span className="px-2 py-0.5 rounded-full bg-red-500/10 text-red-300 border border-red-500/25 text-[10px] font-black uppercase">
+                      <span className="px-2 py-0.5 rounded-full bg-red-500/10 text-red-300 border border-red-500/25 text-[11px] font-black uppercase">
                         🔥 {dia.clientesA} de cliente A
                       </span>
                     )}
                     {dia.hechasHoy > 0 && (
-                      <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-[10px] font-black uppercase">
+                      <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-[11px] font-black uppercase">
                         ✓ {dia.hechasHoy} ya hechas
                       </span>
                     )}
