@@ -21,6 +21,7 @@ npm run test:estados                       # tests de sincronización de estados
 npm run test:prospeccion                   # tests de la prospección sobre la ruta
 npm run test:visitas                       # tests de qué desencadena cada resultado de visita
 npm run test:bandeja                       # tests de la bandeja de entrada (Oficina)
+npm run test:potencia                      # tests del optimizador de potencias y la curva (Datadis)
 npm run verify:supabase                    # comprueba conexión Supabase
 ```
 
@@ -54,6 +55,16 @@ No hay suite de tests formal; la verificación es `npm run build` + `scripts/smo
       - Lo que separa el campo del pueblo es la **densidad de edificios alrededor**, no `landuse=residential` (que no está mapeado en Binéfar). Sin eso, una manzana de casas adosadas salía como granja intensiva.
       - El consumo es un **orden de magnitud** por tipo y m², nunca un dato. Los coeficientes están en `src/lib/consumo-estimado.ts`, en una sola tabla, **pendientes de que Marcos los valide con facturas reales**.
       - Cubierto por `npm run test:prospeccion`.
+    - **Consumo real / Datadis** (`gestor/luz/consumo`, solo admin; cliente en `src/lib/datadis.ts`, análisis en `src/lib/potencia.ts`) — el consumo que dan las **distribuidoras** por Datadis, gratis y sin instalar ningún aparato: curva horaria, maxímetro por periodo y las potencias contratadas de verdad. Con eso la potencia contratada deja de ser lo que alguien teclee de una factura y pasa a ser un cálculo.
+      - **La autorización la da el cliente, no hay atajo por API.** El titular tiene que autorizar nuestro NIF en datadis.es; sin eso Datadis devuelve lista vacía. Es la causa del 90 % de los «no funciona», así que es un estado de primera clase (`luz_clientes.datadis_autorizado`) y la pantalla lo pone arriba.
+      - **El maxímetro manda sobre la curva.** El periodo lo asigna la distribuidora y el máximo es el cuartohorario que ella factura. De la curva horaria solo se deduce un promedio, que **aplana los picos**: sirve para el perfil, nunca para apurar potencias. La confianza (`alta`/`media`/`baja`) viaja pegada a la cifra.
+      - **El criterio por defecto es no bajar nunca de lo medido** (`optimizarPotencias`, modo `prudente`). Con maxímetros mensuales la penalización por excesos solo se puede acotar por abajo —se cobra por cada cuarto de hora—, así que apurar el límite recomendaría dejar al cliente corto y la penalización la pagaría él. El ahorro sale de lo que sobra, que es donde está el dinero.
+      - Detecta además **excesos** (ahí el consejo es subir, no bajar), **tarifa equivocada** (una 3.0TD que nunca pasa de 15 kW debería ser 2.0TD) y **reactiva** por factor de potencia (tan φ > 0,33).
+      - `perfilDeCurva` da el **% de consumo en horas de sol**, que es lo que la calculadora FV venía suponiendo a mano en `hipotesis.pct_autoconsumo`.
+      - Datadis es **lento y raciona**: una consulta por CUPS y mes cada 24 h, y repetir devuelve 429. Antes de pedir se mira `luz_datadis_sync`, y un CUPS que falla no tumba la sincronización.
+      - Los precios del término de potencia (`PRECIOS_POTENCIA_REFERENCIA`) son de referencia y **están pendientes de que Marcos los valide con una factura de 2026**; se pueden revisar sin tocar código desde la clave `precios_potencia_kw_anio` de `luz_config`. Los kW son dato de la distribuidora; los € son orientativos hasta esa validación.
+      - Requiere ejecutar `supabase_datadis.sql` y las variables `DATADIS_USER` / `DATADIS_PASSWORD`.
+      - Cubierto por `npm run test:potencia`.
   - `gestor/luz/fv/` — **Calculadora FV** (solo admin): presupuestador fotovoltaico. Lógica en `src/lib/fv.ts`, UI en `page.tsx` + `energia.tsx`. Dos flujos: "presupuesto de Óscar" (instalador) y "presupuestar desde consumos". Incluye escenarios, algoritmo de batería por amortización (`optimizarBateria`), simulación horaria 24h (`simularDiaFV`), comparador de equipos reales y oferta PDF. `hipotesis.pct_autoconsumo` es la **fuente única** del autoconsumo efectivo en toda la oferta.
   - `gestor/correbin/` — vencimientos de seguros.
   - `gestor/clientes-app/` — App Clientes.
@@ -69,4 +80,4 @@ Login por Supabase Auth. Roles: `admin` / `estándar` / `lectura`, con módulos 
 
 ## Variables de entorno
 
-`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `ANTHROPIC_API_KEY` (lectura de facturas), `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` / `GOOGLE_REDIRECT_URI` (OAuth Google). Configuradas en Vercel y `.env.local`.
+`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `ANTHROPIC_API_KEY` (lectura de facturas), `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` / `GOOGLE_REDIRECT_URI` (OAuth Google), `DATADIS_USER` / `DATADIS_PASSWORD` (consumo real; opcionales `DATADIS_BASE` y `DATADIS_TIMEOUT_MS`). Configuradas en Vercel y `.env.local`.
