@@ -63,6 +63,97 @@ function limitesDelDia(fecha: string): { desde: string; hasta: string } {
   };
 }
 
+/** Cuántas fichas completas se adjuntan como mucho. Un día normal no llega. */
+const MAX_FICHAS = 40;
+
+export interface FichaCliente {
+  id: string;
+  /** Alta de hoy, o cliente de antes que hoy ha movido algo. */
+  captado_hoy: boolean;
+  cliente: Record<string, unknown>;
+  cups: Record<string, unknown>[];
+  pipeline: Record<string, unknown>[];
+  tareas: Record<string, unknown>[];
+  contratos: Record<string, unknown>[];
+  visitas: Record<string, unknown>[];
+}
+
+/**
+ * La ficha entera de cada cliente que se ha captado o se ha movido hoy.
+ *
+ * La auditoría cuenta QUÉ CAMBIÓ, pero para un informe que se enseña o se
+ * archiva hace falta también el ESTADO EN QUE HA QUEDADO: los datos del
+ * cliente, qué suministros tiene, qué se le ha creado y —lo que más importa—
+ * qué acción queda pendiente, de quién y para cuándo.
+ *
+ * Se lee el estado actual, no una foto del día: si algo se tocó después, lo que
+ * vale es lo último. Un informe con datos caducados es peor que no tenerlo.
+ */
+async function fichasDelDia(
+  supa: ReturnType<typeof clienteUsuario>,
+  auditoria: FilaAuditoria[]
+): Promise<FichaCliente[]> {
+  const nuevos = new Set<string>();
+  const tocados = new Set<string>();
+
+  for (const f of auditoria) {
+    const fila = f.despues || f.antes;
+    if (!fila) continue;
+    if (f.tabla === 'luz_clientes') {
+      const id = String(fila.id || '');
+      if (!id) continue;
+      tocados.add(id);
+      if (f.accion === 'INSERT') nuevos.add(id);
+    } else if (fila.cliente_id) {
+      tocados.add(String(fila.cliente_id));
+    }
+  }
+
+  // Los captados hoy primero: son los que de verdad interesan en el informe
+  const ids = [...nuevos, ...[...tocados].filter((x) => !nuevos.has(x))].slice(0, MAX_FICHAS);
+  if (!ids.length) return [];
+
+  const traer = async (tabla: string, cols: string, col = 'cliente_id') => {
+    const { data } = await supa.from(tabla).select(cols).in(col, ids);
+    return (data || []) as unknown as Record<string, unknown>[];
+  };
+
+  const [clientes, cups, pipeline, tareas, contratos, visitas] = await Promise.all([
+    (async () => {
+      const { data } = await supa.from('luz_clientes')
+        .select('id, nombre, nif, tipo_cliente, persona_contacto, telefono, email, direccion_fiscal, responsable, prioridad, estado_comercial, potencial_comercial, origen_cliente, via_entrada, observaciones, proxima_accion, fecha_proxima_accion, fecha_ultimo_contacto, creado_en')
+        .in('id', ids);
+      return (data || []) as unknown as Record<string, unknown>[];
+    })(),
+    traer('luz_cups', 'id, cliente_id, cups, alias_suministro, direccion_suministro, tarifa_acceso, comercializadora_actual, distribuidora, potencias_kw, consumo_anual_kwh, coste_anual_estimado, estado_cups, fecha_fin_contrato, fecha_limite_preaviso, responsable, observaciones'),
+    traer('luz_pipeline', 'id, cliente_id, nombre_oportunidad, tipo_oportunidad, estado, probabilidad, ahorro_potencial, comision_potencial, importe_anual_estimado, responsable, proxima_accion, fecha_proxima_accion, observaciones'),
+    traer('luz_tareas', 'id, cliente_id, tipo_tarea, descripcion, notas, responsable, fecha_limite, estado, prioridad'),
+    traer('luz_contratos', 'id, cliente_id, comercializadora_final, estado_contrato, fecha_firma, fecha_activacion_prevista, fecha_activacion_real, documentacion_completa, incidencia, responsable'),
+    traer('luz_visitas', 'id, cliente_id, fecha, resultado, notas, responsable, proxima_visita'),
+  ]);
+
+  const porCliente = (lista: Record<string, unknown>[], id: string) =>
+    lista.filter((x) => String(x.cliente_id) === id);
+
+  return ids
+    .map((id) => {
+      const c = clientes.find((x) => String(x.id) === id);
+      if (!c) return null;
+      return {
+        id,
+        captado_hoy: nuevos.has(id),
+        cliente: c,
+        cups: porCliente(cups, id),
+        pipeline: porCliente(pipeline, id),
+        // Solo lo que sigue pendiente: una tarea cerrada no es una acción a tener en cuenta
+        tareas: porCliente(tareas, id).filter((t) => !/hecha|completad|cerrad|anulad/i.test(String(t.estado || ''))),
+        contratos: porCliente(contratos, id),
+        visitas: porCliente(visitas, id),
+      } as FichaCliente;
+    })
+    .filter((x): x is FichaCliente => x !== null);
+}
+
 export async function GET(req: NextRequest) {
   const token = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '').trim();
   if (!token) {
@@ -143,9 +234,11 @@ export async function GET(req: NextRequest) {
     for (const c of clientes.data || []) mapaClientes[c.id as string] = c.nombre as string;
 
     const parte = construirParte({ fecha, auditoria, nombresUsuario, clientes: mapaClientes });
+    const fichas = await fichasDelDia(supa, auditoria);
 
     return NextResponse.json({
       ...parte,
+      fichas,
       // Para que la pantalla pueda avisar si se ha llegado al tope
       truncado: auditoria.length >= 3000,
     });

@@ -2,11 +2,12 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import {
-  AlertTriangle, ArrowRight, CalendarDays, ClipboardList, Euro, Loader,
-  Printer, TrendingDown, TrendingUp, UserRound, Sparkles,
+  AlertTriangle, ArrowRight, CalendarDays, ClipboardList, Euro, FileDown, Loader,
+  TrendingDown, TrendingUp, UserRound, Sparkles,
 } from 'lucide-react';
 import { tokenSesion, useUsuario } from '@/lib/usuario';
-import type { Accion, ParteDiario } from '@/lib/parte-diario';
+import type { Accion } from '@/lib/parte-diario';
+import type { ParteCompleto } from '@/lib/parte-pdf';
 import { Card, btnPrimario, btnSecundario } from '../ui';
 
 /**
@@ -101,10 +102,30 @@ function Seccion({
 export default function PartePage() {
   const { esAdmin, cargando: cargandoPerfil } = useUsuario();
   const [fecha, setFecha] = useState(hoyISO());
-  const [parte, setParte] = useState<ParteDiario & { truncado?: boolean } | null>(null);
+  const [parte, setParte] = useState<ParteCompleto | null>(null);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState('');
   const [verResto, setVerResto] = useState(false);
+  const [generando, setGenerando] = useState(false);
+
+  /**
+   * El PDF se dibuja con jsPDF, no imprimiendo la pantalla. Imprimir el panel
+   * mandaba al papel el tema oscuro, el menú y los saltos donde cayeran.
+   * La librería se carga solo al pulsar: no tiene por qué viajar en la página.
+   */
+  const descargarPdf = async () => {
+    if (!parte) return;
+    setGenerando(true);
+    setError('');
+    try {
+      const { descargarPartePdf } = await import('@/lib/parte-pdf');
+      await descargarPartePdf(parte);
+    } catch (e) {
+      setError(`No se ha podido generar el PDF: ${e instanceof Error ? e.message : 'error desconocido'}`);
+    } finally {
+      setGenerando(false);
+    }
+  };
 
   const sacar = useCallback(async (dia: string) => {
     setCargando(true); setError(''); setParte(null);
@@ -147,16 +168,6 @@ export default function PartePage() {
 
   return (
     <div className="space-y-5">
-      <style>{`
-        @media print {
-          nav, header, .no-print { display: none !important; }
-          main { padding: 0 !important; }
-          .card, [class*="bg-surface"] { background: #fff !important; border-color: #ccc !important; }
-          * { color: #111 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-          .break-inside-avoid { break-inside: avoid; }
-        }
-      `}</style>
-
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-3xl font-black flex items-center gap-2.5">
@@ -186,8 +197,15 @@ export default function PartePage() {
             Sacar el parte
           </button>
           {parte?.hay_movimiento && (
-            <button type="button" onClick={() => window.print()} className={btnSecundario} title="Imprimir o guardar como PDF">
-              <Printer className="w-4 h-4" />
+            <button
+              type="button"
+              onClick={descargarPdf}
+              disabled={generando}
+              className={btnSecundario}
+              title="Descarga el informe completo con la ficha de cada cliente"
+            >
+              {generando ? <Loader className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />}
+              Descargar PDF
             </button>
           )}
         </div>
@@ -256,6 +274,44 @@ export default function PartePage() {
 
           <Seccion titulo="Retrocesos" pista="lo que hay que mirar antes de mañana"
                    icono={TrendingDown} color="text-red-400" acciones={parte.retrocesos} />
+
+          {!!parte.fichas?.length && (
+            <Card className="!p-0 overflow-hidden">
+              <div className="px-4 py-2.5 border-b border-border/40 flex items-center gap-2.5">
+                <ClipboardList className="w-4 h-4 text-accent" />
+                <p className="font-bold text-foreground text-sm">Clientes del día</p>
+                <span className="text-[11px] text-muted">
+                  {parte.fichas.filter((f) => f.captado_hoy).length} captados ·{' '}
+                  {parte.fichas.filter((f) => !f.captado_hoy).length} movidos
+                </span>
+                <span className="ml-auto text-[11px] text-muted">la ficha completa va en el PDF</span>
+              </div>
+              <div className="divide-y divide-border/20">
+                {parte.fichas.map((f) => {
+                  const c = f.cliente as Record<string, string>;
+                  const pendiente = c.proxima_accion
+                    || (f.tareas[0] as Record<string, string> | undefined)?.descripcion
+                    || null;
+                  return (
+                    <div key={f.id} className="px-4 py-2.5 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                      <span className={`text-[10px] font-black uppercase tracking-wide px-1.5 py-0.5 rounded ${
+                        f.captado_hoy ? 'bg-emerald-500/15 text-emerald-400' : 'bg-accent/15 text-accent'
+                      }`}>
+                        {f.captado_hoy ? 'captado' : 'movido'}
+                      </span>
+                      <span className="font-semibold text-foreground text-sm">{c.nombre}</span>
+                      <span className="text-[11px] text-muted">
+                        {f.cups.length} suministro(s) · {f.pipeline.length} oportunidad(es) · {f.tareas.length} tarea(s) abiertas
+                      </span>
+                      <span className={`text-[11px] ml-auto ${pendiente ? 'text-muted' : 'text-red-400 font-semibold'}`}>
+                        {pendiente ? `Siguiente: ${pendiente}` : 'Sin acción pendiente'}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </Card>
+          )}
 
           <Card className="!p-0 overflow-hidden break-inside-avoid">
             <div className="px-4 py-2.5 border-b border-border/40 flex items-center gap-2.5">

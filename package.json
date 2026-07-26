@@ -23,6 +23,7 @@
     "bcryptjs": "^3.0.3",
     "exceljs": "^4.4.0",
     "html2pdf.js": "^0.14.0",
+    "jspdf": "^4.2.1",
     "leaflet": "^1.9.4",
     "lucide-react": "^1.23.0",
     "motion": "^12.42.2",
