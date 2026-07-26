@@ -164,6 +164,32 @@ const malo = construirParte({
 eq('perder sale como retroceso', malo.retrocesos.length, 1);
 cierto('...y se ve qué se perdió', malo.retrocesos[0].titulo === 'Nave Vico');
 
+console.log('\n── Limpieza para el PDF ──');
+const { separarObservaciones, normalizarGritos } = await import('../src/lib/parte-pdf.ts');
+
+const o1 = separarObservaciones(
+  'Origen: cartera-9-7-2026.xlsx | Estado origen: Contrato | Tipo precio: Fijo | Fecha alta: 01/02/2026');
+eq('la basura del importador no se cuela en las notas', o1.nota, '');
+cierto('...pero no se pierde, queda aparte', o1.importado.includes('cartera-9-7-2026.xlsx'));
+
+const o2 = separarObservaciones(
+  'Cuatro naves de porcino, ventilacion todo el verano | Origen: cartera.xlsx | Tipo precio: Fijo');
+eq('la nota de verdad se queda', o2.nota, 'Cuatro naves de porcino, ventilacion todo el verano');
+cierto('...y los metadatos se apartan', o2.importado.includes('Tipo precio'));
+
+eq('sin observaciones no hay nada', separarObservaciones(null), { nota: '', importado: '' });
+eq('una nota normal se respeta entera',
+  separarObservaciones('Le interesa pero hasta septiembre no decide').nota,
+  'Le interesa pero hasta septiembre no decide');
+
+eq('un grito se baja de volumen',
+  normalizarGritos('MARCOS LE HA ESCRITO UN WHATSAPP DICIENDOLE QUE SE PASE'),
+  'Marcos le ha escrito un whatsapp diciendole que se pase');
+eq('un texto normal no se toca',
+  normalizarGritos('Hacer seguimiento por WhatsApp para pedir las facturas'),
+  'Hacer seguimiento por WhatsApp para pedir las facturas');
+eq('las siglas cortas se respetan', normalizarGritos('CUPS ES0031'), 'CUPS ES0031');
+
 console.log('\n── Entidades ──');
 cierto('todas las tablas del parte tienen nombre y emoji',
   Object.values(ENTIDADES).every((e) => e.singular && e.emoji));
