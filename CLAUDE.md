@@ -23,6 +23,7 @@ npm run test:visitas                       # tests de qué desencadena cada resu
 npm run test:bandeja                       # tests de la bandeja de entrada (Oficina)
 npm run test:potencia                      # tests del optimizador de potencias y la curva (Datadis)
 npm run test:parte                         # tests del parte del día (auditoría → qué mejoró en cada cliente)
+npm run test:huecos                        # tests de los huecos de la cartera (rellenar en tanda)
 npm run verify:supabase                    # comprueba conexión Supabase
 ```
 
@@ -39,9 +40,22 @@ No hay suite de tests formal; la verificación es `npm run build` + `scripts/smo
 
 - `src/app/(site)/` — web pública (home, servicios, sectores, analizador de facturas, etc.).
 - `src/app/gestor/` — panel interno, con login Supabase Auth:
-  - `gestor/luz/` — Gestión Luz: cartera energética. El menú está organizado en **3 bloques por forma de trabajar** (`layout.tsx`), no por tipo de dato: **Calle** (David: mi-día, agenda, rutas, alta, pipeline, clientes), **Oficina** (Nicola: cups, contratos, proyectos, importar, guía) y **Dirección** (Marcos: dashboard, comisiones, equipo, FV, control, usuarios, configuración). Cada uno puede plegar los bloques que no usa (se recuerda en localStorage).
+  - `gestor/luz/` — Gestión Luz: cartera energética. El menú está organizado en **5 bloques por forma de trabajar** (`layout.tsx`), no por tipo de dato:
+    - **Calle** (David) — mi-día, agenda, rutas, pipeline.
+    - **Oficina** (Nicola) — bandeja, **rellenar**, captura, alta, clientes, cups, contratos, importar, guía.
+    - **Dirección** (Marcos) — solo lo que se mira a diario: dashboard, parte, consumo, comisiones, equipo.
+    - **Herramientas** — oportunidades, FV, tarifas, proyectos, mercado. **Nace plegado.**
+    - **Ajustes** — control, usuarios, configuración, papelera. **Nace plegado.**
+
+    Antes eran 3 bloques con 12 entradas en Dirección y 10 en Oficina. La auditoría enseñó por qué había que partirlo: **el 73 % del trabajo real es clientes y tareas**, y había pantallas con cero uso ocupando sitio en el menú de quien más prisa tiene. **La regla al añadir algo: si no se abre casi todos los días, va a Herramientas.** Una entrada de menú que nadie usa no cuesta servidor, cuesta atención, y la paga cada día quien sí tiene trabajo. Cada uno pliega los bloques que no usa y se recuerda en localStorage.
     - **Agenda** (`gestor/luz/agenda`, lógica en `src/lib/agenda.ts`) — única lista de trabajo del equipo; sustituye en el menú a "Tareas" + "Fechas Críticas" (esas páginas siguen existiendo para crear/editar en detalle). Los vencimientos de contrato/permanencia/preaviso **no se guardan**: se calculan en vivo desde el CUPS, así nunca quedan desfasados.
     - **Estado único del viaje comercial** (`src/lib/estados-luz.ts`) — el **CUPS es la fuente de verdad**; pipeline y contrato empujan su estado (traducción por tabla), y el estado comercial del cliente **se deriva** de todos sus CUPS. La sincronización vive en el PUT/POST de `src/app/api/luz/[tabla]/route.ts`. Nunca retrocede un suministro por accidente (`debeAplicarseAlCups`). Cubierto por `npm run test:estados`.
+    - **Rellenar en tanda** (`gestor/luz/rellenar`, lógica en `src/lib/huecos.ts`) — la pantalla para Nicola. De cada tres cosas que hace en el sistema, **dos son rellenar un campo vacío**, y las hacía de una en una: abrir ficha, escribir una palabra, guardar, cerrar. Aquí se le da la vuelta: se elige **un campo** y se rellenan de golpe todos los registros que lo tienen vacío, en una rejilla.
+      - **El orden no es por cuántos faltan, es por qué bloquea.** Cuarenta clientes sin email no paran nada; cinco CUPS sin `fecha_fin_contrato` paran la Agenda entera, porque el preaviso se calcula desde ahí. Cada hueco lleva su `peso` y su `porque` escrito, y el porqué se enseña siempre: rellenar a ciegas cansa.
+      - Enter salta a la fila siguiente, **«poner lo mismo en todas»** resuelve el caso más común (veinte suministros con la misma distribuidora) y `normalizarValor` admite `30/04/2027` y `145.000` sin protestar.
+      - Se guarda **fila a fila con el PUT de `/api/luz`**, no en bloque: ese PUT lleva dentro la sincronización de estados entre CUPS, pipeline y contrato, y saltárselo por ir más rápido dejaría los estados descuadrados.
+      - Distingue **dos vacíos que se parecen y significan lo contrario**: que no falte ningún dato (buena noticia) y que no haya cargado la cartera (problema). Decir «cartera limpia» cuando no se ha leído nada haría cerrar la pantalla pensando que no hay trabajo.
+      - Cubierto por `npm run test:huecos`.
     - **Bandeja** (`gestor/luz/bandeja`, lógica en `src/lib/bandeja.ts`) — la pantalla de Nicola: qué está esperando a que alguien lo meta o lo mueva. **No ordena por fecha sino por a quién bloquea**: bloquea la venta (David no puede ofertar) → bloquea el cobro → esperando al cliente → sus tareas. Dentro de cada grupo sí manda el tiempo parado. Cubierto por `npm run test:bandeja`.
     - **Resultado de la visita** (`gestor/luz/resolver-visita.tsx`, reglas en `src/lib/visitas.ts`) — hoja móvil con 4 botones: *no estaba · no le interesa · volver otro día · me dio la factura*. Es lo que enlaza la calle con el resto: crea la visita con su resultado, programa la siguiente pasada en la Agenda, mueve el pipeline y **descarta la oportunidad en el mapa si dijeron que no**, para que no vuelva a proponerse. «Me dio la factura» abre la cámara y la lee con `/api/leer-factura` en el sitio, creando el CUPS. Se abre desde Mi Día y desde el mapa de Rutas. Requiere `supabase_visita_resultado.sql`. Cubierto por `npm run test:visitas`.
     - **Mapa de oportunidades** (`gestor/luz/oportunidades`, solo admin; lógica en `src/lib/prospeccion.ts`, tabla `luz_prospectos`) — granjas, naves y negocios de la comarca que aún no son clientes. Se **barre una zona una vez** (`/api/luz/barrer`, que guarda) y a partir de ahí se va filtrando: `nuevo → interesante → para_visitar → descartado / convertido`. **Lo descartado no vuelve a proponerse**, y volver a barrer refresca los datos del mapa pero nunca pisa el estado ni las notas.

@@ -15,7 +15,8 @@
     "test:visitas": "node scripts/test-visitas.mjs",
     "test:bandeja": "node scripts/test-bandeja.mjs",
     "test:potencia": "node scripts/test-potencia.mjs",
-    "test:parte": "node scripts/test-parte.mjs"
+    "test:parte": "node scripts/test-parte.mjs",
+    "test:huecos": "node scripts/test-huecos.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.110.0",
