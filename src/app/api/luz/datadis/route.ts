@@ -3,7 +3,6 @@ import { createClient } from '@supabase/supabase-js';
 import {
   ErrorDatadis, contrato, curvaMes, cupsComparable, maximetros,
   reactiva, suministros, ultimosMeses,
-  type HoraConsumo, type MaximetroMes,
 } from '@/lib/datadis';
 import {
   PRECIOS_POTENCIA_REFERENCIA, diagnosticarReactiva, optimizarPotencias,
@@ -399,11 +398,11 @@ async function comprobarAutorizacion(supa: Supa, clienteId: string) {
     );
   }
 
-  const lista = await suministros(String(cliente.nif));
+  const { suministros: lista, avisos } = await suministros(String(cliente.nif));
   await apuntar(supa, {
     cups: String(cliente.nif), tipo: 'suministros',
     estado: lista.length ? 'ok' : 'sin_autorizacion', filas: lista.length,
-    mensaje: lista.length ? undefined : 'Datadis no devuelve suministros para este NIF.',
+    mensaje: lista.length ? avisos.join(' · ') || undefined : 'Datadis no devuelve suministros para este NIF.',
   });
 
   const autorizado = lista.length > 0;
@@ -431,11 +430,15 @@ async function comprobarAutorizacion(supa: Supa, clienteId: string) {
     autorizado,
     suministros: lista.length,
     enganchados,
+    // Lo que la propia distribuidora tenga que decir: distingue «no tiene» de
+    // «su sistema no contestó», que si no se ven exactamente igual.
+    avisos,
     // Suministros que el cliente tiene y nosotros no: son altas que faltan
     sin_cartera: sinCartera,
-    mensaje: autorizado
+    mensaje: (autorizado
       ? `${cliente.nombre} nos tiene autorizados: ${lista.length} suministro(s), ${enganchados} enganchado(s) con la cartera.`
-      : `${cliente.nombre} todavía no ha autorizado nuestro NIF en datadis.es. Sin ese permiso Datadis no deja leer nada suyo, y lo tiene que dar él desde su cuenta.`,
+      : `${cliente.nombre} todavía no ha autorizado nuestro NIF en datadis.es. Sin ese permiso Datadis no deja leer nada suyo, y lo tiene que dar él desde su cuenta.`)
+      + (avisos.length ? ` La distribuidora dice: ${avisos.join(' · ')}` : ''),
   });
 }
 
@@ -461,7 +464,7 @@ async function sincronizar(supa: Supa, cupsId: string, nMeses: number) {
 
   // Sin código de distribuidora no se puede seguir: se busca una vez y se guarda
   if (!codigo) {
-    const lista = await suministros(nif);
+    const { suministros: lista } = await suministros(nif);
     const suyo = lista.find((s) => cupsComparable(s.cups) === cupsComparable(cups));
     if (!suyo) {
       return NextResponse.json(
@@ -485,6 +488,11 @@ async function sincronizar(supa: Supa, cupsId: string, nMeses: number) {
     maximetros: 0, horas: 0, reactiva: 0,
     meses_pedidos: [] as string[], meses_saltados: [] as { mes: string; porque: string }[],
     fallos: [] as { que: string; porque: string }[],
+    // Lo que dicen las distribuidoras cuando la API lo cuenta (respuestas v2)
+    avisos: [] as string[],
+  };
+  const anotarAvisos = (lista: string[]) => {
+    for (const a of lista) if (!resultado.avisos.includes(a)) resultado.avisos.push(a);
   };
 
   // ── Maxímetro: una llamada para todo el rango ──
@@ -494,7 +502,8 @@ async function sincronizar(supa: Supa, cupsId: string, nMeses: number) {
     resultado.fallos.push({ que: 'maxímetro', porque: saltarMax });
   } else {
     try {
-      const lista: MaximetroMes[] = await maximetros(cups, codigo!, meses[0], meses[meses.length - 1], nif);
+      const { maximetros: lista, avisos } = await maximetros(cups, codigo!, meses[0], meses[meses.length - 1], nif);
+      anotarAvisos(avisos);
       if (lista.length) {
         const { guardadas, error } = await guardarEnTrozos(
           supa, 'luz_datadis_maximetro',
@@ -527,9 +536,10 @@ async function sincronizar(supa: Supa, cupsId: string, nMeses: number) {
     if (saltar) { resultado.meses_saltados.push({ mes, porque: saltar }); continue; }
 
     try {
-      const horas: HoraConsumo[] = await curvaMes(cups, codigo!, mes, {
+      const { horas, avisos } = await curvaMes(cups, codigo!, mes, {
         pointType: pointType ?? undefined, nifAutorizado: nif, cuartohorario,
       });
+      anotarAvisos(avisos);
       if (horas.length) {
         const { guardadas, error } = await guardarEnTrozos(
           supa, 'luz_datadis_curva',
@@ -559,7 +569,8 @@ async function sincronizar(supa: Supa, cupsId: string, nMeses: number) {
   // ── Reactiva: si no la mide el punto, no es un fallo ──
   if (!(await yaPedidoHoy(supa, cups, 'reactiva', rangoMax))) {
     try {
-      const lista = await reactiva(cups, codigo!, meses[0], meses[meses.length - 1], nif);
+      const { reactiva: lista, avisos } = await reactiva(cups, codigo!, meses[0], meses[meses.length - 1], nif);
+      anotarAvisos(avisos);
       if (lista.length) {
         const { guardadas } = await guardarEnTrozos(
           supa, 'luz_datadis_reactiva',
@@ -585,7 +596,8 @@ async function sincronizar(supa: Supa, cupsId: string, nMeses: number) {
   let potenciasDatadis: number[] | null = null;
   try {
     if (!(await yaPedidoHoy(supa, cups, 'contrato', null))) {
-      const det = await contrato(cups, codigo!, nif);
+      const { contrato: det, avisos } = await contrato(cups, codigo!, nif);
+      anotarAvisos(avisos);
       potenciasDatadis = det?.contractedPowerkW?.length ? det.contractedPowerkW : null;
       await apuntar(supa, { cups, tipo: 'contrato', mes: null, estado: det ? 'ok' : 'vacio', filas: det ? 1 : 0 });
     }
@@ -596,9 +608,10 @@ async function sincronizar(supa: Supa, cupsId: string, nMeses: number) {
     ...resultado,
     potencias_en_datadis: potenciasDatadis,
     potencias_en_ficha: (ficha as Record<string, unknown>).potencias_kw ?? null,
-    mensaje: traidoAlgo
+    mensaje: (traidoAlgo
       ? `Entraron ${resultado.maximetros} maxímetros y ${resultado.horas} horas de curva.`
-      : 'No ha entrado ningún dato nuevo. Mira los fallos: lo normal es que Datadis ya nos diera esto hoy, o que falte la autorización del titular.',
+      : 'No ha entrado ningún dato nuevo. Mira los fallos: lo normal es que Datadis ya nos diera esto hoy, o que falte la autorización del titular.')
+      + (resultado.avisos.length ? ` La distribuidora dice: ${resultado.avisos.join(' · ')}` : ''),
   });
 }
 

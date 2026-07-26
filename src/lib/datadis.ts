@@ -33,11 +33,33 @@
  *    en una penalización real en la factura del cliente.
  * ─────────────────────────────────────────────────────────────────────────────
  *
- * AVISO SOBRE LOS ENDPOINTS: las rutas de abajo son las que usan los clientes
- * públicos de la comunidad y las que responden hoy, pero Datadis no publica un
- * contrato estable y las ha movido antes. Si algo empieza a fallar en masa,
- * mirar primero aquí y no en la lógica de negocio. `DATADIS_BASE` es
- * sobreescribible por entorno justo para eso.
+ * ─────────────────────────────────────────────────────────────────────────────
+ * SOBRE LAS RUTAS: CÓMO SE COMPROBARON SIN CREDENCIALES
+ *
+ * La documentación de la API privada está detrás del login de datadis.es, así
+ * que no se ha podido leer. Lo que sí se puede hacer sin cuenta es preguntar
+ * por cada ruta sin token y mirar el código que devuelve, porque Datadis
+ * distingue:
+ *
+ *     401 → la ruta existe y le falta autenticación
+ *     403 → la ruta no la reconoce (lo mismo que devuelve una inventada)
+ *
+ * Con ese truco (26 de julio de 2026) salió esto:
+ *
+ *     401  get-supplies · get-contract-detail · get-consumption-data
+ *          get-max-power · get-distributors-with-supplies
+ *     401  ...y TAMBIÉN sus versiones -v2, las cinco
+ *     403  get-reactive-data          ← no existe, era una suposición mía
+ *     401  get-reactive-data-v2       ← la reactiva SOLO está en v2
+ *
+ * De ahí las dos decisiones de abajo: la reactiva va a v2 obligatoriamente, y
+ * el resto se queda en v1 porque de v1 sí se conocen los nombres de los
+ * parámetros y de v2 no. Cambiar de versión es tocar una línea en RUTAS.
+ *
+ * Y como v2 envuelve la respuesta en `{response, distributorError}` en vez de
+ * devolver el array pelado, `desenvolver()` traga las dos formas. Así el día
+ * que se pase todo a v2 no hay que reescribir las funciones de negocio.
+ * ─────────────────────────────────────────────────────────────────────────────
  */
 
 /** Raíz del servicio. Sobreescribible por si Datadis vuelve a mover el sitio. */
@@ -45,12 +67,15 @@ const DATADIS_BASE = process.env.DATADIS_BASE || 'https://datadis.es';
 
 /** Login: devuelve el JWT en TEXTO PLANO, no en JSON. Es fácil tropezar aquí. */
 const RUTA_LOGIN = '/nikola-auth/tokens/login';
-const RUTA_SUPPLIES = '/api-private/api/get-supplies';
-const RUTA_CONTRATO = '/api-private/api/get-contract-detail';
-const RUTA_CONSUMO = '/api-private/api/get-consumption-data';
-const RUTA_MAXIMETRO = '/api-private/api/get-max-power';
-/** La reactiva no está en todos los puntos de medida: si no existe, se ignora. */
-const RUTA_REACTIVA = '/api-private/api/get-reactive-data';
+
+const RUTAS = {
+  supplies: '/api-private/api/get-supplies',
+  contrato: '/api-private/api/get-contract-detail',
+  consumo: '/api-private/api/get-consumption-data',
+  maximetro: '/api-private/api/get-max-power',
+  // Sin versión v1: comprobado que la ruta sin sufijo no existe (403).
+  reactiva: '/api-private/api/get-reactive-data-v2',
+} as const;
 
 /**
  * Datadis tarda de verdad. Menos de esto y se cortan consultas que iban bien;
@@ -260,6 +285,16 @@ export async function tokenDatadis(forzar = false): Promise<string> {
   // Ojo: el token llega como texto plano. Pasarlo por res.json() falla.
   const cuerpo = (await res.text()).trim();
   if (!res.ok || !cuerpo || cuerpo.startsWith('{')) {
+    // Comprobado el 26/07/2026: con credenciales mal o ausentes, Datadis
+    // devuelve 500, no 401. Si se dejara pasar por `interpretarFallo` saldría
+    // «Datadis ha respondido 500», que manda a mirar donde no es. En el login
+    // solo se envían credenciales, así que ese es el primer sospechoso.
+    if (res.status >= 500) {
+      throw new ErrorDatadis({
+        tipo: 'login',
+        mensaje: 'Datadis ha rechazado el login. Lo normal es que DATADIS_USER (el NIF) o DATADIS_PASSWORD estén mal; si son correctos, es que su servicio está caído.',
+      });
+    }
     throw new ErrorDatadis(interpretarFallo(res.status, cuerpo));
   }
 
@@ -274,14 +309,53 @@ export async function tokenDatadis(forzar = false): Promise<string> {
   return cuerpo;
 }
 
+/** Lo que devuelve una llamada: las filas y lo que la distribuidora tenga que decir. */
+interface Respuesta {
+  filas: Record<string, unknown>[];
+  /** Errores por distribuidora que manda v2. Convierten un «vacío» mudo en una causa. */
+  avisos: string[];
+}
+
+/**
+ * Saca las filas de la respuesta, venga como venga.
+ *
+ * v1 devuelve el array pelado. v2 lo envuelve en `{response, distributorError}`,
+ * y esa segunda parte es oro: sin ella, una distribuidora caída y un mes sin
+ * consumo se ven exactamente igual —una lista vacía— y no hay forma de saber si
+ * hay que reintentar mañana o si es que el suministro estaba de baja.
+ */
+function desenvolver(bruto: unknown): Respuesta {
+  if (Array.isArray(bruto)) return { filas: bruto as Record<string, unknown>[], avisos: [] };
+  if (!bruto || typeof bruto !== 'object') return { filas: [], avisos: [] };
+
+  const obj = bruto as Record<string, unknown>;
+  // `response` en v2; `energy` en la reactiva, que lo llama a su manera
+  const lista = obj.response ?? obj.energy ?? obj.data;
+  const filas = Array.isArray(lista) ? (lista as Record<string, unknown>[]) : [];
+
+  const avisos: string[] = [];
+  const errores = obj.distributorError;
+  if (Array.isArray(errores)) {
+    for (const e of errores as Record<string, unknown>[]) {
+      const texto = [e.distributorName ?? e.distributorCode, e.errorDescription ?? e.errorCode]
+        .filter(Boolean).join(': ');
+      if (texto) avisos.push(texto);
+    }
+  }
+  return { filas, avisos };
+}
+
 /** GET autenticado contra la API privada. Reintenta una vez si el token caducó. */
-async function pedir<T>(ruta: string, params: Record<string, string | number | undefined>): Promise<T> {
+async function pedir(
+  ruta: string,
+  params: Record<string, string | number | undefined>
+): Promise<Respuesta> {
   const qs = new URLSearchParams();
   for (const [k, v] of Object.entries(params)) {
     if (v !== undefined && v !== null && v !== '') qs.set(k, String(v));
   }
 
-  const lanzar = async (token: string) => {
+  const lanzar = async (token: string): Promise<Respuesta> => {
     const res = await conTimeout(`${DATADIS_BASE}${ruta}?${qs}`, {
       headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
     });
@@ -290,10 +364,11 @@ async function pedir<T>(ruta: string, params: Record<string, string | number | u
       throw new ErrorDatadis(interpretarFallo(res.status, cuerpo));
     }
     const texto = await res.text();
-    if (!texto.trim()) return [] as unknown as T; // sin datos ese mes: lista vacía, no error
+    if (!texto.trim()) return { filas: [], avisos: [] }; // sin datos ese mes: no es un error
     try {
-      return JSON.parse(texto) as T;
-    } catch {
+      return desenvolver(JSON.parse(texto));
+    } catch (e) {
+      if (e instanceof ErrorDatadis) throw e;
       throw new ErrorDatadis({ tipo: 'otro', mensaje: 'Datadis ha devuelto algo que no es JSON.' });
     }
   };
@@ -310,6 +385,11 @@ async function pedir<T>(ruta: string, params: Record<string, string | number | u
 }
 
 // ── Llamadas de negocio ────────────────────────────────────────────────────
+//
+// Todas devuelven `{ ...datos, avisos }`. Los avisos son los errores por
+// distribuidora que manda la API: se arrastran hasta la pantalla en vez de
+// tragárselos, porque son la diferencia entre «este mes no consumió» y
+// «Endesa estaba caída, vuelve a pedirlo mañana».
 
 /**
  * Suministros visibles. Sin `nifAutorizado` devuelve los nuestros; con él, los
@@ -319,20 +399,25 @@ async function pedir<T>(ruta: string, params: Record<string, string | number | u
  * que ese cliente todavía no ha dado la autorización. Es la causa número uno
  * de que esto «no funcione», así que la pantalla lo dice con esas palabras.
  */
-export async function suministros(nifAutorizado?: string): Promise<SuministroDatadis[]> {
-  const filas = await pedir<Record<string, unknown>[]>(RUTA_SUPPLIES, { authorizedNif: nifAutorizado });
-  return (Array.isArray(filas) ? filas : []).map((f) => ({
-    cups: String(f.cups || '').trim().toUpperCase(),
-    distributorCode: String(f.distributorCode ?? ''),
-    pointType: Number(f.pointType ?? 0),
-    address: f.address ? String(f.address) : undefined,
-    province: f.province ? String(f.province) : undefined,
-    municipality: f.municipality ? String(f.municipality) : undefined,
-    postalCode: f.postalCode ? String(f.postalCode) : undefined,
-    distributor: f.distributor ? String(f.distributor) : undefined,
-    validDateFrom: f.validDateFrom ? fechaISO(f.validDateFrom) : undefined,
-    validDateTo: f.validDateTo ? fechaISO(f.validDateTo) : undefined,
-  }));
+export async function suministros(
+  nifAutorizado?: string
+): Promise<{ suministros: SuministroDatadis[]; avisos: string[] }> {
+  const { filas, avisos } = await pedir(RUTAS.supplies, { authorizedNif: nifAutorizado });
+  return {
+    suministros: filas.map((f) => ({
+      cups: String(f.cups || '').trim().toUpperCase(),
+      distributorCode: String(f.distributorCode ?? ''),
+      pointType: Number(f.pointType ?? 0),
+      address: f.address ? String(f.address) : undefined,
+      province: f.province ? String(f.province) : undefined,
+      municipality: f.municipality ? String(f.municipality) : undefined,
+      postalCode: f.postalCode ? String(f.postalCode) : undefined,
+      distributor: f.distributor ? String(f.distributor) : undefined,
+      validDateFrom: f.validDateFrom ? fechaISO(f.validDateFrom) : undefined,
+      validDateTo: f.validDateTo ? fechaISO(f.validDateTo) : undefined,
+    })),
+    avisos,
+  };
 }
 
 /** Detalle del contrato: aquí están las potencias contratadas de verdad. */
@@ -340,28 +425,31 @@ export async function contrato(
   cups: string,
   distributorCode: string,
   nifAutorizado?: string
-): Promise<ContratoDatadis | null> {
-  const filas = await pedir<Record<string, unknown>[]>(RUTA_CONTRATO, {
+): Promise<{ contrato: ContratoDatadis | null; avisos: string[] }> {
+  const { filas, avisos } = await pedir(RUTAS.contrato, {
     cups, distributorCode, authorizedNif: nifAutorizado,
   });
-  const f = Array.isArray(filas) ? filas[0] : (filas as Record<string, unknown> | null);
-  if (!f) return null;
+  const f = filas[0];
+  if (!f) return { contrato: null, avisos };
 
   const potencias = Array.isArray(f.contractedPowerkW)
     ? (f.contractedPowerkW as unknown[]).map((n) => Number(n) || 0)
     : [];
 
   return {
-    cups: String(f.cups || cups).toUpperCase(),
-    accessFare: f.accessFare ? String(f.accessFare) : undefined,
-    marketer: f.marketer ? String(f.marketer) : undefined,
-    tension: f.tension ? String(f.tension) : undefined,
-    contractedPowerkW: potencias,
-    startDate: f.startDate ? fechaISO(f.startDate) : undefined,
-    endDate: f.endDate ? fechaISO(f.endDate) : undefined,
-    modePowerControl: f.modePowerControl ? String(f.modePowerControl) : undefined,
-    cnae: f.cnae ? String(f.cnae) : undefined,
-    selfConsumptionTypeDesc: f.selfConsumptionTypeDesc ? String(f.selfConsumptionTypeDesc) : undefined,
+    contrato: {
+      cups: String(f.cups || cups).toUpperCase(),
+      accessFare: f.accessFare ? String(f.accessFare) : undefined,
+      marketer: f.marketer ? String(f.marketer) : undefined,
+      tension: f.tension ? String(f.tension) : undefined,
+      contractedPowerkW: potencias,
+      startDate: f.startDate ? fechaISO(f.startDate) : undefined,
+      endDate: f.endDate ? fechaISO(f.endDate) : undefined,
+      modePowerControl: f.modePowerControl ? String(f.modePowerControl) : undefined,
+      cnae: f.cnae ? String(f.cnae) : undefined,
+      selfConsumptionTypeDesc: f.selfConsumptionTypeDesc ? String(f.selfConsumptionTypeDesc) : undefined,
+    },
+    avisos,
   };
 }
 
@@ -377,8 +465,8 @@ export async function curvaMes(
   distributorCode: string,
   mes: string,
   opciones: { pointType?: number; nifAutorizado?: string; cuartohorario?: boolean } = {}
-): Promise<HoraConsumo[]> {
-  const filas = await pedir<Record<string, unknown>[]>(RUTA_CONSUMO, {
+): Promise<{ horas: HoraConsumo[]; avisos: string[] }> {
+  const { filas, avisos } = await pedir(RUTAS.consumo, {
     cups,
     distributorCode,
     startDate: mes,
@@ -388,7 +476,7 @@ export async function curvaMes(
     authorizedNif: opciones.nifAutorizado,
   });
 
-  return (Array.isArray(filas) ? filas : []).flatMap((f) => {
+  const horas = filas.flatMap((f) => {
     const bruta = fechaISO(f.date);
     if (!bruta) return [];
     const { fecha, hora } = normalizarHora(bruta, String(f.time || ''));
@@ -404,6 +492,8 @@ export async function curvaMes(
       metodo: String(f.obtainMethod || 'Real'),
     }];
   });
+
+  return { horas, avisos };
 }
 
 /**
@@ -417,12 +507,12 @@ export async function maximetros(
   desde: string,
   hasta: string,
   nifAutorizado?: string
-): Promise<MaximetroMes[]> {
-  const filas = await pedir<Record<string, unknown>[]>(RUTA_MAXIMETRO, {
+): Promise<{ maximetros: MaximetroMes[]; avisos: string[] }> {
+  const { filas, avisos } = await pedir(RUTAS.maximetro, {
     cups, distributorCode, startDate: desde, endDate: hasta, authorizedNif: nifAutorizado,
   });
 
-  return (Array.isArray(filas) ? filas : []).flatMap((f) => {
+  const lista = filas.flatMap((f) => {
     const kw = Number(f.maxPower);
     const periodo = Number(f.period);
     if (!Number.isFinite(kw) || kw <= 0) return [];
@@ -435,12 +525,16 @@ export async function maximetros(
       periodo: Number.isFinite(periodo) ? periodo : Number(String(f.period || '').replace(/\D/g, '')) || 0,
     }];
   });
+
+  return { maximetros: lista, avisos };
 }
 
 /**
- * Energía reactiva, si el punto la mide. Muchos no la tienen y el endpoint
- * responde 404: eso no es un fallo que deba tumbar una sincronización, así que
- * aquí se devuelve lista vacía y ya está.
+ * Energía reactiva. Solo existe en la versión v2 del endpoint: la ruta sin
+ * sufijo está comprobado que Datadis no la reconoce (ver cabecera del archivo).
+ *
+ * Muchos puntos de medida no miden reactiva, y entonces esto vuelve vacío. Eso
+ * no es un fallo que deba tumbar una sincronización.
  */
 export async function reactiva(
   cups: string,
@@ -448,13 +542,12 @@ export async function reactiva(
   desde: string,
   hasta: string,
   nifAutorizado?: string
-): Promise<ReactivaMes[]> {
+): Promise<{ reactiva: ReactivaMes[]; avisos: string[] }> {
   try {
-    const bruto = await pedir<Record<string, unknown>>(RUTA_REACTIVA, {
+    const { filas, avisos } = await pedir(RUTAS.reactiva, {
       cups, distributorCode, startDate: desde, endDate: hasta, authorizedNif: nifAutorizado,
     });
-    const lista = Array.isArray(bruto) ? bruto : (bruto?.energy as unknown[]) || [];
-    return (lista as Record<string, unknown>[]).flatMap((f) => {
+    const lista = filas.flatMap((f) => {
       const fecha = fechaISO(f.date);
       if (!fecha) return [];
       const periodos: number[] = [];
@@ -464,10 +557,13 @@ export async function reactiva(
       }
       return [{ cups: cups.toUpperCase(), fecha, reactiva_por_periodo: periodos }];
     });
+    return { reactiva: lista, avisos };
   } catch (e) {
     // Solo se traga el «aquí no hay eso». Un problema de credenciales o de
     // racionado sí tiene que subir, porque afecta al resto de la sincronización.
-    if (e instanceof ErrorDatadis && (e.fallo.tipo === 'no_existe' || e.fallo.tipo === 'otro')) return [];
+    if (e instanceof ErrorDatadis && (e.fallo.tipo === 'no_existe' || e.fallo.tipo === 'otro')) {
+      return { reactiva: [], avisos: [] };
+    }
     throw e;
   }
 }
