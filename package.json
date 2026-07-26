@@ -17,7 +17,8 @@
     "test:potencia": "node scripts/test-potencia.mjs",
     "test:parte": "node scripts/test-parte.mjs",
     "test:huecos": "node scripts/test-huecos.mjs",
-    "test:clasificacion": "node scripts/test-clasificacion.mjs"
+    "test:clasificacion": "node scripts/test-clasificacion.mjs",
+    "test:agenda-calle": "node scripts/test-agenda-calle.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.110.0",

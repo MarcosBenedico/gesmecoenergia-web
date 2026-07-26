@@ -18,12 +18,14 @@
  *    muestra en la misma lista, ordenado por urgencia.
  */
 
+// Con extensión y separando los tipos, para que Node ejecute este archivo tal
+// cual en los tests sin compilar nada (igual que en bandeja.ts y prospeccion.ts).
+import type { LuzTarea, LuzCups, LuzFechaCritica, LuzOportunidad } from './luz.ts';
 import {
-  LuzTarea, LuzCups, LuzFechaCritica, LuzOportunidad,
   TIPO_TAREA_LABEL, TIPO_FECHA_LABEL, TIPO_FECHA_TONO,
   ESTADO_PIPELINE_LABEL, ESTADO_PIPELINE_TONO, PIPELINE_ABIERTO_SIN_REVISAR,
   TAREAS_ABIERTAS, diasHasta, normCups,
-} from './luz';
+} from './luz.ts';
 
 /** De dónde sale cada línea de la agenda. */
 export type OrigenAgenda = 'tarea' | 'contrato' | 'fecha';

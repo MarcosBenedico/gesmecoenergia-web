@@ -2,9 +2,9 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
-import { RefreshCw, Check, CalendarClock, Lock, List, CalendarDays, Clock } from 'lucide-react';
+import { RefreshCw, Check, CalendarClock, Lock, List, CalendarDays, Clock, Navigation } from 'lucide-react';
 import {
-  LuzTarea, LuzCups, LuzFechaCritica, LuzOportunidad, ResponsableEquipo,
+  LuzTarea, LuzCups, LuzFechaCritica, LuzOportunidad, LuzCliente, LuzVisita, ResponsableEquipo,
   PRIORIDAD_TONO, fmtFecha,
 } from '@/lib/luz';
 import {
@@ -15,6 +15,8 @@ import { Card, EstadoCarga, useListaLuz, guardarLuz, btnSecundario } from '../ui
 import { useUsuario } from '@/lib/usuario';
 import { PanelAplazar } from './aplazar';
 import { CalendarioAgenda } from './calendario';
+import { VistaCalle } from './calle';
+import { ResolverVisita } from '../resolver-visita';
 
 /**
  * AGENDA: la única lista de trabajo del equipo.
@@ -34,8 +36,13 @@ export default function AgendaPage() {
   const fechas = useListaLuz<LuzFechaCritica>('fechas', { estado: 'pendiente' });
   const pipeline = useListaLuz<LuzOportunidad>('pipeline');
   const equipo = useListaLuz<ResponsableEquipo>('responsables', { activo: 'true' });
+  // La vista de Calle necesita el cliente (dirección, teléfono, clasificación)
+  // y las visitas de hoy para el marcador de puertas.
+  const clientes = useListaLuz<LuzCliente>('clientes');
+  const visitas = useListaLuz<LuzVisita>('visitas');
 
-  const [vista, setVista] = useState<'lista' | 'calendario'>('lista');
+  const [vista, setVista] = useState<'calle' | 'lista' | 'calendario'>('calle');
+  const [visitando, setVisitando] = useState<{ id: string; nombre: string } | null>(null);
   const [ancla, setAncla] = useState(new Date());
   const [diaSel, setDiaSel] = useState<string | null>(null);
   const [verDe, setVerDe] = useState<string>('');   // '' = todo el equipo
@@ -57,6 +64,15 @@ export default function AgendaPage() {
     [todo, persona]
   );
   const resumen = useMemo(() => resumenAgenda(mios), [mios]);
+
+  // Puertas de hoy: lo que se ha registrado como visita con fecha de hoy. Es el
+  // único número que mide lo que de verdad depende de David, y por eso va arriba.
+  const visitasHoy = useMemo(() => {
+    const hoy = new Date();
+    const iso = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(hoy.getDate()).padStart(2, '0')}`;
+    return visitas.datos.filter((v) => String(v.fecha || '').slice(0, 10) === iso
+      && (!persona || esDe(v.responsable, persona))).length;
+  }, [visitas.datos, persona]);
 
   // En calendario manda el día elegido; en lista, el filtro de urgencia.
   const visibles = vista === 'calendario'
@@ -105,7 +121,7 @@ export default function AgendaPage() {
     if (item.origen === 'tarea') tareas.recargar(); else fechas.recargar();
   }
 
-  function recargarTodo() { tareas.recargar(); cups.recargar(); fechas.recargar(); pipeline.recargar(); }
+  function recargarTodo() { tareas.recargar(); cups.recargar(); fechas.recargar(); pipeline.recargar(); clientes.recargar(); }
 
   /** Una línea de la agenda. Se reutiliza en ambas vistas. */
   const Linea = (i: ItemAgenda) => (
@@ -202,7 +218,7 @@ export default function AgendaPage() {
         <div className="flex gap-2 items-center flex-wrap">
           {/* Lista para trabajar · Calendario para ver la carga */}
           <div className="flex rounded-lg border border-border/40 overflow-hidden">
-            {([['lista', List, 'Lista'], ['calendario', CalendarDays, 'Calendario']] as const).map(([v, Icono, texto]) => (
+            {([['calle', Navigation, 'Calle'], ['lista', List, 'Lista'], ['calendario', CalendarDays, 'Calendario']] as const).map(([v, Icono, texto]) => (
               <button key={v} onClick={() => { setVista(v); setDiaSel(null); setFiltro(''); }}
                 className={`inline-flex items-center gap-1.5 px-2.5 py-2 text-xs font-bold transition ${
                   vista === v ? 'bg-accent text-white' : 'bg-background/60 text-muted hover:text-foreground'
@@ -228,6 +244,33 @@ export default function AgendaPage() {
       </div>
 
       {msg && <p className="fv-fade-in text-xs text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-2.5">{msg}</p>}
+
+      {/* ── CALLE: agrupada por zona y con todo a mano. Es la vista por defecto,
+             porque es la que convierte la lista en una mañana de trabajo. ── */}
+      {vista === 'calle' && !cargando && (
+        <VistaCalle
+          items={mios}
+          clientes={clientes.datos}
+          cups={cups.datos}
+          visitasHoy={visitasHoy}
+          onResolverVisita={(id, nombre) => setVisitando({ id, nombre })}
+          onAplazar={(i) => setAplazando(i.clave)}
+          onCompletar={completar}
+          ocupado={ocupado}
+        />
+      )}
+
+      {/* La hoja de resultado de visita: es lo que enlaza esta pantalla con el
+          resto del sistema, y hasta ahora no se estaba usando desde la Agenda. */}
+      {visitando && (
+        <ResolverVisita
+          clienteId={visitando.id}
+          clienteNombre={visitando.nombre}
+          responsable={perfil?.responsable || null}
+          onHecho={() => { setVisitando(null); recargarTodo(); visitas.recargar(); setMsg('Visita registrada.'); }}
+          onCerrar={() => setVisitando(null)}
+        />
+      )}
 
       {/* Pastillas de urgencia: además de informar, filtran (solo en lista) */}
       {vista === 'lista' && (
@@ -257,12 +300,13 @@ export default function AgendaPage() {
         </Card>
       )}
 
+      {/* En Calle el vacío lo cuenta la propia vista; aquí saldría dos veces. */}
       <EstadoCarga
         cargando={cargando}
         error={tareas.error || cups.error || fechas.error}
         faltaMigracion={tareas.faltaMigracion}
         sqlFile="supabase_luz.sql"
-        vacio={!cargando && mios.length === 0}
+        vacio={!cargando && mios.length === 0 && vista !== 'calle'}
         textoVacio={persona ? `Nada pendiente para ${persona}. 🎉` : 'Nada pendiente. Todo al día. 🎉'}
       />
 
@@ -289,6 +333,7 @@ export default function AgendaPage() {
       ))}
 
       <div className="pt-2 space-y-1.5 text-center">
+        {vista !== 'calle' && <>
         <p className="text-[10px] text-muted">
           Los avisos marcados como <b>automático</b> se leen directamente del suministro (fin de contrato, permanencia y preaviso):
           no se marcan como hechos, desaparecen solos cuando cambia la fecha en el CUPS. Así nunca trabajáis con un aviso caducado.
@@ -297,6 +342,7 @@ export default function AgendaPage() {
           Dar algo por <b>hecho</b> no pide explicaciones. <b>Moverlo de día</b> sí: queda escrito el motivo y la fecha, para saber después
           por qué una gestión lleva semanas dando vueltas.
         </p>
+        </>}
         <p className="text-[10px] text-muted/70">
           ¿Crear o editar en detalle? <Link href="/gestor/luz/tareas" className="text-accent hover:underline">Tareas</Link>
           {' · '}
