@@ -34,15 +34,85 @@ cierto('un CUPS de la captura es provisional', esCupsProvisional('PENDIENTE-1234
 cierto('sin CUPS también', esCupsProvisional(null));
 cierto('uno de verdad no lo es', !esCupsProvisional('ES0031406231891001AB0F'));
 
-console.log('\n── Bloquea a David ──');
-const sinCups = construirBandeja({
+console.log('\n── Lo que NO tiene que salir ──');
+// Esto es lo que más se nota al abrir la bandeja: antes salía CUALQUIER cliente
+// sin CUPS y la llenaba de gente a la que simplemente no le hemos sacado aún la
+// factura. Nicola no puede hacer nada con eso, y tapaba lo que sí estaba parado.
+eq('un recién detectado sin CUPS NO sale: eso lo desbloquea David',
+  construirBandeja({
+    ...vacio,
+    clientes: [{ id: 'c1', nombre: 'Granja Norte', estado_comercial: 'detectado', clasificacion: 'precliente', creado_en: hace(5) }],
+  }).length, 0);
+
+eq('un objetivo del mapa tampoco',
+  construirBandeja({
+    ...vacio,
+    clientes: [{ id: 'c1', nombre: 'Nave del polígono', estado_comercial: 'contacto_iniciado', clasificacion: 'objetivo' }],
+  }).length, 0);
+
+eq('un suministro en «sin factura» y sin consumo NO se reclama',
+  construirBandeja({
+    ...vacio,
+    clientes: [{ id: 'c1', nombre: 'X', estado_comercial: 'detectado', clasificacion: 'precliente' }],
+    cups: [{ id: 's1', cliente_id: 'c1', cups: 'ES0031406231891001AB0F', estado_cups: 'sin_factura', consumo_anual_kwh: 0 }],
+  }).length, 0);
+
+console.log('\n── Lo que SÍ tiene que salir ──');
+const yaDeberia = construirBandeja({
   ...vacio,
-  clientes: [{ id: 'c1', nombre: 'Granja Norte', estado_comercial: 'detectado', creado_en: hace(5) }],
+  clientes: [{ id: 'c1', nombre: 'Granja Norte', estado_comercial: 'doc_recibida', clasificacion: 'precliente', creado_en: hace(5) }],
 });
-eq('un cliente sin ningún CUPS sale', sinCups.length, 1);
-eq('...y bloquea la venta', sinCups[0].grupo, 'bloquea_venta');
-cierto('...diciendo qué hacer', sinCups[0].accion.length > 5);
-eq('...con los días que lleva parado', sinCups[0].dias, 5);
+eq('si el expediente dice que ya tenemos la doc, sí sale', yaDeberia.length, 1);
+eq('...y bloquea la venta', yaDeberia[0].grupo, 'bloquea_venta');
+cierto('...diciendo qué hacer', yaDeberia[0].accion.length > 5);
+eq('...con los días que lleva parado', yaDeberia[0].dias, 5);
+
+const firmadoSinCups = construirBandeja({
+  ...vacio,
+  clientes: [{ id: 'c1', nombre: 'Talleres Sur', estado_comercial: 'detectado', clasificacion: 'cliente' }],
+});
+eq('un CLIENTE (ha firmado) sin ningún suministro sí sale, mande lo que mande su estado',
+  firmadoSinCups.length, 1);
+cierto('...y se dice que es un descuadre', /CLIENTE/.test(firmadoSinCups[0].detalle));
+cierto('...y pesa más que lo demás', firmadoSinCups[0].peso >= 120);
+
+eq('con la factura ya recibida, el consumo sí se reclama',
+  construirBandeja({
+    ...vacio,
+    clientes: [{ id: 'c1', nombre: 'X', estado_comercial: 'doc_recibida', clasificacion: 'precliente' }],
+    cups: [{ id: 's1', cliente_id: 'c1', cups: 'ES0031406231891001AB0F', estado_cups: 'factura_recibida', consumo_anual_kwh: 0 }],
+  }).filter((i) => i.accion.includes('consumo')).length, 1);
+
+eq('un CUPS provisional no pide además el consumo: sería la misma cosa dos veces',
+  construirBandeja({
+    ...vacio,
+    clientes: [{ id: 'c1', nombre: 'X', estado_comercial: 'doc_recibida', clasificacion: 'precliente' }],
+    cups: [{ id: 's1', cliente_id: 'c1', cups: 'PENDIENTE-999', estado_cups: 'factura_recibida', consumo_anual_kwh: 0 }],
+  }).filter((i) => i.clienteId === 'c1').length, 1);
+
+console.log('\n── Si David va esta semana, corre prisa ──');
+const dentroDe = (dias) => {
+  const d = new Date();
+  d.setDate(d.getDate() + dias);
+  return d.toISOString().slice(0, 10);
+};
+const base = {
+  ...vacio,
+  clientes: [{ id: 'c1', nombre: 'Granja Mir', estado_comercial: 'doc_recibida', clasificacion: 'precliente' }],
+  cups: [{ id: 's1', cliente_id: 'c1', cups: 'ES0031406231891001AB0F', estado_cups: 'factura_recibida', consumo_anual_kwh: 0 }],
+};
+const sinVisita = construirBandeja(base).find((i) => i.accion.includes('consumo'));
+const conVisita = construirBandeja({
+  ...base,
+  tareas: [{ id: 't1', cliente_id: 'c1', descripcion: 'Visitar', estado: 'pendiente', fecha_limite: dentroDe(3), responsable: 'David' }],
+}).find((i) => i.accion.includes('consumo'));
+cierto('con visita cerca pesa más', conVisita.peso > sinVisita.peso);
+cierto('...y lo dice sin rodeos', /manos vacías/i.test(conVisita.detalle));
+const visitaLejos = construirBandeja({
+  ...base,
+  tareas: [{ id: 't1', cliente_id: 'c1', descripcion: 'Visitar', estado: 'pendiente', fecha_limite: dentroDe(30), responsable: 'David' }],
+}).find((i) => i.accion.includes('consumo'));
+eq('una visita a 30 días no urge nada', visitaLejos.peso, sinVisita.peso);
 
 // Un cliente descartado no es trabajo pendiente: es una decisión ya tomada
 eq('un cliente perdido no ensucia la bandeja',
@@ -150,7 +220,9 @@ eq('sin decir quién eres, no salen tareas', construirBandeja(conPersona).length
 console.log('\n── El orden es por a quién bloquea ──');
 const mezcla = construirBandeja({
   ...vacio,
-  clientes: [{ id: 'c1', nombre: 'Bloqueado', estado_comercial: 'detectado', creado_en: hace(1) }],
+  // 'doc_recibida': el expediente dice que la documentación ya llegó, así que
+  // que no haya CUPS sí es un atasco de oficina y sí tiene que salir.
+  clientes: [{ id: 'c1', nombre: 'Bloqueado', estado_comercial: 'doc_recibida', clasificacion: 'precliente', creado_en: hace(1) }],
   contratos: [{ id: 'k1', cliente_id: 'c1', estado_contrato: 'pendiente_firma', fecha_envio_contrato: hace(60) }],
 });
 eq('primero lo que bloquea la venta, aunque sea lo más reciente',

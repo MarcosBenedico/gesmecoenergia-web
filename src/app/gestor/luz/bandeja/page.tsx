@@ -2,11 +2,14 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
-import { Inbox, ArrowRight, CheckCircle2 } from 'lucide-react';
+import { Inbox, ArrowRight, CheckCircle2, Search, X } from 'lucide-react';
 import {
   LuzCliente, LuzComision, LuzContrato, LuzCups, LuzOportunidad, LuzTarea,
 } from '@/lib/luz';
-import { construirBandeja, resumenBandeja, GRUPOS, GrupoBandeja, ItemBandeja } from '@/lib/bandeja';
+import {
+  construirBandeja, resumenBandeja, porTipoTrabajo, GRUPOS, TIPOS_TRABAJO,
+  GrupoBandeja, TipoTrabajo, ItemBandeja,
+} from '@/lib/bandeja';
 import { useUsuario } from '@/lib/usuario';
 import { Card, EstadoCarga, useListaLuz } from '../ui';
 
@@ -47,9 +50,28 @@ export default function BandejaPage() {
   );
 
   const resumen = useMemo(() => resumenBandeja(items), [items]);
-  const [grupoAbierto, setGrupoAbierto] = useState<GrupoBandeja | null>(null);
+  const conteoTipo = useMemo(() => porTipoTrabajo(items), [items]);
 
-  const visibles = grupoAbierto ? items.filter((i) => i.grupo === grupoAbierto) : items;
+  const [grupoAbierto, setGrupoAbierto] = useState<GrupoBandeja | null>(null);
+  /** Filtro por clase de trabajo: es lo que permite ir por tandas. */
+  const [tipoAbierto, setTipoAbierto] = useState<TipoTrabajo | null>(null);
+  const [buscar, setBuscar] = useState('');
+
+  const visibles = useMemo(() => {
+    const q = buscar.trim().toLowerCase();
+    return items.filter((i) => {
+      if (grupoAbierto && i.grupo !== grupoAbierto) return false;
+      if (tipoAbierto && i.tipo !== tipoAbierto) return false;
+      if (q && !i.cliente.toLowerCase().includes(q) && !i.accion.toLowerCase().includes(q)) return false;
+      return true;
+    });
+  }, [items, grupoAbierto, tipoAbierto, buscar]);
+
+  const hayFiltro = !!grupoAbierto || !!tipoAbierto || !!buscar.trim();
+  const limpiarFiltros = () => { setGrupoAbierto(null); setTipoAbierto(null); setBuscar(''); };
+
+  /** Cuántas se enseñan de golpe: una lista infinita agobia igual que ninguna. */
+  const [tope, setTope] = useState(25);
 
   return (
     <div className="space-y-5">
@@ -80,7 +102,7 @@ export default function BandejaPage() {
               return (
                 <button
                   key={g.clave}
-                  onClick={() => setGrupoAbierto(activo ? null : g.clave)}
+                  onClick={() => { setGrupoAbierto(activo ? null : g.clave); setTope(25); }}
                   className={`rounded-2xl border p-4 text-left transition ${g.tono} ${
                     activo ? 'ring-2 ring-current' : n === 0 ? 'opacity-45' : 'hover:brightness-125'
                   }`}
@@ -92,6 +114,53 @@ export default function BandejaPage() {
               );
             })}
           </div>
+
+          {/* Por tandas: ocho consumos seguidos se teclean en la mitad de tiempo
+              que ir saltando de meter datos a llamar por teléfono y volver. */}
+          {items.length > 0 && (
+            <div className="space-y-2.5">
+              <div className="flex flex-wrap gap-2">
+                {TIPOS_TRABAJO.filter((t) => conteoTipo[t.clave] > 0).map((t) => {
+                  const activo = tipoAbierto === t.clave;
+                  return (
+                    <button
+                      key={t.clave}
+                      onClick={() => { setTipoAbierto(activo ? null : t.clave); setTope(25); }}
+                      className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-bold border transition ${
+                        activo ? 'bg-accent text-white border-accent' : 'bg-card/70 text-muted border-border/50 hover:text-foreground'
+                      }`}
+                    >
+                      {t.emoji} {t.texto}
+                      <span className={`tabular-nums ${activo ? 'text-white/80' : 'text-foreground/70'}`}>
+                        {conteoTipo[t.clave]}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="flex items-center gap-2 flex-wrap">
+                <div className="relative flex-1 min-w-[14rem]">
+                  <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+                  <input
+                    value={buscar}
+                    onChange={(e) => { setBuscar(e.target.value); setTope(25); }}
+                    placeholder="Buscar por cliente o por lo que hay que hacer…"
+                    className="w-full rounded-xl border border-border/40 bg-background/60 pl-9 pr-3 py-2.5 text-sm"
+                  />
+                </div>
+                {hayFiltro && (
+                  <button onClick={limpiarFiltros}
+                    className="inline-flex items-center gap-1.5 px-3 py-2.5 rounded-xl border border-border/50 bg-card/70 text-sm font-bold text-muted hover:text-foreground transition">
+                    <X className="w-4 h-4" /> Quitar filtros
+                  </button>
+                )}
+                <span className="text-sm font-bold text-muted">
+                  {visibles.length} de {items.length}
+                </span>
+              </div>
+            </div>
+          )}
 
           {items.length === 0 ? (
             <Card>
@@ -105,13 +174,26 @@ export default function BandejaPage() {
             </Card>
           ) : (
             <div className="space-y-2">
-              {grupoAbierto && (
-                <button onClick={() => setGrupoAbierto(null)}
-                  className="text-sm font-bold text-accent hover:underline">
-                  ← Ver todo ({items.length})
-                </button>
+              {visibles.length === 0 ? (
+                <Card>
+                  <p className="text-sm text-muted">
+                    Nada con estos filtros.{' '}
+                    <button onClick={limpiarFiltros} className="text-accent font-bold hover:underline">Quitarlos</button>.
+                  </p>
+                </Card>
+              ) : (
+                <>
+                  {visibles.slice(0, tope).map((i) => <Fila key={i.clave} i={i} />)}
+                  {visibles.length > tope && (
+                    <button
+                      onClick={() => setTope((t) => t + 50)}
+                      className="w-full py-3 rounded-xl border border-border/40 bg-card/50 text-sm font-bold text-muted hover:text-foreground transition"
+                    >
+                      Ver {Math.min(50, visibles.length - tope)} más · quedan {visibles.length - tope}
+                    </button>
+                  )}
+                </>
               )}
-              {visibles.map((i) => <Fila key={i.clave} i={i} />)}
             </div>
           )}
 
