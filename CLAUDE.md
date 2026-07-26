@@ -22,6 +22,7 @@ npm run test:prospeccion                   # tests de la prospección sobre la r
 npm run test:visitas                       # tests de qué desencadena cada resultado de visita
 npm run test:bandeja                       # tests de la bandeja de entrada (Oficina)
 npm run test:potencia                      # tests del optimizador de potencias y la curva (Datadis)
+npm run test:parte                         # tests del parte del día (auditoría → qué mejoró en cada cliente)
 npm run verify:supabase                    # comprueba conexión Supabase
 ```
 
@@ -65,6 +66,14 @@ No hay suite de tests formal; la verificación es `npm run build` + `scripts/smo
       - Los precios del término de potencia (`PRECIOS_POTENCIA_REFERENCIA`) son de referencia y **están pendientes de que Marcos los valide con una factura de 2026**; se pueden revisar sin tocar código desde la clave `precios_potencia_kw_anio` de `luz_config`. Los kW son dato de la distribuidora; los € son orientativos hasta esa validación.
       - Requiere ejecutar `supabase_datadis.sql` y las variables `DATADIS_USER` / `DATADIS_PASSWORD`.
       - Cubierto por `npm run test:potencia`.
+    - **Parte del día** (`gestor/luz/parte`, **solo admin**, lógica en `src/lib/parte-diario.ts`) — qué se movió en la cartera un día concreto, quién lo movió y **qué mejoró en cada cliente**. Se elige la fecha y sale; se imprime o se guarda en PDF desde el navegador.
+      - Sale de **`app_auditoria`**, que llenan triggers de BD con la fila **entera antes y después** de cada cambio. Por eso puede decir «el estado pasó de oferta enviada a contrato firmado» en vez del inútil «se modificó un CUPS». No hay que instrumentar nada en la aplicación: si se guarda, queda registrado.
+      - `parte-diario.ts` es sobre todo **un traductor**: de nombre de columna a castellano y de un JSON a una frase que se lea en voz alta. Y un **clasificador**: `alta · avance · dinero · retroceso · dato · rutina`, usando `ORDEN_ESTADO_CUPS` para distinguir avanzar de retroceder. Sin esa clasificación el parte sería otra lista larga que nadie lee.
+      - Un UPDATE que no cambió nada visible **no se enseña**: es ruido de guardado.
+      - **El rol se comprueba en el servidor** (`app_usuarios`), no solo escondiendo el menú: enseña la actividad de todo el equipo persona por persona.
+      - **No es un control horario** y la pantalla lo dice: la auditoría marca cuándo se *guardó* algo, no cuándo se hizo. Una visita de las nueve metida a las seis aparece a las seis.
+      - Requiere `supabase_auditoria_parte.sql` (añade los triggers que faltaban en `luz_visitas`, `luz_prospectos` y `luz_proyectos` — sin ellos el parte enseña la oficina y se deja fuera la calle). La auditoría se llena **desde que se ejecuta**: los días anteriores saldrán incompletos.
+      - Cubierto por `npm run test:parte`.
   - `gestor/luz/fv/` — **Calculadora FV** (solo admin): presupuestador fotovoltaico. Lógica en `src/lib/fv.ts`, UI en `page.tsx` + `energia.tsx`. Dos flujos: "presupuesto de Óscar" (instalador) y "presupuestar desde consumos". Incluye escenarios, algoritmo de batería por amortización (`optimizarBateria`), simulación horaria 24h (`simularDiaFV`), comparador de equipos reales y oferta PDF. `hipotesis.pct_autoconsumo` es la **fuente única** del autoconsumo efectivo en toda la oferta.
   - `gestor/correbin/` — vencimientos de seguros.
   - `gestor/clientes-app/` — App Clientes.

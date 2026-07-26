@@ -14,7 +14,8 @@
     "test:prospeccion": "node scripts/test-prospeccion.mjs",
     "test:visitas": "node scripts/test-visitas.mjs",
     "test:bandeja": "node scripts/test-bandeja.mjs",
-    "test:potencia": "node scripts/test-potencia.mjs"
+    "test:potencia": "node scripts/test-potencia.mjs",
+    "test:parte": "node scripts/test-parte.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.110.0",
