@@ -23,7 +23,13 @@ const eq = (nombre, real, esperado) => {
 const cierto = (nombre, v) => eq(nombre, !!v, true);
 
 const FECHA = '2026-07-24';
-const iso = (hhmm) => `${FECHA}T${hhmm}:00`;
+/** Marca de tiempo tal como la guarda Postgres: en UTC. */
+const iso = (hhmm) => `${FECHA}T${hhmm}:00Z`;
+/** La misma hora, ya en Binéfar (verano: UTC+2). */
+const enBinefar = (hhmm) => {
+  const [h, m] = hhmm.split(':').map(Number);
+  return `${String((h + 2) % 24).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+};
 
 /** Fila de auditoría de mentira, con lo justo. */
 const aud = (o) => ({
@@ -50,7 +56,12 @@ eq('el mapa manda sobre el email', personaDe('n@g.com', { 'n@g.com': 'Nicola' })
 eq('sin usuario es el sistema', personaDe(null), 'Sistema');
 
 console.log('\n── Hora ──');
-eq('saca HH:MM', horaDe('2026-07-24T09:05:00'), '09:05');
+// La auditoría guarda en UTC. Binéfar en julio va a UTC+2: si esto se rompe,
+// el parte enseña dos horas menos y parece que el equipo entra a las seis.
+eq('UTC explícito se pasa a hora de Binéfar (verano)', horaDe('2026-07-24T06:12:00Z'), '08:12');
+eq('sin desfase se asume UTC, no hora local', horaDe('2026-07-24T06:12:00'), '08:12');
+eq('con desfase escrito también', horaDe('2026-07-24T06:12:00+00:00'), '08:12');
+eq('en invierno el desfase es de una hora', horaDe('2026-01-15T09:30:00Z'), '10:30');
 eq('una fecha rota no revienta', horaDe('vete a saber'), '--:--');
 
 console.log('\n── Qué es un avance y qué no ──');
@@ -135,7 +146,7 @@ cierto('...y dice que es un alta', /Alta de cliente/i.test(alta.frase));
 const av = parte.avances[0];
 cierto('la de un avance enseña de dónde a dónde', av.frase.includes('›'));
 eq('...y cuelga de su cliente', av.cliente, 'Granja Norte SL');
-eq('...con la hora', av.hora, '11:40');
+eq('...con la hora ya en horario de Binéfar', av.hora, enBinefar('11:40'));
 
 console.log('\n── Un día sin nada ──');
 const vacio = construirParte({ fecha: FECHA, auditoria: [] });

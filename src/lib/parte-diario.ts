@@ -201,11 +201,30 @@ export function formatearValor(v: unknown): string {
   return s;
 }
 
-/** Hora local 'HH:MM' de una marca de tiempo ISO. */
+/**
+ * Hora de Binéfar 'HH:MM' de una marca de tiempo.
+ *
+ * Dos cuidados, y los dos costaron un parte mal leído:
+ *
+ *  · Postgres guarda `timestamptz` en UTC. Si la cadena llega SIN desfase,
+ *    `new Date()` la interpreta como hora local y el parte enseña dos horas
+ *    menos: en verano parecía que el equipo entraba a las seis de la mañana
+ *    y paraba a mediodía, cuando la jornada real es de 8 a 15.
+ *
+ *  · Y se fuerza Europe/Madrid en vez de la hora del navegador, para que el
+ *    parte diga lo mismo se genere desde donde se genere.
+ */
 export function horaDe(iso: string): string {
-  const d = new Date(iso);
+  const texto = /[Zz]$|[+-]\d{2}:?\d{2}$/.test(iso) ? iso : `${iso}Z`;
+  const d = new Date(texto);
   if (Number.isNaN(d.getTime())) return '--:--';
-  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  try {
+    return new Intl.DateTimeFormat('es-ES', {
+      timeZone: 'Europe/Madrid', hour: '2-digit', minute: '2-digit', hour12: false,
+    }).format(d);
+  } catch {
+    return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`;
+  }
 }
 
 /** De un email a algo que se pueda leer: marcos@... → Marcos */
