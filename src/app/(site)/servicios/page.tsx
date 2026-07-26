@@ -3,7 +3,7 @@ import { Container } from "@/components/container";
 import { PhotoBanner } from "@/components/photo-banner";
 import { FeatureCard } from "@/components/feature-card";
 import { SectionHeading } from "@/components/section-heading";
-import { StatCard } from "@/components/stat-card";
+import { ScrollReveal } from "@/components/scroll-reveal";
 import { services } from "@/lib/data";
 import Link from "next/link";
 
@@ -18,6 +18,8 @@ export default function ServicesPage() {
     <div className="pb-20">
       <section className="pt-10">
         <Container>
+          {/* Sin ScrollReveal: esta banda ya está en pantalla al abrir y
+              revelarla haría que la página empezara en blanco. */}
           <PhotoBanner
             src="/images/asesoria.webp"
             alt="Asesor revisando una factura de luz con un cliente en la oficina"
@@ -31,23 +33,31 @@ export default function ServicesPage() {
 
       <section className="pt-14">
         <Container>
-          <SectionHeading
-            kicker="Servicios"
-            title="Reduce tu factura de luz. Aquí está el cómo."
-          >
-            Análisis de factura, auditorías, solar fotovoltaica y seguimiento continuo.
-            Soluciones adaptadas a tu situación, sin sorpresas.
-          </SectionHeading>
+          <ScrollReveal>
+            <SectionHeading
+              kicker="Servicios"
+              title="Reduce tu factura de luz. Aquí está el cómo."
+            >
+              Análisis de factura, auditorías, solar fotovoltaica y seguimiento continuo.
+              Soluciones adaptadas a tu situación, sin sorpresas.
+            </SectionHeading>
+          </ScrollReveal>
           <div className="mt-10 grid gap-6 md:grid-cols-2">
             {services.map((service, index) => (
-              <FeatureCard
+              <ScrollReveal
                 key={service.title}
-                title={service.title}
-                description={service.summary}
-                badge={`Paso ${index + 1}`}
+                delay={(index % 2) * 90}
+                direction={index % 2 === 0 ? "left" : "right"}
               >
-                <BulletList items={service.items} />
-              </FeatureCard>
+                <FeatureCard
+                  className="h-full"
+                  title={service.title}
+                  description={service.summary}
+                  badge={`Paso ${index + 1}`}
+                >
+                  <BulletList items={service.items} />
+                </FeatureCard>
+              </ScrollReveal>
             ))}
           </div>
         </Container>
@@ -55,6 +65,7 @@ export default function ServicesPage() {
 
       <section className="mt-16">
         <Container className="card rounded-3xl p-10 shadow-soft">
+          <ScrollReveal className="relative" direction="scale">
           <div className="grid gap-6 md:grid-cols-3">
             <div className="flex flex-col gap-2">
               <div className="text-xs font-semibold uppercase tracking-[0.14em] text-accent">
@@ -78,17 +89,18 @@ export default function ServicesPage() {
               </p>
               <p className="font-semibold text-accent-light">Factura · Auditoría · Solar · Seguimiento</p>
             </div>
-            <div className="space-y-3 rounded-2xl border border-border bg-surface/50 p-5 text-sm text-foreground">
-              <div className="font-semibold uppercase tracking-widest text-secondary">🚀 Empieza ahora</div>
-              <p className="text-foreground">
+            <div className="foco space-y-3 rounded-2xl border border-border bg-surface/50 p-5 text-sm text-foreground">
+              <div className="relative font-semibold uppercase tracking-widest text-secondary">🚀 Empieza ahora</div>
+              <p className="relative text-foreground">
                 Analiza tu factura en 2 minutos. Descubre tu potencial de ahorro sin
                 compromiso. Respuesta en 48h.
               </p>
-              <Link href="/analizador" className="font-semibold text-secondary hover:text-secondary/80 transition">
+              <Link href="/analizador" className="enlace-vivo relative font-semibold text-secondary transition hover:text-secondary/80">
                 Herramienta gratuita →
               </Link>
             </div>
           </div>
+          </ScrollReveal>
         </Container>
       </section>
     </div>

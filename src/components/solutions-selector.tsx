@@ -16,7 +16,11 @@ interface SolutionTab {
   description: string;
 }
 
-const SOLUTIONS: SolutionTab[] = [
+/* Cada área con su color completo: el borde y el rótulo activos ya no son
+   siempre rojos, así que la pestaña, su texto y las tarjetas de abajo van del
+   mismo color. Antes las tres pestañas se marcaban en rojo (`border-accent/60`
+   y `text-accent` fijos) aunque la de al lado fuese naranja o cian. */
+const SOLUTIONS: (SolutionTab & { activo: string; texto: string; textoHover: string; halo: string })[] = [
   {
     id: 'energia',
     label: 'Energía',
@@ -25,6 +29,10 @@ const SOLUTIONS: SolutionTab[] = [
     colorBg: 'bg-accent/10',
     company: 'Gesmeco Energía',
     description: 'Asesoría energética, auditorías, solar fotovoltaica',
+    activo: 'border-accent/60',
+    texto: 'text-accent',
+    textoHover: 'group-hover:text-accent',
+    halo: 'shadow-[0_0_30px_rgba(255,51,51,0.20)]',
   },
   {
     id: 'asesoria',
@@ -34,6 +42,10 @@ const SOLUTIONS: SolutionTab[] = [
     colorBg: 'bg-tertiary/10',
     company: 'Asesoría Gesmeco',
     description: 'Fiscal, laboral, contable y administrativa',
+    activo: 'border-tertiary/60',
+    texto: 'text-tertiary',
+    textoHover: 'group-hover:text-tertiary',
+    halo: 'shadow-[0_0_30px_rgba(255,149,0,0.20)]',
   },
   {
     id: 'seguros',
@@ -43,6 +55,10 @@ const SOLUTIONS: SolutionTab[] = [
     colorBg: 'bg-secondary/10',
     company: 'Correbin Asociados',
     description: 'Particulares, empresariales y agrarios',
+    activo: 'border-secondary/60',
+    texto: 'text-secondary',
+    textoHover: 'group-hover:text-secondary',
+    halo: 'shadow-[0_0_30px_rgba(0,212,255,0.20)]',
   },
 ];
 
@@ -67,33 +83,41 @@ export function SolutionsSelector() {
             </p>
           </div>
 
-          {/* Tabs */}
-          <div className="grid grid-cols-3 gap-3 md:gap-4">
+          {/* Pestañas */}
+          <div className="grid grid-cols-3 gap-3 md:gap-4" role="tablist">
             {SOLUTIONS.map((solution) => {
               const isActive = selected === solution.id;
               return (
                 <button
                   key={solution.id}
+                  role="tab"
+                  aria-selected={isActive}
                   onClick={() => setSelected(solution.id)}
-                  className={`group relative overflow-hidden rounded-xl border-2 px-4 py-5 md:px-6 md:py-6 transition-all duration-300 ${
+                  className={`foco group relative overflow-hidden rounded-xl border-2 px-4 py-5 transition-all duration-300 md:px-6 md:py-6 ${
                     isActive
-                      ? `border-accent/60 ${solution.colorBg} shadow-[0_0_30px_rgba(255,51,51,0.2)]`
-                      : 'border-border/40 bg-card/50 hover:border-accent/30 hover:bg-card/70'
+                      ? `${solution.activo} ${solution.colorBg} ${solution.halo}`
+                      : 'border-border/40 bg-card/50 hover:border-foreground/25 hover:bg-card/70'
                   }`}
                 >
-                  {/* Active indicator line */}
-                  {isActive && (
-                    <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-accent via-secondary to-accent" />
-                  )}
+                  {/* La línea de arriba se dibuja siempre y crece cuando la
+                      pestaña está activa: así el cambio se ve como un
+                      movimiento y no como un parpadeo. */}
+                  <div
+                    className={`absolute inset-x-0 top-0 h-1 origin-left bg-gradient-to-r ${solution.color} transition-transform duration-500 ${
+                      isActive ? 'scale-x-100' : 'scale-x-0'
+                    }`}
+                  />
 
                   <div className="relative space-y-2 text-center">
-                    <div className="text-2xl md:text-3xl">{solution.icon}</div>
-                    <h3 className={`text-lg md:text-xl font-black transition-colors ${
-                      isActive ? 'text-accent' : 'text-foreground group-hover:text-accent'
+                    <div className={`text-2xl transition-transform duration-500 md:text-3xl ${isActive ? 'scale-110' : 'group-hover:scale-110'}`}>
+                      {solution.icon}
+                    </div>
+                    <h3 className={`text-lg font-black transition-colors md:text-xl ${
+                      isActive ? solution.texto : `text-foreground ${solution.textoHover}`
                     }`}>
                       {solution.company}
                     </h3>
-                    <p className="text-xs text-muted opacity-75 group-hover:opacity-100 transition-opacity">
+                    <p className="text-xs text-muted opacity-75 transition-opacity group-hover:opacity-100">
                       {solution.description}
                     </p>
                   </div>

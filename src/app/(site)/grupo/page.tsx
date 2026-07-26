@@ -135,40 +135,44 @@ export default function GroupPage() {
         </div>
 
         <Container>
-          <ScrollReveal>
-            <div className="mx-auto max-w-3xl space-y-7 text-center">
-              <div className="inline-flex items-center gap-3 rounded-full border border-accent/25 bg-accent/10 px-5 py-2 backdrop-blur-sm">
-                <span className="h-2 w-2 animate-pulse rounded-full bg-accent" />
-                <span className="text-xs font-bold uppercase tracking-[0.3em] text-accent">
-                  Grupo Gesmeco · Binéfar
-                </span>
-              </div>
-
-              <h1 className="text-4xl font-black leading-[1.08] text-foreground md:text-6xl">
-                Un grupo. Tres formas
-                <br />
-                de cuidar <span className="gradient-text-animated">lo tuyo</span>.
-              </h1>
-
-              <p className="mx-auto max-w-2xl text-lg leading-relaxed text-muted">
-                Tu energía, tus papeles y tus seguros, gestionados por el mismo equipo de
-                confianza. Sin centralitas, sin intermediarios: un despacho de Binéfar que
-                conoce tu nombre y tu negocio.
-              </p>
-
-              <div className="flex flex-wrap justify-center gap-3 pt-2">
-                {EMPRESAS.map((e) => (
-                  <a
-                    key={e.nombre}
-                    href={`#${e.area.toLowerCase()}`}
-                    className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-bold transition-all hover:-translate-y-0.5 ${e.chipClass}`}
-                  >
-                    <span>{e.icono}</span> {e.nombre}
-                  </a>
-                ))}
-              </div>
+          {/* Esta portada ya está en pantalla al abrir, así que entra con la
+              animación de CSS (`.entra`, en cascada) y no con el observador de
+              scroll: revelar por JavaScript lo que ya se ve deja la página en
+              blanco hasta que corre el script. El titular no lleva clases de
+              tamaño porque en la web pública eso lo fija `.web-publica h1`. */}
+          <div className="mx-auto max-w-3xl space-y-7 text-center">
+            <div className="entra inline-flex items-center gap-3 rounded-full border border-accent/25 bg-accent/10 px-5 py-2 backdrop-blur-sm">
+              <span className="h-2 w-2 animate-pulse rounded-full bg-accent" />
+              <span className="text-xs font-bold uppercase tracking-[0.3em] text-accent">
+                Grupo Gesmeco · Binéfar
+              </span>
             </div>
-          </ScrollReveal>
+
+            <h1 className="entra font-black leading-[1.08] text-foreground" style={{ '--d': '110ms' } as React.CSSProperties}>
+              Un grupo. Tres formas
+              <br />
+              de cuidar <span className="gradient-text-animated">lo tuyo</span>.
+            </h1>
+
+            <p className="entra mx-auto max-w-2xl text-lg leading-relaxed text-muted" style={{ '--d': '220ms' } as React.CSSProperties}>
+              Tu energía, tus papeles y tus seguros, gestionados por el mismo equipo de
+              confianza. Sin centralitas, sin intermediarios: un despacho de Binéfar que
+              conoce tu nombre y tu negocio.
+            </p>
+
+            <div className="flex flex-wrap justify-center gap-3 pt-2">
+              {EMPRESAS.map((e, i) => (
+                <a
+                  key={e.nombre}
+                  href={`#${e.area.toLowerCase()}`}
+                  className={`entra inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-bold transition-all hover:-translate-y-0.5 ${e.chipClass}`}
+                  style={{ '--d': `${320 + i * 90}ms` } as React.CSSProperties}
+                >
+                  <span>{e.icono}</span> {e.nombre}
+                </a>
+              ))}
+            </div>
+          </div>
 
         </Container>
       </section>
@@ -224,13 +228,13 @@ export default function GroupPage() {
 
             <div className="grid gap-6 md:grid-cols-3">
               {COMPROMISOS.map((c, i) => (
-                <ScrollReveal key={c.numero} delay={i * 120}>
-                  <div className="group h-full rounded-2xl border border-border/40 bg-card/60 p-7 backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:border-accent/40">
-                    <div className="text-4xl font-black text-accent/25 transition-colors group-hover:text-accent/50">
+                <ScrollReveal key={c.numero} delay={i * 110} direction="blur">
+                  <div className="foco step-card group h-full rounded-2xl border border-border/40 bg-card/60 p-7 backdrop-blur-sm">
+                    <div className="relative cifra text-4xl font-black text-accent/25 transition-colors group-hover:text-accent/60">
                       {c.numero}
                     </div>
-                    <h3 className="mt-3 text-lg font-black text-foreground">{c.titulo}</h3>
-                    <p className="mt-2 text-sm leading-relaxed text-muted">{c.texto}</p>
+                    <h3 className="relative mt-3 text-lg font-black text-foreground">{c.titulo}</h3>
+                    <p className="relative mt-2 text-sm leading-relaxed text-muted">{c.texto}</p>
                   </div>
                 </ScrollReveal>
               ))}

@@ -129,18 +129,31 @@ No hay suite de tests formal; la verificación es `npm run build` + `scripts/smo
 
 ## Estilo: dos sistemas de titulares, a propósito
 
-En `globals.css` los tamaños de titular **estaban sin `@layer`**, y una regla sin capa gana a cualquier utilidad de Tailwind pase lo que pase con la especificidad. Medido antes de arreglarlo: el título del gestor pedía `text-sm` (14 px) y se veía a **56 px, cortado a un quinto de su ancho**; «Agenda» pedía `text-xl` (20 px) y salía a 36. Había **141 titulares en el gestor con una clase de tamaño que no pintaba nada**.
+En `globals.css` los tamaños de titular **estaban sin `@layer`**, y una regla sin capa gana a cualquier utilidad de Tailwind pase lo que pase con la especificidad. Medido antes de arreglarlo: el título del gestor pedía `text-sm` (14 px) y se veía a **56 px, cortado a un quinto de su ancho**; «Agenda» pedía `text-xl` (20 px) y salía a 36. Había **141 titulares en el gestor con una clase de tamaño que no pintaba nada**, y **267 `<p>`/`<li>` con una clase de color que tampoco** (la regla `p, li { color: muted }` iba igual, sin capa).
 
 Ahora hay dos sistemas y cada uno tiene su motivo:
 
-- **La web pública** lleva la clase `web-publica` en su layout, y sus tamaños siguen fijos en CSS **sin capa**. Es un escaparate: interesa que todos los titulares midan lo mismo sin depender de que alguien acierte con la clase. Los valores son exactamente los que ya se veían, así que **la web no cambió ni un píxel**.
-- **El gestor** usa las utilidades de Tailwind. Es una herramienta densa donde cada pantalla necesita su jerarquía y manda quien escribe el JSX.
+- **La web pública** lleva la clase `web-publica` en su layout, y sus tamaños siguen fijos en CSS **sin capa**. Es un escaparate: interesa que todos los titulares midan lo mismo sin depender de que alguien acierte con la clase. Van con `clamp()`, así que bajan solos en móvil (antes el intento de bajarlos vivía en una media query que nunca ganaba, y un titular de 56 px se salía de una pantalla de 375).
+- **El gestor** usa las utilidades de Tailwind. Es una herramienta densa donde cada pantalla necesita su jerarquía y manda quien escribe el JSX. Esto vale también **en móvil**: las reglas `h1`/`h2` que había en las media queries de 768 px se movieron a `@layer base` por lo mismo.
 
-Los tamaños de `@layer base` son solo el valor por defecto: cualquier `text-*` los pisa. Orden de capas resultante: `properties → theme → base → components → utilities`, y sin capa por encima de todas.
+Los defaults de `@layer base` (titulares, `p`, `li`) son solo el valor por defecto: cualquier `text-*` los pisa. Orden de capas resultante: `properties → theme → base → components → utilities`, y sin capa por encima de todas.
 
-**Al tocar estilos del gestor:** las clases `text-*` ya funcionan, no hace falta pelearse con el CSS. **Al tocar la web pública:** los tamaños de titular se cambian en `globals.css`, no en el JSX.
+**Al tocar estilos del gestor:** las clases `text-*` de tamaño y de color ya funcionan, no hace falta pelearse con el CSS. **Al tocar la web pública:** los tamaños de titular se cambian en `globals.css`, no en el JSX. **Aún quedan reglas sin capa** para `input`, `select`, `textarea` y `button` (fondo, borde, radio, tamaño de letra y el brillo del hover): ahí las clases de Tailwind **siguen sin pintar**, así que no escribirlas.
 
 Y para las pantallas de calle hay `btnTactil` / `btnTactilPrimario` en el kit de UI: **44 px de alto mínimo**, que es lo cómodo para el pulgar. En la oficina da igual que un botón mida 30 px porque hay ratón; en la calle se falla y se acaba no usando la pantalla.
+
+## Movimiento en la web pública
+
+Todo el movimiento del escaparate vive en `globals.css`, en la sección «ESCAPARATE — SISTEMA DE MOVIMIENTO», con una sola curva de salida (`--salida`) para que todo frene igual. Piezas reutilizables:
+
+- **`ScrollReveal`** (`src/components/scroll-reveal.tsx`) — revela al entrar en pantalla. Variantes `up` / `down` / `left` / `right` / `scale` / `blur` / `none`. El retardo va en la variable CSS `--sr-delay`, no con `setTimeout`. Si no hay `IntersectionObserver` o el sistema pide reducir movimiento, **muestra el contenido de entrada**: revelar con JavaScript sin plan B deja la página en blanco.
+- **`.entra` / `.entra-dcha` / `.entra-escala`** — entrada al cargar, con `--d` como retardo. Para lo que **ya está en pantalla al abrir** (los heros): ahí no se usa `ScrollReveal`, porque esperar a que corra JavaScript para pintar la primera pantalla es lo peor que se puede hacer.
+- **`.foco`** — brillo que sigue al ratón. Lo enciende `FocoPuntero`, montado una sola vez en el layout con un escuchador delegado (no uno por tarjeta). El degradado va en un `::after` propio para no pisar el `bg-*` del JSX.
+- **`.corriente`**, **`.enlace-vivo`**, **`.borde-vivo`**, **`.baja-la-vista`**, **`.linea-titular`**, **`.cifra`** — separador con pulso de luz, subrayado que crece, borde que se enciende, aviso de que hay más abajo, máscara por línea del titular y cifras tabulares.
+
+**El bloque `prefers-reduced-motion` va al final del archivo y sin capa, para ganar a todo.** El sitio tenía quince animaciones en bucle y ni una línea que atendiera a quien pide no ver movimiento. Al añadir cualquier animación nueva, comprobar que ahí queda apagada **y que lo que dependa de ella siga visible**.
+
+El fondo de puntos (`Background3D`) es un lienzo **transparente**: el degradado de marca lo pone el `body`, en un solo sitio. No volver a pintar el fondo dentro del canvas.
 
 ## Usuarios y permisos
 

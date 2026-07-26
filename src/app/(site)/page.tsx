@@ -53,7 +53,7 @@ const GRUPO = [
 
 export default function HomePage() {
   return (
-    <div className="pb-20 relative">
+    <div className="relative pb-20">
 
       {/* ── HERO: energía como protagonista ── */}
       <div className="relative z-10">
@@ -61,8 +61,12 @@ export default function HomePage() {
       </div>
 
       {/* ── GRUPO GESMECO: un solo equipo, tres áreas ── */}
-      <section className="py-20 relative z-10">
+      <section className="relative z-10 py-20">
         <Container>
+          {/* Separador con un pulso de luz que lo recorre: cierra el hero y
+              abre el contenido. Es la única metáfora literal que se permite el
+              sitio, y viene del negocio: energía pasando por un cable. */}
+          <div className="corriente mb-16" aria-hidden />
           <ScrollReveal>
             <SectionHeading
               kicker="Grupo Gesmeco"
@@ -74,40 +78,43 @@ export default function HomePage() {
           </ScrollReveal>
           <div className="mt-10 grid gap-6 lg:grid-cols-3">
             {GRUPO.map((e, i) => (
-              <ScrollReveal key={e.nombre} delay={i * 120}>
+              <ScrollReveal key={e.nombre} delay={i * 110} direction="blur">
                 <Link
                   href={e.href}
-                  className={`group flex h-full flex-col rounded-2xl border ${e.borde} ${e.fondo} p-6 transition-all duration-300 hover:-translate-y-1 hover:shadow-lg ${
+                  className={`foco borde-vivo group flex h-full flex-col rounded-2xl border ${e.borde} ${e.fondo} p-6 transition-all duration-300 hover:-translate-y-1.5 hover:shadow-lg ${
                     e.destacada ? "ring-1 ring-accent/30 shadow-[0_10px_40px_rgba(255,51,51,0.10)]" : ""
                   }`}
                 >
-                  <div className="flex items-center justify-between gap-3 mb-3">
+                  <div className="relative mb-3 flex items-center justify-between gap-3">
                     <div className="flex items-center gap-3">
-                      <span className="text-3xl">{e.icono}</span>
+                      <span className="text-3xl transition-transform duration-500 group-hover:-translate-y-0.5 group-hover:scale-110">
+                        {e.icono}
+                      </span>
                       <div>
-                        <h3 className="text-lg font-black text-foreground leading-tight">{e.nombre}</h3>
-                        <span className={`inline-block mt-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${e.chip}`}>
+                        <h3 className="text-lg font-black leading-tight text-foreground">{e.nombre}</h3>
+                        <span className={`mt-1 inline-block rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${e.chip}`}>
                           {e.area}
                         </span>
                       </div>
                     </div>
                     {e.destacada && (
-                      <span className="rounded-full bg-accent px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-white shrink-0">
+                      <span className="shrink-0 rounded-full bg-accent px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-white">
                         Principal
                       </span>
                     )}
                   </div>
-                  <p className="text-sm text-muted leading-relaxed">{e.resumen}</p>
-                  <ul className="mt-4 space-y-1.5 text-sm text-muted">
+                  <p className="relative text-sm leading-relaxed text-muted">{e.resumen}</p>
+                  <ul className="relative mt-4 space-y-1.5 text-sm text-muted">
                     {e.puntos.map((p) => (
-                      <li key={p} className="flex items-start gap-2">
-                        <span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-current opacity-60 shrink-0" />
+                      <li key={p} className="flex items-start gap-2 transition-colors group-hover:text-foreground/80">
+                        <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-current opacity-60" />
                         {p}
                       </li>
                     ))}
                   </ul>
-                  <span className="mt-auto pt-4 text-sm font-bold text-foreground/70 transition group-hover:text-foreground">
-                    Saber más →
+                  <span className="relative mt-auto flex items-center gap-1.5 pt-4 text-sm font-bold text-foreground/70 transition group-hover:text-foreground">
+                    Saber más
+                    <span className="transition-transform duration-300 group-hover:translate-x-1.5" aria-hidden>→</span>
                   </span>
                 </Link>
               </ScrollReveal>
@@ -117,7 +124,7 @@ export default function HomePage() {
       </section>
 
       {/* ── QUÉ HACEMOS EN ENERGÍA ── */}
-      <section className="py-4 relative z-10">
+      <section className="relative z-10 py-4">
         <Container>
           <ScrollReveal>
             <SectionHeading
@@ -128,19 +135,27 @@ export default function HomePage() {
               Desde revisar tu factura hasta instalar placas solares. Sin presión, sin sorpresas.
             </SectionHeading>
           </ScrollReveal>
+          {/* Entran alternando lado: en una rejilla de dos columnas, que las
+              cuatro suban igual se lee como una sola cosa; alternando se lee
+              como cuatro servicios distintos. */}
           <div className="mt-10 grid gap-6 md:grid-cols-2">
             {services.slice(0, 4).map((service, i) => (
-              <ScrollReveal key={service.title} delay={i * 100}>
-                <div className="h-full rounded-2xl border border-border/50 bg-surface/60 p-6 backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:border-accent/40">
-                  <h3 className="text-lg font-bold text-foreground mb-3">{service.title}</h3>
-                  <p className="text-sm text-muted mb-3">{service.summary}</p>
-                  <BulletList items={service.items} />
+              <ScrollReveal key={service.title} delay={i * 90} direction={i % 2 === 0 ? "left" : "right"}>
+                {/* `sector-card` es el hover que ya estaba escrito en globals.css
+                    (elevación, halo rojo y un velo en diagonal) y que no se
+                    había llegado a poner en ninguna tarjeta del sitio. */}
+                <div className="sector-card foco h-full rounded-2xl border border-border/50 bg-surface/60 p-6 backdrop-blur-sm">
+                  <h3 className="relative mb-3 text-lg font-bold text-foreground">{service.title}</h3>
+                  <p className="relative mb-3 text-sm text-muted">{service.summary}</p>
+                  <div className="relative">
+                    <BulletList items={service.items} />
+                  </div>
                 </div>
               </ScrollReveal>
             ))}
           </div>
-          <div className="mt-6 text-right text-sm relative z-10">
-            <Link href="/servicios" className="font-semibold text-accent hover:text-accent/80 transition">
+          <div className="relative z-10 mt-6 text-right text-sm">
+            <Link href="/servicios" className="enlace-vivo font-semibold text-accent transition hover:text-accent/80">
               Ver detalle de servicios →
             </Link>
           </div>
@@ -148,9 +163,9 @@ export default function HomePage() {
       </section>
 
       {/* ── BANDA VISUAL: CAMPO Y GANADERÍA ── */}
-      <section className="py-16 relative z-10">
+      <section className="relative z-10 py-16">
         <Container>
-          <ScrollReveal>
+          <ScrollReveal direction="scale">
             <PhotoBanner
               src="/images/granja-solar.webp"
               alt="Nave agrícola con placas solares en el campo de Aragón"
@@ -166,7 +181,7 @@ export default function HomePage() {
       </section>
 
       {/* ── CÓMO TRABAJAMOS ── */}
-      <section className="py-20 relative z-10">
+      <section className="relative z-10 py-20">
         <Container>
           <ScrollReveal>
             <SectionHeading kicker="Cómo trabajamos" title="Pasos claros, sin complicaciones.">
@@ -174,20 +189,24 @@ export default function HomePage() {
               Transparencia total en cada fase.
             </SectionHeading>
           </ScrollReveal>
+          {/* Aquí numerar no es decoración: es una secuencia de verdad y el
+              orden es información que el cliente necesita. */}
           <div className="mt-10 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             {methodology.map((step, index) => (
-              <ScrollReveal key={step.title} delay={index * 100}>
-                <div className="h-full rounded-2xl border border-border/50 bg-surface/60 p-5 backdrop-blur-sm">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent/15 text-sm font-black text-accent border border-accent/30">
+              <ScrollReveal key={step.title} delay={index * 90}>
+                {/* `step-card` (el filete que se pinta de izquierda a derecha al
+                    pasar por encima) también estaba escrito y sin usar. */}
+                <div className="step-card foco group h-full rounded-2xl border border-border/50 bg-surface/60 p-5 backdrop-blur-sm">
+                  <div className="relative mb-3 flex items-center justify-between">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full border border-accent/30 bg-accent/15 text-sm font-black text-accent transition-transform duration-300 group-hover:scale-110">
                       {index + 1}
                     </div>
                     <span className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">
                       Fase {index + 1}
                     </span>
                   </div>
-                  <h3 className="text-base font-bold text-foreground">{step.title}</h3>
-                  <p className="text-sm text-muted mt-2">{step.detail}</p>
+                  <h3 className="relative text-base font-bold text-foreground">{step.title}</h3>
+                  <p className="relative mt-2 text-sm text-muted">{step.detail}</p>
                 </div>
               </ScrollReveal>
             ))}
@@ -196,11 +215,11 @@ export default function HomePage() {
       </section>
 
       {/* ── CTA ── */}
-      <section className="mt-8 px-4 relative z-10">
-        <ScrollReveal>
+      <section className="relative z-10 mt-8 px-4">
+        <ScrollReveal direction="scale">
           <Container>
             <div className="cta-bg relative overflow-hidden rounded-3xl px-8 py-14 text-white shadow-[0_0_80px_rgba(255,51,51,0.2)]">
-              {/* Photo backdrop */}
+              {/* Fotografía de fondo */}
               <Image
                 src="/images/asesoria.webp"
                 alt=""
@@ -210,14 +229,14 @@ export default function HomePage() {
               />
               <div className="absolute inset-0 bg-gradient-to-r from-background/90 via-background/70 to-background/40" />
 
-              {/* Corner decorations */}
+              {/* Escuadras */}
               <div className="absolute left-0 top-0 h-px w-48 bg-gradient-to-r from-accent to-transparent" />
               <div className="absolute left-0 top-0 h-48 w-px bg-gradient-to-b from-accent to-transparent" />
               <div className="absolute bottom-0 right-0 h-px w-48 bg-gradient-to-l from-secondary to-transparent" />
               <div className="absolute bottom-0 right-0 h-48 w-px bg-gradient-to-t from-secondary to-transparent" />
 
               <div className="relative flex flex-col gap-8 md:flex-row md:items-center md:justify-between">
-                <div className="space-y-3 max-w-xl">
+                <div className="max-w-xl space-y-3">
                   <div className="inline-flex items-center gap-2 rounded-full border border-accent/30 bg-accent/10 px-3 py-1">
                     <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-accent" />
                     <span className="text-xs font-bold uppercase tracking-widest text-accent">Empieza ahora</span>
@@ -230,7 +249,7 @@ export default function HomePage() {
                     Diagnóstico personalizado, honesto y gratuito.
                   </p>
                 </div>
-                <div className="flex flex-wrap gap-3 shrink-0">
+                <div className="flex shrink-0 flex-wrap gap-3">
                   <Link
                     href="/analizador"
                     className="inline-flex items-center gap-2 rounded-xl bg-white px-7 py-4 text-base font-black text-[#0f0f1e] shadow-lg transition-all hover:scale-[1.04] hover:shadow-[0_0_30px_rgba(255,255,255,0.3)]"
