@@ -110,8 +110,19 @@ export function zonaMasCercana(lat: number, lon: number): Zona {
   return mejor;
 }
 
-/** Zona de una parada: primero por el pueblo de la dirección; si no se
- *  reconoce y hay coordenadas, la zona más cercana. Con coordenadas nunca es null. */
-export function zonaDeParada(direccion?: string | null, geo?: { lat: number; lon: number } | null): Zona | null {
-  return zonaDeDireccion(direccion) || (geo ? zonaMasCercana(geo.lat, geo.lon) : null);
+/** Zona guardada a mano en la ficha del cliente (o null si no es válida). */
+export function zonaPorId(id?: string | null): Zona | null {
+  return (id && ZONAS.find((z) => z.id === id)) || null;
+}
+
+/** Zona de una parada, por orden de prioridad:
+ *  1. la elegida a mano en la ficha del cliente (manda siempre),
+ *  2. el pueblo reconocido en la dirección,
+ *  3. la zona más cercana por coordenadas (cuando el mapa las ha calculado). */
+export function zonaDeParada(
+  direccion?: string | null,
+  geo?: { lat: number; lon: number } | null,
+  zonaManual?: string | null
+): Zona | null {
+  return zonaPorId(zonaManual) || zonaDeDireccion(direccion) || (geo ? zonaMasCercana(geo.lat, geo.lon) : null);
 }

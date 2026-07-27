@@ -230,6 +230,7 @@ export interface LuzCliente {
   potencial_comercial: string | null;
   origen_cliente: string | null;
   via_entrada?: string | null;
+  zona?: string | null;
   observaciones: string | null;
   fecha_ultimo_contacto: string | null;
   fecha_proxima_accion: string | null;

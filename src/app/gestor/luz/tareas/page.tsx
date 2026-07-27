@@ -12,7 +12,7 @@ import { BotonDescarga, Card, Kpi, Badge, BadgeVencimiento, EstadoCarga, useList
 import { PedirMotivo } from '../motivo';
 import { Consejo } from '../consejo';
 import { anadirARutaDia, tareaEnRuta, leerRutaDia } from '../rutas/ruta-dia';
-import { zonaDeDireccion } from '@/lib/zonas';
+import { zonaDeParada } from '@/lib/zonas';
 import { TableroTareas, bucketDeTarea, BucketTarea } from './tablero';
 import { CalendarioTareas } from './calendario';
 
@@ -187,7 +187,8 @@ export default function TareasLuzPage() {
     if (!t.cliente_id || !TAREAS_ABIERTAS.includes(t.estado)) return null;
     const cli = clientes.datos.find((c) => c.id === t.cliente_id);
     if (!cli) return null;
-    const zona = zonaDeDireccion(cli.direccion_fiscal);
+    // La zona elegida a mano en la ficha del cliente manda sobre la detección
+    const zona = zonaDeParada(cli.direccion_fiscal, null, cli.zona);
     const chipZona = zona ? (
       <span
         className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full border text-[9px] font-bold whitespace-nowrap"

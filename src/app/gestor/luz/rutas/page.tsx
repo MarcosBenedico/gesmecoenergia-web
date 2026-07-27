@@ -105,13 +105,13 @@ export default function RutasPage() {
     const HOY = new Date().toISOString().slice(0, 10);
     const q = buscar.trim().toLowerCase();
     const deResp = (r: string | null) => !fResp || (r || '').toLowerCase().includes(fResp.toLowerCase());
-    const lista: (Parada & { tipo: 'cliente' | 'cups'; prioridad?: string; fecha_ultimo_contacto?: string | null; interesFV?: boolean; via_entrada?: string | null })[] = [];
+    const lista: (Parada & { tipo: 'cliente' | 'cups'; prioridad?: string; fecha_ultimo_contacto?: string | null; interesFV?: boolean; via_entrada?: string | null; zonaManual?: string | null })[] = [];
 
     for (const c of clientes.datos) {
       if (!c.direccion_fiscal?.trim()) continue;
       if (!deResp(c.responsable)) continue;
       if (q && !c.nombre.toLowerCase().includes(q)) continue;
-      lista.push({ id: `c-${c.id}`, cliente_id: c.id, nombre: c.nombre, direccion: c.direccion_fiscal, tipo: 'cliente', prioridad: c.prioridad, fecha_ultimo_contacto: c.fecha_ultimo_contacto, interesFV: interesadosFV.has(c.id), via_entrada: c.via_entrada });
+      lista.push({ id: `c-${c.id}`, cliente_id: c.id, nombre: c.nombre, direccion: c.direccion_fiscal, tipo: 'cliente', prioridad: c.prioridad, fecha_ultimo_contacto: c.fecha_ultimo_contacto, interesFV: interesadosFV.has(c.id), via_entrada: c.via_entrada, zonaManual: c.zona });
     }
     for (const s of cups.datos) {
       if (!s.direccion_suministro?.trim()) continue;
@@ -119,14 +119,14 @@ export default function RutasPage() {
       const nombre = `${s.luz_clientes?.nombre || 'Cliente'} · ${s.alias_suministro || s.cups.slice(0, 10) + '…'}`;
       if (q && !nombre.toLowerCase().includes(q)) continue;
       const clientePadre = clientes.datos.find((c) => c.id === s.cliente_id);
-      lista.push({ id: `s-${s.id}`, cliente_id: s.cliente_id, nombre, direccion: s.direccion_suministro, tipo: 'cups', prioridad: s.prioridad || s.luz_clientes?.prioridad, fecha_ultimo_contacto: clientePadre?.fecha_ultimo_contacto, interesFV: interesadosFV.has(s.cliente_id), via_entrada: clientePadre?.via_entrada });
+      lista.push({ id: `s-${s.id}`, cliente_id: s.cliente_id, nombre, direccion: s.direccion_suministro, tipo: 'cups', prioridad: s.prioridad || s.luz_clientes?.prioridad, fecha_ultimo_contacto: clientePadre?.fecha_ultimo_contacto, interesFV: interesadosFV.has(s.cliente_id), via_entrada: clientePadre?.via_entrada, zonaManual: clientePadre?.zona });
     }
 
     // Filtro de vista rápida (afecta al mapa y a la lista a la vez)
     const filtrada = lista.filter((p) => {
       // Filtro por zona de actuación (pueblo de la dirección o, con el mapa cargado, la más cercana)
       if (fZona) {
-        const z = zonaDeParada(p.direccion, geoPuntos[p.id]);
+        const z = zonaDeParada(p.direccion, geoPuntos[p.id], p.zonaManual);
         if (fZona === 'sin' ? z != null : z?.id !== fZona) return false;
       }
       // Filtro por día de visita: usa el historial guardado en luz_visitas
@@ -332,7 +332,7 @@ export default function RutasPage() {
               <div className="space-y-1.5 max-h-[32rem] overflow-y-auto pr-1">
                 {paradasDisponibles.map((p) => {
                   const marcada = seleccion.has(p.id);
-                  const zona = zonaDeParada(p.direccion, geoPuntos[p.id]);
+                  const zona = zonaDeParada(p.direccion, geoPuntos[p.id], p.zonaManual);
                   return (
                     <label key={p.id} className={`flex items-center gap-2.5 p-2.5 rounded-lg border cursor-pointer transition ${
                       marcada ? 'border-accent/50 bg-accent/10' : 'border-border/30 bg-card/50 hover:border-border/60'

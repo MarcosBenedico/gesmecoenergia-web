@@ -16,6 +16,7 @@ export interface ParadaMapa {
   id: string; nombre: string; direccion: string; cliente_id: string;
   prioridad?: string; tipo: 'cliente' | 'cups'; fecha_ultimo_contacto?: string | null;
   interesFV?: boolean;
+  zonaManual?: string | null;
 }
 
 const HOY = () => new Date().toISOString().slice(0, 10);
@@ -175,8 +176,8 @@ export function MapaRutas({ paradas, seleccion, onAlternar, orden, origenGeo, or
       const enRuta = ordenMap.get(p.id);
       const marcada = seleccion.has(p.id);
       const visitadoHoy = p.fecha_ultimo_contacto === HOY();
-      // Con coordenadas la zona está garantizada: pueblo reconocido o la más cercana
-      const zona = zonaDeParada(p.direccion, geo);
+      // Zona: la elegida a mano en la ficha manda; si no, pueblo reconocido o la más cercana
+      const zona = zonaDeParada(p.direccion, geo, p.zonaManual);
       const color = visitadoHoy ? '#10b981' : marcada ? '#3b82f6' : p.interesFV ? '#eab308' : COLOR_PRIORIDAD[p.prioridad || 'C'];
       // Anillo: negro si está en la ruta calculada; si no, el color de su zona de actuación
       const anillo = enRuta ? '#111827' : zona?.color;

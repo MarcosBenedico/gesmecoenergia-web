@@ -14,6 +14,7 @@ import {
 import { PedirMotivo } from '../../motivo';
 import { supabase } from '@/lib/supabase';
 import { useUsuario } from '@/lib/usuario';
+import { ZONAS, zonaDeDireccion, zonaPorId } from '@/lib/zonas';
 
 /* ══════════════ Próxima acción: dato único sincronizado con el Pipeline ══════════════ */
 export function ProximaAccion({ cliente, oportunidades, onGuardado }: {
@@ -610,6 +611,81 @@ export function SeguimientoCliente({ cliente, onRecargar }: {
           )}
         </div>
       )}
+    </Card>
+  );
+}
+
+/* ══════════════ Zona de actuación: elegir a mano con un clic ══════════════ */
+/* Si se elige una zona, manda sobre la detección automática por dirección.
+   "Automática" deja que la web la deduzca del pueblo o de la cercanía en el mapa. */
+export function ZonaCliente({ cliente, onRecargar }: {
+  cliente: LuzCliente;
+  onRecargar: () => void;
+}) {
+  const [guardando, setGuardando] = useState('');
+  const [err, setErr] = useState('');
+
+  const manual = zonaPorId(cliente.zona);
+  const detectada = zonaDeDireccion(cliente.direccion_fiscal);
+  const efectiva = manual || detectada;
+
+  async function elegir(id: string | null) {
+    setGuardando(id || 'auto'); setErr('');
+    const e = await guardarLuz('clientes', 'PUT', { id: cliente.id, zona: id });
+    setGuardando('');
+    if (e) {
+      setErr(/zona|column/i.test(e) ? 'Falta la columna de zona: ejecuta supabase_zona_cliente.sql en Supabase.' : e);
+      return;
+    }
+    onRecargar();
+  }
+
+  return (
+    <Card>
+      <div className="flex items-center justify-between gap-2 flex-wrap mb-2">
+        <h3 className="font-bold text-foreground">🗂️ Zona de actuación</h3>
+        {efectiva ? (
+          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-[11px] font-bold"
+            style={{ borderColor: `${efectiva.color}66`, color: efectiva.color, background: `${efectiva.color}14` }}>
+            <span className="w-2 h-2 rounded-full inline-block" style={{ background: efectiva.color }} />
+            {efectiva.nombre} {manual ? '(elegida a mano)' : '(automática)'}
+          </span>
+        ) : (
+          <span className="text-[11px] font-bold text-amber-300">Sin zona: elígela abajo</span>
+        )}
+      </div>
+
+      <p className="text-[11px] text-muted mb-2">
+        Sirve para agrupar visitas y montar rutas eficientes. Pulsa una zona para fijarla a mano.
+      </p>
+
+      <div className="flex flex-wrap gap-1.5">
+        <button
+          onClick={() => elegir(null)}
+          disabled={guardando !== ''}
+          className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold border transition ${
+            !cliente.zona ? 'bg-accent text-white border-accent' : 'bg-card/70 text-muted border-border/50 hover:text-foreground'
+          }`}
+          title={detectada ? `Automática: ahora detecta «${detectada.nombre}»` : 'Automática: se deduce del pueblo de la dirección o de su posición en el mapa'}
+        >
+          {guardando === 'auto' ? '…' : '🤖 Automática'}
+        </button>
+        {ZONAS.map((z) => (
+          <button
+            key={z.id}
+            onClick={() => elegir(z.id)}
+            disabled={guardando !== ''}
+            className="px-2.5 py-1.5 rounded-lg text-[11px] font-bold border transition"
+            style={cliente.zona === z.id
+              ? { background: z.color, borderColor: z.color, color: '#fff' }
+              : { borderColor: `${z.color}55`, color: z.color, background: `${z.color}12` }}
+          >
+            {guardando === z.id ? '…' : z.nombre}
+          </button>
+        ))}
+      </div>
+
+      {err && <p className="text-xs text-red-400 mt-2">{err}</p>}
     </Card>
   );
 }

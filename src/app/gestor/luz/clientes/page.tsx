@@ -8,6 +8,7 @@ import {
   LuzCliente, LuzCups, TIPOS_CLIENTE, TIPO_CLIENTE_LABEL, PRIORIDADES, PRIORIDAD_LABEL,
   ESTADOS_CLIENTE, ESTADO_CLIENTE_LABEL, VIA_ENTRADA_CORTA, fmtKwh, fmtFecha,
 } from '@/lib/luz';
+import { ZONAS, zonaDeParada } from '@/lib/zonas';
 import { Card, BadgePrioridad, Badge, EstadoCarga, useListaLuz, guardarLuz, inputCls, labelCls, btnPrimario, btnSecundario, SelectorResponsable } from '../ui';
 
 const FORM_VACIO = {
@@ -28,6 +29,7 @@ function ClientesLuzContenido() {
   const [fResp, setFResp] = useState('');
   const [fEspecial, setFEspecial] = useState('');
   const [fVia, setFVia] = useState('');
+  const [fZona, setFZona] = useState('');
   const [fDesde, setFDesde] = useState('');
   const [fHasta, setFHasta] = useState('');
   const [mostrarForm, setMostrarForm] = useState(false);
@@ -61,11 +63,15 @@ function ClientesLuzContenido() {
     if (fEspecial === 'sin_accion' && c.proxima_accion) return false;
     if (fEspecial === 'a_sin_seguimiento' && !(c.prioridad === 'A' && !c.proxima_accion)) return false;
     if (fVia && (c.via_entrada || 'captacion') !== fVia) return false;
+    if (fZona) {
+      const z = zonaDeParada(c.direccion_fiscal, null, c.zona);
+      if (fZona === 'sin' ? z != null : z?.id !== fZona) return false;
+    }
     const alta = (c.creado_en || '').slice(0, 10);
     if (fDesde && alta < fDesde) return false;
     if (fHasta && alta > fHasta) return false;
     return true;
-  }), [clientes.datos, fPrioridad, fEstado, fTipo, fResp, fEspecial, fVia, fDesde, fHasta]);
+  }), [clientes.datos, fPrioridad, fEstado, fTipo, fResp, fEspecial, fVia, fZona, fDesde, fHasta]);
 
   async function crear(e: React.FormEvent) {
     e.preventDefault();
@@ -160,6 +166,11 @@ function ClientesLuzContenido() {
             <option value="">Tipo: todos</option>
             {TIPOS_CLIENTE.map((t) => <option key={t} value={t}>{TIPO_CLIENTE_LABEL[t]}</option>)}
           </select>
+          <select className={selCls} value={fZona} onChange={(e) => setFZona(e.target.value)}>
+            <option value="">Zona: todas</option>
+            {ZONAS.map((z) => <option key={z.id} value={z.id}>{z.nombre}</option>)}
+            <option value="sin">Sin zona</option>
+          </select>
           <select className={selCls} value={fResp} onChange={(e) => setFResp(e.target.value)}>
             <option value="">Responsable: todos</option>
             {responsables.map((r) => <option key={r} value={r}>{r}</option>)}
@@ -199,6 +210,7 @@ function ClientesLuzContenido() {
                 <th className="px-3 py-3 text-right">Consumo anual</th>
                 <th className="px-3 py-3">Comercializadora</th>
                 <th className="px-3 py-3">Estado</th>
+                <th className="px-3 py-3">Zona</th>
                 <th className="px-3 py-3">Responsable</th>
                 <th className="px-3 py-3">Próxima acción</th>
                 <th className="px-3 py-3">Alta</th>
@@ -227,6 +239,23 @@ function ClientesLuzContenido() {
                       >
                         {ESTADOS_CLIENTE.map((es) => <option key={es} value={es}>{ESTADO_CLIENTE_LABEL[es]}</option>)}
                       </select>
+                    </td>
+                    <td className="px-3 py-2">
+                      {(() => {
+                        const z = zonaDeParada(c.direccion_fiscal, null, c.zona);
+                        return (
+                          <select
+                            value={c.zona || ''}
+                            onChange={async (e) => { await guardarLuz('clientes', 'PUT', { id: c.id, zona: e.target.value || null }); clientes.recargar(); }}
+                            className="rounded-md border bg-background/60 px-1.5 py-0.5 text-[11px] font-semibold max-w-32"
+                            style={z ? { borderColor: `${z.color}66`, color: z.color } : undefined}
+                            title={c.zona ? 'Zona fijada a mano' : z ? `Detectada automáticamente: ${z.nombre}` : 'Sin zona'}
+                          >
+                            <option value="">{z ? `🤖 ${z.nombre}` : '— Sin zona —'}</option>
+                            {ZONAS.map((x) => <option key={x.id} value={x.id}>{x.nombre}</option>)}
+                          </select>
+                        );
+                      })()}
                     </td>
                     <td className="px-3 py-2">
                       <SelectorResponsable valor={c.responsable} onCambio={async (v) => { await guardarLuz('clientes', 'PUT', { id: c.id, responsable: v }); clientes.recargar(); }} />

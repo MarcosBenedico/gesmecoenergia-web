@@ -16,7 +16,7 @@ import {
   Card, Badge, BadgePrioridad, BadgeVencimiento, EstadoCarga, useListaLuz, guardarLuz,
   inputCls, labelCls, btnPrimario, btnSecundario, SelectorResponsable,
 } from '../../ui';
-import { ProximaAccion, TareasCliente, HistorialCliente, VisitasYFV, SeguimientoCliente } from './componentes';
+import { ProximaAccion, TareasCliente, HistorialCliente, VisitasYFV, SeguimientoCliente, ZonaCliente } from './componentes';
 import { PedirMotivo } from '../../motivo';
 
 const CUPS_VACIO = {
@@ -373,6 +373,9 @@ export default function FichaClienteLuz() {
         oportunidades={pipeline.datos}
         onGuardado={() => { clientes.recargar(); pipeline.recargar(); }}
       />
+
+      {/* ── Zona de actuación (manual o automática) ── */}
+      <ZonaCliente cliente={cliente} onRecargar={() => clientes.recargar()} />
 
       {/* ── Visitas + fotovoltaica y seguimiento con historial ── */}
       <div className="grid lg:grid-cols-2 gap-4 items-start">
