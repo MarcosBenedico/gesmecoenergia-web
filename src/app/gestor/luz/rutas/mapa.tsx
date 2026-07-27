@@ -199,6 +199,8 @@ export function MapaRutas({ paradas, seleccion, onAlternar, orden, origenGeo, or
   const capaMarcadores = useRef<import('leaflet').LayerGroup | null>(null);
   const capaRuta = useRef<import('leaflet').Polyline | null>(null);
   const capaOrigen = useRef<import('leaflet').Marker | null>(null);
+  /** Firma del último encuadre automático: evita re-encuadrar al repintar. */
+  const encuadrado = useRef('');
 
   const [puntos, setPuntos] = useState<Record<string, { lat: number; lon: number } | null>>({});
   const [cargando, setCargando] = useState(false);
@@ -218,7 +220,12 @@ export function MapaRutas({ paradas, seleccion, onAlternar, orden, origenGeo, or
    */
   const [verClientes, setVerClientes] = useState(true);
   const [verObjetivos, setVerObjetivos] = useState(false);
-  const [zoom, setZoom] = useState(10);
+  /**
+   * Solo interesa si el mapa está lejos o cerca (umbral 12), que es lo que
+   * decide cómo se dibujan los objetivos. Guardar el zoom exacto obligaba a
+   * repintar el mapa entero en CADA rueda del ratón, sin ninguna ganancia.
+   */
+  const [lejos, setLejos] = useState(true);
 
   /** Geocodifica (una vez) las paradas visibles con el filtro actual. */
   const cargarUbicaciones = useCallback(async () => {
@@ -261,8 +268,8 @@ export function MapaRutas({ paradas, seleccion, onAlternar, orden, origenGeo, or
       capaMarcadores.current = L.layerGroup().addTo(mapa);
       // Con el mapa muy alejado los objetivos se pintan como puntos: si no, no
       // se ve el terreno por encima de los pines.
-      mapa.on('zoomend', () => setZoom(mapa.getZoom()));
-      setZoom(mapa.getZoom());
+      mapa.on('zoomend', () => setLejos(mapa.getZoom() < 12));
+      setLejos(mapa.getZoom() < 12);
       mapaObj.current = mapa;
       // Recalcular tamaño en cuanto el navegador pinte el contenedor con su altura real
       requestAnimationFrame(() => mapa.invalidateSize());
@@ -440,7 +447,7 @@ export function MapaRutas({ paradas, seleccion, onAlternar, orden, origenGeo, or
       const yaEsta = !!prospectosAnadidos?.[pr.id];
       const cat = categoriaDeNaves(pr.n_edificios);
       const marker = L.marker([pr.lat, pr.lon], {
-        icon: iconoObjetivo(pr, yaEsta, zoom < 12),
+        icon: iconoObjetivo(pr, yaEsta, lejos),
         // Por debajo de las paradas: los clientes mandan sobre los candidatos
         zIndexOffset: -200,
       }).addTo(capaMarcadores.current!);
@@ -521,11 +528,25 @@ export function MapaRutas({ paradas, seleccion, onAlternar, orden, origenGeo, or
       }
     }
 
-    if (bounds.length > 0) {
+    /**
+     * Encuadrar SOLO cuando cambia lo que hay que ver: al cargar las
+     * ubicaciones, al calcular una ruta o al cambiar el punto de salida.
+     *
+     * Antes se encuadraba en cada repintado, y como el repintado también se
+     * dispara al terminar un zoom, el mapa se acercaba y acto seguido volvía
+     * él solo al encuadre inicial.
+     */
+    const firma = JSON.stringify([
+      Object.keys(puntos).sort(),
+      (orden || []).map((o) => o.id),
+      origenGeo,
+    ]);
+    if (bounds.length > 0 && firma !== encuadrado.current) {
+      encuadrado.current = firma;
       mapa.invalidateSize(); // por si el contenedor acaba de hacerse visible
       try { mapa.fitBounds(bounds as [number, number][], { padding: [30, 30], maxZoom: 14 }); } catch { /* rango insuficiente */ }
     }
-  }, [puntos, seleccion, orden, origenGeo, paradas, modoManual, origenTexto, pintar, prospectos, prospectosAnadidos, capa, ocultarVisitados, verClientes, verObjetivos, zoom]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [puntos, seleccion, orden, origenGeo, paradas, modoManual, origenTexto, pintar, prospectos, prospectosAnadidos, capa, ocultarVisitados, verClientes, verObjetivos, lejos]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const visitadasHoy = paradas.filter((p) => puntos[p.id] && p.fecha_ultimo_contacto === HOY()).length;
   const ubicadas = Object.values(puntos).filter(Boolean).length;
@@ -664,7 +685,7 @@ export function MapaRutas({ paradas, seleccion, onAlternar, orden, origenGeo, or
               </button>
             )}
 
-            {verObjetivos && zoom < 12 && (
+            {verObjetivos && lejos && (
               <p className="max-w-[13rem] px-3 py-2 rounded-lg bg-violet-600/90 text-white text-xs font-bold shadow-lg">
                 Acércate para verlos con su número de naves.
               </p>
