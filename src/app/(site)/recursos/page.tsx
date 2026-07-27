@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Button } from "@/components/button";
 import { Container } from "@/components/container";
+import { ScrollReveal } from "@/components/scroll-reveal";
 import { SectionHeading } from "@/components/section-heading";
 
 export const metadata = {
@@ -65,42 +66,49 @@ export default function ResourcesPage() {
           </SectionHeading>
 
           <div className="grid gap-4 md:grid-cols-3">
-            {resources.map((res) => (
-              <Link
-                key={res.title}
-                href={res.href}
-                className="card group flex flex-col gap-3 rounded-2xl p-5 transition hover:-translate-y-1 hover:shadow-soft"
-              >
-                <div className="text-xs font-semibold uppercase tracking-[0.14em] text-rose-700">
-                  Gratis
-                </div>
-                <div className="text-lg font-semibold text-foreground">{res.title}</div>
-                <p className="text-sm text-muted">{res.description}</p>
-                <span className="mt-auto text-sm font-semibold text-accent transition group-hover:text-accent-light">
-                  {res.action}
-                </span>
-              </Link>
+            {resources.map((res, i) => (
+              <ScrollReveal key={res.title} delay={i * 90} direction="blur">
+                <Link
+                  href={res.href}
+                  className="card foco group flex h-full flex-col gap-3 rounded-2xl p-5"
+                >
+                  <div className="relative text-xs font-semibold uppercase tracking-[0.14em] text-accent-light">
+                    Gratis
+                  </div>
+                  <div className="relative text-lg font-semibold text-foreground">{res.title}</div>
+                  <p className="relative text-sm text-muted">{res.description}</p>
+                  <span className="relative mt-auto flex items-center gap-1.5 text-sm font-semibold text-accent transition group-hover:text-accent-light">
+                    {res.action.replace(' →', '')}
+                    <span className="transition-transform duration-300 group-hover:translate-x-1.5" aria-hidden>→</span>
+                  </span>
+                </Link>
+              </ScrollReveal>
             ))}
           </div>
 
           <div>
-            <SectionHeading kicker="Guía rápida" title="Tu factura, explicada en cristiano.">
-              Tres conceptos que aparecen en todas las facturas y casi nadie explica.
-            </SectionHeading>
+            <ScrollReveal>
+              <SectionHeading kicker="Guía rápida" title="Tu factura, explicada en cristiano.">
+                Tres conceptos que aparecen en todas las facturas y casi nadie explica.
+              </SectionHeading>
+            </ScrollReveal>
             <div className="mt-8 grid gap-4 md:grid-cols-3">
-              {guias.map((g) => (
-                <div key={g.title} className="card rounded-2xl border border-border p-5">
-                  <div className="text-base font-bold text-foreground">{g.title}</div>
-                  <p className="mt-2 text-sm leading-relaxed text-muted">{g.texto}</p>
-                </div>
+              {guias.map((g, i) => (
+                <ScrollReveal key={g.title} delay={i * 90}>
+                  <div className="card foco h-full rounded-2xl border border-border p-5">
+                    <div className="relative text-base font-bold text-foreground">{g.title}</div>
+                    <p className="relative mt-2 text-sm leading-relaxed text-muted">{g.texto}</p>
+                  </div>
+                </ScrollReveal>
               ))}
             </div>
           </div>
 
+          <ScrollReveal direction="scale">
           <div className="rounded-3xl bg-neutral-900 px-6 py-8 text-white shadow-soft">
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
               <div>
-                <div className="text-xs font-semibold uppercase tracking-[0.16em] text-rose-100">
+                <div className="text-xs font-semibold uppercase tracking-[0.16em] text-accent-light">
                   ¿Dudas con tu factura?
                 </div>
                 <h3 className="text-2xl font-semibold">Te la explicamos por teléfono, sin compromiso.</h3>
@@ -122,6 +130,7 @@ export default function ResourcesPage() {
               </div>
             </div>
           </div>
+          </ScrollReveal>
         </Container>
       </section>
     </div>

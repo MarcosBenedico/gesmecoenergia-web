@@ -70,8 +70,16 @@
   --radius-xl: var(--radius-xl);
 }
 
+/* Transición por defecto en todo.
+   Iba en `all`, que obliga al navegador a vigilar TODAS las propiedades
+   animables de TODOS los elementos y además anima cosas que nadie quería
+   (anchos, altos, el hueco de un grid al redimensionar). Se acota a lo que
+   de verdad se transiciona en este sitio: color, fondo, borde, sombra,
+   opacidad y transform. Comprobado que nada del proyecto animaba tamaños. */
 * {
-  transition: var(--transition);
+  transition-property: color, background-color, border-color, box-shadow, opacity, transform, fill, stroke;
+  transition-duration: 0.3s;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 html {
@@ -85,12 +93,21 @@ html {
     background-attachment: scroll;
   }
 
-  h1 {
-    font-size: 2.25rem;
-  }
+  /* Estos dos tamaños iban aquí fuera de capa, y por tanto ganaban a cualquier
+     clase `text-*`: en el móvil del gestor TODOS los h1 medían 36 px y todos
+     los h2 28 px, dijera lo que dijera el JSX. Es el mismo fallo que se arregló
+     en el escritorio, que se había quedado vivo por debajo de 768 px. Dentro de
+     `@layer base` siguen siendo el valor por defecto y cualquier utilidad los
+     pisa. La web pública no depende de esto: usa la escala fluida de
+     `.web-publica`, que gana por especificidad. */
+  @layer base {
+    h1 {
+      font-size: 2.25rem;
+    }
 
-  h2 {
-    font-size: 1.75rem;
+    h2 {
+      font-size: 1.75rem;
+    }
   }
 }
 
@@ -146,33 +163,80 @@ a {
   text-decoration: none;
 }
 
-p,
-li {
-  color: var(--color-muted);
-  line-height: 1.6;
+/* Color de apoyo por defecto para el texto corrido.
+   Iba fuera de capa, y por tanto ganaba a las utilidades: medido, había **267**
+   `<p>` y `<li>` en el proyecto con una clase de color escrita a mano que no
+   pintaba nada. Entre ellos el titular del panel del hero, que pedía blanco y
+   se veía gris. Dentro de `@layer base` sigue siendo el valor por defecto —los
+   miles de párrafos sin clase no cambian— y quien escriba `text-foreground`
+   consigue lo que pide. Es el mismo arreglo que se hizo con los titulares. */
+@layer base {
+  p,
+  li {
+    color: var(--color-muted);
+    line-height: 1.6;
+  }
 }
 
-h1, h2, h3, h4, h5, h6 {
-  font-weight: 700;
-  letter-spacing: -0.8px;
-  line-height: 1.1;
-  color: var(--color-foreground);
+/* ═══════════════════════════════════════════════════════════════════════════
+   TITULARES: DOS SISTEMAS, A PROPÓSITO
+
+   Antes estos tamaños estaban aquí sin `@layer`, y una regla sin capa gana a
+   cualquier utilidad de Tailwind pase lo que pase con la especificidad. El
+   resultado, medido: el título del gestor pedía `text-sm` (14 px) y se veía a
+   56 px, cortado a un quinto de su ancho; «Agenda» pedía `text-xl` (20 px) y
+   salía a 36. Había 141 titulares en el gestor con una clase de tamaño que no
+   pintaba nada. Clases muertas que la gente escribe y revisa para nada.
+
+   Ahora hay dos sistemas y cada uno tiene su motivo:
+
+   · LA WEB PÚBLICA (`.web-publica`) mantiene la escala fija en CSS, sin capa.
+     Es un escaparate: interesa que todos los titulares midan lo mismo pase lo
+     que pase, y que no dependa de que alguien acierte con la clase. Los
+     tamaños de aquí son EXACTAMENTE los que ya se veían, así que la web no
+     cambia ni un píxel.
+
+   · EL GESTOR usa las utilidades de Tailwind. Es una herramienta densa donde
+     cada pantalla necesita su jerarquía, y ahí manda quien escribe el JSX.
+
+   Los tamaños de `@layer base` son solo el valor por defecto: cualquier clase
+   `text-*` los pisa, que es justo lo que se quiere.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@layer base {
+  h1, h2, h3, h4, h5, h6 {
+    font-weight: 700;
+    letter-spacing: -0.8px;
+    line-height: 1.1;
+    color: var(--color-foreground);
+  }
+
+  h1 { font-size: 3.5rem; font-weight: 800; letter-spacing: -1px; }
+  h2 { font-size: 2.25rem; font-weight: 700; }
+  h3 { font-size: 1.5rem; font-weight: 600; }
 }
 
-h1 {
-  font-size: 3.5rem;
-  font-weight: 800;
-  letter-spacing: -1px;
+/* La escala del escaparate, sin capa y por tanto intocable desde el JSX.
+   Los máximos son EXACTAMENTE los tamaños que ya se veían en escritorio
+   (3.5 / 2.25 / 1.5 rem), así que en un monitor no cambia ni un píxel. Lo que
+   cambia es el móvil: antes el intento de bajarlos vivía en una media query
+   que nunca se aplicaba (misma especificidad y declarada antes, así que perdía),
+   y un titular de 56 px en una pantalla de 375 px se sale de la caja. Con
+   `clamp()` se resuelve en un solo sitio y sin puntos de ruptura. */
+.web-publica h1 { font-size: clamp(2.125rem, 5.2vw, 3.5rem); font-weight: 800; letter-spacing: -1px; }
+.web-publica h2 { font-size: clamp(1.625rem, 3.2vw, 2.25rem); font-weight: 700; }
+.web-publica h3 { font-size: clamp(1.25rem, 1.8vw, 1.5rem); font-weight: 600; }
+
+/* Que ningún titular deje una palabra sola en la última línea. Es gratis y es
+   la diferencia entre un titular que parece maquetado y uno que parece roto. */
+.web-publica h1,
+.web-publica h2,
+.web-publica h3 {
+  text-wrap: balance;
 }
 
-h2 {
-  font-size: 2.25rem;
-  font-weight: 700;
-}
-
-h3 {
-  font-size: 1.5rem;
-  font-weight: 600;
+.web-publica p {
+  text-wrap: pretty;
 }
 
 /* Cards mejoradas */
@@ -204,15 +268,21 @@ h3 {
   border-color: var(--color-accent);
 }
 
-/* Mobile vertical: Compact layout */
+/* Mobile vertical: Compact layout.
+   Pilla también móviles pequeños en vertical (un iPhone SE mide 375×667), que
+   es para lo que se escribió. Los titulares van en `@layer base` por lo mismo
+   que arriba: aquí fuera aplastaban a 15 px cualquier h2/h3/h4 del gestor
+   aunque el JSX pidiera otra cosa. */
 @media (max-width: 768px) and (max-height: 700px) {
   .card {
     padding: 1rem !important;
   }
 
-  h2, h3, h4 {
-    font-size: 0.95rem;
-    margin-bottom: 0.5rem;
+  @layer base {
+    h2, h3, h4 {
+      font-size: 0.95rem;
+      margin-bottom: 0.5rem;
+    }
   }
 
   .space-y-6 > * + * {
@@ -454,7 +524,9 @@ input:focus, textarea:focus, select:focus {
   50%       { transform: translate(50px, 25px); opacity: 0.9; }
 }
 
-/* Scan line */
+/* Línea de barrido.
+   Estaba escrita y sin usar. Encaja: lo que vende la casa es leer una factura
+   línea a línea, y una línea que recorre la pantalla dice justo eso. */
 .hero-scan {
   animation: scan-travel 8s linear infinite;
   top: 0;
@@ -527,18 +599,211 @@ input:focus, textarea:focus, select:focus {
   100% { background-position: 200% 0; }
 }
 
-/* ══════════════════════════════════════
-   SCROLL REVEAL
-══════════════════════════════════════ */
+/* ══════════════════════════════════════════════════════════════════════════
+   ESCAPARATE — SISTEMA DE MOVIMIENTO
+
+   Una sola curva de salida para todo el sitio (`--salida`), que es una expo-out:
+   arranca rápido y frena largo. Es lo que hace que una entrada parezca cara en
+   vez de parecer un `ease` de fábrica. Los retardos van en variables CSS y no
+   con `setTimeout`, para que el navegador los resuelva en el compositor y no
+   haya saltos si el hilo principal está ocupado.
+══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  --salida: cubic-bezier(0.16, 1, 0.3, 1);
+  --salida-suave: cubic-bezier(0.33, 1, 0.68, 1);
+}
+
+/* ── Revelado al hacer scroll ── */
 
 .sr-element {
   opacity: 0;
   transform: var(--sr-transform, translateY(24px));
-  transition: opacity 0.7s ease, transform 0.7s ease;
+  filter: var(--sr-filter, none);
+  transition:
+    opacity 0.8s var(--salida) var(--sr-delay, 0ms),
+    transform 0.8s var(--salida) var(--sr-delay, 0ms),
+    filter 0.8s var(--salida) var(--sr-delay, 0ms);
+  will-change: opacity, transform;
 }
 .sr-element.sr-visible {
   opacity: 1;
   transform: none;
+  filter: none;
+  will-change: auto;
+}
+
+/* ── Entrada al cargar (el hero) ──
+   Misma idea que el revelado, pero disparada por CSS y no por observador:
+   lo que está en pantalla al abrir no debe esperar a que corra JavaScript. */
+
+@keyframes entra-abajo {
+  from { opacity: 0; transform: translateY(28px); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes entra-derecha {
+  from { opacity: 0; transform: translateX(32px); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes entra-escala {
+  from { opacity: 0; transform: scale(0.96); }
+  to   { opacity: 1; transform: none; }
+}
+
+.entra        { animation: entra-abajo 0.9s var(--salida) both; animation-delay: var(--d, 0ms); }
+.entra-dcha   { animation: entra-derecha 1s var(--salida) both; animation-delay: var(--d, 0ms); }
+.entra-escala { animation: entra-escala 0.9s var(--salida) both; animation-delay: var(--d, 0ms); }
+
+/* ── Titular del hero ──
+   Aquí llevaba `text-5xl md:text-6xl lg:text-7xl` en el JSX y no pintaba
+   ninguna de las tres: la regla `.web-publica h1` va sin capa y gana a las
+   utilidades, así que en un monitor de 27" el titular se quedaba en 56 px
+   pidiendo 72. Con `clamp()` crece con la pantalla y hay un solo sitio donde
+   se decide. La especificidad (0,2,0) también gana a la regla móvil de `h1`. */
+.web-publica .titular-hero {
+  font-size: clamp(2.5rem, 6.4vw, 4.75rem);
+  line-height: 1.03;
+  letter-spacing: -0.035em;
+  text-wrap: initial; /* las líneas van partidas a mano, no las reequilibres */
+}
+
+/* Cada línea del titular sube desde debajo de su propia máscara. El relleno
+   inferior está para que la máscara no corte la cola de la «g» de energético:
+   con `line-height: 1.03` la caja de línea es más baja que el glifo. */
+.linea-titular {
+  display: block;
+  overflow: hidden;
+  padding-bottom: 0.14em;
+  margin-bottom: -0.14em;
+}
+.linea-titular > span {
+  display: block;
+  animation: sube-linea 1.1s var(--salida) both;
+  animation-delay: var(--d, 0ms);
+}
+@keyframes sube-linea {
+  from { transform: translateY(110%); }
+  to   { transform: none; }
+}
+
+/* ── Foco que sigue al puntero ──
+   El brillo va en un ::after propio para no pisar el `bg-*` que ponga el JSX:
+   estas reglas van sin capa y ganarían a cualquier utilidad de Tailwind. */
+
+.foco {
+  position: relative;
+}
+.foco::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(
+    280px circle at var(--mx, 50%) var(--my, 0%),
+    rgba(255, 255, 255, 0.07),
+    transparent 65%
+  );
+  opacity: 0;
+  transition: opacity 0.35s ease;
+  pointer-events: none;
+}
+.foco:hover::after {
+  opacity: 1;
+}
+
+/* ── Corriente: un pulso de luz que recorre una línea ──
+   Se usa como separador entre secciones. Es la única metáfora literal que se
+   permite el sitio y viene del negocio: energía que pasa por un cable. */
+
+.corriente {
+  position: relative;
+  height: 1px;
+  overflow: hidden;
+  background: linear-gradient(90deg, transparent, var(--color-border), transparent);
+}
+.corriente::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 22%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, var(--color-accent), var(--color-secondary), transparent);
+  animation: corriente-pasa 5.5s var(--salida-suave) infinite;
+}
+@keyframes corriente-pasa {
+  0%        { transform: translateX(-120%); opacity: 0; }
+  12%, 78%  { opacity: 1; }
+  100%      { transform: translateX(560%); opacity: 0; }
+}
+
+/* ── Indicador de scroll del hero ──
+   Una pantalla completa sin nada que indique que hay más abajo es la forma más
+   fácil de perder a alguien en el primer segundo. */
+
+.baja-la-vista span {
+  animation: baja-la-vista 2.2s var(--salida-suave) infinite;
+}
+@keyframes baja-la-vista {
+  0%, 100% { transform: translateY(0);   opacity: 0.35; }
+  50%      { transform: translateY(7px); opacity: 1; }
+}
+
+/* ── Cifras: que el número no baile de ancho mientras cuenta ── */
+.cifra {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+/* ── Subrayado que crece desde la izquierda ── */
+.enlace-vivo {
+  position: relative;
+}
+.enlace-vivo::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: -3px;
+  width: 100%;
+  height: 1.5px;
+  background: currentColor;
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.35s var(--salida);
+}
+.enlace-vivo:hover::after {
+  transform: scaleX(1);
+}
+
+/* ── Borde que se enciende al pasar por encima ──
+   Sin tocar `border-color`, para que el color de reposo siga viniendo del JSX.
+
+   El truco es un degradado recortado con dos máscaras que se restan, y va
+   dentro de un `@supports`: si el navegador no sabe restar máscaras, lo que
+   quedaría no es «sin borde», es un rectángulo de color tapando la tarjeta.
+   Mejor que en ese caso no exista. */
+@supports ((mask-composite: exclude) or (-webkit-mask-composite: xor)) {
+  .borde-vivo {
+    position: relative;
+  }
+  .borde-vivo::before {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(135deg, var(--color-accent), transparent 45%, var(--color-secondary));
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    opacity: 0;
+    transition: opacity 0.4s ease;
+    pointer-events: none;
+  }
+  .borde-vivo:hover::before {
+    opacity: 0.7;
+  }
 }
 
 /* ══════════════════════════════════════
@@ -670,4 +935,283 @@ input:focus, textarea:focus, select:focus {
 }
 .fv-paso-linea:last-child::before {
   display: none;
+}
+
+/* ══════════════════════════════════════
+   QUÉ HE FIRMADO — tema institucional
+
+   La web pública es oscura y de marketing. Este servicio necesita lo
+   contrario: fondo claro, alto contraste, cero adornos. Todo va bajo `.qhf`
+   para no tocar el resto del sitio, y lo primero es desactivar los estilos
+   globales (transiciones, brillos en botones, inputs oscuros) que aquí
+   restarían seriedad.
+══════════════════════════════════════ */
+
+.qhf {
+  --qhf-papel: #ffffff;
+  --qhf-fondo: #eef0f3;
+  --qhf-panel: #f7f8fa;
+  --qhf-tinta: #14171c;
+  --qhf-tinta-2: #4c535d;
+  --qhf-tinta-3: #6f7681;
+  --qhf-linea: #d0d5db;
+  --qhf-linea-fuerte: #a9b0b9;
+  --qhf-marca: #8f1a1a;
+  --qhf-marca-clara: #fdf3f3;
+  --qhf-azul: #14507d;
+  --qhf-azul-claro: #eef4f9;
+  --qhf-alta: #a5231a;
+  --qhf-alta-fondo: #fdf1ef;
+  --qhf-media: #8a5300;
+  --qhf-media-fondo: #fdf6e8;
+  --qhf-baja: #14603f;
+  --qhf-baja-fondo: #eef7f2;
+
+  background: var(--qhf-fondo);
+  color: var(--qhf-tinta);
+  min-height: 100vh;
+  font-family: var(--font-inter), system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-feature-settings: "tnum";
+  letter-spacing: 0;
+  -webkit-font-smoothing: antialiased;
+}
+
+.qhf *,
+.qhf *::before,
+.qhf *::after {
+  transition: none;
+}
+
+.qhf button::before,
+.qhf [role="button"]::before {
+  display: none;
+  content: none;
+}
+
+.qhf button:hover,
+.qhf [role="button"]:hover {
+  transform: none;
+  box-shadow: none;
+}
+
+/* Ojo con la cascada: las reglas globales de este archivo van sin `@layer`, así
+   que ganan a las utilidades de Tailwind pase lo que pase con la especificidad.
+   Por eso los tamaños de titular y los colores de párrafo se fijan aquí y no
+   con clases en el JSX: una sola fuente de verdad, sin clases muertas. */
+
+.qhf h1,
+.qhf h2,
+.qhf h3,
+.qhf h4 {
+  color: var(--qhf-tinta);
+  letter-spacing: -0.015em;
+  font-feature-settings: "tnum";
+  line-height: 1.2;
+}
+
+.qhf h1 {
+  font-size: 1.75rem;
+  font-weight: 700;
+}
+
+.qhf h2 {
+  font-size: 1.0625rem;
+  font-weight: 700;
+}
+
+.qhf h3 {
+  font-size: 1rem;
+  font-weight: 650;
+}
+
+@media (min-width: 640px) {
+  .qhf h1 {
+    font-size: 2.125rem;
+  }
+}
+
+/* Titular de la ficha del documento: el único h2 que va a mayor tamaño */
+.qhf .qhf-h2-ficha {
+  font-size: 1.375rem;
+}
+
+@media (min-width: 640px) {
+  .qhf .qhf-h2-ficha {
+    font-size: 1.5rem;
+  }
+}
+
+.qhf p,
+.qhf li {
+  color: var(--qhf-tinta-2);
+  line-height: 1.65;
+}
+
+/* Respuestas y titulares de bloque: tinta plena, no el gris de apoyo */
+.qhf .qhf-fuerte {
+  color: var(--qhf-tinta);
+}
+
+.qhf button,
+.qhf [role="button"] {
+  font-weight: 600;
+  letter-spacing: 0;
+  overflow: visible;
+}
+
+.qhf input,
+.qhf select,
+.qhf textarea {
+  background: var(--qhf-papel);
+  border: 1px solid var(--qhf-linea-fuerte);
+  color: var(--qhf-tinta);
+  border-radius: 3px;
+  box-shadow: none;
+}
+
+.qhf input:focus,
+.qhf select:focus,
+.qhf textarea:focus {
+  background: var(--qhf-papel);
+  border-color: var(--qhf-azul);
+  box-shadow: none;
+}
+
+/* Foco siempre visible: es un servicio que tiene que ser navegable con teclado */
+.qhf a:focus-visible,
+.qhf button:focus-visible,
+.qhf [tabindex]:focus-visible {
+  outline: 3px solid var(--qhf-azul);
+  outline-offset: 2px;
+}
+
+.qhf ::-webkit-scrollbar-track {
+  background: var(--qhf-fondo);
+}
+
+.qhf ::-webkit-scrollbar-thumb {
+  background: var(--qhf-linea-fuerte);
+  border-radius: 0;
+}
+
+/* Sello superior: la franja fina es lo que da lectura de "documento oficial" */
+.qhf-franja {
+  height: 4px;
+  background: linear-gradient(
+    to right,
+    var(--qhf-marca) 0 33.33%,
+    var(--qhf-tinta) 33.33% 66.66%,
+    var(--qhf-azul) 66.66% 100%
+  );
+}
+
+.qhf-caja {
+  background: var(--qhf-papel);
+  border: 1px solid var(--qhf-linea);
+  border-radius: 4px;
+}
+
+.qhf .qhf-etiqueta {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--qhf-tinta-3);
+}
+
+.qhf-zona-soltar {
+  border: 2px dashed var(--qhf-linea-fuerte);
+  background: var(--qhf-panel);
+  border-radius: 4px;
+}
+
+.qhf-zona-soltar[data-activa="true"] {
+  border-color: var(--qhf-azul);
+  background: var(--qhf-azul-claro);
+}
+
+@keyframes qhf-barrido {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(400%); }
+}
+
+.qhf-barrido {
+  animation: qhf-barrido 1.4s ease-in-out infinite;
+}
+
+/* Impresión: la ficha tiene que poder llevarse en papel a la ventanilla */
+@media print {
+  .qhf {
+    background: #fff;
+  }
+
+  .qhf-no-imprimir {
+    display: none !important;
+  }
+
+  .qhf-caja {
+    border-color: #999;
+    break-inside: avoid;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   MOVIMIENTO REDUCIDO
+
+   El sitio tenía quince animaciones en bucle infinito (órbitas, rejilla,
+   degradado del titular, latido del botón, brillo de la tarjeta, la franja
+   superior...) y ni una sola línea que atendiera a quien pide en su sistema
+   que no se mueva nada. Para alguien con vértigo o sensibilidad al movimiento
+   eso no es un detalle de gusto: es una página que no puede mirar.
+
+   Va al final del archivo y sin capa a propósito, para ganar a todo lo
+   anterior. Lo que se apaga es el bucle; lo que se revela sigue revelado,
+   que si no la página se queda en blanco.
+══════════════════════════════════════════════════════════════════════════ */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
+    animation-delay: 0ms !important;
+  }
+
+  html {
+    scroll-behavior: auto;
+  }
+
+  /* El contenido que depende de una animación o del observador para verse
+     tiene que quedarse visible y en su sitio, no invisible para siempre. */
+  .sr-element,
+  .entra,
+  .entra-dcha,
+  .entra-escala,
+  .linea-titular > span {
+    opacity: 1 !important;
+    transform: none !important;
+    filter: none !important;
+  }
+
+  /* Decoración que solo existe mientras se mueve: mejor quitarla. */
+  .corriente::before,
+  .dashboard-card::after,
+  .baja-la-vista {
+    display: none;
+  }
+
+  /* El titular en degradado se anima el `background-position`; parado se lee
+     igual, pero el degradado en sí conviene fijarlo a un tramo con contraste. */
+  .gradient-text-animated {
+    background-position: 0% 50%;
+  }
+
+  /* Los hover de desplazamiento del CSS global también son movimiento. */
+  button:hover,
+  [role="button"]:hover {
+    transform: none;
+  }
 }

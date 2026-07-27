@@ -1,34 +1,68 @@
 'use client';
 
 import Link from 'next/link';
-import { BookOpen, CheckCircle2, Zap } from 'lucide-react';
+import { BookOpen, CheckCircle2, Zap, Sparkles } from 'lucide-react';
 import { Card } from '../ui';
 
 /**
- * Guía rápida del método de trabajo: qué va en cada sitio y cómo es un día normal.
- * Una sola página, visual, para que David y Nicola nunca dupliquen ni olviden nada.
+ * Guía rápida del método de trabajo: quién hace qué, cómo es un día normal y
+ * las reglas para que nada se pierda ni se duplique.
+ * Se actualiza cada vez que cambia la forma de trabajar del panel.
  */
+
+const QUIEN_HACE_QUE = [
+  {
+    icono: '🚗',
+    quien: 'David · Calle',
+    bloque: 'Bloque CALLE del menú',
+    hace: 'Visita, capta y empuja las ventas.',
+    suyo: ['Mi Día', 'Agenda', 'Rutas de visitas', 'Pipeline'],
+    regla: 'No da de alta clientes ni tramita papeleo: eso frena la calle. Lo que capta se lo pasa a Nicola.',
+    color: 'border-accent/40 bg-accent/5',
+    href: '/gestor/luz/mi-dia',
+  },
+  {
+    icono: '🗂️',
+    quien: 'Nicola · Oficina',
+    bloque: 'Bloque OFICINA del menú',
+    hace: 'Mete los datos, tramita y sostiene la cartera.',
+    suyo: ['Alta guiada', 'Clientes', 'CUPS', 'Contratos', 'Tarifas', 'Importación'],
+    regla: 'Es quien da de alta a todo el mundo. Si el dato está bien metido aquí, el resto del panel funciona solo.',
+    color: 'border-secondary/40 bg-secondary/5',
+    href: '/gestor/luz/alta',
+  },
+  {
+    icono: '📊',
+    quien: 'Marcos · Dirección',
+    bloque: 'Bloque DIRECCIÓN del menú',
+    hace: 'Mira el negocio y decide.',
+    suyo: ['Dashboard', 'Precio de la luz', 'Comisiones', 'Equipo', 'Control General', 'Papelera'],
+    regla: 'Ve todo lo de los demás, pero no hace falta que nadie le informe: el panel ya se lo cuenta.',
+    color: 'border-amber-500/40 bg-amber-500/5',
+    href: '/gestor/luz',
+  },
+];
 
 const HERRAMIENTAS = [
   {
-    icono: '✅',
-    nombre: 'Tarea',
-    donde: 'Tareas y Alertas · Mi Día',
-    es: 'Algo que hace UNA PERSONA un día concreto.',
-    ejemplos: ['Llamar a Casa Guardia el jueves', 'Pedir factura a Talleres Cinca', 'Visitar la granja de Alcampell'],
-    regla: 'Si lo tiene que hacer alguien del equipo, es una tarea. Siempre con fecha y responsable.',
+    icono: '📋',
+    nombre: 'Agenda',
+    donde: 'Agenda · Mi Día',
+    es: 'TODO lo que hay que hacer, en una sola lista.',
+    ejemplos: ['Llamar a Casa Guardia el jueves', 'Visitar la granja de Alcampell', 'Vence el contrato de Talleres Cinca'],
+    regla: 'Aquí está todo junto: tus tareas y los vencimientos. Ya no hay que mirar en dos sitios distintos. Tiene vista de lista y de calendario.',
     color: 'border-amber-500/40 bg-amber-500/5',
-    href: '/gestor/luz/tareas',
+    href: '/gestor/luz/agenda',
   },
   {
-    icono: '📅',
-    nombre: 'Fecha crítica',
-    donde: 'Fechas Críticas',
-    es: 'Algo que OCURRE SOLO, del contrato del cliente.',
-    ejemplos: ['Fin de contrato el 30/10', 'Fin de permanencia el 3/9', 'Presentar proyecto (máx. 1 semana)'],
-    regla: 'No es trabajo tuyo: es un evento que llega sí o sí. Cuando se acerque, generará tareas.',
+    icono: '⚙️',
+    nombre: 'Avisos automáticos',
+    donde: 'Salen solos en la Agenda',
+    es: 'Fin de contrato, fin de permanencia y límite de preaviso.',
+    ejemplos: ['Vence el contrato · Casa Guardia', 'Acaba la permanencia · Granja Perlag'],
+    regla: 'NO se crean a mano: el panel los lee del suministro. Si cambia la fecha del contrato, el aviso se corrige solo. Vienen marcados como «automático».',
     color: 'border-red-500/40 bg-red-500/5',
-    href: '/gestor/luz/fechas',
+    href: '/gestor/luz/cups',
   },
   {
     icono: '🎯',
@@ -36,7 +70,7 @@ const HERRAMIENTAS = [
     donde: 'Pipeline Energético',
     es: 'En qué punto está LA VENTA con ese cliente.',
     ejemplos: ['Prospecto → Factura recibida → Oferta enviada → GANADO', 'Comisión potencial: 500 €'],
-    regla: 'Una por cliente vivo. Se mueve de columna cuando avanza la venta, no se toca a diario.',
+    regla: 'Su color se ve también en la Agenda y en Mi Día: naranja es «pendiente de firma», o sea a punto de caer.',
     color: 'border-secondary/40 bg-secondary/5',
     href: '/gestor/luz/pipeline',
   },
@@ -46,27 +80,42 @@ const HERRAMIENTAS = [
     donde: 'Ficha del cliente · Pipeline',
     es: 'EL siguiente paso único con ese cliente.',
     ejemplos: ['→ Enviar comparativa', '→ Esperar respuesta a la oferta'],
-    regla: 'Solo hay UNA por cliente y está sincronizada entre ficha y pipeline. No la dupliques como tarea salvo que tenga día y hora concretos.',
-    color: 'border-accent/40 bg-accent/5',
+    regla: 'Solo hay UNA por cliente y se sincroniza entre ficha y pipeline. No la dupliques como tarea salvo que tenga día concreto.',
+    color: 'border-emerald-500/40 bg-emerald-500/5',
     href: '/gestor/luz/clientes',
   },
 ];
 
-const DIA_NORMAL = [
-  ['1', 'Abre Mi Día', 'Ahí está tu cola: tareas de hoy, atrasadas y avisos. No hace falta ir pantalla por pantalla.'],
-  ['2', 'Trabaja las tareas', 'Cada llamada o visita: márcala hecha ✓, o pospónla (+1 día / +1 semana) si no ha podido ser. Nunca la dejes vencida sin más.'],
-  ['3', 'Al terminar con un cliente, deja el siguiente paso', 'Actualiza su próxima acción (o crea la tarea con fecha). La regla de oro: ningún cliente vivo sin próxima acción.'],
-  ['4', 'Cliente nuevo → Alta guiada', 'Nunca a mano: el asistente crea cliente, suministro, oportunidad, primera tarea y las dos fechas clave sin olvidar nada.'],
-  ['5', 'Si la venta avanza, mueve el pipeline', 'Arrastra la tarjeta a su columna. Si está GANADA, el botón "Crear contrato" avisa solo a administración.'],
+const DIA_DAVID: [string, string, string][] = [
+  ['1', 'Abre Mi Día', 'El número grande es lo que tienes hoy. Lo atrasado sale arriba mezclado con lo de hoy: en la calle es lo mismo, hay que hacerlo ya.'],
+  ['2', 'Mira el nombre y la banda de color', 'El cliente va en grande. Banda roja = cliente A, van primero. El distintivo de color dice en qué punto está la venta.'],
+  ['3', 'Cada cosa: ✓ o mover', 'Hecho no pide explicaciones. Mover de día sí pide motivo, y queda escrito: así se sabe después si el freno es el cliente o nosotros.'],
+  ['4', 'Remata los que están a punto', 'La lista «A un paso de entrar» son los que ya tienen la oferta encima. Un empujón ahí vale más que diez clientes nuevos.'],
+  ['5', 'Cliente nuevo → pásaselo a Nicola', 'Tú captas; ella lo da de alta con el asistente para que no falte ningún dato.'],
 ];
 
-const REGLAS_ORO = [
+const DIA_NICOLA: [string, string, string][] = [
+  ['1', 'Alta guiada para todo cliente nuevo', 'Nunca a mano: el asistente crea cliente, suministro, oportunidad y primera tarea sin olvidar nada.'],
+  ['2', 'Mete las fechas del contrato en el CUPS', 'Fin de contrato, permanencia y preaviso. Con eso, los avisos de la Agenda salen solos y siempre correctos.'],
+  ['3', 'Tramita lo que esté firmado', 'Contratos y activaciones. Al cambiar el estado del contrato, el suministro y el cliente se actualizan solos.'],
+  ['4', 'Revisa tu Agenda', 'Lo administrativo se te asigna automáticamente según el tipo de tarea: papeleo, cobros y activaciones.'],
+];
+
+const REGLAS_ORO: [string, string][] = [
   ['Ningún cliente vivo sin próxima acción', 'Es la alerta roja del Dashboard. Si no sabes el siguiente paso, ponle "Revisar más adelante" con fecha.'],
-  ['Una cosa, un sitio', 'La cita del jueves es UNA tarea; no la apuntes también como fecha crítica. El fin de contrato es UNA fecha crítica; no lo dupliques como tarea (ya avisará).'],
-  ['Eliminar siempre con motivo', 'Al borrar una tarea el sistema pide el porqué. Queda registrado — mejor posponer o cancelar con motivo que borrar.'],
-  ['Las fechas críticas se asocian al CUPS', 'Si el cliente tiene varios suministros, elige a cuál pertenece la fecha para saber qué contrato vence.'],
-  ['El proyecto se presenta en 1 semana', 'Desde que captas al cliente. El alta guiada no deja poner más; si vas justo, avisa a Marcos antes de que venza.'],
+  ['Los vencimientos no se apuntan: van en el CUPS', 'Fin de contrato, permanencia y preaviso se meten en el suministro. La Agenda los saca de ahí sola. Si los apuntas aparte tendrás dos avisos, y uno se quedará viejo.'],
+  ['Mover de día, siempre con motivo', 'El panel te lo pide y lo guarda. No es control: es para saber por qué una gestión lleva tres semanas dando vueltas.'],
+  ['Los estados se actualizan solos', 'Al mover el pipeline o cambiar un contrato, el suministro y el cliente se ponen al día automáticamente. No hay que tocarlo en tres pantallas.'],
+  ['Nada se borra del todo', 'Lo eliminado va a la Papelera y se recupera con todo lo que colgaba de ello. Aun así, mejor posponer o cerrar con motivo que borrar.'],
   ['Las visitas, con ubicación', 'Cliente sin dirección no entra en las Rutas. Pega el enlace de Google Maps en su ficha y listo.'],
+];
+
+const NOVEDADES = [
+  'La Agenda sustituye a «Tareas» y «Fechas Críticas»: una sola lista, con vista de calendario.',
+  'Los vencimientos de contrato ya no se generan a mano: se leen del suministro y nunca se quedan desfasados.',
+  'El menú está ordenado por forma de trabajar — Calle, Oficina y Dirección — y puedes plegar los bloques que no uses.',
+  'El estado del cliente se calcula solo a partir de sus suministros.',
+  'Hay Papelera: eliminar dejó de ser irreversible.',
 ];
 
 export default function GuiaPage() {
@@ -77,8 +126,39 @@ export default function GuiaPage() {
           <BookOpen className="w-5 h-5 text-accent" /> Guía rápida · Cómo trabajamos la cartera
         </h2>
         <p className="text-xs text-muted mt-0.5">
-          Dos minutos de lectura. Qué va en cada sitio, cómo es un día normal y las reglas para que nada se pierda ni se duplique.
+          Dos minutos de lectura. Quién hace qué, cómo es un día normal y las reglas para que nada se pierda ni se duplique.
         </p>
+      </div>
+
+      {/* Lo que ha cambiado: quien ya conocía el panel necesita saber qué es distinto */}
+      <Card className="!p-4 border-accent/30 bg-accent/5">
+        <p className="text-sm font-black text-foreground flex items-center gap-2 mb-2">
+          <Sparkles className="w-4 h-4 text-accent" /> Lo que ha cambiado
+        </p>
+        <ul className="space-y-1">
+          {NOVEDADES.map((n) => (
+            <li key={n} className="text-xs text-muted leading-relaxed">· {n}</li>
+          ))}
+        </ul>
+      </Card>
+
+      {/* ── Quién hace qué ── */}
+      <div>
+        <p className="text-[11px] font-black uppercase tracking-[0.2em] text-muted mb-3">Quién hace qué</p>
+        <div className="grid md:grid-cols-3 gap-3">
+          {QUIEN_HACE_QUE.map((p) => (
+            <Link key={p.quien} href={p.href} className={`block rounded-2xl border p-4 transition hover:-translate-y-0.5 ${p.color}`}>
+              <p className="text-xl">{p.icono}</p>
+              <p className="font-black text-foreground text-sm leading-tight mt-1">{p.quien}</p>
+              <p className="text-[10px] text-muted uppercase tracking-wide font-bold">{p.bloque}</p>
+              <p className="text-xs font-semibold text-foreground mt-2">{p.hace}</p>
+              <ul className="mt-1.5 space-y-0.5">
+                {p.suyo.map((s) => <li key={s} className="text-[11px] text-muted">· {s}</li>)}
+              </ul>
+              <p className="text-[11px] text-foreground/80 mt-2 pt-2 border-t border-border/30 leading-snug">💡 {p.regla}</p>
+            </Link>
+          ))}
+        </div>
       </div>
 
       {/* ── Qué va en cada sitio ── */}
@@ -104,20 +184,36 @@ export default function GuiaPage() {
         </div>
       </div>
 
-      {/* ── Un día normal ── */}
-      <div>
-        <p className="text-[11px] font-black uppercase tracking-[0.2em] text-muted mb-3">Un día normal, en 5 pasos</p>
-        <Card className="!p-0 divide-y divide-border/20">
-          {DIA_NORMAL.map(([n, titulo, detalle]) => (
-            <div key={n} className="flex items-start gap-3 p-3.5">
-              <span className="w-7 h-7 rounded-full bg-accent/15 text-accent border border-accent/30 flex items-center justify-center font-black text-xs shrink-0">{n}</span>
-              <div>
-                <p className="text-sm font-bold text-foreground">{titulo}</p>
-                <p className="text-xs text-muted mt-0.5 leading-relaxed">{detalle}</p>
+      {/* ── Un día normal, por puesto ── */}
+      <div className="grid md:grid-cols-2 gap-4">
+        <div>
+          <p className="text-[11px] font-black uppercase tracking-[0.2em] text-muted mb-3">🚗 El día de David</p>
+          <Card className="!p-0 divide-y divide-border/20">
+            {DIA_DAVID.map(([n, titulo, detalle]) => (
+              <div key={n} className="flex items-start gap-3 p-3.5">
+                <span className="w-7 h-7 rounded-full bg-accent/15 text-accent border border-accent/30 flex items-center justify-center font-black text-xs shrink-0">{n}</span>
+                <div>
+                  <p className="text-sm font-bold text-foreground">{titulo}</p>
+                  <p className="text-xs text-muted mt-0.5 leading-relaxed">{detalle}</p>
+                </div>
               </div>
-            </div>
-          ))}
-        </Card>
+            ))}
+          </Card>
+        </div>
+        <div>
+          <p className="text-[11px] font-black uppercase tracking-[0.2em] text-muted mb-3">🗂️ El día de Nicola</p>
+          <Card className="!p-0 divide-y divide-border/20">
+            {DIA_NICOLA.map(([n, titulo, detalle]) => (
+              <div key={n} className="flex items-start gap-3 p-3.5">
+                <span className="w-7 h-7 rounded-full bg-secondary/15 text-secondary border border-secondary/30 flex items-center justify-center font-black text-xs shrink-0">{n}</span>
+                <div>
+                  <p className="text-sm font-bold text-foreground">{titulo}</p>
+                  <p className="text-xs text-muted mt-0.5 leading-relaxed">{detalle}</p>
+                </div>
+              </div>
+            ))}
+          </Card>
+        </div>
       </div>
 
       {/* ── Reglas de oro ── */}
@@ -138,8 +234,9 @@ export default function GuiaPage() {
       <Card className="!border-accent/30 flex items-center gap-3">
         <Zap className="w-5 h-5 text-accent shrink-0" />
         <p className="text-xs text-muted">
-          <b className="text-foreground">¿Duda de dónde apuntar algo?</b> Pregúntate: ¿lo hace una persona un día concreto (tarea),
-          ocurre solo (fecha crítica), o es cómo va la venta (pipeline)? Y si es el siguiente paso del cliente, a su próxima acción.
+          <b className="text-foreground">¿Duda de dónde apuntar algo?</b> Si lo hace una persona un día concreto, es una tarea
+          (va a la Agenda). Si es una fecha del contrato, va en el CUPS y el aviso sale solo. Si es cómo va la venta, es el
+          pipeline. Y si es el siguiente paso con el cliente, su próxima acción.
         </p>
       </Card>
     </div>

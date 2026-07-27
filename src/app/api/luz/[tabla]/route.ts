@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { PIPELINE_A_CUPS, CONTRATO_A_CUPS, estadoClienteDesdeCups, debeAplicarseAlCups } from '@/lib/estados-luz';
 
 /**
  * Cliente Supabase por petición: si llega el token del usuario, se reenvía
@@ -13,6 +14,7 @@ function clienteSupabase(req: NextRequest) {
     auth ? { global: { headers: { Authorization: auth } } } : undefined
   );
 }
+type Supa = ReturnType<typeof clienteSupabase>;
 
 /**
  * CRUD genérico del módulo Gestión Luz. Solo tablas luz_* whitelisteadas.
@@ -37,8 +39,8 @@ const TABLAS: Record<string, DefTabla> = {
   clientes: {
     tabla: 'luz_clientes',
     select: '*',
-    columnas: ['nombre', 'nif', 'tipo_cliente', 'persona_contacto', 'telefono', 'email', 'direccion_fiscal', 'responsable', 'prioridad', 'estado_comercial', 'potencial_comercial', 'origen_cliente', 'via_entrada', 'zona', 'observaciones', 'fecha_ultimo_contacto', 'fecha_proxima_accion', 'proxima_accion'],
-    filtros: ['tipo_cliente', 'responsable', 'prioridad', 'estado_comercial', 'via_entrada', 'zona'],
+    columnas: ['nombre', 'nif', 'tipo_cliente', 'persona_contacto', 'telefono', 'email', 'direccion_fiscal', 'responsable', 'prioridad', 'estado_comercial', 'clasificacion', 'potencial_comercial', 'origen_cliente', 'via_entrada', 'zona', 'observaciones', 'fecha_ultimo_contacto', 'fecha_proxima_accion', 'proxima_accion', 'foto_path'],
+    filtros: ['tipo_cliente', 'responsable', 'prioridad', 'estado_comercial', 'clasificacion', 'via_entrada', 'zona'],
     buscarEn: 'nombre',
     orden: { col: 'nombre', asc: true },
   },
@@ -93,7 +95,7 @@ const TABLAS: Record<string, DefTabla> = {
   visitas: {
     tabla: 'luz_visitas',
     select: '*, luz_clientes(nombre)',
-    columnas: ['cliente_id', 'fecha', 'notas', 'responsable'],
+    columnas: ['cliente_id', 'fecha', 'notas', 'responsable', 'resultado', 'proxima_visita', 'registrada_por'],
     filtros: ['cliente_id', 'responsable'],
     orden: { col: 'fecha', asc: false },
     colFecha: 'fecha',
@@ -105,6 +107,23 @@ const TABLAS: Record<string, DefTabla> = {
     filtros: ['cliente_id'],
     buscarEn: 'titulo',
     orden: { col: 'creado_en', asc: false },
+  },
+  // Mapa de oportunidades: granjas y naves detectadas en el mapa público que
+  // todavía no son clientes. Se barre una zona una vez y se van filtrando.
+  prospectos: {
+    tabla: 'luz_prospectos',
+    select: '*',
+    columnas: [
+      'osm_id', 'nombre', 'tipo', 'lat', 'lon', 'municipio', 'm2_construidos', 'n_edificios',
+      'nave_largo', 'nave_ancho', 'tiene_balsa', 'ya_tiene_placas', 'consumo_estimado_kwh',
+      'puntuacion', 'motivos', 'catastro_referencia', 'catastro_uso', 'catastro_m2',
+      'catastro_anio', 'catastro_direccion', 'estado', 'motivo_descarte', 'notas',
+      'responsable', 'cliente_id',
+    ],
+    filtros: ['estado', 'tipo', 'municipio', 'responsable'],
+    buscarEn: 'nombre',
+    // Lo mejor primero: es una cola de revisión, no un listado alfabético
+    orden: { col: 'puntuacion', asc: false },
   },
   config: {
     tabla: 'luz_config',
@@ -135,6 +154,94 @@ const TABLAS: Record<string, DefTabla> = {
 
 const PIPELINE_CERRADO_API = ['ganado', 'perdido', 'revisar_adelante'];
 
+/**
+ * Empuja un estado nuevo al CUPS y, en cascada, recalcula el estado comercial
+ * del cliente a partir de TODOS sus suministros.
+ *
+ * Es lo que evita tener que ir cambiando el mismo hecho en tres pantallas: el
+ * CUPS es la fuente de verdad y aquí se mantiene solo. Nunca retrocede un
+ * suministro por accidente (ver `debeAplicarseAlCups`).
+ */
+async function sincronizarCupsYCliente(supabase: Supa, cupsId: string, estadoNuevo: string | undefined) {
+  if (!cupsId) return;
+  const { data: cups } = await supabase.from('luz_cups').select('id, cliente_id, estado_cups').eq('id', cupsId).single();
+  if (!cups) return;
+
+  if (estadoNuevo && debeAplicarseAlCups(cups.estado_cups, estadoNuevo)) {
+    await supabase.from('luz_cups')
+      .update({ estado_cups: estadoNuevo, actualizado_en: new Date().toISOString() })
+      .eq('id', cupsId);
+  }
+  await recalcularEstadoCliente(supabase, cups.cliente_id);
+}
+
+/** El estado del cliente se deriva de sus CUPS: no se toca a mano en ningún sitio. */
+async function recalcularEstadoCliente(supabase: Supa, clienteId: string | null | undefined) {
+  if (!clienteId) return;
+  const { data: suministros } = await supabase.from('luz_cups').select('estado_cups').eq('cliente_id', clienteId);
+  const nuevo = estadoClienteDesdeCups((suministros || []).map((s: { estado_cups: string }) => s.estado_cups));
+  if (!nuevo) return;
+  const { data: cli } = await supabase.from('luz_clientes').select('estado_comercial').eq('id', clienteId).single();
+  if (cli && cli.estado_comercial !== nuevo) {
+    await supabase.from('luz_clientes')
+      .update({ estado_comercial: nuevo, actualizado_en: new Date().toISOString() })
+      .eq('id', clienteId);
+  }
+}
+
+/* ═══════════ PAPELERA ═══════════ */
+
+/**
+ * Recursos que van a la papelera en vez de borrarse. Los que no están aquí
+ * (config, auditoría, responsables) se siguen borrando de verdad: o no son
+ * datos de negocio, o ya tienen su propio flujo.
+ */
+const CON_PAPELERA = new Set([
+  'clientes', 'cups', 'fechas', 'pipeline', 'contratos', 'comisiones', 'tareas', 'visitas', 'proyectos',
+  'prospectos',
+]);
+
+/**
+ * Qué se lleva por delante borrar cada cosa.
+ *
+ * Antes esto lo hacía la base de datos con ON DELETE CASCADE y era
+ * irreversible. Ahora se replica a mano marcando los hijos con `borrado_con`
+ * = id del padre, para que al restaurar vuelvan EXACTAMENTE los que se fueron
+ * con él y no los que ya estaban en la papelera por su cuenta.
+ */
+const CASCADA: Record<string, { tabla: string; campo: string }[]> = {
+  clientes: [
+    { tabla: 'luz_cups', campo: 'cliente_id' },
+    { tabla: 'luz_fechas_criticas', campo: 'cliente_id' },
+    { tabla: 'luz_pipeline', campo: 'cliente_id' },
+    { tabla: 'luz_contratos', campo: 'cliente_id' },
+    { tabla: 'luz_comisiones', campo: 'cliente_id' },
+    { tabla: 'luz_tareas', campo: 'cliente_id' },
+    { tabla: 'luz_visitas', campo: 'cliente_id' },
+  ],
+  cups: [
+    { tabla: 'luz_fechas_criticas', campo: 'cups_id' },
+    { tabla: 'luz_pipeline', campo: 'cups_id' },
+    { tabla: 'luz_contratos', campo: 'cups_id' },
+    { tabla: 'luz_comisiones', campo: 'cups_id' },
+    { tabla: 'luz_tareas', campo: 'cups_id' },
+  ],
+};
+
+/** ¿La tabla todavía no tiene las columnas de papelera? (falta ejecutar el SQL) */
+const faltaPapelera = (msg: string) =>
+  /column .*borrado_en.* does not exist|Could not find the '?borrado_en'? column/i.test(msg);
+
+/** Email de quien está haciendo la operación, para dejar rastro de quién borró. */
+async function usuarioDe(supabase: Supa): Promise<string | null> {
+  try {
+    const { data } = await supabase.auth.getUser();
+    return data.user?.email || null;
+  } catch {
+    return null;
+  }
+}
+
 const errorTabla = () => NextResponse.json({ error: 'Recurso no válido.' }, { status: 404 });
 const esFaltaTabla = (msg: string) => /relation .* does not exist|Could not find the table/i.test(msg);
 const respuestaError = (msg: string) =>
@@ -160,11 +267,19 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ tabla: stri
   if (!def) return errorTabla();
 
   const params = req.nextUrl.searchParams;
+  // ?papelera=1 devuelve SOLO lo borrado; por defecto se ve solo lo vivo
+  const verPapelera = params.get('papelera') === '1';
+  const usaPapelera = CON_PAPELERA.has(tabla);
+
   let query = supabase
     .from(def.tabla)
     .select(def.select)
-    .order(def.orden.col, { ascending: def.orden.asc, nullsFirst: false })
+    .order(verPapelera ? 'borrado_en' : def.orden.col, { ascending: verPapelera ? false : def.orden.asc, nullsFirst: false })
     .limit(Math.min(parseInt(params.get('limite') || '2000'), 5000));
+
+  if (usaPapelera) {
+    query = verPapelera ? query.not('borrado_en', 'is', null) : query.is('borrado_en', null);
+  }
 
   for (const f of def.filtros) {
     const v = params.get(f);
@@ -180,7 +295,19 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ tabla: stri
   }
 
   const { data, error } = await query;
-  if (error) return respuestaError(error.message);
+  if (error) {
+    // Todavía no se ha ejecutado supabase_papelera.sql: se sirve sin filtrar
+    // en vez de dejar la pantalla en blanco. La papelera sí avisa de que falta.
+    if (usaPapelera && faltaPapelera(error.message)) {
+      if (verPapelera) return NextResponse.json({ ok: true, datos: [], falta_papelera: true });
+      const { data: d2, error: e2 } = await supabase
+        .from(def.tabla).select(def.select)
+        .order(def.orden.col, { ascending: def.orden.asc, nullsFirst: false })
+        .limit(Math.min(parseInt(params.get('limite') || '2000'), 5000));
+      if (!e2) return NextResponse.json({ ok: true, datos: d2 || [], falta_papelera: true });
+    }
+    return respuestaError(error.message);
+  }
   return NextResponse.json({ ok: true, datos: data || [] });
 }
 
@@ -216,6 +343,10 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ tabla: str
           actualizado_en: new Date().toISOString(),
         }).eq('id', campos.cliente_id);
       }
+    }
+    // Nuevo suministro → el estado comercial del cliente se recalcula solo
+    if (tabla === 'cups' && campos.cliente_id) {
+      await recalcularEstadoCliente(supabase, String(campos.cliente_id));
     }
     // Nueva oportunidad con próxima acción → se refleja en la ficha del cliente
     if (tabla === 'pipeline' && campos.cliente_id && (campos.proxima_accion || campos.fecha_proxima_accion)) {
@@ -318,16 +449,39 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ tabla: stri
       }
     }
 
-    // Efecto: contrato activado → CUPS activado
-    if (tabla === 'contratos' && campos.estado_contrato === 'activado') {
-      const { data: con } = await supabase.from('luz_contratos').select('cups_id, comercializadora_final').eq('id', id).single();
+    // ── ESTADO ÚNICO DEL VIAJE COMERCIAL ──
+    // El CUPS manda; pipeline y contrato lo empujan; el cliente se deriva.
+    // Así el mismo hecho no hay que teclearlo en tres pantallas distintas.
+
+    // Contrato → CUPS (+ comercializadora al activar) → cliente
+    if (tabla === 'contratos' && 'estado_contrato' in campos) {
+      const { data: con } = await supabase.from('luz_contratos').select('cups_id, cliente_id, comercializadora_final').eq('id', id).single();
+      const destino = CONTRATO_A_CUPS[String(campos.estado_contrato)];
       if (con?.cups_id) {
-        await supabase.from('luz_cups').update({
-          estado_cups: 'activado',
-          ...(con.comercializadora_final ? { comercializadora_actual: con.comercializadora_final } : {}),
-          actualizado_en: new Date().toISOString(),
-        }).eq('id', con.cups_id);
+        if (campos.estado_contrato === 'activado' && con.comercializadora_final) {
+          await supabase.from('luz_cups').update({
+            comercializadora_actual: con.comercializadora_final,
+            actualizado_en: new Date().toISOString(),
+          }).eq('id', con.cups_id);
+        }
+        await sincronizarCupsYCliente(supabase, con.cups_id, destino);
+      } else {
+        await recalcularEstadoCliente(supabase, con?.cliente_id);
       }
+    }
+
+    // Pipeline → CUPS → cliente
+    if (tabla === 'pipeline' && 'estado' in campos) {
+      const { data: op } = await supabase.from('luz_pipeline').select('cups_id, cliente_id').eq('id', id).single();
+      const destino = PIPELINE_A_CUPS[String(campos.estado)];
+      if (op?.cups_id) await sincronizarCupsYCliente(supabase, op.cups_id, destino);
+      else await recalcularEstadoCliente(supabase, op?.cliente_id);
+    }
+
+    // CUPS tocado a mano → el cliente se recalcula solo
+    if (tabla === 'cups' && 'estado_cups' in campos) {
+      const { data: c } = await supabase.from('luz_cups').select('cliente_id').eq('id', id).single();
+      await recalcularEstadoCliente(supabase, c?.cliente_id);
     }
 
     return NextResponse.json({ ok: true });
@@ -336,6 +490,14 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ tabla: stri
   }
 }
 
+/**
+ * Enviar a la papelera (no borra) o borrar de verdad.
+ *
+ * body: { id, motivo?, definitivo? }
+ *  - Por defecto marca `borrado_en` y arrastra los hijos con `borrado_con`.
+ *  - `definitivo: true` borra físicamente (solo desde la papelera, y ahí sí
+ *    salta el ON DELETE CASCADE de la base de datos: es irreversible).
+ */
 export async function DELETE(req: NextRequest, ctx: { params: Promise<{ tabla: string }> }) {
   const supabase = clienteSupabase(req);
   const { tabla } = await ctx.params;
@@ -343,11 +505,83 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ tabla: s
   if (!def) return errorTabla();
 
   try {
+    const { id, motivo, definitivo } = await req.json();
+    if (!id) return NextResponse.json({ error: 'Falta el id.' }, { status: 400 });
+
+    const borradoFisico = async () => {
+      const { error } = await supabase.from(def.tabla).delete().eq('id', id);
+      if (error) return respuestaError(error.message);
+      return NextResponse.json({ ok: true, definitivo: true });
+    };
+
+    if (!CON_PAPELERA.has(tabla) || definitivo === true) return borradoFisico();
+
+    const marca = {
+      borrado_en: new Date().toISOString(),
+      borrado_por: await usuarioDe(supabase),
+      motivo_borrado: motivo || null,
+    };
+
+    const { error } = await supabase.from(def.tabla).update(marca).eq('id', id);
+    if (error) {
+      // Sin las columnas de papelera no podemos ser reversibles: mejor avisar
+      // que borrar de verdad creyendo el usuario que se puede recuperar.
+      if (faltaPapelera(error.message)) {
+        return NextResponse.json({
+          error: 'Falta la papelera: ejecuta supabase_papelera.sql en el SQL Editor de Supabase. '
+            + 'Hasta entonces no se puede eliminar de forma recuperable.',
+          falta_papelera: true,
+        }, { status: 409 });
+      }
+      return respuestaError(error.message);
+    }
+
+    // Los hijos se van con el padre, marcados para poder devolverlos juntos
+    let arrastrados = 0;
+    for (const hijo of CASCADA[tabla] || []) {
+      const { data } = await supabase
+        .from(hijo.tabla)
+        .update({ ...marca, borrado_con: String(id) })
+        .eq(hijo.campo, id)
+        .is('borrado_en', null)
+        .select('id');
+      arrastrados += data?.length || 0;
+    }
+
+    return NextResponse.json({ ok: true, en_papelera: true, arrastrados });
+  } catch {
+    return NextResponse.json({ error: 'Petición no válida.' }, { status: 400 });
+  }
+}
+
+/** Restaurar desde la papelera: el registro y todo lo que se fue con él. */
+export async function PATCH(req: NextRequest, ctx: { params: Promise<{ tabla: string }> }) {
+  const supabase = clienteSupabase(req);
+  const { tabla } = await ctx.params;
+  const def = TABLAS[tabla];
+  if (!def) return errorTabla();
+  if (!CON_PAPELERA.has(tabla)) {
+    return NextResponse.json({ error: 'Ese recurso no tiene papelera.' }, { status: 400 });
+  }
+
+  try {
     const { id } = await req.json();
     if (!id) return NextResponse.json({ error: 'Falta el id.' }, { status: 400 });
-    const { error } = await supabase.from(def.tabla).delete().eq('id', id);
+
+    const limpiar = { borrado_en: null, borrado_por: null, motivo_borrado: null, borrado_con: null };
+    const { error } = await supabase.from(def.tabla).update(limpiar).eq('id', id);
     if (error) return respuestaError(error.message);
-    return NextResponse.json({ ok: true });
+
+    // Solo vuelven los hijos que se fueron POR ESTE borrado (borrado_con = id),
+    // no los que ya estaban en la papelera por su cuenta.
+    let restaurados = 0;
+    for (const hijo of CASCADA[tabla] || []) {
+      const { data } = await supabase
+        .from(hijo.tabla).update(limpiar).eq('borrado_con', String(id)).select('id');
+      restaurados += data?.length || 0;
+    }
+
+    return NextResponse.json({ ok: true, restaurados });
   } catch {
     return NextResponse.json({ error: 'Petición no válida.' }, { status: 400 });
   }

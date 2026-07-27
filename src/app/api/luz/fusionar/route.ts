@@ -82,9 +82,29 @@ export async function POST(req: NextRequest) {
       if (error) return NextResponse.json({ error: `Error completando la ficha principal: ${error.message}` }, { status: 500 });
     }
 
-    // 3) Eliminar el duplicado (la auditoría graba quién y cuándo)
-    const { error: eDel } = await supabase.from('luz_clientes').delete().eq('id', duplicado_id);
+    // 3) El duplicado se va a la papelera, no se borra.
+    // Sus datos ya están movidos al principal, así que no debería quedar nada
+    // colgando; pero si alguna reasignación hubiera fallado en silencio, un
+    // borrado real habría disparado el ON DELETE CASCADE y se habría llevado
+    // esos registros para siempre. Así siempre se puede deshacer.
+    const { data: usuario } = await supabase.auth.getUser();
+    const { error: eDel } = await supabase.from('luz_clientes').update({
+      borrado_en: new Date().toISOString(),
+      borrado_por: usuario.user?.email || null,
+      motivo_borrado: `Fusionada en "${principal.nombre}"`,
+    }).eq('id', duplicado_id);
     if (eDel) {
+      // Sin las columnas de papelera todavía: se borra como antes, pero avisando
+      if (/borrado_en/i.test(eDel.message)) {
+        const { error: eFisico } = await supabase.from('luz_clientes').delete().eq('id', duplicado_id);
+        if (eFisico) {
+          return NextResponse.json({ error: `Los datos ya se movieron, pero no se pudo eliminar la ficha duplicada: ${eFisico.message}` }, { status: 500 });
+        }
+        return NextResponse.json({
+          ok: true, movidos, sin_papelera: true,
+          completados: Object.keys(cambios).filter((k) => k !== 'actualizado_en'),
+        });
+      }
       return NextResponse.json({ error: `Los datos ya se movieron, pero no se pudo eliminar la ficha duplicada: ${eDel.message}` }, { status: 500 });
     }
 

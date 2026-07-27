@@ -4,7 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { FileSignature, GripVertical } from 'lucide-react';
 import {
-  LuzOportunidad, ESTADOS_PIPELINE, ESTADO_PIPELINE_LABEL, TIPO_OPORTUNIDAD_LABEL,
+  LuzOportunidad, ESTADOS_PIPELINE, ESTADO_PIPELINE_LABEL, ESTADO_PIPELINE_TONO, TIPO_OPORTUNIDAD_LABEL,
   PIPELINE_CERRADO, diasHasta, fmtEur, fmtFecha,
 } from '@/lib/luz';
 import { BadgePrioridad } from '../ui';
@@ -18,6 +18,21 @@ function tonoColumna(estado: string): string {
   if (estado === 'perdido') return 'border-red-500/40 bg-red-500/5';
   if (estado === 'revisar_adelante') return 'border-border/40 bg-card/30';
   return 'border-border/40 bg-surface/40';
+}
+
+/**
+ * Distintivo del estado, con el MISMO color que se ve en la Agenda y en Mi Día.
+ * El color nace aquí (es el embudo) y se reutiliza en el resto del panel, para
+ * que el comercial reconozca el punto del cliente sin leer, mire donde mire.
+ */
+function PastillaEstado({ estado, cabecera = false }: { estado: string; cabecera?: boolean }) {
+  return (
+    <span className={`rounded-full border font-black uppercase truncate ${
+      cabecera ? 'px-2 py-1 text-[11px] tracking-wide' : 'px-1.5 py-0.5 text-[9px]'
+    } ${ESTADO_PIPELINE_TONO[estado] || ESTADO_PIPELINE_TONO.prospecto}`}>
+      {ESTADO_PIPELINE_LABEL[estado] || estado}
+    </span>
+  );
 }
 
 interface TableroProps {
@@ -58,11 +73,9 @@ export function TableroPipeline({ oportunidades, onCambiarEstado, onConvertir }:
               }`}
             >
               {/* Cabecera de columna */}
-              <div className="flex items-center justify-between px-1.5 pb-2 mb-1 border-b border-border/30">
-                <span className="text-xs font-black uppercase tracking-wide text-foreground truncate">
-                  {ESTADO_PIPELINE_LABEL[estado]}
-                </span>
-                <span className="text-[11px] font-bold text-muted tabular-nums shrink-0 ml-2">
+              <div className="flex items-center justify-between px-1.5 pb-2 mb-1 border-b border-border/30 gap-2">
+                <PastillaEstado estado={estado} cabecera />
+                <span className="text-[11px] font-bold text-muted tabular-nums shrink-0">
                   {items.length}
                 </span>
               </div>

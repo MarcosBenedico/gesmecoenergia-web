@@ -1,6 +1,7 @@
 import { Container } from "@/components/container";
 import { FeatureCard } from "@/components/feature-card";
 import { PhotoBanner } from "@/components/photo-banner";
+import { ScrollReveal } from "@/components/scroll-reveal";
 import { SectionHeading } from "@/components/section-heading";
 import { sectors } from "@/lib/data";
 
@@ -63,21 +64,25 @@ export default function SectorsPage() {
 
       <section className="pt-14">
         <Container>
-          <SectionHeading kicker="Sectores" title="Conocemos cada sector de Binéfar y comarca.">
-            Viviendas, granjas, comercios y naves no consumen igual. Por eso cada solución
-            empieza por entender cómo trabajas tú.
-          </SectionHeading>
+          <ScrollReveal>
+            <SectionHeading kicker="Sectores" title="Conocemos cada sector de Binéfar y comarca.">
+              Viviendas, granjas, comercios y naves no consumen igual. Por eso cada solución
+              empieza por entender cómo trabajas tú.
+            </SectionHeading>
+          </ScrollReveal>
           <div className="mt-10 grid gap-4 md:grid-cols-3">
-            {sectors.map((sector) => (
-              <div
-                key={sector.name}
-                className="card rounded-2xl p-5 transition duration-200 hover:-translate-y-1 hover:shadow-soft"
-              >
-                <div className="text-sm uppercase tracking-[0.14em] text-rose-700">
-                  {sector.name}
+            {sectors.map((sector, i) => (
+              <ScrollReveal key={sector.name} delay={i * 70} direction="blur">
+                <div className="card foco h-full rounded-2xl p-5">
+                  {/* El nombre del sector iba en `text-rose-700`: 2,4:1 sobre la
+                      tarjeta oscura, o sea el rótulo más importante de la
+                      tarjeta era el menos legible. */}
+                  <div className="relative text-sm font-semibold uppercase tracking-[0.14em] text-accent-light">
+                    {sector.name}
+                  </div>
+                  <p className="relative mt-2 text-sm text-muted">{sector.description}</p>
                 </div>
-                <p className="mt-2 text-sm text-muted">{sector.description}</p>
-              </div>
+              </ScrollReveal>
             ))}
           </div>
         </Container>
@@ -85,25 +90,33 @@ export default function SectorsPage() {
 
       <section className="mt-14">
         <Container>
-          <SectionHeading
-            kicker="Soluciones"
-            title="Lo que cambia según tu caso"
-          >
-            Mismo rigor, distinta receta: lo que le funciona a una granja no es lo que
-            necesita un comercio. Esto es lo que solemos hacer en cada sector.
-          </SectionHeading>
+          <ScrollReveal>
+            <SectionHeading
+              kicker="Soluciones"
+              title="Lo que cambia según tu caso"
+            >
+              Mismo rigor, distinta receta: lo que le funciona a una granja no es lo que
+              necesita un comercio. Esto es lo que solemos hacer en cada sector.
+            </SectionHeading>
+          </ScrollReveal>
           <div className="mt-10 grid gap-6 md:grid-cols-2">
-            {sectorDetails.map((item) => (
-              <FeatureCard key={item.title} title={item.title}>
-                <ul className="space-y-2 text-sm text-muted">
-                  {item.bullets.map((bullet) => (
-                    <li key={bullet} className="flex gap-2">
-                      <span className="mt-1 h-2 w-2 rounded-full bg-accent" />
-                      <span>{bullet}</span>
-                    </li>
-                  ))}
-                </ul>
-              </FeatureCard>
+            {sectorDetails.map((item, i) => (
+              <ScrollReveal
+                key={item.title}
+                delay={(i % 2) * 90}
+                direction={i % 2 === 0 ? "left" : "right"}
+              >
+                <FeatureCard className="h-full" title={item.title}>
+                  <ul className="space-y-2 text-sm text-muted">
+                    {item.bullets.map((bullet) => (
+                      <li key={bullet} className="flex gap-2">
+                        <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-accent" />
+                        <span>{bullet}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </FeatureCard>
+              </ScrollReveal>
             ))}
           </div>
         </Container>

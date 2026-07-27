@@ -9,7 +9,48 @@ import {
   ESTADOS_CLIENTE, ESTADO_CLIENTE_LABEL, VIA_ENTRADA_CORTA, fmtKwh, fmtFecha,
 } from '@/lib/luz';
 import { ZONAS, zonaDeParada } from '@/lib/zonas';
+import { evaluarCliente, tonoCompletitud } from '@/lib/completitud';
 import { Card, BadgePrioridad, Badge, EstadoCarga, useListaLuz, guardarLuz, inputCls, labelCls, btnPrimario, btnSecundario, SelectorResponsable } from '../ui';
+import { CLASIFICACIONES, defDe, ES_CLASIFICACION } from '@/lib/clasificacion';
+
+/**
+ * Semáforo de "qué le falta". Rojo = no se puede ni empezar; ámbar = se puede
+ * trabajar pero falta detalle; verde = listo para preparar oferta.
+ * Al pasar por encima dice exactamente qué falta y por qué hace falta.
+ */
+function SemaforoCliente({ cliente, cups }: { cliente: LuzCliente; cups: LuzCups[] }) {
+  const c = evaluarCliente(cliente, cups);
+  const tono = tonoCompletitud(c);
+
+  const estilo = {
+    bloqueado: 'bg-red-500/15 text-red-400 border-red-500/30',
+    incompleto: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
+    listo: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30',
+  }[tono];
+
+  const pendientes = c.requisitos.filter((r) => !r.cumplido);
+  const titulo = pendientes.length === 0
+    ? 'Tiene todo lo necesario para preparar la oferta.'
+    : pendientes.map((r) => `${r.etiqueta}: ${r.motivo}`).join('\n');
+
+  return (
+    <div className="min-w-28" title={titulo}>
+      <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full border text-[10px] font-black ${estilo}`}>
+        {c.cumplidos}/{c.total}
+        {tono === 'listo' ? ' · listo' : c.siguienteFalta ? ` · falta ${c.siguienteFalta.etiqueta.toLowerCase()}` : ''}
+      </span>
+      {/* Barra de puntos: se lee el avance sin tener que sumar */}
+      <span className="flex gap-0.5 mt-1">
+        {c.requisitos.map((r) => (
+          <span key={r.clave}
+            className={`h-1 flex-1 rounded-full ${
+              r.cumplido ? 'bg-emerald-500/70' : r.bloqueante ? 'bg-red-500/50' : 'bg-border/50'
+            }`} />
+        ))}
+      </span>
+    </div>
+  );
+}
 
 const FORM_VACIO = {
   nombre: '', nif: '', tipo_cliente: 'particular', persona_contacto: '', telefono: '', email: '',
@@ -25,6 +66,9 @@ function ClientesLuzContenido() {
 
   const [fPrioridad, setFPrioridad] = useState(sp.get('prioridad') || '');
   const [fEstado, setFEstado] = useState('');
+  // Objetivo / precliente / cliente: es el filtro que más se va a usar, porque
+  // responde a «¿cuántos clientes tengo de verdad?» y a «¿a quién puede ir a ver David?».
+  const [fClasif, setFClasif] = useState('');
   const [fTipo, setFTipo] = useState('');
   const [fResp, setFResp] = useState('');
   const [fEspecial, setFEspecial] = useState('');
@@ -53,15 +97,28 @@ function ClientesLuzContenido() {
     return m;
   }, [cups.datos]);
 
+  // Los CUPS enteros de cada cliente, para el semáforo de "qué falta"
+  const cupsPorCliente = useMemo(() => {
+    const m = new Map<string, LuzCups[]>();
+    for (const c of cups.datos) {
+      const lista = m.get(c.cliente_id);
+      if (lista) lista.push(c); else m.set(c.cliente_id, [c]);
+    }
+    return m;
+  }, [cups.datos]);
+
   const responsables = useMemo(() => Array.from(new Set(clientes.datos.map((c) => c.responsable).filter(Boolean))) as string[], [clientes.datos]);
 
   const filtrados = useMemo(() => clientes.datos.filter((c) => {
     if (fPrioridad && c.prioridad !== fPrioridad) return false;
     if (fEstado && c.estado_comercial !== fEstado) return false;
+    if (fClasif && ((c as { clasificacion?: string }).clasificacion || 'precliente') !== fClasif) return false;
     if (fTipo && c.tipo_cliente !== fTipo) return false;
     if (fResp && c.responsable !== fResp) return false;
     if (fEspecial === 'sin_accion' && c.proxima_accion) return false;
     if (fEspecial === 'a_sin_seguimiento' && !(c.prioridad === 'A' && !c.proxima_accion)) return false;
+    // La cola de trabajo de Nicola: a quién hay que completarle datos antes de poder ofertar
+    if (fEspecial === 'incompletos' && !evaluarCliente(c, cupsPorCliente.get(c.id) || []).bloqueado) return false;
     if (fVia && (c.via_entrada || 'captacion') !== fVia) return false;
     if (fZona) {
       const z = zonaDeParada(c.direccion_fiscal, null, c.zona);
@@ -71,7 +128,7 @@ function ClientesLuzContenido() {
     if (fDesde && alta < fDesde) return false;
     if (fHasta && alta > fHasta) return false;
     return true;
-  }), [clientes.datos, fPrioridad, fEstado, fTipo, fResp, fEspecial, fVia, fZona, fDesde, fHasta]);
+  }), [clientes.datos, fPrioridad, fEstado, fClasif, fTipo, fResp, fEspecial, fVia, fZona, fDesde, fHasta, cupsPorCliente]);
 
   async function crear(e: React.FormEvent) {
     e.preventDefault();
@@ -154,6 +211,10 @@ function ClientesLuzContenido() {
       <Card className="!p-3 space-y-2.5">
         <div className="flex gap-2 flex-wrap">
           <input className={`${inputCls} flex-1 min-w-48`} value={buscar} onChange={(e) => setBuscar(e.target.value)} placeholder="🔍 Buscar cliente..." />
+          <select className={selCls} value={fClasif} onChange={(e) => setFClasif(e.target.value)} title="Objetivo, precliente o cliente">
+            <option value="">Objetivo · Precliente · Cliente</option>
+            {CLASIFICACIONES.map((c) => <option key={c.clave} value={c.clave}>{c.emoji} Solo {c.titulo.toLowerCase()}s</option>)}
+          </select>
           <select className={selCls} value={fPrioridad} onChange={(e) => setFPrioridad(e.target.value)}>
             <option value="">Prioridad: todas</option>
             {PRIORIDADES.map((p) => <option key={p} value={p}>Prioridad {p}</option>)}
@@ -184,7 +245,7 @@ function ClientesLuzContenido() {
           </span>
         </div>
         <div className="flex gap-1.5 flex-wrap text-xs items-center">
-          {[['', 'Todos'], ['sin_accion', '⚠️ Sin próxima acción'], ['a_sin_seguimiento', '🔴 Clientes A sin seguimiento']].map(([v, n]) => (
+          {[['', 'Todos'], ['sin_accion', '⚠️ Sin próxima acción'], ['a_sin_seguimiento', '🔴 Clientes A sin seguimiento'], ['incompletos', '📋 Les faltan datos']].map(([v, n]) => (
             <button key={v} onClick={() => setFEspecial(v)} className={`px-2.5 py-1.5 rounded-lg font-semibold ${fEspecial === v ? 'bg-accent text-white' : 'bg-card/80 text-muted border border-border/50'}`}>{n}</button>
           ))}
           <span className="w-px h-5 bg-border/50 mx-1" />
@@ -205,6 +266,8 @@ function ClientesLuzContenido() {
               <tr className="text-left text-[11px] uppercase tracking-wide text-muted border-b border-border/40">
                 <th className="px-3 py-3">Pr.</th>
                 <th className="px-3 py-3">Cliente</th>
+                <th className="px-3 py-3">Qué es</th>
+                <th className="px-3 py-3">Qué falta</th>
                 <th className="px-3 py-3">Tipo</th>
                 <th className="px-3 py-3 text-center">CUPS</th>
                 <th className="px-3 py-3 text-right">Consumo anual</th>
@@ -227,6 +290,20 @@ function ClientesLuzContenido() {
                       <span className="block text-[10px] text-muted">{VIA_ENTRADA_CORTA[c.via_entrada || 'captacion']}</span>
                       {c.nif && <span className="block text-[10px] font-mono text-muted">{c.nif}</span>}
                     </td>
+                    <td className="px-3 py-2">
+                      {(() => {
+                        const bruto = (c as { clasificacion?: string }).clasificacion;
+                        // Sin el SQL ejecutado todavía no hay columna: se enseña
+                        // como precliente, que es lo prudente, y no se rompe nada.
+                        const d = defDe(ES_CLASIFICACION(bruto) ? bruto : 'precliente');
+                        return (
+                          <span className={`inline-block px-2 py-0.5 rounded-full border text-[11px] font-semibold whitespace-nowrap ${d.tono}`}>
+                            {d.emoji} {d.titulo}
+                          </span>
+                        );
+                      })()}
+                    </td>
+                    <td className="px-3 py-2"><SemaforoCliente cliente={c} cups={cupsPorCliente.get(c.id) || []} /></td>
                     <td className="px-3 py-2"><Badge>{TIPO_CLIENTE_LABEL[c.tipo_cliente] || c.tipo_cliente}</Badge></td>
                     <td className="px-3 py-2 text-center font-bold tabular-nums">{agg?.n || 0}</td>
                     <td className="px-3 py-2 text-right tabular-nums">{fmtKwh(agg?.consumo)}</td>

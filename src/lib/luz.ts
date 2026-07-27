@@ -133,6 +133,30 @@ export const ESTADO_PIPELINE_LABEL: Record<string, string> = {
 export const PIPELINE_CERRADO: string[] = ['ganado', 'perdido'];
 export const PIPELINE_ABIERTO_SIN_REVISAR: string[] = ['ganado', 'perdido', 'revisar_adelante'];
 
+/**
+ * Color de cada estado del embudo. Es la MISMA escala en Pipeline, Agenda y
+ * Mi Día: así el comercial reconoce en qué punto está un cliente por el color,
+ * sin leer, mire donde mire.
+ *
+ * Va de frío a caliente según se acerca la firma: gris (aún no hay nada) →
+ * azul (tenemos datos) → ámbar (atascado, algo lo frena) → cian y violeta
+ * (oferta en juego) → naranja (a punto de firmar) → verde/rojo (cerrado).
+ */
+export const ESTADO_PIPELINE_TONO: Record<string, string> = {
+  prospecto: 'bg-card/80 text-muted border-border/50',
+  factura_solicitada: 'bg-slate-500/15 text-slate-300 border-slate-500/30',
+  factura_recibida: 'bg-blue-500/15 text-blue-300 border-blue-500/30',
+  doc_incompleta: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
+  pendiente_permanencia: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
+  pendiente_ofertar: 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30',
+  oferta_enviada: 'bg-violet-500/15 text-violet-300 border-violet-500/30',
+  seguimiento: 'bg-violet-500/15 text-violet-300 border-violet-500/30',
+  pendiente_firma: 'bg-orange-500/20 text-orange-300 border-orange-500/40',
+  ganado: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30',
+  perdido: 'bg-red-500/15 text-red-400 border-red-500/30',
+  revisar_adelante: 'bg-card/60 text-muted/70 border-border/30',
+};
+
 // ── Contratos ──
 export const ESTADOS_CONTRATO = [
   'pendiente_preparar', 'enviado_cliente', 'pendiente_firma', 'firmado', 'enviado_comercializadora',
@@ -208,6 +232,20 @@ export const MOTIVOS_BLOQUEO = ['Esperando al cliente', 'Falta documentación', 
 export const MOTIVOS_PERDIDA = ['Precio no competitivo', 'Permanencia con penalización', 'No contesta', 'Se queda como está', 'Se fue con otro'];
 export const MOTIVOS_ELIMINACION = ['Tarea duplicada', 'Creada por error', 'Ya no aplica', 'Se hizo por otra vía'];
 
+/**
+ * Motivos para mover algo de día. Aplazar SIEMPRE pide justificación —
+ * completar no, porque hacer el trabajo no hay que explicarlo. Así queda
+ * rastro de por qué una cosa lleva tres semanas sin cerrarse.
+ */
+export const MOTIVOS_APLAZAMIENTO = [
+  'El cliente no estaba / no contesta',
+  'El cliente pide más tiempo',
+  'Falta documentación del cliente',
+  'Esperando a la comercializadora',
+  'No ha dado tiempo hoy',
+  'Se replanifica la ruta',
+];
+
 export const ESTADOS_TAREA = ['pendiente', 'en_curso', 'completada', 'bloqueada', 'cancelada'] as const;
 export const ESTADO_TAREA_LABEL: Record<string, string> = {
   pendiente: 'Pendiente', en_curso: 'En curso', completada: 'Completada', bloqueada: 'Bloqueada', cancelada: 'Cancelada',
@@ -235,6 +273,8 @@ export interface LuzCliente {
   fecha_ultimo_contacto: string | null;
   fecha_proxima_accion: string | null;
   proxima_accion: string | null;
+  /** Ruta de la foto del sitio en el bucket privado. Se firma al mostrarla. */
+  foto_path?: string | null;
   creado_en?: string;
   actualizado_en?: string;
 }
@@ -263,6 +303,8 @@ export interface LuzCups {
   responsable: string | null;
   prioridad: string | null;
   observaciones: string | null;
+  creado_en?: string;
+  actualizado_en?: string;
   luz_clientes?: { nombre: string; nif?: string | null; prioridad?: string } | null;
 }
 
@@ -300,6 +342,8 @@ export interface LuzOportunidad {
   fecha_revision: string | null;
   motivo_perdida: string | null;
   observaciones: string | null;
+  creado_en?: string;
+  actualizado_en?: string;
   luz_clientes?: { nombre: string; prioridad?: string } | null;
 }
 
@@ -321,6 +365,8 @@ export interface LuzContrato {
   incidencia: string | null;
   responsable: string | null;
   observaciones: string | null;
+  creado_en?: string;
+  actualizado_en?: string;
   luz_clientes?: { nombre: string } | null;
   luz_cups?: { cups: string } | null;
 }
@@ -339,6 +385,8 @@ export interface LuzComision {
   estado_comision: string;
   factura_referencia: string | null;
   observaciones: string | null;
+  creado_en?: string;
+  actualizado_en?: string;
   luz_clientes?: { nombre: string } | null;
   luz_cups?: { cups: string } | null;
 }

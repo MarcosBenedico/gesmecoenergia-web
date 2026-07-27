@@ -16,7 +16,10 @@ export const FeatureCard = ({
   className,
 }: FeatureCardProps) => {
   return (
-    <div className={cn("card flex flex-col gap-3 rounded-2xl p-6", className)}>
+    // `foco` enciende el brillo que sigue al ratón (ver globals.css). Lo lleva
+    // la tarjeta y no cada página, que es la que se usa en servicios, sectores
+    // y sobre-nosotros.
+    <div className={cn("card foco flex flex-col gap-3 rounded-2xl p-6", className)}>
       <div className="flex items-start justify-between gap-3">
         <div>
           {badge && (

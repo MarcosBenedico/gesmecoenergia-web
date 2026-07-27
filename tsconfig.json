@@ -6,6 +6,10 @@
     "skipLibCheck": true,
     "strict": true,
     "noEmit": true,
+    // Permite escribir el .ts en los imports relativos. Hace falta para que
+    // Node pueda ejecutar los módulos de src/lib tal cual en los scripts de
+    // test, sin compilar nada. Es seguro porque aquí TypeScript no emite.
+    "allowImportingTsExtensions": true,
     "esModuleInterop": true,
     "module": "esnext",
     "moduleResolution": "bundler",

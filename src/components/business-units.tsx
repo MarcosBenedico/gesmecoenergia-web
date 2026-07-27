@@ -3,114 +3,129 @@
 import { asesoriaServices, segurosServices, services } from '@/lib/data';
 import { ScrollReveal } from './scroll-reveal';
 
-interface ServiceCardProps {
-  title: string;
-  icon: string;
-  color: string;
-  colorBg: string;
-  colorBorder: string;
-  summary: string;
-  items: string[];
-  delay: number;
-}
+type Area = 'energia' | 'asesoria' | 'seguros';
 
-function ServiceCard({
-  title,
-  icon,
-  color,
-  colorBg,
-  colorBorder,
-  summary,
-  items,
-  delay,
-}: ServiceCardProps) {
+/**
+ * Rejilla de servicios de una de las tres áreas del grupo.
+ *
+ * Dos cosas cambiaron aquí:
+ *
+ * · EL COLOR LO PONE EL ÁREA. Antes venía de los datos, y en `data.ts` las tres
+ *   áreas tenían escrito el mismo rojo (`from-accent`, `bg-accent/10`,
+ *   `border-accent/30`). O sea: pulsabas la pestaña cian de Correbin, o la
+ *   naranja de la Asesoría, y las tarjetas seguían saliendo rojas. La pestaña
+ *   prometía un color y el contenido daba otro. Ahora la paleta se decide aquí
+ *   por área y es imposible que se descuadre.
+ * · UNA SOLA RAMA. Había tres bloques `if` casi calcados, así que cualquier
+ *   arreglo había que hacerlo tres veces (y por eso se quedaba a medias).
+ */
+
+/** Lo único que esta rejilla necesita de un servicio. `services` (energía) no
+ *  trae emoji propio y usa el del área. */
+type Servicio = { title: string; summary: string; items: readonly string[]; icon?: string };
+
+type Paleta = {
+  datos: readonly Servicio[];
+  icono: string;
+  degradado: string;
+  fondo: string;
+  borde: string;
+  punto: string;
+};
+
+const AREAS: Record<Area, Paleta> = {
+  energia: {
+    datos: services,
+    icono: '⚡',
+    degradado: 'from-accent to-accent-light',
+    fondo: 'bg-accent/[0.07]',
+    borde: 'border-accent/30',
+    punto: 'from-accent to-accent-light',
+  },
+  asesoria: {
+    datos: asesoriaServices,
+    icono: '📋',
+    degradado: 'from-tertiary to-amber',
+    fondo: 'bg-tertiary/[0.07]',
+    borde: 'border-tertiary/30',
+    punto: 'from-tertiary to-amber',
+  },
+  seguros: {
+    datos: segurosServices,
+    icono: '🛡️',
+    degradado: 'from-secondary to-cyan-400',
+    fondo: 'bg-secondary/[0.07]',
+    borde: 'border-secondary/30',
+    punto: 'from-secondary to-cyan-400',
+  },
+};
+
+function TarjetaServicio({
+  titulo,
+  icono,
+  resumen,
+  puntos,
+  area,
+}: {
+  titulo: string;
+  icono: string;
+  resumen: string;
+  puntos: readonly string[];
+  area: Paleta;
+}) {
   return (
-    <ScrollReveal delay={delay}>
+    <div
+      className={`foco borde-vivo group relative h-full overflow-hidden rounded-2xl border ${area.borde} ${area.fondo} p-6 backdrop-blur-sm transition-all duration-300 hover:-translate-y-1.5 hover:shadow-lg`}
+    >
+      {/* Filete superior que se pinta de izquierda a derecha al pasar por encima. */}
       <div
-        className={`group relative overflow-hidden rounded-2xl border ${colorBorder} ${colorBg} p-6 backdrop-blur-sm transition-all duration-300 hover:-translate-y-2 hover:shadow-lg`}
-      >
-        {/* Animated top accent */}
-        <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${color} scale-x-0 transition-transform group-hover:scale-x-100`} />
+        className={`absolute left-0 right-0 top-0 h-1 origin-left scale-x-0 bg-gradient-to-r ${area.degradado} transition-transform duration-500 group-hover:scale-x-100`}
+      />
 
-        {/* Icon + Title */}
-        <div className="mb-4">
-          <div className="text-3xl mb-2">{icon}</div>
-          <h3 className="text-lg font-bold text-foreground">{title}</h3>
-          <p className="mt-1 text-sm text-muted">{summary}</p>
+      <div className="relative mb-4">
+        <div className="mb-2 text-3xl transition-transform duration-500 group-hover:-translate-y-0.5 group-hover:scale-110">
+          {icono}
         </div>
-
-        {/* Items list */}
-        <ul className="space-y-2 text-sm">
-          {items.map((item, i) => (
-            <li key={i} className="flex items-start gap-2 text-muted group/item">
-              <span className={`mt-1 h-1.5 w-1.5 rounded-full flex-shrink-0 bg-gradient-to-br ${color}`} />
-              <span className="group-hover/item:text-foreground transition-colors">{item}</span>
-            </li>
-          ))}
-        </ul>
+        <h3 className="text-lg font-bold text-foreground">{titulo}</h3>
+        <p className="mt-1 text-sm text-muted">{resumen}</p>
       </div>
-    </ScrollReveal>
+
+      <ul className="relative space-y-2 text-sm">
+        {puntos.map((p) => (
+          <li key={p} className="group/item flex items-start gap-2 text-muted">
+            <span className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-gradient-to-br ${area.punto}`} />
+            <span className="transition-colors group-hover/item:text-foreground">{p}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
-interface BusinessUnitsProps {
-  selectedTab?: 'energia' | 'asesoria' | 'seguros';
-}
+export function BusinessUnits({ selectedTab = 'energia' }: { selectedTab?: Area }) {
+  const area = AREAS[selectedTab];
+  // En energía solo se muestran los cuatro primeros, como estaba.
+  const lista = selectedTab === 'energia' ? area.datos.slice(0, 4) : area.datos;
 
-export function BusinessUnits({ selectedTab = 'energia' }: BusinessUnitsProps) {
-  if (selectedTab === 'energia') {
-    return (
-      <div className="mx-auto max-w-7xl px-6">
-        <div className="grid gap-5 md:grid-cols-2">
-          {services.slice(0, 4).map((service, i) => (
-            <ServiceCard
-              key={service.title}
-              title={service.title}
-              icon="⚡"
-              color="from-accent to-accent-light"
-              colorBg="bg-accent/10"
-              colorBorder="border-accent/30"
-              summary={service.summary}
-              items={service.items}
-              delay={i * 120}
+  return (
+    <div className="mx-auto max-w-7xl px-6">
+      {/* La `key` con el área es lo que hace que al cambiar de pestaña las
+          tarjetas se vuelvan a montar y por tanto se vuelvan a revelar. Sin
+          ella React reutilizaba los mismos nodos y el contenido cambiaba de
+          golpe mientras la cabecera sí se desvanecía: dos ritmos a la vez. */}
+      <div key={selectedTab} className="grid gap-5 md:grid-cols-2">
+        {lista.map((servicio, i) => (
+          <ScrollReveal key={servicio.title} delay={i * 90} direction={i % 2 === 0 ? 'left' : 'right'}>
+            <TarjetaServicio
+              titulo={servicio.title}
+              icono={servicio.icon || area.icono}
+              resumen={servicio.summary}
+              puntos={servicio.items}
+              area={area}
             />
-          ))}
-        </div>
+          </ScrollReveal>
+        ))}
       </div>
-    );
-  }
-
-  if (selectedTab === 'asesoria') {
-    return (
-      <div className="mx-auto max-w-7xl px-6">
-        <div className="grid gap-5 md:grid-cols-2">
-          {asesoriaServices.map((service, i) => (
-            <ServiceCard
-              key={service.title}
-              {...service}
-              delay={i * 120}
-            />
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  if (selectedTab === 'seguros') {
-    return (
-      <div className="mx-auto max-w-7xl px-6">
-        <div className="grid gap-5 md:grid-cols-2">
-          {segurosServices.map((service, i) => (
-            <ServiceCard
-              key={service.title}
-              {...service}
-              delay={i * 120}
-            />
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  return null;
+    </div>
+  );
 }
