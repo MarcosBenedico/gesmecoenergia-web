@@ -631,7 +631,11 @@ export function MapaRutas({ paradas, seleccion, onAlternar, orden, origenGeo, or
 
           {/* QUÉ SE VE. Es el mando más importante del mapa: encender los 149
               objetivos a la vez lo hace ilegible, así que se elige. */}
-          <div className="absolute top-3 left-3 z-[500] flex flex-col gap-1.5">
+          {/* Apartado de los botones + / − de Leaflet, que van arriba a la
+              izquierda: el mapa está aislado (isolation) y estos paneles se
+              pintan por encima, así que tapaban el zoom y no había forma de
+              pulsarlo. Se deja libre su columna. */}
+          <div className="absolute top-3 left-[3.75rem] z-[500] flex flex-col gap-1.5">
             <button
               onClick={() => setVerClientes((v) => !v)}
               className={`inline-flex items-center gap-2.5 px-4 py-3 rounded-xl text-sm font-black shadow-lg border transition ${

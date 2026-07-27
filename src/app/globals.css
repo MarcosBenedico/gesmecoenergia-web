@@ -82,6 +82,36 @@
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+/* Leaflet queda FUERA de la transición global.
+   El mapa se mueve y hace zoom aplicando `transform` a sus capas, y espera
+   que ese cambio sea instantáneo: se apoya en `transitionend` para saber
+   cuándo ha terminado su propia animación de zoom. Con la transición global
+   encima, el evento llegaba tarde y por la propiedad equivocada, Leaflet se
+   quedaba esperando y el zoom dejaba de responder (ni la rueda, ni los
+   botones + / −, ni setZoom desde código).
+   Se le devuelven después las transiciones que leaflet.css sí declara. */
+.leaflet-container,
+.leaflet-container * {
+  transition-property: none;
+}
+.leaflet-fade-anim .leaflet-tile,
+.leaflet-fade-anim .leaflet-popup {
+  transition-property: opacity;
+}
+.leaflet-zoom-anim .leaflet-zoom-animated {
+  transition-property: transform;
+}
+
+/* Botones + / − del mapa: en ruta se usan con el pulgar y a pleno sol,
+   así que se agrandan y se les da contraste. */
+.leaflet-control-zoom a {
+  width: 38px !important;
+  height: 38px !important;
+  line-height: 36px !important;
+  font-size: 22px !important;
+  font-weight: 700;
+}
+
 html {
   scroll-behavior: smooth;
 }
