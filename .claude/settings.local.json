@@ -495,7 +495,14 @@
       "Bash(python \"C:/Users/Usuario/AppData/Local/Temp/claude/C--Users-Usuario-Desktop-calude-web/e5b35bc9-b92f-4067-8c4a-db31794ae8b2/scratchpad/logos.py\")",
       "Bash(python \"C:/Users/Usuario/AppData/Local/Temp/claude/C--Users-Usuario-Desktop-calude-web/e5b35bc9-b92f-4067-8c4a-db31794ae8b2/scratchpad/logos_home.py\")",
       "Bash(python \"C:/Users/Usuario/AppData/Local/Temp/claude/C--Users-Usuario-Desktop-calude-web/e5b35bc9-b92f-4067-8c4a-db31794ae8b2/scratchpad/seguros_layout.py\")",
-      "Bash(curl -s http://localhost:3000/seguros -o seg.html -w \"HTTP %{http_code} %{size_download}b\\\\n\")"
+      "Bash(curl -s http://localhost:3000/seguros -o seg.html -w \"HTTP %{http_code} %{size_download}b\\\\n\")",
+      "Bash(mkdir -p ~/.claude/skills)",
+      "Bash(cp -r /tmp/uiux-skill/.claude/skills/ui-ux-pro-max ~/.claude/skills/)",
+      "Bash(cp -r /tmp/uiux-skill/.claude/skills/ui-styling ~/.claude/skills/)",
+      "Bash(cp -r /tmp/uiux-skill/.claude/skills/design-system ~/.claude/skills/)",
+      "Bash(python scripts/search.py \"scroll reveal hover micro-interaction elegant\" --domain gsap)",
+      "Bash(python scripts/search.py \"animation duration reduced motion accessibility\" --domain ux)",
+      "Bash(python scripts/search.py \"focus visible keyboard navigation contrast\" --domain ux)"
     ]
   }
 }

@@ -15,8 +15,14 @@ export default function SiteLayout({ children }: { children: ReactNode }) {
       {/* Un solo escuchador de puntero para todas las tarjetas `.foco`. */}
       <FocoPuntero />
       <div className="relative z-10">
+        {/* Primer elemento tabulable de la página: sin esto hay que pasar por
+            toda la cabecera —logo, las tres empresas y el menú— para llegar
+            al contenido. Solo se ve al tabular. */}
+        <a href="#contenido" className="salta-al-contenido">
+          Saltar al contenido
+        </a>
         <Navbar />
-        <main>{children}</main>
+        <main id="contenido">{children}</main>
         <Footer />
         <WhatsAppButton />
       </div>

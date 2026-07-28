@@ -1245,3 +1245,77 @@ input:focus, textarea:focus, select:focus {
     transform: none;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ACCESIBILIDAD Y TACTO — auditado con la skill ui-ux-pro-max
+   ═══════════════════════════════════════════════════════════════════════════
+   Va SIN capa y al final del archivo a propósito, igual que el bloque de
+   movimiento reducido: son mínimos que no puede pisar ninguna utilidad.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Saltar al contenido ──────────────────────────────────────────────────
+   No existía. Sin esto, quien navega con teclado se come toda la cabecera
+   —logo, tres empresas del grupo, menú con desplegables— antes de llegar a
+   lo que ha venido a leer. Aparece solo al tabular; con ratón no se ve. */
+.salta-al-contenido {
+  position: fixed;
+  top: 0.75rem;
+  left: 0.75rem;
+  z-index: 200;
+  padding: 0.75rem 1.25rem;
+  border-radius: 0.75rem;
+  background: var(--color-accent);
+  color: #fff;
+  font-weight: 800;
+  font-size: 0.9rem;
+  text-decoration: none;
+  /* Fuera de la vista hasta que se enfoca, pero SIN display:none, que lo
+     sacaría del orden de tabulación y lo dejaría inservible. */
+  transform: translateY(-160%);
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.salta-al-contenido:focus {
+  transform: translateY(0);
+}
+
+/* ── Anillo de foco de la casa ────────────────────────────────────────────
+   El navegador ya pintaba el suyo, así que esto no arregla nada roto: lo
+   unifica y le da contraste sobre el fondo oscuro, que es donde el anillo
+   fino por defecto se pierde. Solo en `:focus-visible`, para que no salte
+   al hacer clic con el ratón. */
+a:focus-visible,
+button:focus-visible,
+[role='button']:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[tabindex]:focus-visible {
+  outline: 3px solid var(--color-accent);
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+
+/* ── Zona de toque de 44 px en pantallas táctiles ─────────────────────────
+   Medido en la home a 375 px: 23 de 38 elementos interactivos median menos
+   de 44 px de alto, y varios enlaces de pie y de listas se quedaban en 16-20.
+   Eso en un móvil se falla, y se falla justo en los enlaces de conversión.
+
+   Se hace con relleno + margen negativo del mismo valor: el relleno agranda
+   la zona sensible y el margen negativo le devuelve al hueco su tamaño, así
+   que NO se mueve ni un píxel de lo que se ve.
+
+   PRIMERO lo intenté con un `::after` que hacía de zona de toque, y estaba
+   mal: `.enlace-vivo::after` y `.foco::after` ya usan ese pseudoelemento para
+   el subrayado que crece y para el brillo. Como `min-height` no chocaba con
+   nada, se habría colado y el subrayado de 2 px se habría convertido en un
+   bloque de color de 44. Con relleno no se pisa nada de nadie.
+
+   Solo en punteros gruesos (dedo). Con ratón, 20 px se aciertan de sobra. */
+@media (pointer: coarse) {
+  /* `:where()` deja la especificidad a cero: cualquier clase del JSX gana. */
+  :where(nav, footer, li) a,
+  :where(nav, footer, li) button {
+    padding-block: 12px;
+    margin-block: -12px;
+  }
+}

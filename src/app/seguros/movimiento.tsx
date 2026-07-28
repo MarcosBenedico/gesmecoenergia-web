@@ -15,6 +15,12 @@ import { CORREBIN_COLORES as C } from '@/lib/correbin-marca';
  * Por eso todo usa la misma curva de salida y desplazamientos de 12-20 px: se
  * nota que la página está viva, pero no se ve la animación.
  *
+ * DURACIONES. La primera versión revelaba en 750 ms y quedaba pastosa: al
+ * bajar deprisa, el contenido llegaba tarde a su sitio. La referencia de
+ * ui-ux-pro-max es 150-300 ms para microinteracciones y nunca pasar de 500 en
+ * interfaz, así que los revelados bajan a 420 ms y el escalonado a 380. Se
+ * sigue notando la entrada, pero ya no se espera a nada.
+ *
  * Todo respeta `prefers-reduced-motion`.
  *
  * Y HAY PLAN B, que es lo que más importa: Motion escribe `opacity: 0` ya en el
@@ -82,7 +88,7 @@ export function Revelar({
       className={className}
       initial={{ opacity: 0, ...desplazamiento }}
       animate={revelado ? { opacity: 1, x: 0, y: 0 } : undefined}
-      transition={{ duration: 0.75, delay: retardo, ease: SALIDA }}
+      transition={{ duration: 0.42, delay: retardo, ease: SALIDA }}
     >
       {children}
     </motion.div>
@@ -95,11 +101,11 @@ export function Revelar({
 
 const CONTENEDOR: Variants = {
   oculto: {},
-  visible: { transition: { staggerChildren: 0.09, delayChildren: 0.05 } },
+  visible: { transition: { staggerChildren: 0.06, delayChildren: 0.04 } },
 };
 const HIJO: Variants = {
   oculto: { opacity: 0, y: 18 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.65, ease: SALIDA } },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.38, ease: SALIDA } },
 };
 
 export function Escalonado({ children, className = '' }: { children: React.ReactNode; className?: string }) {
@@ -181,7 +187,7 @@ export function Cifra({ hasta, sufijo = '', className = '' }: { hasta: number; s
 
   useEffect(() => {
     if (quieto || !aLaVista) return;
-    const duracion = 1100;
+    const duracion = 700;
     const inicio = performance.now();
     let id = 0;
     const paso = (ahora: number) => {
