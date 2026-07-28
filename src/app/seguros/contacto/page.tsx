@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { CORREBIN_EMPRESA, CORREBIN_CTA, CORREBIN_COLORES as C } from '@/lib/correbin-marca';
 import { Seccion, Encabezado, Tarjeta, Boton, Antetitulo } from '../ui';
+import { Suspense } from 'react';
 import { FormularioSeguros, CampoForm } from '../formulario';
 
 export const metadata: Metadata = {
@@ -84,7 +85,9 @@ export default function Contacto() {
           <div>
             <Encabezado ante="Por escrito" titulo="Escríbenos y te llamamos" />
             <div className="mt-6">
-              <FormularioSeguros tipo="contacto" campos={CAMPOS} textoBoton="Enviar consulta" />
+              <Suspense fallback={<div className="rounded-2xl border p-8" style={{ borderColor: C.borde }} />}>
+                <FormularioSeguros tipo="contacto" campos={CAMPOS} textoBoton="Enviar consulta" />
+              </Suspense>
             </div>
           </div>
         </div>

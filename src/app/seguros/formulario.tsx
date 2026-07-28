@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { CORREBIN_AVISOS, CORREBIN_EMPRESA, CORREBIN_COLORES as C } from '@/lib/correbin-marca';
 
 /**
@@ -36,7 +37,13 @@ export function FormularioSeguros({
   textoBoton: string;
   avisoSalud?: boolean;
 }) {
-  const [datos, setDatos] = useState<Record<string, string | boolean>>({});
+  // El sector viaja en la URL desde las páginas sectoriales: quien llega desde
+  // «Transporte y logística» no debería tener que escribirlo otra vez.
+  const params = useSearchParams();
+  const sectorHeredado = params.get('sector') || '';
+  const [datos, setDatos] = useState<Record<string, string | boolean>>(
+    sectorHeredado ? { sector: sectorHeredado } : {}
+  );
   const [consentimiento, setConsentimiento] = useState(false);
   const [verOpcionales, setVerOpcionales] = useState(false);
   const [enviando, setEnviando] = useState(false);

@@ -3,6 +3,7 @@ import {
   CORREBIN_SINIESTROS, CORREBIN_TIPOS_SINIESTRO, CORREBIN_EMPRESA, CORREBIN_COLORES as C,
 } from '@/lib/correbin-marca';
 import { Seccion, Encabezado, Lista, Tarjeta, Aviso, Antetitulo } from '../ui';
+import { Suspense } from 'react';
 import { FormularioSeguros, CampoForm } from '../formulario';
 
 export const metadata: Metadata = {
@@ -93,12 +94,14 @@ export default function Siniestros() {
           />
         </div>
         <div className="mt-8 max-w-3xl">
-          <FormularioSeguros
-            tipo="siniestro"
-            campos={CAMPOS}
-            textoBoton="Comunicar el siniestro"
-            avisoSalud
-          />
+          <Suspense fallback={<div className="rounded-2xl border p-8" style={{ borderColor: C.borde }} />}>
+            <FormularioSeguros
+              tipo="siniestro"
+              campos={CAMPOS}
+              textoBoton="Comunicar el siniestro"
+              avisoSalud
+            />
+          </Suspense>
         </div>
       </Seccion>
     </>

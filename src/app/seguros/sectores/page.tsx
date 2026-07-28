@@ -1,31 +1,14 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
+import { SECTORES } from '@/lib/correbin-catalogo';
 import { CORREBIN_PUBLICOS, CORREBIN_CTA, CORREBIN_COLORES as C } from '@/lib/correbin-marca';
 import { Seccion, Encabezado, Tarjeta, SiguientePaso, Antetitulo } from '../ui';
 
 export const metadata: Metadata = {
   title: 'Sectores · Correbin Asociados',
   description:
-    'Industria y agroalimentario, transporte y flotas, explotaciones agrícolas y ganaderas, comercio y pymes, y entidades públicas.',
-};
-
-/**
- * Sectores. De momento con los públicos prioritarios aprobados en el Volumen I:
- * el detalle por sector llegará con el Volumen VI, y esta página crecerá con él.
- */
-
-/** Qué cambia el riesgo en cada sector. Descripciones derivadas del método
- *  (Volúmenes IV y V), sin atribuir experiencia ni casos no confirmados. */
-const DETALLE: Record<string, string> = {
-  'Empresas industriales y agroalimentarias':
-    'Maquinaria, existencias, cadena de frío y paradas de actividad. El capital de continente y contenido se queda corto en cuanto la planta crece.',
-  'Transportistas, operadores logísticos y flotas':
-    'Vehículos, mercancía transportada, talleres y responsabilidad frente a cargadores. Vencimientos dispersos que conviene ordenar.',
-  'Ganaderos, agricultores y explotaciones':
-    'Naves, animales, cosecha, maquinaria y responsabilidad por la actividad. Bienes repartidos en varias direcciones de riesgo.',
-  'Comercios, autónomos y pymes':
-    'Local, contenido, responsabilidad civil y continuidad del negocio si hay que cerrar unos días.',
-  'Ayuntamientos, asociaciones y entidades':
-    'Responsabilidad patrimonial, instalaciones de uso público, actividades y voluntariado.',
+    'Transporte y logística, industria agroalimentaria, explotaciones agrícolas y ganaderas, industria, comercio y servicios, y administraciones y entidades.',
+  alternates: { canonical: '/seguros/sectores' },
 };
 
 export default function Sectores() {
@@ -39,18 +22,24 @@ export default function Sectores() {
           </h1>
           <p className="mt-6 text-lg leading-relaxed max-w-3xl" style={{ color: C.textoSuave }}>
             No es lo mismo asegurar una nave con cámara frigorífica que una flota de camiones o una
-            explotación con bienes repartidos. El análisis empieza por entender cómo funciona el negocio.
+            explotación con los bienes repartidos. El análisis empieza por entender cómo funciona el
+            negocio, no por elegir una póliza.
           </p>
         </div>
       </section>
 
       <Seccion>
         <div className="grid md:grid-cols-2 gap-5">
-          {CORREBIN_PUBLICOS.empresa.map((sector) => (
-            <Tarjeta key={sector}>
-              <h2 className="text-lg font-black leading-snug mb-2" style={{ color: C.azul }}>{sector}</h2>
-              <p className="text-sm leading-relaxed" style={{ color: C.textoSuave }}>{DETALLE[sector]}</p>
-            </Tarjeta>
+          {SECTORES.map((s) => (
+            <Link key={s.slug} href={`/seguros/sectores/${s.slug}`}>
+              <Tarjeta className="h-full transition hover:-translate-y-0.5">
+                <h2 className="text-xl font-black leading-snug mb-2" style={{ color: C.azul }}>{s.nombre}</h2>
+                <p className="text-sm leading-relaxed" style={{ color: C.textoSuave }}>{s.entradilla}</p>
+                <span className="text-sm font-bold mt-4 inline-block" style={{ color: C.rojo }}>
+                  Ver el sector →
+                </span>
+              </Tarjeta>
+            </Link>
           ))}
         </div>
       </Seccion>
@@ -63,13 +52,14 @@ export default function Sectores() {
         />
         <div className="mt-6 flex flex-wrap gap-2.5">
           {CORREBIN_PUBLICOS.particulares.map((p) => (
-            <span
+            <Link
               key={p}
-              className="inline-flex items-center px-4 py-2.5 rounded-lg border text-sm font-semibold"
+              href="/seguros/particulares"
+              className="inline-flex items-center px-4 py-2.5 rounded-lg border text-sm font-semibold transition hover:opacity-75"
               style={{ borderColor: C.borde, color: C.azul, background: '#fff' }}
             >
               {p}
-            </span>
+            </Link>
           ))}
         </div>
       </Seccion>
@@ -78,7 +68,7 @@ export default function Sectores() {
         titulo="¿Trabajas en alguno de estos sectores?"
         texto="Cuéntanos qué tienes contratado y lo revisamos con la actividad real delante."
         principal={{ href: CORREBIN_CTA.revision.href, texto: 'Solicitar diagnóstico inicial' }}
-        secundario={{ href: '/seguros/empresas', texto: 'Ver seguros de empresa' }}
+        secundario={{ href: '/seguros/soluciones', texto: 'Ver soluciones por riesgo' }}
       />
     </>
   );

@@ -1,8 +1,17 @@
+import type { Metadata } from 'next';
 import {
   CORREBIN_EMPRESA, CORREBIN_HOME, CORREBIN_METODO_HOME, CORREBIN_QUE_REVISAMOS,
   CORREBIN_POSICIONAMIENTO, CORREBIN_CTA, CORREBIN_GERENCIA, CORREBIN_COLORES as C,
 } from '@/lib/correbin-marca';
 import { Antetitulo, Seccion, Encabezado, Lista, Tarjeta, Boton, SiguientePaso } from './ui';
+
+/** Title y description exactos del Volumen VIII. */
+export const metadata: Metadata = {
+  title: 'Correbin Asociados | Seguros de empresa y gerencia de riesgos',
+  description:
+    'Correduría especializada en empresas, flotas, transporte, agroindustria y gerencia de riesgos. Revisión técnica, negociación y gestión de siniestros.',
+  alternates: { canonical: '/seguros' },
+};
 
 /**
  * Home de la microsede de seguros.

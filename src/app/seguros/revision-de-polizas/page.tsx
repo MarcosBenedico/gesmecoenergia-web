@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { CORREBIN_REVISION, CORREBIN_COLORES as C } from '@/lib/correbin-marca';
 import { Seccion, Encabezado, Lista, Tarjeta, Antetitulo } from '../ui';
+import { Suspense } from 'react';
 import { FormularioSeguros, CampoForm } from '../formulario';
 
 export const metadata: Metadata = {
@@ -74,12 +75,14 @@ export default function RevisionDePolizas() {
           />
         </div>
         <div className="mt-8 max-w-3xl">
-          <FormularioSeguros
-            tipo="revision"
-            campos={CAMPOS}
-            opcionales={OPCIONALES}
-            textoBoton={CORREBIN_REVISION.cta}
-          />
+          <Suspense fallback={<div className="rounded-2xl border p-8" style={{ borderColor: C.borde }} />}>
+            <FormularioSeguros
+              tipo="revision"
+              campos={CAMPOS}
+              opcionales={OPCIONALES}
+              textoBoton={CORREBIN_REVISION.cta}
+            />
+          </Suspense>
         </div>
       </Seccion>
     </>

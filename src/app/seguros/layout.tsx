@@ -12,15 +12,48 @@ import {
  * y azul estructural, mientras que la web de energía es de tema oscuro.
  */
 
+/** Metadatos base de la microsede (Volumen VIII). Cada página añade los suyos. */
 export const metadata: Metadata = {
-  title: 'Correbin Asociados · Seguros de empresa con criterio de gerencia de riesgos',
+  metadataBase: new URL('https://gesmecoenergia.com'),
+  title: {
+    default: 'Correbin Asociados | Seguros de empresa y gerencia de riesgos',
+    template: '%s',
+  },
   description:
-    'Correduría de seguros para empresas. Analizamos tu actividad, revisamos tus pólizas, negociamos con las compañías y gestionamos tus seguros durante todo el año.',
+    'Correduría especializada en empresas, flotas, transporte, agroindustria y gerencia de riesgos. Revisión técnica, negociación y gestión de siniestros.',
+  alternates: { canonical: '/seguros' },
+  openGraph: {
+    siteName: 'Correbin Asociados',
+    locale: 'es_ES',
+    type: 'website',
+  },
+  twitter: { card: 'summary_large_image' },
+};
+
+/**
+ * Datos estructurados de la correduría. Solo lo confirmado: ni valoraciones,
+ * ni reseñas, ni premios, ni cobertura geográfica no demostrada, que es
+ * justo lo que prohíbe el Volumen VIII.
+ */
+const SCHEMA_ORGANIZACION = {
+  '@context': 'https://schema.org',
+  '@type': 'InsuranceAgency',
+  name: CORREBIN_EMPRESA.nombreComercial,
+  legalName: CORREBIN_EMPRESA.razonSocial,
+  taxID: CORREBIN_EMPRESA.cif,
+  telephone: CORREBIN_EMPRESA.telefonoTel,
+  url: 'https://gesmecoenergia.com/seguros',
+  parentOrganization: { '@type': 'Organization', name: 'Grupo Gesmeco' },
 };
 
 export default function SegurosLayout({ children }: { children: React.ReactNode }) {
   return (
     <div style={{ background: C.fondo, color: C.texto }} className="min-h-screen flex flex-col">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(SCHEMA_ORGANIZACION) }}
+      />
+
       {/* ══ Cabecera propia ══ */}
       <header className="border-b sticky top-0 z-50" style={{ background: C.fondo, borderColor: C.borde }}>
         <div className="mx-auto max-w-6xl px-5 h-20 flex items-center justify-between gap-5">
