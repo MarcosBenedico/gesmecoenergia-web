@@ -502,7 +502,10 @@
       "Bash(cp -r /tmp/uiux-skill/.claude/skills/design-system ~/.claude/skills/)",
       "Bash(python scripts/search.py \"scroll reveal hover micro-interaction elegant\" --domain gsap)",
       "Bash(python scripts/search.py \"animation duration reduced motion accessibility\" --domain ux)",
-      "Bash(python scripts/search.py \"focus visible keyboard navigation contrast\" --domain ux)"
+      "Bash(python scripts/search.py \"focus visible keyboard navigation contrast\" --domain ux)",
+      "Bash(mkdir -p \"src/app/\\(site\\)/energia\")",
+      "Bash(cp \"src/app/\\(site\\)/page.tsx\" \"src/app/\\(site\\)/energia/page.tsx\")",
+      "Bash(python scripts/search.py \"corporate group multi-brand landing page trust professional\" --domain product)"
     ]
   }
 }
