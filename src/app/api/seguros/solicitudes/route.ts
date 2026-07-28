@@ -14,12 +14,38 @@ import { createClient } from '@supabase/supabase-js';
 
 const TIPOS = ['revision', 'siniestro', 'contacto'];
 
+/**
+ * Límite de envíos por IP (Volumen X: rate limiting).
+ * En memoria del proceso: no sobrevive a un reinicio ni se comparte entre
+ * instancias, pero frena el abuso desde un mismo sitio, que es el caso real.
+ * Si algún día hace falta algo más firme, el sitio donde ponerlo es este.
+ */
+const VENTANA_MS = 10 * 60 * 1000;   // 10 minutos
+const MAX_POR_VENTANA = 5;
+const envios = new Map<string, number[]>();
+
+function demasiadosEnvios(ip: string): boolean {
+  const ahora = Date.now();
+  const previos = (envios.get(ip) || []).filter((t) => ahora - t < VENTANA_MS);
+  previos.push(ahora);
+  envios.set(ip, previos);
+  // Limpieza para que el mapa no crezca sin fin
+  if (envios.size > 500) {
+    for (const [clave, marcas] of envios) {
+      if (marcas.every((t) => ahora - t >= VENTANA_MS)) envios.delete(clave);
+    }
+  }
+  return previos.length > MAX_POR_VENTANA;
+}
+
 /** Campos que se aceptan del formulario. Cualquier otro se descarta. */
 const CAMPOS = [
   'nombre', 'empresa', 'nif', 'telefono', 'email', 'localidad', 'sector', 'motivo', 'mensaje',
   'proximo_vencimiento', 'empleados', 'facturacion', 'centros', 'vehiculos', 'siniestralidad',
   'poliza', 'fecha_siniestro', 'lugar', 'tipo_siniestro', 'danos_personales', 'terceros',
   'autoridades', 'urgente',
+  // Atribución comercial (Volumen XI): de dónde viene el contacto
+  'origen', 'campana',
 ];
 const NUMERICOS = ['empleados', 'facturacion', 'centros', 'vehiculos'];
 const FECHAS = ['proximo_vencimiento', 'fecha_siniestro'];
@@ -36,6 +62,17 @@ function nuevaReferencia(tipo: string): string {
 
 export async function POST(req: NextRequest) {
   try {
+    const ip =
+      req.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
+      req.headers.get('x-real-ip') ||
+      'desconocida';
+    if (demasiadosEnvios(ip)) {
+      return NextResponse.json(
+        { error: 'Has enviado varias solicitudes seguidas. Espera unos minutos o llámanos por teléfono.' },
+        { status: 429 }
+      );
+    }
+
     const body = await req.json();
     const tipo = String(body.tipo || '');
     if (!TIPOS.includes(tipo)) {

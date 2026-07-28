@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { CORREBIN_GERENCIA, CORREBIN_CTA, CORREBIN_COLORES as C } from '@/lib/correbin-marca';
-import { Seccion, Encabezado, Lista, Tarjeta, Boton, Aviso, SiguientePaso, Antetitulo } from '../ui';
+import { Seccion, Encabezado, Lista, Tarjeta, Aviso, SiguientePaso, Antetitulo } from '../ui';
 
 export const metadata: Metadata = {
   title: 'Gerencia de riesgos · Correbin Asociados',

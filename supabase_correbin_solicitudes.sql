@@ -41,6 +41,9 @@ CREATE TABLE IF NOT EXISTS correbin_solicitudes (
   terceros BOOLEAN DEFAULT false,
   autoridades TEXT,
   urgente BOOLEAN DEFAULT false,
+  -- Atribución comercial: de dónde llegó el contacto (Volumen XI)
+  origen TEXT,
+  campana TEXT,
   -- Gestión interna
   estado TEXT NOT NULL DEFAULT 'nueva',       -- nueva | en_curso | cerrada
   responsable TEXT,

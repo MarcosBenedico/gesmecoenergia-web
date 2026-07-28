@@ -3,6 +3,7 @@ import Link from 'next/link';
 import {
   CORREBIN_EMPRESA, CORREBIN_MENU, CORREBIN_CTA, CORREBIN_COLORES as C,
 } from '@/lib/correbin-marca';
+import { BarraContactoMovil } from './contacto-rapido';
 
 /**
  * Microsede de seguros de Correbin Asociados.
@@ -186,37 +187,7 @@ export default function SegurosLayout({ children }: { children: React.ReactNode 
       </footer>
 
       {/* ══ Barra fija en móvil: llamar, WhatsApp y siniestro (Volumen III) ══ */}
-      <div
-        className="md:hidden fixed bottom-0 inset-x-0 z-50 grid grid-cols-3 border-t"
-        style={{ background: '#fff', borderColor: C.borde }}
-      >
-        <a
-          href={`tel:${CORREBIN_EMPRESA.telefonoTel}`}
-          className="flex flex-col items-center justify-center py-2.5 text-[11px] font-bold"
-          style={{ color: C.azul }}
-        >
-          <span className="text-lg leading-none mb-0.5" aria-hidden>☎</span>
-          Llamar
-        </a>
-        <a
-          href={CORREBIN_EMPRESA.whatsappLink}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex flex-col items-center justify-center py-2.5 text-[11px] font-bold border-x"
-          style={{ color: C.azul, borderColor: C.borde }}
-        >
-          <span className="text-lg leading-none mb-0.5" aria-hidden>✆</span>
-          WhatsApp
-        </a>
-        <Link
-          href={CORREBIN_CTA.siniestro.href}
-          className="flex flex-col items-center justify-center py-2.5 text-[11px] font-bold text-white"
-          style={{ background: C.rojo }}
-        >
-          <span className="text-lg leading-none mb-0.5" aria-hidden>!</span>
-          Siniestro
-        </Link>
-      </div>
+      <BarraContactoMovil />
     </div>
   );
 }

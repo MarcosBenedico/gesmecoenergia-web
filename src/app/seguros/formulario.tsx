@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { CORREBIN_AVISOS, CORREBIN_EMPRESA, CORREBIN_COLORES as C } from '@/lib/correbin-marca';
+import { medir, atribucion, EVENTOS } from '@/lib/correbin-medicion';
 
 /**
  * Formulario público de la microsede de seguros (Volumen III).
@@ -61,14 +62,23 @@ export function FormularioSeguros({
     }
     setEnviando(true);
     try {
+      // De dónde viene el contacto, para saber qué funciona (Volumen XI)
+      const { origen, campana } = atribucion();
       const res = await fetch('/api/seguros/solicitudes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...datos, tipo, consentimiento }),
+        body: JSON.stringify({ ...datos, tipo, consentimiento, origen, campana }),
       });
       const json = await res.json();
       if (!res.ok) { setError(json.error || 'No se pudo enviar la solicitud.'); return; }
       setReferencia(json.referencia);
+      // Evento sin ningún dato personal: solo qué se envió, de dónde y de qué sector
+      medir(
+        tipo === 'revision' ? EVENTOS.envioRevision
+          : tipo === 'siniestro' ? EVENTOS.envioSiniestro
+          : EVENTOS.envioContacto,
+        { origen, campana, sector: (datos.sector as string) || undefined }
+      );
     } catch {
       setError('No hemos podido conectar. Revisa tu conexión o llámanos por teléfono.');
     } finally {
