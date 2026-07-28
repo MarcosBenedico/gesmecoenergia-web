@@ -53,7 +53,7 @@ const WHATSAPP = '34638434970';
 
 export default function PortadaGrupoPage() {
   return (
-    <div className="pb-10">
+    <div>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(SCHEMA_GRUPO) }}
@@ -61,19 +61,19 @@ export default function PortadaGrupoPage() {
 
       <PortadaGrupo />
 
-      {/* ══════════ Novedades: una columna por casa y una de la comarca ══════════ */}
-      <section className="py-16 md:py-20">
+      {/* ══════════ Novedades: una columna por casa y una de la comarca ══════════
+          Va sobre una banda propia y separada por un filete: hasta aquí se ha
+          presentado quién es cada uno, y a partir de aquí se cuenta qué está
+          pasando. Sin ese corte las novedades parecen una cuarta empresa. */}
+      <section className="border-t border-border bg-white/[0.015] py-16 md:py-24">
         <Container>
-          <div className="mb-9 flex flex-wrap items-end justify-between gap-4">
+          <div className="mb-10 flex flex-wrap items-end justify-between gap-6 md:mb-14">
             <div>
-              <p className="flex items-center gap-2.5 text-xs font-bold uppercase tracking-[0.22em] text-muted">
-                <span className="inline-block h-px w-7 bg-accent" />
+              <p className="flex items-center gap-3.5 text-[11px] font-bold uppercase tracking-[0.3em] text-muted">
+                <span aria-hidden className="inline-block h-px w-10 bg-foreground/30" />
                 Novedades
               </p>
-              <h2
-                className="mt-3 max-w-2xl text-3xl leading-tight tracking-tight text-foreground md:text-4xl"
-                style={{ fontFamily: 'var(--font-titular), Georgia, serif', fontWeight: 500 }}
-              >
+              <h2 className="portada-casa mt-5 max-w-2xl text-foreground">
                 Lo que se mueve en el grupo, y en la comarca.
               </h2>
             </div>
@@ -87,39 +87,47 @@ export default function PortadaGrupoPage() {
         </Container>
       </section>
 
-      {/* ══════════ Una sola puerta: el cierre ══════════ */}
-      <section className="pb-16">
+      {/* ══════════ El cierre: la puerta, con su dirección ══════════
+          Después de tanto hablar de «una sola puerta», lo que cierra la página
+          es la calle y el número. Es el dato más barato de poner y el que más
+          dice: una web sin dirección puede ser de cualquiera y de ningún sitio. */}
+      <section className="border-t border-border py-16 md:py-24">
         <Container>
-          <div className="relative overflow-hidden rounded-3xl border border-accent/25 bg-gradient-to-br from-accent/[0.09] to-transparent p-8 md:p-12">
-            <div className="flex flex-col items-start justify-between gap-7 md:flex-row md:items-center">
-              <div className="max-w-xl">
-                <h2
-                  className="text-2xl leading-tight text-foreground md:text-3xl"
-                  style={{ fontFamily: 'var(--font-titular), Georgia, serif', fontWeight: 500 }}
-                >
-                  ¿No sabes cuál de las tres te toca?
-                </h2>
-                <p className="mt-3 text-base leading-relaxed text-muted">
-                  Cuéntanoslo y te pasamos con quien lo lleva. Si es cosa de varias, mejor: para eso
-                  estamos las tres en el mismo sitio.
-                </p>
-              </div>
-              <div className="flex shrink-0 flex-wrap gap-3">
-                <Link
-                  href="/contacto"
-                  className="inline-flex items-center gap-2 rounded-xl bg-accent px-7 py-4 text-base font-black text-white transition-transform duration-300 hover:-translate-y-0.5"
-                >
-                  Hablar con el grupo
-                </Link>
-                <a
-                  href={`https://wa.me/${WHATSAPP}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 rounded-xl border border-foreground/20 bg-foreground/5 px-7 py-4 text-base font-bold text-foreground transition-colors duration-300 hover:border-accent/50 hover:text-accent"
-                >
-                  Escribir por WhatsApp
-                </a>
-              </div>
+          <div className="grid gap-10 md:grid-cols-[1fr_auto] md:items-end md:gap-16">
+            <div className="max-w-xl">
+              <h2 className="portada-casa text-foreground">¿No sabes cuál de las tres te toca?</h2>
+              <p className="mt-5 text-base leading-relaxed text-muted md:text-lg">
+                Cuéntanoslo y te pasamos con quien lo lleva. Si es cosa de varias, mejor: para eso
+                estamos las tres en el mismo sitio.
+              </p>
+
+              <p className="mt-9 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted">
+                <span className="text-[11px] font-bold uppercase tracking-[0.26em] text-foreground/60">
+                  La puerta
+                </span>
+                <span aria-hidden className="hidden h-px w-6 bg-border sm:inline-block" />
+                <span className="font-semibold text-foreground">Avenida de Aragón, 50</span>
+                <span aria-hidden className="text-border">·</span>
+                <span>22500 Binéfar, Huesca</span>
+              </p>
+            </div>
+
+            <div className="flex shrink-0 flex-wrap gap-3">
+              <Link
+                href="/contacto"
+                className="inline-flex items-center gap-2 rounded-full bg-accent px-7 py-4 text-sm font-bold text-white transition-transform duration-300 hover:-translate-y-0.5"
+              >
+                Hablar con el grupo
+                <span aria-hidden>→</span>
+              </Link>
+              <a
+                href={`https://wa.me/${WHATSAPP}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 rounded-full border border-foreground/20 px-7 py-4 text-sm font-bold text-foreground transition-colors duration-300 hover:border-accent/60 hover:text-accent"
+              >
+                Escribir por WhatsApp
+              </a>
             </div>
           </div>
         </Container>

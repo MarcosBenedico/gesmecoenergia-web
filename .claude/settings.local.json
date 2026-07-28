@@ -505,7 +505,10 @@
       "Bash(python scripts/search.py \"focus visible keyboard navigation contrast\" --domain ux)",
       "Bash(mkdir -p \"src/app/\\(site\\)/energia\")",
       "Bash(cp \"src/app/\\(site\\)/page.tsx\" \"src/app/\\(site\\)/energia/page.tsx\")",
-      "Bash(python scripts/search.py \"corporate group multi-brand landing page trust professional\" --domain product)"
+      "Bash(python scripts/search.py \"corporate group multi-brand landing page trust professional\" --domain product)",
+      "Bash(python scripts/search.py \"luxury premium elegant high-end sophisticated\" --domain style)",
+      "PowerShell(\"borrada\")",
+      "Bash(curl -s http://localhost:3000/)"
     ]
   }
 }

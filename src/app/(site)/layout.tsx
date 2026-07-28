@@ -11,6 +11,14 @@ export default function SiteLayout({ children }: { children: ReactNode }) {
     // escaparate interesa que todos midan lo mismo sin depender del JSX. El
     // gestor no lleva esta clase y usa las utilidades de Tailwind.
     <div className="web-publica bg-background text-foreground">
+      {/* Plan B sin JavaScript: Motion escribe `opacity: 0` en el HTML que sale
+          del servidor, así que la portada del grupo y los paneles de novedades
+          se verían en blanco si no llega a ejecutarse. Esto los devuelve a
+          visible; dentro de <noscript> no afecta a nadie más. */}
+      <noscript>
+        <style>{`[data-revelar]{opacity:1!important;transform:none!important}`}</style>
+      </noscript>
+
       <Background3D />
       {/* Un solo escuchador de puntero para todas las tarjetas `.foco`. */}
       <FocoPuntero />

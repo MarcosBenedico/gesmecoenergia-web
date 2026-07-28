@@ -1186,6 +1186,146 @@ input:focus, textarea:focus, select:focus {
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
+   PORTADA DEL GRUPO — LAS TRES PLACAS DE LA PUERTA
+
+   El grupo no es «tres empresas»: es una puerta en la Avenida de Aragón con
+   tres chapas al lado del timbre. Esa es la imagen que se copia aquí, y es la
+   razón de que los logos no vayan sueltos ni dentro de tarjetas: van montados
+   en placas, con luz cayéndoles desde arriba y una línea de su color debajo.
+   Es lo único llamativo de la página; todo lo demás calla.
+
+   ── POR QUÉ ESTÁ AQUÍ Y NO EN EL JSX ────────────────────────────────────
+   `.web-publica h1/h2` fija los tamaños del escaparate SIN capa, así que una
+   clase `text-*` de Tailwind no los pisa nunca. Los titulares de la portada
+   piden una escala mucho mayor que la del resto del sitio, y la única forma
+   de dársela es desde aquí. Van con `.web-publica .portada-*` (0,2,0) para
+   ganarle a `.web-publica h1` (0,1,1) sin `!important`.
+
+   Las transiciones se apagan solas: el bloque de movimiento reducido va
+   después y desactiva `transition-duration` en todo. Nada de lo que se ve
+   depende de que una animación llegue a correr.
+══════════════════════════════════════════════════════════════════════════ */
+
+.web-publica .portada-titular {
+  font-family: var(--font-titular), Georgia, "Times New Roman", serif;
+  font-size: clamp(2.9rem, 8.2vw, 6.25rem);
+  font-weight: 500;
+  line-height: 0.96;
+  letter-spacing: -0.035em;
+}
+
+.web-publica .portada-casa {
+  font-family: var(--font-titular), Georgia, "Times New Roman", serif;
+  font-size: clamp(1.9rem, 3.6vw, 2.85rem);
+  font-weight: 500;
+  line-height: 1.04;
+  letter-spacing: -0.025em;
+}
+
+.web-publica .portada-frase {
+  font-family: var(--font-titular), Georgia, "Times New Roman", serif;
+  font-size: clamp(1.35rem, 2.4vw, 1.85rem);
+  font-weight: 500;
+  line-height: 1.28;
+  letter-spacing: -0.015em;
+}
+
+/* La luz de encima de la puerta. Estática a propósito: un degradado que se
+   mueve es un efecto, y uno que no se mueve es una sala bien iluminada. */
+.portada-luz {
+  position: absolute;
+  top: -18%;
+  left: -10%;
+  right: -10%;
+  height: 105%;
+  pointer-events: none;
+  background:
+    radial-gradient(52% 44% at 50% 0%, rgba(255, 255, 255, 0.09), transparent 70%),
+    radial-gradient(34% 30% at 50% 2%, rgba(255, 208, 168, 0.055), transparent 74%);
+}
+
+/* ── La placa ─────────────────────────────────────────────────────────────
+   Tres sombras apiladas, no una: contacto, cuerpo y la que la despega del
+   fondo. Es lo que separa una chapa de un rectángulo blanco. El radio es
+   pequeño (10px) porque las placas de verdad no son pastillas. */
+.placa {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  border-radius: 10px;
+  background: linear-gradient(168deg, #ffffff 0%, #fdfdfb 44%, #f2f1ed 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 1px 2px rgba(0, 0, 0, 0.3),
+    0 12px 28px rgba(0, 0, 0, 0.34),
+    0 34px 60px -28px rgba(0, 0, 0, 0.55);
+  transition:
+    transform 0.5s var(--salida),
+    box-shadow 0.5s var(--salida);
+}
+
+.placa-enlace:hover .placa,
+.placa-enlace:focus-visible .placa {
+  transform: translateY(-7px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 1px 2px rgba(0, 0, 0, 0.3),
+    0 20px 40px rgba(0, 0, 0, 0.38),
+    0 52px 80px -30px rgba(0, 0, 0, 0.62);
+}
+
+/* El filete del color de la casa: nace corto y se estira al pasar por encima.
+   Es el único sitio donde el color de cada marca ocupa superficie. */
+.placa-hilo {
+  display: block;
+  height: 2px;
+  width: 34px;
+  border-radius: 2px;
+  transition: width 0.55s var(--salida);
+}
+
+.placa-enlace:hover .placa-hilo,
+.placa-enlace:focus-visible .placa-hilo {
+  width: 100%;
+}
+
+/* ── La fila de cada casa ─────────────────────────────────────────────────
+   Filete a pelo en vez de tarjeta redondeada. Tres tarjetas iguales dicen
+   «elige una de tres»; tres filas separadas por una línea dicen «esto es un
+   índice», que es lo que es. */
+.fila-casa {
+  border-top: 1px solid var(--color-border);
+  transition: background-color 0.5s var(--salida);
+}
+
+.fila-casa:hover {
+  background-color: rgba(255, 255, 255, 0.018);
+}
+
+/* El botón de cada casa, en su color. Va aquí y no en el JSX porque el estado
+   `hover` necesita cambiar tres propiedades a la vez y un `style=` en línea no
+   tiene hover. `--casa` la pone el componente con el color de la marca.
+   Es un enlace, no un `button`: las reglas sin capa de `button` (fondo, borde,
+   radio) le pisarían todo esto. */
+.cta-casa {
+  border: 1px solid color-mix(in srgb, var(--casa) 42%, transparent);
+  background: color-mix(in srgb, var(--casa) 8%, transparent);
+  color: var(--casa);
+  transition:
+    background-color 0.35s var(--salida),
+    border-color 0.35s var(--salida),
+    color 0.35s var(--salida);
+}
+
+.cta-casa:hover,
+.cta-casa:focus-visible {
+  background: var(--casa);
+  border-color: var(--casa);
+  color: #fff;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
    MOVIMIENTO REDUCIDO
 
    El sitio tenía quince animaciones en bucle infinito (órbitas, rejilla,

@@ -33,6 +33,9 @@ export function PanelesNovedades() {
           <motion.section
             key={panel.area}
             aria-labelledby={`novedades-${panel.area}`}
+            /* Sin JS, Motion deja esto en `opacity: 0`. El <noscript> del
+               layout de la web pública lo devuelve a visible. */
+            data-revelar
             initial={quieto ? false : { opacity: 0, y: 18 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, margin: '-60px' }}
