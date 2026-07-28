@@ -27,7 +27,7 @@ export const Footer = () => {
             <Link className="block hover:text-tertiary transition" href="/grupo">
               📋 Asesoría Gesmeco
             </Link>
-            <Link className="block hover:text-secondary transition" href="/correbin">
+            <Link className="block hover:text-secondary transition" href="/seguros">
               🛡️ Correbin Asociados
             </Link>
             <Link className="block font-semibold text-accent hover:text-accent-light transition" href="/grupo">

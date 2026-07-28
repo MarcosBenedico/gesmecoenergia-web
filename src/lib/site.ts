@@ -68,7 +68,7 @@ export const navigation: NavItem[] = [
   { label: "Sectores", href: "/sectores", type: "mega", items: sectorsMega, cta: "Ver todos" },
   { label: "Grupo", href: "/grupo", type: "link" },
   // Microsede propia de la correduría: identidad, navegación y conversión aparte
-  { label: "Seguros · Correbin", href: "/correbin", type: "link" },
+  { label: "Seguros · Correbin", href: "/seguros", type: "link" },
   { label: "Sobre nosotros", href: "/sobre-nosotros", type: "link" },
 ];
 

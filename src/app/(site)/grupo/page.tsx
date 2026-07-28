@@ -73,7 +73,7 @@ const EMPRESAS = [
       "Gestión continua de cartera y vencimientos",
       "Particulares: hogar, auto, vida y salud",
     ],
-    href: "/correbin",
+    href: "/seguros",
     cta: "Entrar en Correbin Asociados",
     color: "secondary",
     borderClass: "border-secondary/25 hover:border-secondary/60",
