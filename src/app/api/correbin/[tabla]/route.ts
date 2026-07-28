@@ -105,6 +105,17 @@ const TABLAS: Record<string, DefTabla> = {
     filtros: ['estado', 'prioridad', 'cliente_id', 'responsable', 'tipo_tarea', 'vencimiento_id', 'pipeline_id'],
     orden: { col: 'fecha_limite', asc: true },
   },
+  // Lo que llega por los formularios de la web pública (/seguros).
+  // Solo se pueden tocar los campos de gestión interna: lo que escribió la
+  // persona que rellenó el formulario queda tal cual, es la fuente.
+  solicitudes: {
+    tabla: 'correbin_solicitudes',
+    select: '*',
+    columnas: ['estado', 'responsable', 'notas_internas', 'siguiente_paso', 'fecha_siguiente_paso'],
+    filtros: ['tipo', 'estado', 'responsable'],
+    buscarEn: 'nombre',
+    orden: { col: 'creado_en', asc: false },
+  },
   responsables: {
     tabla: 'vct_responsables',
     select: '*',

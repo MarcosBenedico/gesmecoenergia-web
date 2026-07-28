@@ -5,12 +5,13 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard, FolderOpen, CalendarDays, Users, TrendingUp, FileX,
-  ArrowLeftRight, Target, BellRing, Upload, Download, ChevronLeft, Shield,
+  ArrowLeftRight, Target, BellRing, Upload, Download, ChevronLeft, Shield, Inbox,
 } from 'lucide-react';
 import { GuardiaModulo } from '@/components/guardia-modulo';
 
 const SECCIONES = [
   { href: '/gestor/correbin', icono: LayoutDashboard, nombre: 'Dashboard' },
+  { href: '/gestor/correbin/solicitudes', icono: Inbox, nombre: 'Solicitudes web' },
   { href: '/gestor/correbin/cartera', icono: FolderOpen, nombre: 'Cartera viva' },
   { href: '/gestor/correbin/calendario', icono: CalendarDays, nombre: 'Calendario VCT' },
   { href: '/gestor/correbin/clientes', icono: Users, nombre: 'Clientes' },

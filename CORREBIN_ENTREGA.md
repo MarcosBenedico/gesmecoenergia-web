@@ -191,3 +191,45 @@ Pendientes de los volúmenes ya leídos:
 - **Área de cliente** (Vol. IX): fase posterior y separada. Ver
   `CORREBIN_AREA_CLIENTE.md`.
 - **Volumen XII** (manual corporativo): no entregado todavía.
+
+---
+
+## 8. Volumen XII · Procesos internos
+
+El manual corporativo exige que **cada solicitud tenga responsable, estado y
+siguiente paso**, y que la web solo comunique capacidades operativas reales.
+
+### Bandeja de solicitudes
+
+Los formularios ya no son un buzón ciego: `/gestor/correbin/solicitudes` es la
+bandeja donde entra todo lo de `/seguros`.
+
+- Estados alineados con el proceso real del volumen: nueva → clasificada →
+  en análisis → propuesta enviada → cerrada ganada / perdida.
+- Cada solicitud tiene **responsable**, **siguiente paso** y **fecha** del
+  siguiente paso.
+- Contadores arriba: sin clasificar, siniestros abiertos y marcadas urgentes.
+- Lo que escribió el cliente **no se puede editar**: es la fuente. Solo se
+  tocan los campos de gestión interna.
+- Notas internas separadas, que el cliente nunca ve.
+
+### Lo que la web NO promete (comprobado)
+
+- Ningún plazo de respuesta ni SLA: la confirmación dice «nos ponemos en
+  contacto contigo lo antes posible», sin comprometer horas ni días.
+- Ninguna capacidad operativa no aprobada: no se menciona portal de cliente,
+  ni tramitación en línea, ni consulta de expedientes, porque todavía no
+  existen.
+- La página de siniestros deja escrito que no se puede prometer cobertura ni
+  indemnización, solo gestión, seguimiento, explicación y defensa.
+
+### Pendiente de este volumen
+
+- **Correo de confirmación** al enviar una solicitud: el volumen lo pide
+  «cuando la infraestructura lo permita». Hace falta el correo corporativo
+  confirmado y un servicio de envío. La referencia interna ya se genera.
+- **Calendario de renovaciones** 120-90-60-30-15 días: el panel ya avisa a
+  120, 60, 30 y 15. Falta el hito de 90 días para cuentas complejas.
+- **Gobierno documental** (borrador / enviado / aceptado / emitido, sin
+  sobrescribir contractuales): es proceso interno; se abordará con el área
+  documental.

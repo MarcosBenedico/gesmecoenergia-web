@@ -44,9 +44,13 @@ CREATE TABLE IF NOT EXISTS correbin_solicitudes (
   -- Atribución comercial: de dónde llegó el contacto (Volumen XI)
   origen TEXT,
   campana TEXT,
-  -- Gestión interna
-  estado TEXT NOT NULL DEFAULT 'nueva',       -- nueva | en_curso | cerrada
+  -- Gestión interna: cada solicitud tiene responsable, estado y siguiente
+  -- paso, como exige el Volumen XII. Los estados siguen el proceso real:
+  -- nueva → clasificada → en_analisis → propuesta_enviada → cerrada_*
+  estado TEXT NOT NULL DEFAULT 'nueva',
   responsable TEXT,
+  siguiente_paso TEXT,
+  fecha_siguiente_paso DATE,
   notas_internas TEXT,
   creado_en TIMESTAMPTZ NOT NULL DEFAULT now(),
   actualizado_en TIMESTAMPTZ NOT NULL DEFAULT now()
