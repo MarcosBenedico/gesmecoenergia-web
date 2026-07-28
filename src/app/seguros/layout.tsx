@@ -4,6 +4,8 @@ import {
   CORREBIN_EMPRESA, CORREBIN_MENU, CORREBIN_CTA, CORREBIN_COLORES as C,
 } from '@/lib/correbin-marca';
 import { BarraContactoMovil } from './contacto-rapido';
+import { LogoEmpresa, MARCAS } from '@/components/logo-empresa';
+import { HiloDeLectura } from './movimiento';
 
 /**
  * Microsede de seguros de Correbin Asociados.
@@ -50,6 +52,15 @@ const SCHEMA_ORGANIZACION = {
 export default function SegurosLayout({ children }: { children: React.ReactNode }) {
   return (
     <div style={{ background: C.fondo, color: C.texto }} className="min-h-screen flex flex-col">
+      {/* Plan B sin JavaScript: Motion deja `opacity: 0` en el HTML del
+          servidor, así que sin él la microsede se vería en blanco. Esto la
+          devuelve a visible. */}
+      <noscript>
+        <style>{`[data-revelar]{opacity:1!important;transform:none!important}`}</style>
+      </noscript>
+
+      <HiloDeLectura />
+
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(SCHEMA_ORGANIZACION) }}
@@ -58,12 +69,18 @@ export default function SegurosLayout({ children }: { children: React.ReactNode 
       {/* ══ Cabecera propia ══ */}
       <header className="border-b sticky top-0 z-50" style={{ background: C.fondo, borderColor: C.borde }}>
         <div className="mx-auto max-w-6xl px-5 h-20 flex items-center justify-between gap-5">
-          <Link href="/seguros" className="flex flex-col leading-none shrink-0">
-            <span className="text-xl font-black tracking-tight" style={{ color: C.azul }}>
-              CORREBIN
-            </span>
+          {/* El logo, sin placa: aquí el fondo ya es blanco cálido y el texto
+              negro de la marca se lee perfecto. */}
+          <Link href="/seguros" className="flex flex-col gap-1 shrink-0 group">
+            <LogoEmpresa
+              marca={MARCAS.seguros}
+              alto={34}
+              placa={false}
+              prioritario
+              className="transition-transform duration-500 group-hover:-translate-y-0.5"
+            />
             <span className="text-[9px] font-semibold tracking-[0.2em] uppercase" style={{ color: C.textoSuave }}>
-              Asociados · Parte de Grupo Gesmeco
+              Parte de Grupo Gesmeco
             </span>
           </Link>
 
@@ -120,9 +137,11 @@ export default function SegurosLayout({ children }: { children: React.ReactNode 
       <footer className="border-t" style={{ background: C.azul, borderColor: C.azul }}>
         <div className="mx-auto max-w-6xl px-5 py-12 grid gap-8 md:grid-cols-4 text-white">
           <div className="md:col-span-2">
-            <p className="text-lg font-black tracking-tight">CORREBIN</p>
-            <p className="text-[10px] font-semibold tracking-[0.2em] uppercase text-white/60 mt-1">
-              Asociados · Correduría de seguros
+            {/* Aquí SÍ lleva placa: el pie es azul y el texto negro del logo
+                desaparecería sobre él. */}
+            <LogoEmpresa marca={MARCAS.seguros} alto={36} />
+            <p className="text-[10px] font-semibold tracking-[0.2em] uppercase text-white/60 mt-3">
+              Correduría de seguros
             </p>
             <p className="text-sm text-white/70 mt-4 leading-relaxed">
               {CORREBIN_EMPRESA.razonSocial}
