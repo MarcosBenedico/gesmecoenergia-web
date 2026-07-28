@@ -7,11 +7,13 @@ import { HeroSection } from "@/components/hero-section";
 import { PhotoBanner } from "@/components/photo-banner";
 import { ScrollReveal } from "@/components/scroll-reveal";
 import { methodology, services } from "@/lib/data";
+import { LogoEmpresa, MARCAS } from '@/components/logo-empresa';
 
 /* ── Grupo Gesmeco: las tres áreas, protagonistas en la home ── */
 const GRUPO = [
   {
     nombre: "Gesmeco Energía",
+    marca: MARCAS.energia,
     area: "Energía",
     icono: "⚡",
     destacada: true,
@@ -25,6 +27,7 @@ const GRUPO = [
   },
   {
     nombre: "Asesoría Gesmeco",
+    marca: MARCAS.asesoria,
     area: "Asesoría",
     icono: "📋",
     destacada: false,
@@ -38,6 +41,7 @@ const GRUPO = [
   },
   {
     nombre: "Correbin Asociados",
+    marca: MARCAS.seguros,
     area: "Seguros",
     icono: "🛡️",
     destacada: false,
@@ -85,17 +89,19 @@ export default function HomePage() {
                     e.destacada ? "ring-1 ring-accent/30 shadow-[0_10px_40px_rgba(255,51,51,0.10)]" : ""
                   }`}
                 >
-                  <div className="relative mb-3 flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3">
-                      <span className="text-3xl transition-transform duration-500 group-hover:-translate-y-0.5 group-hover:scale-110">
-                        {e.icono}
+                  <div className="relative mb-3 flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      {/* La marca manda. El nombre sigue en el h3 oculto para
+                          buscadores y lectores de pantalla. */}
+                      <h3 className="sr-only">{e.nombre}</h3>
+                      <LogoEmpresa
+                        marca={e.marca}
+                        alto={30}
+                        className="transition-transform duration-500 group-hover:-translate-y-0.5"
+                      />
+                      <span className={`mt-2.5 inline-block rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${e.chip}`}>
+                        {e.area}
                       </span>
-                      <div>
-                        <h3 className="text-lg font-black leading-tight text-foreground">{e.nombre}</h3>
-                        <span className={`mt-1 inline-block rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${e.chip}`}>
-                          {e.area}
-                        </span>
-                      </div>
                     </div>
                     {e.destacada && (
                       <span className="shrink-0 rounded-full bg-accent px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-white">

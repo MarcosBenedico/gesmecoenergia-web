@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useRef, useEffect, useState } from 'react';
 import { ScrollReveal } from '@/components/scroll-reveal';
+import { LogoEmpresa, MARCAS } from '@/components/logo-empresa';
 
 /* ═══════════════════════════════════════════════════════════════
    Keyframes globales del showcase (prefijo g3d- para no chocar)
@@ -232,6 +233,7 @@ const EMPRESAS = [
   {
     id: 'energía',
     nombre: 'Gesmeco Energía',
+    marca: MARCAS.energia,
     area: 'Energía',
     claim: 'Que tu factura de luz deje de ser un misterio.',
     descripcion:
@@ -255,6 +257,7 @@ const EMPRESAS = [
   {
     id: 'asesoría',
     nombre: 'Asesoría Gesmeco',
+    marca: MARCAS.asesoria,
     area: 'Asesoría',
     claim: 'Tus impuestos, nóminas y papeles, en orden.',
     descripcion:
@@ -278,6 +281,7 @@ const EMPRESAS = [
   {
     id: 'seguros',
     nombre: 'Correbin Asociados',
+    marca: MARCAS.seguros,
     area: 'Seguros',
     claim: 'Más que pólizas: análisis, negociación y defensa.',
     descripcion:
@@ -399,9 +403,11 @@ export function GrupoEmpresas3D() {
                         <span className="h-px flex-1 bg-gradient-to-r from-border/60 to-transparent" />
                       </div>
 
-                      <h3 className="text-3xl font-black leading-tight text-foreground md:text-4xl">
-                        {e.nombre}
-                      </h3>
+                      {/* La marca, no el nombre escrito. El h3 sigue estando
+                          para buscadores y lectores de pantalla, pero no se ve:
+                          quien mira, mira el logo. */}
+                      <h3 className="sr-only">{e.nombre}</h3>
+                      <LogoEmpresa marca={e.marca} alto={48} className="max-w-full" />
 
                       <p className={`text-lg font-bold leading-snug ${e.text}`}>“{e.claim}”</p>
 
