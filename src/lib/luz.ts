@@ -252,6 +252,21 @@ export const ESTADO_TAREA_LABEL: Record<string, string> = {
 };
 export const TAREAS_ABIERTAS: string[] = ['pendiente', 'en_curso', 'bloqueada'];
 
+/**
+ * TAREA Y PRÓXIMA ACCIÓN SON COSAS DISTINTAS. No mezclarlas.
+ *
+ *  · TAREA (`luz_tareas`) = trabajo real pendiente que alguien tiene que hacer.
+ *    Se crea a mano, en Tareas o en la ficha del cliente. Es LO ÚNICO que
+ *    cuenta en contadores, paneles, listados y estadísticas de tareas.
+ *
+ *  · PRÓXIMA ACCIÓN (`proxima_accion` del cliente y de la oportunidad) = el
+ *    siguiente paso comercial y cuándo toca. Sirve para el seguimiento: sale
+ *    en la ficha, en el calendario y en las alertas, pero NO es una tarea y
+ *    NUNCA debe crear una ni sumar al contador.
+ *
+ * Un cliente con próxima acción y sin tareas tiene 0 tareas pendientes.
+ */
+
 // ── Interfaces ──
 export interface LuzCliente {
   id: string;

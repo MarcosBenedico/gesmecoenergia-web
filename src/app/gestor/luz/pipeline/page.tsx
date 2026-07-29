@@ -3,10 +3,10 @@
 import { Suspense, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { Download, FileSignature, LayoutGrid, Plus, Table2, X } from 'lucide-react';
+import { FileSignature, LayoutGrid, Plus, Table2, X, Trash2 } from 'lucide-react';
 import {
   LuzOportunidad, LuzCliente, ESTADOS_PIPELINE, ESTADO_PIPELINE_LABEL, TIPOS_OPORTUNIDAD, TIPO_OPORTUNIDAD_LABEL,
-  PIPELINE_CERRADO, PRIORIDADES, ResponsableEquipo, responsableSugerido, MOTIVOS_PERDIDA,
+  PIPELINE_CERRADO, ResponsableEquipo, responsableSugerido, MOTIVOS_PERDIDA, MOTIVOS_ELIMINACION,
   diasHasta, fmtEur, fmtFecha, fmtKwh,
 } from '@/lib/luz';
 import { BotonDescarga, Card, Kpi, Badge, BadgePrioridad, EstadoCarga, useListaLuz, guardarLuz, inputCls, labelCls, btnPrimario, btnSecundario, SelectorResponsable } from '../ui';
@@ -26,6 +26,17 @@ function PipelineContenido() {
   const [msg, setMsg] = useState('');
   const [vista, setVista] = useState<'tablero' | 'tabla'>('tablero');
   const [mostrarForm, setMostrarForm] = useState(false);
+  // Eliminar una oportunidad creada por error: va a la papelera, con motivo
+  const [borrandoOp, setBorrandoOp] = useState<LuzOportunidad | null>(null);
+
+  async function eliminarOportunidad(motivo: string) {
+    if (!borrandoOp) return;
+    const err = await guardarLuz('pipeline', 'DELETE', { id: borrandoOp.id, motivo });
+    setBorrandoOp(null);
+    if (err) { setMsg(`No se pudo eliminar: ${err}`); return; }
+    setMsg('');
+    recargar();
+  }
   const [formOp, setFormOp] = useState(OP_VACIA);
   const [errorForm, setErrorForm] = useState('');
   const clientes = useListaLuz<LuzCliente>('clientes');
@@ -305,12 +316,33 @@ function PipelineContenido() {
                         <button onClick={() => convertirEnContrato(o)} className="text-[10px] font-bold text-emerald-400 hover:underline whitespace-nowrap">→ contrato</button>
                       ) : null}
                     </td>
+                    <td className="px-3 py-2 w-8">
+                      <button
+                        onClick={() => setBorrandoOp(o)}
+                        className="text-muted hover:text-red-400 transition"
+                        title="Eliminar oportunidad (pide motivo, va a la papelera)"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
         </Card>
+      )}
+
+      {/* Eliminar la oportunidad: distinto de darla por perdida.
+          Perdida = pasó y no salió. Eliminada = no debería existir. */}
+      {borrandoOp && (
+        <PedirMotivo
+          titulo="¿Por qué se elimina esta oportunidad?"
+          subtitulo={`"${borrandoOp.nombre_oportunidad || borrandoOp.luz_clientes?.nombre}" — va a la papelera y el motivo queda en el Control General. Si simplemente no salió, márcala como perdida en vez de eliminarla.`}
+          sugerencias={MOTIVOS_ELIMINACION}
+          onGuardar={eliminarOportunidad}
+          onCancelar={() => setBorrandoOp(null)}
+        />
       )}
 
       {/* Motivo amable al marcar una oportunidad como perdida */}

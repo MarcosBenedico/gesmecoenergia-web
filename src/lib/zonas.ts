@@ -70,6 +70,19 @@ export const ZONAS: Zona[] = [
     centro: { lat: 41.75, lon: 0.17 },
   },
   {
+    // Fuera del radio habitual, pero hay cartera allí y necesita su etiqueta.
+    id: 'barcelona', nombre: 'Barcelona', color: '#ec4899',
+    centro: { lat: 41.39, lon: 2.16 },
+    pueblos: [
+      'barcelona', 'hospitalet', 'badalona', 'sabadell', 'terrassa', 'mataro',
+      'santa coloma', 'cornella', 'sant boi', 'sant cugat', 'granollers', 'mollet',
+      'rubi', 'vic', 'manresa', 'igualada', 'vilafranca del penedes', 'vilanova i la geltru',
+      'el prat', 'castelldefels', 'gava', 'viladecans', 'sitges', 'martorell',
+      'cerdanyola', 'ripollet', 'montcada', 'esplugues', 'sant adria', 'premia',
+      'berga', 'calella', 'arenys', 'la garriga', 'cardedeu',
+    ],
+  },
+  {
     id: 'binaced-monzon', nombre: 'Cinca Medio (Monzón)', color: '#f97316',
     pueblos: [
       'binaced', 'valcarca', 'pueyo de santa cruz', 'monzon', 'selgua', 'conchel',

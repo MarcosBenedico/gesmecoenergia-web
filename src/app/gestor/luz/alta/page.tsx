@@ -66,8 +66,16 @@ export default function AltaGuiadaPage() {
     cups: '', alias_suministro: '', direccion_suministro: '', tarifa_acceso: '2.0TD',
     comercializadora_actual: '', consumo_anual_kwh: '', fecha_fin_contrato: '',
   });
-  const [fOp, setFOp] = useState({ tipo_oportunidad: 'cambio_comercializadora', comision_potencial: '', proxima_accion: 'Pedir factura para estudio' });
-  const [fTarea, setFTarea] = useState({ tipo_tarea: 'pedir_factura', descripcion: 'Pedir factura de luz para hacer el estudio', fecha_limite: enDias(2) });
+  const [fOp, setFOp] = useState({
+    tipo_oportunidad: 'cambio_comercializadora', comision_potencial: '',
+    proxima_accion: 'Pedir factura para estudio',
+    // Fecha propia: antes se tomaba la de la tarea, y eso ataba ambos conceptos
+    fecha_proxima_accion: enDias(2),
+  });
+  // La tarea del paso 4 es OPCIONAL y va vacía a propósito: una tarea es
+  // trabajo que alguien tiene que hacer, no un trámite del alta. La próxima
+  // acción de la oportunidad tiene su propia fecha, separada de esta.
+  const [fTarea, setFTarea] = useState({ tipo_tarea: 'pedir_factura', descripcion: '', fecha_limite: enDias(2) });
   const [fFechas, setFFechas] = useState({
     tipo: 'presentar_proyecto',      // qué toca hacer con este cliente (editable)
     titulo_personalizado: '',        // texto libre si el tipo es 'personalizada'
@@ -121,7 +129,7 @@ export default function AltaGuiadaPage() {
       tipo_oportunidad: fOp.tipo_oportunidad, estado: 'prospecto',
       comision_potencial: parseFloat(fOp.comision_potencial) || 0,
       proxima_accion: fOp.proxima_accion || null,
-      fecha_proxima_accion: fTarea.fecha_limite || null,
+      fecha_proxima_accion: fOp.fecha_proxima_accion || null,
       responsable: fCliente.responsable || null,
     });
     setGuardando(false);
@@ -130,8 +138,20 @@ export default function AltaGuiadaPage() {
     setPaso(4);
   }
 
+  /**
+   * Tarea del alta: OPCIONAL.
+   *
+   * Antes era obligatoria, así que dar de alta un cliente creaba siempre una
+   * tarea que nadie había pedido y que engordaba el contador. Una tarea es
+   * trabajo real pendiente; el siguiente paso comercial ya lo recoge la
+   * próxima acción del paso anterior, que no cuenta como tarea.
+   */
   async function guardarPaso4() {
-    if (!fTarea.descripcion.trim()) { setError('Describe la tarea.'); return; }
+    if (!fTarea.descripcion.trim()) {
+      // Sin descripción, se sigue sin crear nada
+      setError(''); setPaso(5);
+      return;
+    }
     setGuardando(true); setError('');
     const err = await guardarLuz('tareas', 'POST', {
       cliente_id: clienteId, cups_id: cupsId,
@@ -310,9 +330,15 @@ export default function AltaGuiadaPage() {
               </select></div>
             <div><label className={labelCls}>Comisión potencial (€, aproximada)</label>
               <input className={inputCls} type="number" step="0.01" value={fOp.comision_potencial} onChange={(e) => setFOp({ ...fOp, comision_potencial: e.target.value })} /></div>
-            <div className="md:col-span-2"><label className={labelCls}>Próxima acción</label>
+            <div><label className={labelCls}>Próxima acción</label>
               <input className={inputCls} value={fOp.proxima_accion} onChange={(e) => setFOp({ ...fOp, proxima_accion: e.target.value })} /></div>
+            <div><label className={labelCls}>¿Para cuándo?</label>
+              <input className={inputCls} type="date" value={fOp.fecha_proxima_accion} onChange={(e) => setFOp({ ...fOp, fecha_proxima_accion: e.target.value })} /></div>
           </div>
+          <p className="text-[11px] text-muted">
+            La próxima acción es el seguimiento comercial del cliente: sale en su ficha, en el calendario
+            y en las alertas. <b>No crea ninguna tarea</b> ni cuenta como tal.
+          </p>
           <div className="flex justify-end pt-2">
             <button onClick={guardarPaso3} disabled={guardando} className={btnSiguiente}>
               Crear y seguir <ChevronRight className="w-4 h-4" />
@@ -324,8 +350,12 @@ export default function AltaGuiadaPage() {
       {/* ── PASO 4: Primera tarea ── */}
       {paso === 4 && (
         <Card className="space-y-3">
-          <h3 className="font-bold text-foreground">✅ ¿Cuál es el primer paso?</h3>
-          <p className="text-xs text-muted">La primera tarea, con su fecha. Saldrá en Tareas, en Mi Día y en el calendario.</p>
+          <h3 className="font-bold text-foreground">✅ ¿Hay algo que hacer ya? <span className="text-muted font-semibold">(opcional)</span></h3>
+          <p className="text-xs text-muted">
+            Solo si hay trabajo real pendiente para alguien. Saldrá en Tareas, en Mi Día y en el
+            calendario, y contará en el contador de tareas. Si no hace falta, deja la descripción vacía
+            y sigue: el seguimiento comercial ya lo lleva la próxima acción del paso anterior.
+          </p>
           <div className="grid md:grid-cols-2 gap-3">
             <div><label className={labelCls}>Tipo</label>
               <select className={inputCls} value={fTarea.tipo_tarea} onChange={(e) => setFTarea({ ...fTarea, tipo_tarea: e.target.value })}>
@@ -333,12 +363,13 @@ export default function AltaGuiadaPage() {
               </select></div>
             <div><label className={labelCls}>Fecha límite</label>
               <input className={inputCls} type="date" value={fTarea.fecha_limite} onChange={(e) => setFTarea({ ...fTarea, fecha_limite: e.target.value })} /></div>
-            <div className="md:col-span-2"><label className={labelCls}>Descripción *</label>
-              <input className={inputCls} value={fTarea.descripcion} onChange={(e) => setFTarea({ ...fTarea, descripcion: e.target.value })} /></div>
+            <div className="md:col-span-2"><label className={labelCls}>Descripción de la tarea</label>
+              <input className={inputCls} value={fTarea.descripcion} placeholder="Déjalo vacío si no hay nada que hacer todavía"
+                onChange={(e) => setFTarea({ ...fTarea, descripcion: e.target.value })} /></div>
           </div>
           <div className="flex justify-end pt-2">
             <button onClick={guardarPaso4} disabled={guardando} className={btnSiguiente}>
-              Crear y seguir <ChevronRight className="w-4 h-4" />
+              {fTarea.descripcion.trim() ? 'Crear y seguir' : 'Seguir sin tarea'} <ChevronRight className="w-4 h-4" />
             </button>
           </div>
         </Card>

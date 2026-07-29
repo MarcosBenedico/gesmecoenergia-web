@@ -20,7 +20,7 @@ import {
   CLASIFICACIONES, clasificacionSugerida, defDe, hayQueRevisar, razonSugerencia,
   ES_CLASIFICACION, type Clasificacion,
 } from '@/lib/clasificacion';
-import { ProximaAccion, TareasCliente, HistorialCliente, VisitasYFV, SeguimientoCliente, ZonaCliente } from './componentes';
+import { ProximaAccion, TareasCliente, HistorialCliente, VisitasYFV, SeguimientoCliente, ZonaCliente, SepararCliente } from './componentes';
 import { PedirMotivo } from '../../motivo';
 import { AccionesContacto } from '../../acciones-contacto';
 import { FotoSitio } from '../../foto-sitio';
@@ -56,6 +56,7 @@ export default function FichaClienteLuz() {
   const [editFecha, setEditFecha] = useState<{ id: string; titulo: string; fecha: string; descripcion: string } | null>(null);
   const [borrandoFecha, setBorrandoFecha] = useState<LuzFechaCritica | null>(null);
   const [borrandoCliente, setBorrandoCliente] = useState(false);
+  const [borrandoOp, setBorrandoOp] = useState<LuzOportunidad | null>(null);
   const [formContrato, setFormContrato] = useState<{ comercializadora_final: string; estado_contrato: string; fecha_activacion_prevista: string } | null>(null);
   const [formCom, setFormCom] = useState<{ comercializadora: string; tipo_comision: string; importe_previsto: string; fecha_prevista_cobro: string } | null>(null);
   const [msg, setMsg] = useState('');
@@ -264,6 +265,17 @@ export default function FichaClienteLuz() {
     router.push('/gestor/luz/clientes');
   }
 
+  /** Eliminar una oportunidad con su motivo: va a la papelera, no se pierde. */
+  async function eliminarOportunidadConMotivo(motivo: string) {
+    if (!borrandoOp) return;
+    const err = await guardarLuz('pipeline', 'DELETE', { id: borrandoOp.id, motivo });
+    setBorrandoOp(null);
+    if (err) { setMsg(`No se pudo eliminar: ${err}`); return; }
+    setMsg('');
+    pipeline.recargar();
+    clientes.recargar();   // la próxima acción del cliente puede venir de aquí
+  }
+
   async function crearContrato(e: React.FormEvent) {
     e.preventDefault();
     if (!formContrato) return;
@@ -312,9 +324,12 @@ export default function FichaClienteLuz() {
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <Link href="/gestor/luz/clientes" className={btnSecundario}><ChevronLeft className="w-4 h-4" /> Clientes</Link>
-        {tareasAbiertas.length > 0 || cliente.proxima_accion
-          ? <Badge tono="verde">✓ Cliente trabajado</Badge>
-          : <Badge tono="rojo">⚠️ Sin acción abierta</Badge>}
+        {/* Tarea y próxima acción son cosas distintas, y aquí se dice cuál hay */}
+        {tareasAbiertas.length > 0
+          ? <Badge tono="verde">✓ {tareasAbiertas.length} tarea{tareasAbiertas.length === 1 ? '' : 's'} abierta{tareasAbiertas.length === 1 ? '' : 's'}</Badge>
+          : cliente.proxima_accion
+            ? <Badge tono="accent">🎯 Con seguimiento, sin tareas</Badge>
+            : <Badge tono="rojo">⚠️ Sin acción abierta</Badge>}
       </div>
 
       {msg && <p className="text-xs text-red-400 bg-red-500/10 border border-red-500/30 rounded-lg p-2.5">{msg}</p>}
@@ -633,9 +648,18 @@ export default function FichaClienteLuz() {
             <div className="space-y-1.5">
               {pipeline.datos.map((o) => (
                 <div key={o.id} className="p-2.5 rounded-lg bg-card/60 text-xs">
-                  <div className="flex justify-between gap-2">
+                  <div className="flex justify-between items-center gap-2">
                     <span className="font-semibold truncate">{TIPO_OPORTUNIDAD_LABEL[o.tipo_oportunidad]} · {fmtEur(Number(o.comision_potencial))}</span>
-                    <Badge tono={o.estado === 'ganado' ? 'verde' : o.estado === 'perdido' ? 'rojo' : 'accent'}>{ESTADO_PIPELINE_LABEL[o.estado]}</Badge>
+                    <span className="flex items-center gap-1.5 shrink-0">
+                      <Badge tono={o.estado === 'ganado' ? 'verde' : o.estado === 'perdido' ? 'rojo' : 'accent'}>{ESTADO_PIPELINE_LABEL[o.estado]}</Badge>
+                      <button
+                        onClick={() => setBorrandoOp(o)}
+                        className="text-muted hover:text-red-400 transition"
+                        title="Eliminar oportunidad (pide motivo, va a la papelera)"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </span>
                   </div>
                   <p className="text-[10px] text-muted mt-0.5">{o.proxima_accion || '⚠️ sin próxima acción'}</p>
                 </div>
@@ -798,6 +822,14 @@ export default function FichaClienteLuz() {
 
         {/* Historial de modificaciones (auditoría) */}
         <HistorialCliente clienteId={clienteId} />
+
+        {/* Separar en dos: cuando la ficha mezcla dos empresas distintas */}
+        <SepararCliente
+          cliente={cliente}
+          cups={cups.datos}
+          oportunidades={pipeline.datos}
+          onSeparado={() => { cups.recargar(); pipeline.recargar(); clientes.recargar(); }}
+        />
       </div>
 
       {borrandoCliente && (
@@ -811,6 +843,16 @@ export default function FichaClienteLuz() {
           sugerencias={MOTIVOS_ELIMINACION}
           onGuardar={eliminarClienteConMotivo}
           onCancelar={() => setBorrandoCliente(false)}
+        />
+      )}
+
+      {borrandoOp && (
+        <PedirMotivo
+          titulo="¿Por qué se elimina esta oportunidad?"
+          subtitulo={`"${TIPO_OPORTUNIDAD_LABEL[borrandoOp.tipo_oportunidad] || borrandoOp.nombre_oportunidad}" — va a la papelera y el motivo queda en el Control General.`}
+          sugerencias={MOTIVOS_ELIMINACION}
+          onGuardar={eliminarOportunidadConMotivo}
+          onCancelar={() => setBorrandoOp(null)}
         />
       )}
 

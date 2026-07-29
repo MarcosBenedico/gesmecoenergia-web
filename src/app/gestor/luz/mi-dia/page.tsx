@@ -64,6 +64,9 @@ export default function MiDiaPage() {
   const prospectos = useListaLuz<ProspectoGuardado>('prospectos', { estado: 'para_visitar' });
 
   const persona = verComo ?? perfil?.responsable ?? null;
+  /** Quién puede mirar el día de otro: administradores y quien tenga el permiso. */
+  const puedeVerAOtros = esAdmin || !!perfil?.permisos?.ver_dia_equipo;
+  const mirandoAOtro = !!verComo && verComo !== perfil?.responsable;
   const cargando = cargandoPerfil || tareas.cargando || cups.cargando || fechas.cargando;
 
   const dia = useMemo(() => {
@@ -236,12 +239,31 @@ export default function MiDiaPage() {
             {new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}
           </p>
         </div>
-        {esAdmin && !cargandoPerfil && (
-          <SelectorResponsable
-            valor={persona}
-            onCambio={(v) => setVerComo(v)}
-            className="rounded-lg border border-border/40 bg-background/60 px-2 py-1.5 text-xs font-semibold"
-          />
+        {/* Ver el día de otro: los administradores siempre, y quien tenga el
+            permiso de seguimiento del equipo (quien revisa las rutas necesita
+            mirar el día del comercial sin cambiar de cuenta). Es solo lectura:
+            lo que se marque desde aquí se guarda a nombre de esa persona. */}
+        {puedeVerAOtros && !cargandoPerfil && (
+          <div className="flex items-center gap-2">
+            {mirandoAOtro && (
+              <span className="text-[11px] font-bold text-amber-300 whitespace-nowrap">
+                👀 Viendo el día de
+              </span>
+            )}
+            <SelectorResponsable
+              valor={persona}
+              onCambio={(v) => setVerComo(v)}
+              className="rounded-lg border border-border/40 bg-background/60 px-2 py-1.5 text-xs font-semibold"
+            />
+            {mirandoAOtro && (
+              <button
+                onClick={() => setVerComo(null)}
+                className="text-[11px] font-bold text-accent hover:underline whitespace-nowrap"
+              >
+                Volver al mío
+              </button>
+            )}
+          </div>
         )}
       </div>
 

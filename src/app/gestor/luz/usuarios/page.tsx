@@ -21,6 +21,7 @@ const PERMISO_LABEL: Record<keyof PermisosUsuario, string> = {
   exportar: 'Exportar información',
   gestionar_usuarios: 'Gestionar usuarios y permisos',
   solo_asignados: 'Solo ve sus clientes/tareas asignados',
+  ver_dia_equipo: 'Ver el «Mi Día» de otros (solo lectura)',
 };
 
 interface Auditoria { id: string; usuario: string | null; accion: string; tabla: string; registro_id: string | null; creado_en: string }

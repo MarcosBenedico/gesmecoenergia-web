@@ -1,9 +1,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { Pencil, Plus, X } from 'lucide-react';
 import {
-  LuzCliente, LuzOportunidad, LuzTarea, LuzVisita, PRIORIDADES, PRIORIDAD_LABEL,
+  LuzCliente, LuzCups, LuzOportunidad, LuzTarea, LuzVisita, PRIORIDADES, PRIORIDAD_LABEL,
   ESTADO_PIPELINE_LABEL, TIPOS_TAREA, TIPO_TAREA_LABEL, TAREAS_ABIERTAS,
   ResponsableEquipo, responsableSugerido, MOTIVOS_ELIMINACION, diasHasta, fmtFecha,
 } from '@/lib/luz';
@@ -13,8 +14,40 @@ import {
 } from '../../ui';
 import { PedirMotivo } from '../../motivo';
 import { supabase } from '@/lib/supabase';
-import { useUsuario } from '@/lib/usuario';
+import { useUsuario, tokenSesion } from '@/lib/usuario';
 import { ZONAS, zonaDeDireccion, zonaPorId } from '@/lib/zonas';
+
+/**
+ * Texto que puede ser largo: se muestra recortado y se abre entero con un clic.
+ * Nada de información perdida por un `truncate`: si no cabe, se despliega.
+ */
+export function TextoLargo({
+  texto, limite = 220, className = '',
+}: {
+  texto: string;
+  /** A partir de cuántos caracteres se recorta. */
+  limite?: number;
+  className?: string;
+}) {
+  const [abierto, setAbierto] = useState(false);
+  const largo = texto.length > limite;
+  if (!largo) return <p className={`whitespace-pre-wrap ${className}`}>{texto}</p>;
+  return (
+    <div>
+      <p className={`whitespace-pre-wrap ${className}`}>
+        {abierto ? texto : `${texto.slice(0, limite).trimEnd()}…`}
+      </p>
+      <button
+        type="button"
+        onClick={() => setAbierto((v) => !v)}
+        className="mt-1 text-[10px] font-bold text-accent hover:underline"
+        aria-expanded={abierto}
+      >
+        {abierto ? '− Ver menos' : '+ Ver comentario completo'}
+      </button>
+    </div>
+  );
+}
 
 /* ══════════════ Próxima acción: dato único sincronizado con el Pipeline ══════════════ */
 export function ProximaAccion({ cliente, oportunidades, onGuardado }: {
@@ -343,7 +376,14 @@ export function HistorialCliente({ clienteId }: { clienteId: string }) {
     for (const k of Object.keys(r.despues)) {
       if (CAMPOS_OCULTOS.has(k)) continue;
       if (JSON.stringify(r.antes[k] ?? null) !== JSON.stringify(r.despues[k] ?? null)) {
-        const f = (v: unknown) => (v == null || v === '' ? 'vacío' : String(v).slice(0, 40));
+        // Antes cortaba a 40 caracteres sin más: un apunte de seguimiento largo
+        // se quedaba a medias y no había forma de leerlo. Ahora se recorta más
+        // holgado y el texto completo se puede abrir desde el propio apunte.
+        const f = (v: unknown) => {
+          if (v == null || v === '') return 'vacío';
+          const s = String(v);
+          return s.length > 160 ? `${s.slice(0, 160).trimEnd()}…` : s;
+        };
         out.push(k.replace(/_/g, ' ') + ': ' + f(r.antes[k]) + ' → ' + f(r.despues[k]));
       }
     }
@@ -514,11 +554,13 @@ export function VisitasYFV({ cliente, oportunidades, onRecargar }: {
       ) : (
         <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
           {visitas.datos.map((v) => (
-            <div key={v.id} className="flex items-center gap-2 p-2 rounded-lg bg-card/50 border border-border/20 text-xs">
+            <div key={v.id} className="flex items-start gap-2 p-2 rounded-lg bg-card/50 border border-border/20 text-xs">
               <span className={`font-bold shrink-0 ${v.fecha === HOY ? 'text-emerald-400' : ''}`}>
                 {v.fecha === HOY ? '✓ Hoy' : fmtFecha(v.fecha)}
               </span>
-              <span className="text-muted truncate flex-1">{v.notas || '—'}</span>
+              <span className="text-muted flex-1 min-w-0">
+                {v.notas ? <TextoLargo texto={v.notas} limite={90} /> : '—'}
+              </span>
               {v.responsable && <Badge tono="muted">{v.responsable}</Badge>}
               <button onClick={() => borrarVisita(v.id)} className="text-muted hover:text-red-400 shrink-0" title="Eliminar visita">
                 <X className="w-3.5 h-3.5" />
@@ -596,17 +638,17 @@ export function SeguimientoCliente({ cliente, onRecargar }: {
       {apuntes.length === 0 && antiguas.length === 0 ? (
         <p className="text-xs text-muted text-center py-2">Sin apuntes todavía. El primero marca el camino 💪</p>
       ) : (
-        <div className="space-y-1.5 max-h-72 overflow-y-auto pr-1">
+        <div className="space-y-1.5 max-h-[32rem] overflow-y-auto pr-1">
           {apuntes.map((a, i) => (
             <div key={i} className="p-2.5 rounded-lg bg-card/50 border border-border/20">
               <p className="text-[10px] font-bold text-accent mb-0.5">🕐 {a.cabecera}</p>
-              <p className="text-xs whitespace-pre-wrap">{a.texto}</p>
+              <TextoLargo texto={a.texto} className="text-xs" />
             </div>
           ))}
           {antiguas.length > 0 && (
             <div className="p-2.5 rounded-lg bg-card/30 border border-border/10">
               <p className="text-[10px] font-bold text-muted mb-0.5">Notas anteriores (sin fecha)</p>
-              <p className="text-xs text-muted whitespace-pre-wrap">{antiguas.join('\n')}</p>
+              <TextoLargo texto={antiguas.join('\n')} className="text-xs text-muted" />
             </div>
           )}
         </div>
@@ -686,6 +728,159 @@ export function ZonaCliente({ cliente, onRecargar }: {
       </div>
 
       {err && <p className="text-xs text-red-400 mt-2">{err}</p>}
+    </Card>
+  );
+}
+
+/* ══════════════ Separar un cliente en dos fichas ══════════════ */
+/* Lo contrario de fusionar: cuando dos empresas distintas acabaron en la
+   misma ficha, por una importación que las juntó o por una fusión errónea. */
+export function SepararCliente({ cliente, cups, oportunidades, onSeparado }: {
+  cliente: LuzCliente;
+  cups: LuzCups[];
+  oportunidades: LuzOportunidad[];
+  onSeparado: () => void;
+}) {
+  const [abierto, setAbierto] = useState(false);
+  const [nombre, setNombre] = useState('');
+  const [nif, setNif] = useState('');
+  const [cupsElegidos, setCupsElegidos] = useState<Set<string>>(new Set());
+  const [opsElegidas, setOpsElegidas] = useState<Set<string>>(new Set());
+  const [trabajando, setTrabajando] = useState(false);
+  const [err, setErr] = useState('');
+  const [hecho, setHecho] = useState<{ nombre: string; id: string } | null>(null);
+
+  const alternar = (conj: Set<string>, poner: (s: Set<string>) => void, id: string) => {
+    const s = new Set(conj);
+    if (s.has(id)) s.delete(id); else s.add(id);
+    poner(s);
+  };
+
+  async function separar() {
+    if (!nombre.trim()) { setErr('Escribe el nombre de la ficha nueva.'); return; }
+    if (cupsElegidos.size === 0 && opsElegidas.size === 0) {
+      setErr('Marca al menos un suministro o una oportunidad para la ficha nueva.'); return;
+    }
+    setTrabajando(true); setErr('');
+    try {
+      const token = await tokenSesion();
+      const res = await fetch('/api/luz/separar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({
+          cliente_id: cliente.id,
+          nombre_nuevo: nombre.trim(),
+          nif_nuevo: nif.trim() || null,
+          cups_ids: Array.from(cupsElegidos),
+          mover_pipeline_ids: Array.from(opsElegidas),
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) { setErr(json.error || 'No se pudo separar.'); return; }
+      setHecho({ nombre: json.cliente_nuevo.nombre, id: json.cliente_nuevo.id });
+      onSeparado();
+    } catch {
+      setErr('Error de conexión.');
+    } finally {
+      setTrabajando(false);
+    }
+  }
+
+  if (hecho) {
+    return (
+      <Card className="!border-emerald-500/40">
+        <p className="text-sm font-bold text-emerald-300">✓ Ficha separada</p>
+        <p className="text-xs text-muted mt-1">
+          «{hecho.nombre}» ya tiene su propia ficha con lo que le has asignado.
+        </p>
+        <Link href={`/gestor/luz/clientes/${hecho.id}`} className={`${btnPrimario} mt-3`}>
+          Ir a la ficha de {hecho.nombre} →
+        </Link>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div>
+          <h3 className="font-bold text-foreground">✂️ Separar en dos fichas</h3>
+          <p className="text-[11px] text-muted mt-0.5">
+            Si esta ficha mezcla dos empresas distintas, aquí se le da a la segunda su propia ficha.
+          </p>
+        </div>
+        <button onClick={() => setAbierto((v) => !v)} className={btnSecundario}>
+          {abierto ? <X className="w-3.5 h-3.5" /> : null} {abierto ? 'Cancelar' : 'Separar'}
+        </button>
+      </div>
+
+      {abierto && (
+        <div className="mt-4 space-y-4">
+          <div className="grid sm:grid-cols-2 gap-3">
+            <div>
+              <label className={labelCls}>Nombre de la ficha nueva *</label>
+              <input className={inputCls} value={nombre} onChange={(e) => setNombre(e.target.value)}
+                placeholder="P. ej. Cooperativa Binaced" autoFocus />
+            </div>
+            <div>
+              <label className={labelCls}>NIF / CIF (si se sabe)</label>
+              <input className={inputCls} value={nif} onChange={(e) => setNif(e.target.value)} />
+            </div>
+          </div>
+
+          <div>
+            <p className={labelCls}>¿Qué suministros se lleva la ficha nueva?</p>
+            {cups.length === 0 ? (
+              <p className="text-xs text-muted">Este cliente no tiene suministros.</p>
+            ) : (
+              <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
+                {cups.map((c) => (
+                  <label key={c.id} className={`flex items-center gap-2.5 p-2 rounded-lg border cursor-pointer transition ${
+                    cupsElegidos.has(c.id) ? 'border-accent/50 bg-accent/10' : 'border-border/30 bg-card/50'
+                  }`}>
+                    <input type="checkbox" checked={cupsElegidos.has(c.id)}
+                      onChange={() => alternar(cupsElegidos, setCupsElegidos, c.id)}
+                      className="accent-[#e11d48] w-4 h-4 shrink-0" />
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-xs font-bold truncate">{c.alias_suministro || c.cups}</span>
+                      <span className="block text-[10px] text-muted truncate font-mono">{c.cups}</span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {oportunidades.length > 0 && (
+            <div>
+              <p className={labelCls}>¿Y qué oportunidades?</p>
+              <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                {oportunidades.map((o) => (
+                  <label key={o.id} className={`flex items-center gap-2.5 p-2 rounded-lg border cursor-pointer transition ${
+                    opsElegidas.has(o.id) ? 'border-accent/50 bg-accent/10' : 'border-border/30 bg-card/50'
+                  }`}>
+                    <input type="checkbox" checked={opsElegidas.has(o.id)}
+                      onChange={() => alternar(opsElegidas, setOpsElegidas, o.id)}
+                      className="accent-[#e11d48] w-4 h-4 shrink-0" />
+                    <span className="text-xs truncate flex-1">{o.nombre_oportunidad}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <p className="text-[11px] text-muted">
+            Lo que no marques se queda en «{cliente.nombre}». Con cada suministro se van también sus
+            fechas críticas, contratos, comisiones y tareas.
+          </p>
+
+          {err && <p className="text-xs text-red-400">{err}</p>}
+
+          <button onClick={separar} disabled={trabajando} className={btnPrimario}>
+            {trabajando ? 'Separando…' : 'Crear la ficha nueva y mover lo marcado'}
+          </button>
+        </div>
+      )}
     </Card>
   );
 }

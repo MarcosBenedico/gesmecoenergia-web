@@ -17,6 +17,12 @@ export interface PermisosUsuario {
   exportar: boolean;
   gestionar_usuarios: boolean;
   solo_asignados: boolean;
+  /**
+   * Ver el «Mi Día» de otro miembro del equipo, solo de lectura.
+   * Para quien lleva el seguimiento de las rutas y necesita revisar el
+   * trabajo del comercial sin cambiar de cuenta.
+   */
+  ver_dia_equipo?: boolean;
 }
 
 export interface PerfilUsuario {
