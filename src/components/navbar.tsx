@@ -6,10 +6,18 @@ import { usePathname } from "next/navigation";
 import { Button } from "@/components/button";
 import { Container } from "@/components/container";
 import { Logo } from "@/components/logo";
+import { LogoEmpresa, MARCAS } from "@/components/logo-empresa";
 import { navigation, servicesMega, sectorsMega } from "@/lib/site";
 import { cn } from "@/lib/utils";
 
 type OpenMenu = "Servicios" | "Sectores" | null;
+
+/** Las tres casas del grupo y su página, en el orden en que se presentan. */
+const EMPRESAS_GRUPO = [
+  { marca: MARCAS.energia, href: "/energia" },
+  { marca: MARCAS.asesoria, href: "/grupo" },
+  { marca: MARCAS.seguros, href: "/seguros" },
+];
 
 const icons = {
   spark: (
@@ -275,34 +283,36 @@ export const Navbar = () => {
         scrolled && "shadow-lg shadow-black/10"
       )}
     >
-      {/* Barra superior · Grupo Gesmeco */}
+      {/* ── Barra superior · Grupo Gesmeco ──────────────────────────────────
+          Aquí había tres enlaces de texto con un emoji delante (⚡ 📋 🛡️).
+          Un emoji genérico delante del nombre de una empresa no la representa:
+          la representa su logotipo, que además es lo que la gente reconoce de
+          la furgoneta y del papel. Ahora van los tres logos de verdad y cada
+          uno lleva a SU página —Correbin apuntaba a /grupo, que no es la
+          suya— sobre la misma placa clara que en el resto del sitio, porque
+          los tres tienen el texto en negro y sobre el fondo oscuro
+          desaparecería medio logo. */}
       <div className="border-b border-border/60 bg-background/80">
-        <Container className="flex items-center justify-between gap-3 py-1.5">
+        <Container className="flex items-center justify-between gap-4 py-2">
           <span className="hidden text-[11px] font-bold uppercase tracking-[0.2em] text-muted sm:block">
             Grupo Gesmeco
           </span>
-          <div className="flex items-center gap-1 overflow-x-auto text-[11px] font-semibold">
-            <Link
-              href="/"
-              className="whitespace-nowrap rounded-full px-2.5 py-1 text-foreground/80 transition hover:bg-accent/10 hover:text-accent"
-            >
-              ⚡ Gesmeco Energía
-            </Link>
-            <span className="text-border" aria-hidden>·</span>
-            <Link
-              href="/grupo"
-              className="whitespace-nowrap rounded-full px-2.5 py-1 text-foreground/80 transition hover:bg-tertiary/10 hover:text-tertiary"
-            >
-              📋 Asesoría Gesmeco
-            </Link>
-            <span className="text-border" aria-hidden>·</span>
-            <Link
-              href="/grupo"
-              className="whitespace-nowrap rounded-full px-2.5 py-1 text-foreground/80 transition hover:bg-secondary/10 hover:text-secondary"
-            >
-              🛡️ Correbin Asociados
-            </Link>
-          </div>
+          <nav aria-label="Empresas del grupo" className="flex items-center gap-3 overflow-x-auto sm:gap-4">
+            {EMPRESAS_GRUPO.map((e) => (
+              <Link
+                key={e.href}
+                href={e.href}
+                title={e.marca.nombre}
+                className="shrink-0 rounded-md opacity-80 transition hover:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+              >
+                {/* Sin `prioritario` entran como `lazy`, y son tres imágenes
+                    de 2 KB que están arriba del todo en TODAS las páginas:
+                    diferirlas solo consigue que la cabecera se dibuje a
+                    trozos. */}
+                <LogoEmpresa marca={e.marca} alto={17} placa="compacta" ajusta prioritario />
+              </Link>
+            ))}
+          </nav>
         </Container>
       </div>
 

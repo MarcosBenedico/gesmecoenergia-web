@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
+import { Inter, Playfair_Display } from "next/font/google";
 import "./globals.css";
 
 const inter = Inter({
@@ -7,6 +7,26 @@ const inter = Inter({
   variable: "--font-inter",
   display: "swap",
   weight: ["400", "500", "600", "700", "800", "900"],
+});
+
+/**
+ * Serif de titulares, solo para la portada del grupo.
+ *
+ * No es un capricho ni una fuente «bonita» cualquiera: los tres logotipos del
+ * grupo —Gesmeco Energía, Asesoría Gesmeco y Correbin— están compuestos en una
+ * serif de alto contraste con itálica. Al usar la misma familia para los
+ * titulares de la página que los presenta, el texto y las marcas hablan el
+ * mismo idioma en vez de convivir a la fuerza.
+ *
+ * Solo dos pesos y solo donde hace falta: una fuente de titulares que se
+ * cargue entera para pintar tres frases es peso tirado.
+ */
+const playfair = Playfair_Display({
+  subsets: ["latin"],
+  variable: "--font-titular",
+  display: "swap",
+  weight: ["500", "700"],
+  style: ["normal", "italic"],
 });
 
 export const viewport: Viewport = {
@@ -55,7 +75,7 @@ export default function RootLayout({
         <meta name="theme-color" content="#6366f1" />
         <meta name="mobile-web-app-capable" content="yes" />
       </head>
-      <body className={`${inter.variable} bg-background text-foreground antialiased`}>
+      <body className={`${inter.variable} ${playfair.variable} bg-background text-foreground antialiased`}>
         {children}
       </body>
     </html>
