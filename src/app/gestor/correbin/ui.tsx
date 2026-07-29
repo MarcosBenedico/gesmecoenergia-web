@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { AlertCircle, Loader, Download } from 'lucide-react';
-import { tokenSesion } from '@/lib/usuario';
+import { tokenSesion, esSesionCaducada } from '@/lib/usuario';
+import { supabase } from '@/lib/supabase';
 import {
   diasHasta, urgenciaVencimiento, PRIORIDAD_TONO, SEGMENTO_COLOR, SEGMENTO_LABEL,
   VctResponsable, Prioridad,
@@ -120,6 +121,27 @@ export function EstadoCarga({ cargando, error, faltaMigracion, vacio, textoVacio
     );
   }
   if (error) {
+    // «JWT expired» no le dice nada a nadie: es que la sesión ha caducado.
+    // Se explica en cristiano y se ofrece la salida, que es volver a entrar.
+    if (esSesionCaducada(error)) {
+      return (
+        <div className="flex items-start gap-2.5 p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-sm">
+          <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+          <div>
+            <p className="font-bold">Tu sesión ha caducado.</p>
+            <p className="mt-1 text-amber-300/80">
+              Por seguridad se cierra sola tras un rato de inactividad. Vuelve a entrar y sigues donde lo dejaste.
+            </p>
+            <a
+              href="/gestor/login"
+              className="inline-flex items-center mt-2.5 px-3.5 py-2 rounded-lg bg-amber-500/20 border border-amber-500/40 text-amber-200 text-xs font-bold hover:bg-amber-500/30 transition"
+            >
+              Volver a entrar
+            </a>
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="flex items-start gap-2.5 p-3.5 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
         <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
@@ -146,11 +168,21 @@ export function useLista<T>(recurso: string, params: Record<string, string> = {}
     setError('');
     try {
       const qs = new URLSearchParams(JSON.parse(claveParams)).toString();
-      const token = await tokenSesion();
-      const res = await fetch(`/api/correbin/${recurso}${qs ? `?${qs}` : ''}`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      const json = await res.json();
+      const url = `/api/correbin/${recurso}${qs ? `?${qs}` : ''}`;
+      const pedir = async () => {
+        const token = await tokenSesion();
+        const r = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+        return { r, json: await r.json() };
+      };
+
+      let { r: res, json } = await pedir();
+
+      // Token caducado en el envío: se renueva y se reintenta una sola vez
+      if (!res.ok && esSesionCaducada(json?.error)) {
+        const { error: eRenovar } = await supabase.auth.refreshSession();
+        if (!eRenovar) ({ r: res, json } = await pedir());
+      }
+
       if (!res.ok) {
         setFaltaMigracion(!!json.falta_migracion);
         setError(json.error || 'Error cargando datos.');
@@ -249,14 +281,29 @@ export function SelectorResponsable({ valor, onCambio, className }: {
 /** Guardado genérico contra la API del módulo. Devuelve mensaje de error o null si fue bien. */
 export async function guardar(recurso: string, metodo: 'POST' | 'PUT' | 'DELETE', body: Record<string, unknown>) {
   try {
-    const token = await tokenSesion();
-    const res = await fetch(`/api/correbin/${recurso}`, {
-      method: metodo,
-      headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-      body: JSON.stringify(body),
-    });
-    const json = await res.json();
-    return res.ok ? null : (json.error as string) || 'No se pudo guardar.';
+    const enviar = async () => {
+      const token = await tokenSesion();
+      const r = await fetch(`/api/correbin/${recurso}`, {
+        method: metodo,
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify(body),
+      });
+      return { r, json: await r.json() };
+    };
+
+    let { r: res, json } = await enviar();
+
+    // Un cambio no se puede perder porque el token acabara de caducar:
+    // se renueva la sesión y se vuelve a enviar una vez.
+    if (!res.ok && esSesionCaducada(json?.error)) {
+      const { error: eRenovar } = await supabase.auth.refreshSession();
+      if (!eRenovar) ({ r: res, json } = await enviar());
+    }
+
+    if (res.ok) return null;
+    return esSesionCaducada(json?.error)
+      ? 'Tu sesión ha caducado. Vuelve a entrar y repite el cambio.'
+      : (json.error as string) || 'No se pudo guardar.';
   } catch {
     return 'Error de conexión.';
   }

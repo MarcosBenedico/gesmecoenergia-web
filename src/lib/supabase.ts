@@ -7,7 +7,22 @@ if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Supabase credentials are missing');
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+/**
+ * Cliente de Supabase del navegador.
+ *
+ * Las tres opciones van explícitas a propósito: el token de sesión dura una
+ * hora y se renueva solo, pero si el portátil se suspende o la pestaña queda
+ * en segundo plano, ese temporizador no corre. Al volver, el token está
+ * caducado y todo responde «JWT expired». Con esto y con el refresco previo
+ * de `tokenSesion()`, la sesión aguanta el día de trabajo.
+ */
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+  },
+});
 
 export interface Analisis {
   nombre: string;

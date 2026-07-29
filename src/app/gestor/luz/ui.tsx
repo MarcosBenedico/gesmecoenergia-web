@@ -1,7 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { tokenSesion } from '@/lib/usuario';
+import { tokenSesion, esSesionCaducada } from '@/lib/usuario';
+import { supabase } from '@/lib/supabase';
 
 /**
  * Kit UI del módulo Gestión Luz.
@@ -28,11 +29,22 @@ export function useListaLuz<T>(recurso: string, params: Record<string, string> =
     setError('');
     try {
       const qs = new URLSearchParams(JSON.parse(claveParams)).toString();
-      const token = await tokenSesion();
-      const res = await fetch(`/api/luz/${recurso}${qs ? `?${qs}` : ''}`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      const json = await res.json();
+      const url = `/api/luz/${recurso}${qs ? `?${qs}` : ''}`;
+      const pedir = async () => {
+        const token = await tokenSesion();
+        const r = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+        return { r, json: await r.json() };
+      };
+
+      let { r: res, json } = await pedir();
+
+      // Si el token caducó justo en el envío, se renueva y se reintenta una vez
+      // antes de dar error: el usuario no tiene por qué enterarse de esto.
+      if (!res.ok && esSesionCaducada(json?.error)) {
+        const { error: eRenovar } = await supabase.auth.refreshSession();
+        if (!eRenovar) ({ r: res, json } = await pedir());
+      }
+
       if (!res.ok) {
         setFaltaMigracion(!!json.falta_migracion);
         setError(json.error || 'Error cargando datos.');
@@ -55,14 +67,29 @@ export function useListaLuz<T>(recurso: string, params: Record<string, string> =
 /** Guardado genérico contra /api/luz. Devuelve mensaje de error o null. */
 export async function guardarLuz(recurso: string, metodo: 'POST' | 'PUT' | 'DELETE' | 'PATCH', body: Record<string, unknown>) {
   try {
-    const token = await tokenSesion();
-    const res = await fetch(`/api/luz/${recurso}`, {
-      method: metodo,
-      headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-      body: JSON.stringify(body),
-    });
-    const json = await res.json();
-    return res.ok ? null : (json.error as string) || 'No se pudo guardar.';
+    const enviar = async () => {
+      const token = await tokenSesion();
+      const r = await fetch(`/api/luz/${recurso}`, {
+        method: metodo,
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify(body),
+      });
+      return { r, json: await r.json() };
+    };
+
+    let { r: res, json } = await enviar();
+
+    // Un cambio no se puede perder porque el token acabara de caducar:
+    // se renueva la sesión y se vuelve a enviar una vez.
+    if (!res.ok && esSesionCaducada(json?.error)) {
+      const { error: eRenovar } = await supabase.auth.refreshSession();
+      if (!eRenovar) ({ r: res, json } = await enviar());
+    }
+
+    if (res.ok) return null;
+    return esSesionCaducada(json?.error)
+      ? 'Tu sesión ha caducado. Vuelve a entrar y repite el cambio.'
+      : (json.error as string) || 'No se pudo guardar.';
   } catch {
     return 'Error de conexión.';
   }
