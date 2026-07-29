@@ -3,7 +3,7 @@
 import { Suspense, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { UserPlus, X, Download } from 'lucide-react';
+import { UserPlus, X, Download, Trash2 } from 'lucide-react';
 import {
   LuzCliente, LuzCups, TIPOS_CLIENTE, TIPO_CLIENTE_LABEL, PRIORIDADES, PRIORIDAD_LABEL,
   ESTADOS_CLIENTE, ESTADO_CLIENTE_LABEL, VIA_ENTRADA_CORTA, fmtKwh, fmtFecha,
@@ -12,6 +12,8 @@ import { ZONAS, zonaDeParada } from '@/lib/zonas';
 import { evaluarCliente, tonoCompletitud } from '@/lib/completitud';
 import { Card, BadgePrioridad, Badge, EstadoCarga, useListaLuz, guardarLuz, inputCls, labelCls, btnPrimario, btnSecundario, SelectorResponsable } from '../ui';
 import { CLASIFICACIONES, defDe, ES_CLASIFICACION } from '@/lib/clasificacion';
+import { PedirMotivo } from '../motivo';
+import { MOTIVOS_ELIMINACION } from '@/lib/luz';
 
 /**
  * Semáforo de "qué le falta". Rojo = no se puede ni empezar; ámbar = se puede
@@ -77,6 +79,8 @@ function ClientesLuzContenido() {
   const [fDesde, setFDesde] = useState('');
   const [fHasta, setFHasta] = useState('');
   const [mostrarForm, setMostrarForm] = useState(false);
+  // Eliminar siempre con motivo: va a la papelera y queda en Control General
+  const [borrando, setBorrando] = useState<LuzCliente | null>(null);
   const [form, setForm] = useState(FORM_VACIO);
   const [errorForm, setErrorForm] = useState('');
 
@@ -129,6 +133,17 @@ function ClientesLuzContenido() {
     if (fHasta && alta > fHasta) return false;
     return true;
   }), [clientes.datos, fPrioridad, fEstado, fClasif, fTipo, fResp, fEspecial, fVia, fZona, fDesde, fHasta, cupsPorCliente]);
+
+  /** Enviar a la papelera con motivo: arrastra CUPS, tareas y demás, y se puede devolver. */
+  async function eliminarConMotivo(motivo: string) {
+    if (!borrando) return;
+    const err = await guardarLuz('clientes', 'DELETE', { id: borrando.id, motivo });
+    setBorrando(null);
+    if (err) { setErrorForm(`No se pudo eliminar: ${err}`); return; }
+    setErrorForm('');
+    clientes.recargar();
+    cups.recargar();
+  }
 
   async function crear(e: React.FormEvent) {
     e.preventDefault();
@@ -277,6 +292,7 @@ function ClientesLuzContenido() {
                 <th className="px-3 py-3">Responsable</th>
                 <th className="px-3 py-3">Próxima acción</th>
                 <th className="px-3 py-3">Alta</th>
+                <th className="px-3 py-3"></th>
               </tr>
             </thead>
             <tbody>
@@ -346,12 +362,34 @@ function ClientesLuzContenido() {
                         <span className="block text-[10px] text-muted">mod. {fmtFecha(c.actualizado_en)}</span>
                       )}
                     </td>
+                    <td className="px-3 py-2 w-8">
+                      <button
+                        onClick={() => setBorrando(c)}
+                        className="text-muted hover:text-red-400 transition"
+                        title="Enviar a la papelera (se puede recuperar)"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
         </Card>
+      )}
+
+      {borrando && (
+        <PedirMotivo
+          titulo={`¿Por qué se elimina a ${borrando.nombre}?`}
+          subtitulo={
+            `Se va a la papelera con todo lo suyo (CUPS, oportunidades, contratos, comisiones, tareas y fechas). ` +
+            `Se puede recuperar entero desde la Papelera, y el motivo queda en el Control General.`
+          }
+          sugerencias={MOTIVOS_ELIMINACION}
+          onGuardar={eliminarConMotivo}
+          onCancelar={() => setBorrando(null)}
+        />
       )}
     </div>
   );

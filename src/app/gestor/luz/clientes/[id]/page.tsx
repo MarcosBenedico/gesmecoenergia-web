@@ -2,14 +2,14 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
-import { ChevronLeft, Plus, Pencil, X } from 'lucide-react';
+import { useParams, useRouter } from 'next/navigation';
+import { ChevronLeft, Plus, Pencil, X, Trash2 } from 'lucide-react';
 import {
   LuzCliente, LuzCups, LuzOportunidad, LuzContrato, LuzComision, LuzTarea, LuzFechaCritica,
   TIPOS_CLIENTE, TIPO_CLIENTE_LABEL, PRIORIDADES, PRIORIDAD_LABEL, ESTADOS_CLIENTE, ESTADO_CLIENTE_LABEL,
   TARIFAS_ACCESO, ESTADOS_CUPS, ESTADO_CUPS_LABEL, ESTADO_PIPELINE_LABEL, ESTADOS_CONTRATO, ESTADO_CONTRATO_LABEL,
   ESTADOS_COMISION, ESTADO_COMISION_LABEL, TIPOS_COMISION, TIPO_COMISION_LABEL, TIPOS_FECHA, TIPO_FECHA_LABEL,
-  TIPOS_TAREA, TIPO_TAREA_LABEL, TAREAS_ABIERTAS, TIPOS_OPORTUNIDAD, MOTIVOS_ELIMINACION, VIA_ENTRADA_LABEL,
+  TAREAS_ABIERTAS, TIPOS_OPORTUNIDAD, MOTIVOS_ELIMINACION, VIA_ENTRADA_LABEL,
   TIPO_OPORTUNIDAD_LABEL, tituloFechaCritica, fmtEur, fmtFecha, fmtKwh, normCups,
 } from '@/lib/luz';
 import {
@@ -34,6 +34,7 @@ const CUPS_VACIO = {
 
 export default function FichaClienteLuz() {
   const params = useParams<{ id: string }>();
+  const router = useRouter();
   const clienteId = params.id;
 
   const clientes = useListaLuz<LuzCliente>('clientes');
@@ -54,6 +55,7 @@ export default function FichaClienteLuz() {
   const [formFecha, setFormFecha] = useState<{ tipo_fecha: string; fecha: string; descripcion: string; cups_id: string; titulo_personalizado: string } | null>(null);
   const [editFecha, setEditFecha] = useState<{ id: string; titulo: string; fecha: string; descripcion: string } | null>(null);
   const [borrandoFecha, setBorrandoFecha] = useState<LuzFechaCritica | null>(null);
+  const [borrandoCliente, setBorrandoCliente] = useState(false);
   const [formContrato, setFormContrato] = useState<{ comercializadora_final: string; estado_contrato: string; fecha_activacion_prevista: string } | null>(null);
   const [formCom, setFormCom] = useState<{ comercializadora: string; tipo_comision: string; importe_previsto: string; fecha_prevista_cobro: string } | null>(null);
   const [msg, setMsg] = useState('');
@@ -248,6 +250,20 @@ export default function FichaClienteLuz() {
     fechas.recargar();
   }
 
+  /**
+   * Enviar el cliente a la papelera con su motivo.
+   *
+   * No se borra de verdad: la API lo marca y arrastra consigo CUPS,
+   * oportunidades, contratos, comisiones, tareas, fechas, visitas y proyectos,
+   * de forma que todo se pueda devolver junto desde la Papelera.
+   */
+  async function eliminarClienteConMotivo(motivo: string) {
+    const err = await guardarLuz('clientes', 'DELETE', { id: clienteId, motivo });
+    setBorrandoCliente(false);
+    if (err) { setMsg(`No se pudo eliminar: ${err}`); return; }
+    router.push('/gestor/luz/clientes');
+  }
+
   async function crearContrato(e: React.FormEvent) {
     e.preventDefault();
     if (!formContrato) return;
@@ -322,7 +338,16 @@ export default function FichaClienteLuz() {
                   </div>
                 </div>
               </div>
-              <button onClick={empezarEdicion} className={btnSecundario}><Pencil className="w-4 h-4" /> Editar</button>
+              <div className="flex items-center gap-2">
+                <button onClick={empezarEdicion} className={btnSecundario}><Pencil className="w-4 h-4" /> Editar</button>
+                <button
+                  onClick={() => setBorrandoCliente(true)}
+                  className={`${btnSecundario} !text-red-400 hover:!border-red-500/50`}
+                  title="Enviar el cliente a la papelera (se puede recuperar)"
+                >
+                  <Trash2 className="w-4 h-4" /> Eliminar
+                </button>
+              </div>
             </div>
 
             {/* Objetivo · Precliente · Cliente. Un clic y ya: es la distinción
@@ -774,6 +799,20 @@ export default function FichaClienteLuz() {
         {/* Historial de modificaciones (auditoría) */}
         <HistorialCliente clienteId={clienteId} />
       </div>
+
+      {borrandoCliente && (
+        <PedirMotivo
+          titulo={`¿Por qué se elimina a ${cliente.nombre}?`}
+          subtitulo={
+            `Va a la papelera con todo lo suyo: ${cups.datos.length} CUPS, ${pipeline.datos.length} oportunidad(es), ` +
+            `${contratos.datos.length} contrato(s), ${comisiones.datos.length} comisión(es), ${tareas.datos.length} tarea(s) ` +
+            `y ${fechas.datos.length} fecha(s) crítica(s). Se puede recuperar entero desde la Papelera.`
+          }
+          sugerencias={MOTIVOS_ELIMINACION}
+          onGuardar={eliminarClienteConMotivo}
+          onCancelar={() => setBorrandoCliente(false)}
+        />
+      )}
 
       {borrandoFecha && (
         <PedirMotivo
