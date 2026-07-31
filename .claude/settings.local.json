@@ -508,7 +508,8 @@
       "Bash(python scripts/search.py \"corporate group multi-brand landing page trust professional\" --domain product)",
       "Bash(python scripts/search.py \"luxury premium elegant high-end sophisticated\" --domain style)",
       "PowerShell(\"borrada\")",
-      "Bash(curl -s http://localhost:3000/)"
+      "Bash(curl -s http://localhost:3000/)",
+      "mcp__Claude_Code_Remote__add_repo"
     ]
   }
 }
