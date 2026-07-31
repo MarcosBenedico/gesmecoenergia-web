@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { construirParte, ENTIDADES, type FilaAuditoria } from '@/lib/parte-diario';
+import {
+  rendimientoDelDia, rendimientoPorPersona, probabilidadesDeCierre, trabajoPendiente,
+  puntosDe, diasEntre,
+  type DatosCliente, type FuentePendiente, type OportunidadAbierta,
+} from '@/lib/parte-rendimiento';
 
 /**
  * PARTE DIARIO DEL SISTEMA — qué pasó en la cartera un día concreto.
@@ -62,6 +67,44 @@ function limitesDelDia(fecha: string): { desde: string; hasta: string } {
     hasta: `${fecha}T23:59:59.999${desfase}`,
   };
 }
+
+/** El desfase real de Binéfar ese día (CET o CEST, según el mes). */
+function desfaseMadrid(fecha: string): string {
+  try {
+    const mediodia = new Date(`${fecha}T12:00:00Z`);
+    const partes = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Europe/Madrid', timeZoneName: 'longOffset',
+    }).formatToParts(mediodia);
+    const nombre = partes.find((p) => p.type === 'timeZoneName')?.value || '';
+    const limpio = nombre.replace('GMT', '').trim();
+    if (/^[+-]\d{2}:\d{2}$/.test(limpio)) return limpio;
+  } catch { /* sin Intl utilizable nos quedamos en UTC */ }
+  return '+00:00';
+}
+
+/** La fecha de Binéfar a la que pertenece una marca de tiempo en UTC. */
+function diaLocal(iso: string): string {
+  try {
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Europe/Madrid', year: 'numeric', month: '2-digit', day: '2-digit',
+    }).format(new Date(iso));
+  } catch {
+    return iso.slice(0, 10);
+  }
+}
+
+const restarDias = (fecha: string, n: number) => {
+  const d = new Date(`${fecha}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - n);
+  return d.toISOString().slice(0, 10);
+};
+
+/**
+ * Cuántos días atrás se mira para tener con qué comparar y para sacar lo que
+ * quedó colgando. Siete cubren la semana entera —lunes de teléfono incluido—
+ * sin arrastrar meses de una cartera que ya era otra.
+ */
+const VENTANA_DIAS = 7;
 
 /** Cuántas fichas completas se adjuntan como mucho. Un día normal no llega. */
 const MAX_FICHAS = 40;
@@ -154,6 +197,117 @@ async function fichasDelDia(
     .filter((x): x is FichaCliente => x !== null);
 }
 
+/**
+ * Lo que hace falta para juzgar el día, y que NO está en la auditoría: qué
+ * oportunidades siguen abiertas, con qué expediente detrás, y qué se quedó a
+ * medias.
+ *
+ * Va aparte de `fichasDelDia` a propósito: aquello mira solo a los clientes que
+ * se han tocado hoy, y justo lo que aquí interesa es lo que NADIE ha tocado.
+ * Un cliente que lleva cinco días parado no aparece en el día, y es exactamente
+ * el que hay que enseñar.
+ */
+async function contexto(supa: ReturnType<typeof clienteUsuario>, fecha: string) {
+  const desde = restarDias(fecha, VENTANA_DIAS);
+
+  const [pipeline, clientes, cups, visitas, tareas] = await Promise.all([
+    supa.from('luz_pipeline')
+      .select('id, cliente_id, nombre_oportunidad, estado, probabilidad, comision_potencial, ahorro_potencial, responsable, proxima_accion, fecha_proxima_accion, actualizado_en')
+      .is('borrado_en', null)
+      .not('estado', 'in', '("ganado","perdido")'),
+    supa.from('luz_clientes')
+      .select('id, nombre, telefono, email, responsable, proxima_accion, fecha_proxima_accion')
+      .is('borrado_en', null),
+    supa.from('luz_cups').select('cliente_id, consumo_anual_kwh').is('borrado_en', null),
+    supa.from('luz_visitas').select('cliente_id, fecha, resultado').is('borrado_en', null).gte('fecha', restarDias(fecha, 30)),
+    supa.from('luz_tareas')
+      .select('cliente_id, descripcion, tipo_tarea, responsable, fecha_limite, estado')
+      .is('borrado_en', null),
+  ]);
+
+  const filas = <T>(r: { data: unknown }) => (r.data || []) as T[];
+
+  const listaClientes = filas<Record<string, unknown>>(clientes);
+  const nombrePorId: Record<string, string> = {};
+  for (const c of listaClientes) nombrePorId[String(c.id)] = String(c.nombre || 'Sin nombre');
+
+  // ── El expediente de cada cliente, para corregir la probabilidad ──
+  const conConsumo = new Set<string>();
+  for (const c of filas<Record<string, unknown>>(cups)) {
+    const n = Number(c.consumo_anual_kwh);
+    if (Number.isFinite(n) && n > 0) conConsumo.add(String(c.cliente_id));
+  }
+
+  // Solo cuentan las visitas que trajeron algo: pasar y no encontrar a nadie no
+  // acerca ningún cierre, y contarlas infla la probabilidad de lo que no se movió.
+  const ultimaVisitaUtil: Record<string, string> = {};
+  for (const v of filas<Record<string, unknown>>(visitas)) {
+    const r = String(v.resultado || '');
+    if (!/factura|interes|volver/i.test(r)) continue;
+    const id = String(v.cliente_id);
+    const f = String(v.fecha || '').slice(0, 10);
+    if (!f) continue;
+    if (!ultimaVisitaUtil[id] || f > ultimaVisitaUtil[id]) ultimaVisitaUtil[id] = f;
+  }
+
+  const datosCliente: Record<string, DatosCliente> = {};
+  for (const c of listaClientes) {
+    const id = String(c.id);
+    datosCliente[id] = {
+      nombre: String(c.nombre || 'Sin nombre'),
+      telefono: (c.telefono as string) || null,
+      email: (c.email as string) || null,
+      tiene_consumo: conConsumo.has(id),
+      dias_desde_visita_util: ultimaVisitaUtil[id] ? diasEntre(ultimaVisitaUtil[id], fecha) : null,
+    };
+  }
+
+  const abiertas = filas<OportunidadAbierta>(pipeline);
+  const cierres = probabilidadesDeCierre(abiertas, datosCliente, fecha);
+
+  // ── Lo que se quedó a medias ──
+  const fuentes: FuentePendiente[] = [];
+
+  for (const t of filas<Record<string, unknown>>(tareas)) {
+    if (/hecha|completad|cerrad|anulad/i.test(String(t.estado || ''))) continue;
+    fuentes.push({
+      origen: 'tarea',
+      cliente: nombrePorId[String(t.cliente_id)] || 'Sin cliente',
+      que: String(t.descripcion || t.tipo_tarea || 'Tarea'),
+      responsable: (t.responsable as string) || null,
+      para: (t.fecha_limite as string) || null,
+    });
+  }
+
+  for (const c of listaClientes) {
+    if (!c.fecha_proxima_accion || !c.proxima_accion) continue;
+    fuentes.push({
+      origen: 'cliente',
+      cliente: String(c.nombre || 'Sin nombre'),
+      que: String(c.proxima_accion),
+      responsable: (c.responsable as string) || null,
+      para: String(c.fecha_proxima_accion),
+    });
+  }
+
+  for (const o of abiertas) {
+    if (!o.fecha_proxima_accion || !o.proxima_accion) continue;
+    fuentes.push({
+      origen: 'oportunidad',
+      cliente: nombrePorId[String(o.cliente_id)] || 'Sin cliente',
+      que: String(o.proxima_accion),
+      responsable: o.responsable || null,
+      para: String(o.fecha_proxima_accion),
+    });
+  }
+
+  return {
+    cierres,
+    pendiente: trabajoPendiente(fuentes, fecha, VENTANA_DIAS),
+    ventana_desde: desde,
+  };
+}
+
 export async function GET(req: NextRequest) {
   const token = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '').trim();
   if (!token) {
@@ -192,7 +346,12 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Indica la fecha como AAAA-MM-DD.' }, { status: 400 });
   }
 
-  const { desde, hasta } = limitesDelDia(fecha);
+  const { hasta } = limitesDelDia(fecha);
+  // Se piden los siete días anteriores además del día pedido: sin una
+  // referencia propia no se puede decir si hoy ha sido bueno o flojo, y una
+  // cifra de referencia inventada es peor que no dar ninguna.
+  const primerDia = restarDias(fecha, VENTANA_DIAS);
+  const desde = `${primerDia}T00:00:00.000${desfaseMadrid(primerDia)}`;
 
   try {
     const { data: filas, error } = await supa
@@ -202,7 +361,7 @@ export async function GET(req: NextRequest) {
       .lte('creado_en', hasta)
       .in('tabla', Object.keys(ENTIDADES))
       .order('creado_en', { ascending: true })
-      .limit(3000);
+      .limit(12000);
 
     if (error) {
       const falta = /relation .*app_auditoria.* does not exist|Could not find the table/i.test(error.message);
@@ -217,7 +376,15 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const auditoria = (filas || []) as unknown as FilaAuditoria[];
+    const todas = (filas || []) as unknown as FilaAuditoria[];
+    // El día pedido va por su cuenta; el resto solo sirve para la referencia.
+    const porDia = new Map<string, FilaAuditoria[]>();
+    for (const f of todas) {
+      const d = diaLocal(f.creado_en);
+      if (!porDia.has(d)) porDia.set(d, []);
+      porDia.get(d)!.push(f);
+    }
+    const auditoria = porDia.get(fecha) || [];
 
     // Nombres, para que el parte hable de personas y de clientes y no de ids.
     // Que fallen no puede tumbar el parte: se sale del email y del propio dato.
@@ -234,13 +401,36 @@ export async function GET(req: NextRequest) {
     for (const c of clientes.data || []) mapaClientes[c.id as string] = c.nombre as string;
 
     const parte = construirParte({ fecha, auditoria, nombresUsuario, clientes: mapaClientes });
-    const fichas = await fichasDelDia(supa, auditoria);
+
+    // Los puntos de cada día anterior, con el mismo criterio que el día de hoy.
+    const puntosAnteriores: number[] = [];
+    for (let i = 1; i <= VENTANA_DIAS; i++) {
+      const d = restarDias(fecha, i);
+      const deEseDia = porDia.get(d) || [];
+      if (!deEseDia.length) { puntosAnteriores.push(0); continue; }
+      const p = construirParte({ fecha: d, auditoria: deEseDia, nombresUsuario, clientes: mapaClientes });
+      const acciones = [...p.altas, ...p.avances, ...p.retrocesos, ...p.dinero, ...p.resto];
+      puntosAnteriores.push(puntosDe(acciones));
+    }
+
+    const accionesHoy = [...parte.altas, ...parte.avances, ...parte.retrocesos, ...parte.dinero, ...parte.resto];
+
+    const [fichas, extra] = await Promise.all([
+      fichasDelDia(supa, auditoria),
+      contexto(supa, fecha),
+    ]);
 
     return NextResponse.json({
       ...parte,
       fichas,
+      rendimiento: rendimientoDelDia(accionesHoy, puntosAnteriores),
+      rendimiento_personas: rendimientoPorPersona(accionesHoy),
+      puntos_dias_anteriores: puntosAnteriores,
+      cierres: extra.cierres,
+      pendiente: extra.pendiente,
+      ventana_dias: VENTANA_DIAS,
       // Para que la pantalla pueda avisar si se ha llegado al tope
-      truncado: auditoria.length >= 3000,
+      truncado: todas.length >= 12000,
     });
   } catch {
     return NextResponse.json({ error: 'No se ha podido montar el parte.' }, { status: 500 });

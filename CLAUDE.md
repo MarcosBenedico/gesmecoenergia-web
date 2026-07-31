@@ -23,6 +23,7 @@ npm run test:visitas                       # tests de qué desencadena cada resu
 npm run test:bandeja                       # tests de la bandeja de entrada (Oficina)
 npm run test:potencia                      # tests del optimizador de potencias y la curva (Datadis)
 npm run test:parte                         # tests del parte del día (auditoría → qué mejoró en cada cliente)
+npm run test:rendimiento                   # tests del juicio del parte (productividad, probabilidad de cierre, pendiente)
 npm run test:huecos                        # tests de los huecos de la cartera (rellenar en tanda)
 npm run test:clasificacion                 # tests de objetivo / precliente / cliente
 npm run test:agenda-calle                  # tests de la agenda por zonas (vista Calle)
@@ -118,6 +119,13 @@ No hay suite de tests formal; la verificación es `npm run build` + `scripts/smo
       - **No es un control horario** y la pantalla lo dice: la auditoría marca cuándo se *guardó* algo, no cuándo se hizo. Una visita de las nueve metida a las seis aparece a las seis.
       - Requiere `supabase_auditoria_parte.sql` (añade los triggers que faltaban en `luz_visitas`, `luz_prospectos` y `luz_proyectos` — sin ellos el parte enseña la oficina y se deja fuera la calle). La auditoría se llena **desde que se ejecuta**: los días anteriores saldrán incompletos.
       - Cubierto por `npm run test:parte`.
+    - **Rendimiento del parte** (`src/lib/parte-rendimiento.ts`) — el parte contaba *qué* pasó; esto añade el **juicio**: si eso mueve el negocio o solo mueve la base de datos.
+      - **No se cuentan acciones, se cuenta lo que habilitan.** Contar filas de auditoría premia teclear: una tarde rellenando cuarenta teléfonos son cuarenta acciones y cero euros más cerca; una visita que acaba con la factura en la mano es **una** acción y desbloquea toda la oferta. Cada acción se clasifica en `produce · prepara · mantiene · retrocede` y los retrocesos **restan**, porque si sumaran, perder clientes subiría la nota.
+      - **La referencia son los 7 días anteriores del propio equipo**, no una cifra inventada. Los días sin actividad **se descartan** antes de promediar: si contaran, un puente hundiría la media y el jueves siguiente saldría «excelente» sin haber hecho nada distinto. Sin días con los que comparar **no se emite veredicto**, se dice que no lo hay.
+      - **Probabilidad de cierre**: se parte del estado del embudo y se corrige con el expediente (sin consumo no se puede ofertar, sin teléfono no hay por dónde entrar, días parada). **Nunca se toca el número que puso una persona**: se enseñan los dos y la diferencia es justo la conversación que hay que tener. El suelo es **3 %, no 0**, porque aquí solo entran oportunidades abiertas y un 0 % se lee como «muerta» e invita a cerrarla — están atascadas, que se arregla desatascando.
+      - **Trabajo pendiente de días anteriores**, ventana de 7 días. Solo entra lo que tiene fecha y ya pasó: una tarea sin fecha no está retrasada, está sin planificar, y mezclarlas hace la lista inservible. Lo de hoy no cuenta, que hoy aún se puede hacer. **Lo de hace más de 7 días no se lista pero se cuenta**: una lista que calla lo que lleva un mes parado tranquiliza, y eso es peor que no tenerla.
+      - El desglose por persona **no sirve para comparar a David con Nicola** —hacen trabajos distintos y las unidades no son las mismas—, sino para ver si a alguien le está tocando solo mantenimiento. La pantalla lo dice.
+      - Cubierto por `npm run test:rendimiento`.
   - `gestor/luz/fv/` — **Calculadora FV** (solo admin): presupuestador fotovoltaico. Lógica en `src/lib/fv.ts`, UI en `page.tsx` + `energia.tsx`. Dos flujos: "presupuesto de Óscar" (instalador) y "presupuestar desde consumos". Incluye escenarios, algoritmo de batería por amortización (`optimizarBateria`), simulación horaria 24h (`simularDiaFV`), comparador de equipos reales y oferta PDF. `hipotesis.pct_autoconsumo` es la **fuente única** del autoconsumo efectivo en toda la oferta.
   - `gestor/correbin/` — vencimientos de seguros.
   - `gestor/clientes-app/` — App Clientes.

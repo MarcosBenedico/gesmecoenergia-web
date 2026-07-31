@@ -3,11 +3,15 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   AlertTriangle, ArrowRight, CalendarDays, ClipboardList, Euro, FileDown, Loader,
-  TrendingDown, TrendingUp, UserRound, Sparkles,
+  TrendingDown, TrendingUp, UserRound, Sparkles, Gauge, Target, History,
 } from 'lucide-react';
 import { tokenSesion, useUsuario } from '@/lib/usuario';
 import type { Accion } from '@/lib/parte-diario';
 import type { ParteCompleto } from '@/lib/parte-pdf';
+import type {
+  Rendimiento, RendimientoPersona, CierreProbable, TrabajoPendiente,
+} from '@/lib/parte-rendimiento';
+import { ETIQUETA_APORTE } from '@/lib/parte-rendimiento';
 import { Card, btnPrimario, btnSecundario } from '../ui';
 
 /**
@@ -77,6 +81,240 @@ function Linea({ a, tono }: { a: Accion; tono: string }) {
   );
 }
 
+/** Lo que devuelve la API: el parte de siempre más el juicio del día. */
+type ParteConRendimiento = ParteCompleto & {
+  rendimiento?: Rendimiento;
+  rendimiento_personas?: RendimientoPersona[];
+  puntos_dias_anteriores?: number[];
+  cierres?: CierreProbable[];
+  pendiente?: TrabajoPendiente;
+  ventana_dias?: number;
+};
+
+const TONO_VEREDICTO: Record<string, { fondo: string; texto: string; titulo: string }> = {
+  productivo:      { fondo: '!border-emerald-500/40', texto: 'text-emerald-400', titulo: 'Día productivo' },
+  normal:          { fondo: '!border-border',         texto: 'text-foreground',  titulo: 'Día normal' },
+  flojo:           { fondo: '!border-amber-500/40',   texto: 'text-amber-400',   titulo: 'Día flojo' },
+  sin_actividad:   { fondo: '!border-red-500/40',     texto: 'text-red-400',     titulo: 'Sin actividad registrada' },
+  sin_referencia:  { fondo: '!border-border',         texto: 'text-foreground',  titulo: 'Sin con qué comparar' },
+};
+
+/**
+ * El juicio del día. Va arriba del todo y con su porqué escrito: un semáforo a
+ * secas se discute, un semáforo con el motivo se corrige o se acepta.
+ */
+function BloqueRendimiento({ r, personas, ventana }: {
+  r: Rendimiento; personas: RendimientoPersona[]; ventana: number;
+}) {
+  const t = TONO_VEREDICTO[r.veredicto] || TONO_VEREDICTO.normal;
+  return (
+    <Card className={`${t.fondo} break-inside-avoid`}>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <Gauge className={`w-5 h-5 ${t.texto}`} />
+            <p className={`text-lg font-black ${t.texto}`}>{t.titulo}</p>
+            {r.variacion_pct !== null && (
+              <span className={`text-xs font-bold tabular-nums ${r.variacion_pct >= 0 ? 'text-emerald-400' : 'text-amber-400'}`}>
+                {r.variacion_pct >= 0 ? '+' : ''}{r.variacion_pct} % vs. sus últimos días
+              </span>
+            )}
+          </div>
+          <p className="text-sm text-muted mt-1.5 leading-snug">{r.porque}</p>
+        </div>
+
+        <div className="flex gap-4 shrink-0">
+          <div className="text-center">
+            <p className="text-2xl font-black tabular-nums text-foreground">{r.puntos}</p>
+            <p className="text-[10px] text-muted uppercase tracking-wide font-semibold">puntos</p>
+          </div>
+          <div className="text-center">
+            <p className="text-2xl font-black tabular-nums text-foreground">{r.pct_util} %</p>
+            <p className="text-[10px] text-muted uppercase tracking-wide font-semibold">útil</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-3 flex flex-wrap gap-2">
+        {(['produce', 'prepara', 'mantiene', 'retrocede'] as const).map((k) => (
+          <span key={k} className={`text-[11px] px-2 py-1 rounded-lg border ${
+            k === 'produce' ? 'border-emerald-500/30 text-emerald-400'
+            : k === 'prepara' ? 'border-sky-500/30 text-sky-400'
+            : k === 'retrocede' ? 'border-red-500/30 text-red-400'
+            : 'border-border/40 text-muted'}`}>
+            <b className="tabular-nums">{r.reparto[k]}</b> {ETIQUETA_APORTE[k].toLowerCase()}
+          </span>
+        ))}
+      </div>
+
+      {personas.length > 0 && (
+        <div className="mt-4 pt-3 border-t border-border/30">
+          <p className="text-[10px] uppercase tracking-wide font-bold text-muted mb-2">
+            De qué está hecho el día de cada uno
+          </p>
+          <div className="space-y-1.5">
+            {personas.map((p) => (
+              <div key={p.persona} className="flex items-center gap-3 text-sm">
+                <span className="w-24 shrink-0 truncate text-foreground font-semibold">{p.persona}</span>
+                <div className="flex-1 h-2 rounded-full bg-card overflow-hidden flex min-w-[80px]">
+                  {(['produce', 'prepara', 'mantiene', 'retrocede'] as const).map((k) => (
+                    p.reparto[k] > 0 ? (
+                      <span key={k} style={{ width: `${(p.reparto[k] / p.acciones) * 100}%` }}
+                        className={k === 'produce' ? 'bg-emerald-500' : k === 'prepara' ? 'bg-sky-500' : k === 'retrocede' ? 'bg-red-500' : 'bg-border'} />
+                    ) : null
+                  ))}
+                </div>
+                <span className="text-[11px] text-muted tabular-nums shrink-0 w-28 text-right">
+                  {p.acciones} mov. · {p.pct_util} % útil
+                </span>
+              </div>
+            ))}
+          </div>
+          {/* Dicho a propósito: son trabajos distintos y las unidades no son las
+              mismas. Sin esta línea, la barra se lee como una carrera. */}
+          <p className="text-[10px] text-muted/70 mt-2 italic">
+            No sirve para comparar personas entre sí —hacen trabajos distintos—, sino para ver
+            si a alguien le está tocando solo mantenimiento. La referencia son los últimos {ventana} días.
+          </p>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+/** Qué hay de verdad a punto de cerrarse, y qué lo frena. */
+function BloqueCierres({ cierres }: { cierres: CierreProbable[] }) {
+  const [todo, setTodo] = useState(false);
+  if (!cierres.length) return null;
+
+  const total = cierres.reduce((s, c) => s + (c.euros_esperados || 0), 0);
+  const lista = todo ? cierres : cierres.slice(0, 12);
+
+  return (
+    <Card className="!p-0 overflow-hidden break-inside-avoid">
+      <div className="px-4 py-2.5 border-b border-border/40 flex flex-wrap items-center gap-2.5">
+        <Target className="w-4 h-4 text-sky-400" />
+        <p className="font-bold text-foreground text-sm">Probabilidad de cierre</p>
+        <span className="text-[11px] text-muted">{cierres.length} oportunidades abiertas</span>
+        {total > 0 && (
+          <span className="ml-auto text-sm font-black text-amber-400 tabular-nums">
+            {eur(total)} <span className="text-[10px] font-normal text-muted uppercase">esperados</span>
+          </span>
+        )}
+      </div>
+
+      <div className="divide-y divide-border/20">
+        {lista.map((c) => {
+          const desvia = c.probabilidad_declarada !== null
+            && Math.abs(c.probabilidad_declarada - c.probabilidad_estimada) >= 20;
+          return (
+            <div key={c.id} className="px-4 py-2.5 flex flex-wrap items-start gap-x-3 gap-y-1">
+              <div className="min-w-0 flex-1">
+                <p className="text-sm text-foreground leading-snug">
+                  <span className="font-semibold">{c.cliente}</span>
+                  <span className="text-muted"> · {c.oportunidad}</span>
+                </p>
+                <p className="text-[11px] text-muted mt-0.5">
+                  {c.estado.replace(/_/g, ' ')}
+                  {c.responsable && ` · ${c.responsable}`}
+                  {c.dias_parado !== null && c.dias_parado > 7 && ` · parada ${c.dias_parado} días`}
+                </p>
+                {c.frena.length > 0 && (
+                  <ul className="mt-1 flex flex-wrap gap-1.5">
+                    {c.frena.map((f, i) => (
+                      <li key={i} className="text-[10px] px-1.5 py-0.5 rounded border border-amber-500/30 text-amber-400">
+                        {f}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+
+              <div className="text-right shrink-0">
+                <p className={`text-lg font-black tabular-nums ${
+                  c.probabilidad_estimada >= 60 ? 'text-emerald-400'
+                  : c.probabilidad_estimada >= 35 ? 'text-foreground' : 'text-muted'}`}>
+                  {c.probabilidad_estimada} %
+                </p>
+                {/* Se enseñan las dos cifras cuando no coinciden: la de la ficha
+                    la puso una persona y no se toca, pero una diferencia grande
+                    es justo la conversación que hay que tener. */}
+                {desvia && (
+                  <p className="text-[10px] text-amber-400" title="Lo que hay puesto en la ficha">
+                    en ficha: {c.probabilidad_declarada} %
+                  </p>
+                )}
+                {c.euros_esperados !== null && (
+                  <p className="text-[11px] text-muted tabular-nums">{eur(c.euros_esperados)}</p>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {cierres.length > 12 && (
+        <button type="button" onClick={() => setTodo((v) => !v)}
+          className="w-full py-2 text-[11px] text-muted hover:text-foreground border-t border-border/30 no-print">
+          {todo ? 'Ver solo las 12 primeras' : `Ver las ${cierres.length - 12} restantes`}
+        </button>
+      )}
+    </Card>
+  );
+}
+
+/** Lo que se quedó a medias los días anteriores y sigue ahí. */
+function BloquePendiente({ p }: { p: TrabajoPendiente }) {
+  if (!p.items.length && !p.mas_viejos) return null;
+  return (
+    <Card className={`!p-0 overflow-hidden break-inside-avoid ${p.items.length ? '!border-amber-500/40' : ''}`}>
+      <div className="px-4 py-2.5 border-b border-border/40 flex flex-wrap items-center gap-2.5">
+        <History className="w-4 h-4 text-amber-400" />
+        <p className="font-bold text-foreground text-sm">Se quedó colgando de días anteriores</p>
+        <span className="text-[11px] text-muted">
+          vencido en los últimos {p.ventana_dias} días
+        </span>
+        <span className="ml-auto text-sm font-black text-amber-400 tabular-nums">{p.items.length}</span>
+      </div>
+
+      {p.items.length > 0 && (
+        <div className="divide-y divide-border/20">
+          {p.items.map((x, i) => (
+            <div key={i} className="px-4 py-2 flex items-start gap-3">
+              <span className={`text-[11px] font-black tabular-nums shrink-0 w-12 text-right pt-0.5 ${
+                x.dias_retraso >= 5 ? 'text-red-400' : 'text-amber-400'}`}>
+                {x.dias_retraso}d
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm text-foreground leading-snug">
+                  <span className="font-semibold">{x.cliente}</span>
+                  <span className="text-muted"> · {x.que}</span>
+                </p>
+                <p className="text-[10px] text-muted mt-0.5">
+                  era para el {x.para}
+                  {x.responsable && ` · ${x.responsable}`}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Lo viejo NO se esconde. Una lista que calla lo que lleva un mes parado
+          tranquiliza, y eso es peor que no tenerla. */}
+      {p.mas_viejos > 0 && (
+        <div className="px-4 py-2.5 border-t border-border/30 bg-red-500/5">
+          <p className="text-xs text-red-400">
+            Y <b className="tabular-nums">{p.mas_viejos}</b>{' '}
+            {p.mas_viejos === 1 ? 'cosa lleva vencida' : 'cosas llevan vencidas'} más de {p.ventana_dias} días.
+            No salen en la lista para no taparla, pero siguen ahí.
+          </p>
+        </div>
+      )}
+    </Card>
+  );
+}
+
 function Seccion({
   titulo, pista, icono: Icono, color, acciones, tono = '',
 }: {
@@ -102,7 +340,7 @@ function Seccion({
 export default function PartePage() {
   const { esAdmin, cargando: cargandoPerfil } = useUsuario();
   const [fecha, setFecha] = useState(hoyISO());
-  const [parte, setParte] = useState<ParteCompleto | null>(null);
+  const [parte, setParte] = useState<ParteConRendimiento | null>(null);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState('');
   const [verResto, setVerResto] = useState(false);
@@ -235,6 +473,24 @@ export default function PartePage() {
           </p>
         </Card>
       )}
+
+      {/* El juicio del día va ANTES que el detalle. Si hay que bajar hasta el
+          final para saber si el día fue bueno, no se baja. Y sale también en
+          los días sin movimiento: un cero es justo lo que hay que ver. */}
+      {parte?.rendimiento && (
+        <BloqueRendimiento
+          r={parte.rendimiento}
+          personas={parte.rendimiento_personas || []}
+          ventana={parte.ventana_dias || 7}
+        />
+      )}
+
+      {parte?.pendiente && <BloquePendiente p={parte.pendiente} />}
+
+      {/* La probabilidad de cierre NO depende de lo que pasara ese día: mira la
+          cartera abierta. Por eso sale también en un día tranquilo, que es
+          cuando más falta hace saber qué hay a punto de caer. */}
+      {parte?.cierres && <BloqueCierres cierres={parte.cierres} />}
 
       {parte?.hay_movimiento && r && (
         <>
