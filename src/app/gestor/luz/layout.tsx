@@ -1,11 +1,12 @@
 'use client';
 
 import { ReactNode, useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard, Users, Plug, CalendarClock, Target, FileSignature,
-  Euro, ArrowDownUp, Settings, ChevronLeft, ChevronDown, Zap, UserCog, ShieldCheck, Route, History, Sun, UserPlus, Radar, Inbox, BookOpen, Calculator, FileText, TrendingUp, Trash2, Activity, ClipboardList, Wand2,
+  Euro, ArrowDownUp, Settings, ChevronLeft, ChevronDown, Zap, UserCog, ShieldCheck, Route, History, Sun, UserPlus, Radar, Inbox, BookOpen, Calculator, FileText, TrendingUp, Trash2, Activity, ClipboardList, Wand2, Menu, X,
 } from 'lucide-react';
 import { GuardiaModulo } from '@/components/guardia-modulo';
 import { useUsuario } from '@/lib/usuario';
@@ -148,8 +149,128 @@ export default function LuzLayout({ children }: { children: ReactNode }) {
     });
   };
 
+  /* ── Menú del móvil ──────────────────────────────────────────────────────
+     Antes el menú del móvil era la misma tira horizontal del escritorio, y la
+     cabecera de cada bloque —lo único que pliega y despliega— iba con
+     `hidden lg:flex`. Como Herramientas y Ajustes NACEN plegados, en el móvil
+     quedaban cerrados y sin ningún botón para abrirlos: nueve pantallas
+     (oportunidades, FV, tarifas, proyectos, mercado, control, usuarios,
+     configuración y papelera) eran literalmente inalcanzables desde el
+     teléfono. Y las que sí salían obligaban a barrer una tira de trece
+     entradas sin ver a qué bloque pertenecía cada una.
+
+     Ahora el móvil tiene su propio panel, con los cinco bloques enteros. */
+  const [menuAbierto, setMenuAbierto] = useState(false);
+
+  // Cerrar el panel al navegar. El linter avisa de los setState dentro de un
+  // efecto y en general tiene razón, pero aquí el cambio de ruta es justo el
+  // suceso externo al que hay que reaccionar: sin esto, tocas una sección y el
+  // panel se queda encima de la pantalla a la que acabas de entrar.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { setMenuAbierto(false); }, [pathname]);
+
+  useEffect(() => {
+    if (!menuAbierto) return;
+    const previo = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const alPulsarEsc = (e: KeyboardEvent) => { if (e.key === 'Escape') setMenuAbierto(false); };
+    window.addEventListener('keydown', alPulsarEsc);
+    return () => {
+      document.body.style.overflow = previo;
+      window.removeEventListener('keydown', alPulsarEsc);
+    };
+  }, [menuAbierto]);
+
+  // Para que el botón del móvil diga dónde estás, no solo «Menú».
+  const seccionActual = BLOQUES.flatMap((b) => b.secciones).find((s) => activa(s.href));
+
+  /** Las secciones de un bloque, tal y como se pintan en el panel del móvil. */
+  const enlacesMovil = (secciones: Seccion[]) =>
+    secciones.map(({ href, icono: Icono, nombre }) => (
+      <Link
+        key={href}
+        href={href}
+        onClick={() => setMenuAbierto(false)}
+        className={`flex min-h-[48px] items-center gap-3 rounded-xl px-3 text-[15px] font-semibold transition ${
+          activa(href)
+            ? 'bg-accent text-white'
+            : 'text-foreground/90 hover:bg-card active:bg-card'
+        }`}
+      >
+        <Icono className="w-[18px] h-[18px] shrink-0" />
+        {nombre}
+      </Link>
+    ));
+
+  const panelMovil = menuAbierto ? (
+    <div className="fixed inset-0 z-[100] lg:hidden" role="dialog" aria-modal="true" aria-label="Secciones de Gestión Luz">
+      <button
+        type="button"
+        aria-label="Cerrar menú"
+        onClick={() => setMenuAbierto(false)}
+        className="absolute inset-0 h-full w-full cursor-default bg-black/70 backdrop-blur-sm"
+      />
+      <div className="absolute inset-y-0 right-0 flex w-full max-w-[380px] flex-col border-l border-border bg-background shadow-2xl">
+        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-4 pb-3 pt-[calc(env(safe-area-inset-top)+0.75rem)]">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-lg bg-amber-500/15 border border-amber-500/30 flex items-center justify-center shrink-0">
+              <Zap className="w-4 h-4 text-amber-400" />
+            </div>
+            <span className="text-sm font-black text-foreground truncate">Gestión Luz</span>
+          </div>
+          <button
+            type="button"
+            aria-label="Cerrar menú"
+            onClick={() => setMenuAbierto(false)}
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-border bg-card text-foreground transition hover:border-accent"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Aquí NO se pliega nada. En el escritorio plegar sirve para que la
+            barra lateral se lea de un vistazo; en el móvil el panel ya se
+            desplaza, y esconder bloques es justo lo que dejaba media
+            aplicación inalcanzable. Salen los cinco, enteros. */}
+        <div className="flex-1 overflow-y-auto overscroll-contain px-4 py-4">
+          <div className="space-y-6">
+            {BLOQUES.map((bloque) => {
+              const secciones = bloque.secciones.filter((s) => !s.soloAdmin || veAdmin);
+              if (secciones.length === 0) return null;
+              return (
+                <div key={bloque.id}>
+                  <div className="mb-2 border-b border-border/60 pb-2">
+                    <span className="block text-[10px] font-black uppercase tracking-[0.2em] text-muted">
+                      {bloque.titulo}
+                    </span>
+                    <span className="block text-[11px] text-muted/60">{bloque.pista}</span>
+                  </div>
+                  <div className="space-y-1">{enlacesMovil(secciones)}</div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="shrink-0 border-t border-border bg-surface px-4 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3">
+          <Link
+            href="/gestor"
+            onClick={() => setMenuAbierto(false)}
+            className="flex min-h-[44px] items-center justify-center gap-1.5 rounded-lg bg-card border border-border/50 text-sm font-semibold text-foreground"
+          >
+            <ChevronLeft className="w-4 h-4" />
+            Volver al Panel
+          </Link>
+        </div>
+      </div>
+    </div>
+  ) : null;
+
   return (
     <div className="min-h-screen bg-background">
+      {typeof document !== 'undefined' && panelMovil
+        ? createPortal(panelMovil, document.body)
+        : null}
       <header className="sticky top-0 z-40 border-b border-border bg-surface/95 backdrop-blur">
         <div className="mx-auto w-full max-w-[1920px] 2xl:max-w-none px-4 md:px-6 py-3 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
@@ -174,11 +295,30 @@ export default function LuzLayout({ children }: { children: ReactNode }) {
               </div>
             </div>
           </div>
+
+          {/* Solo en móvil. Dice en qué sección estás, no un «Menú» a secas:
+              con veintidós pantallas, saber dónde estabas es la mitad del
+              trabajo de volver. */}
+          <button
+            type="button"
+            onClick={() => setMenuAbierto(true)}
+            aria-label="Abrir el menú de secciones"
+            aria-haspopup="dialog"
+            aria-expanded={menuAbierto}
+            className="lg:hidden shrink-0 flex min-h-[44px] items-center gap-2 rounded-lg border border-border/50 bg-card/80 px-3 text-sm font-semibold text-foreground transition hover:bg-card"
+          >
+            <Menu className="w-4 h-4 shrink-0" />
+            <span className="max-w-[120px] truncate">{seccionActual?.nombre ?? 'Secciones'}</span>
+          </button>
         </div>
       </header>
 
       <div className="mx-auto w-full max-w-[1920px] 2xl:max-w-none px-4 md:px-6 py-5 flex flex-col lg:flex-row gap-5">
-        <nav className="lg:w-64 shrink-0">
+        {/* La barra lateral es solo de escritorio. En el móvil manda el panel
+            de arriba: la tira horizontal que había aquí no cabía, escondía a
+            qué bloque pertenecía cada entrada y, con los bloques plegados,
+            dejaba fuera nueve pantallas. */}
+        <nav className="hidden lg:block lg:w-64 shrink-0">
           <div className="flex lg:flex-col gap-1.5 overflow-x-auto lg:overflow-visible pb-2 lg:pb-0 -mx-1 px-1">
             {BLOQUES.map((bloque) => {
               const secciones = bloque.secciones.filter((s) => !s.soloAdmin || veAdmin);
