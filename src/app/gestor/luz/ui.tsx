@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { tokenSesion, esSesionCaducada } from '@/lib/usuario';
 import { supabase } from '@/lib/supabase';
+import { fmtKwh, type ConsumoLeido } from '@/lib/luz';
 
 /**
  * Kit UI del módulo Gestión Luz.
@@ -110,4 +111,26 @@ export async function eliminarLuz(recurso: string, id: string, motivo?: string) 
   } catch {
     return { error: 'Error de conexión.', arrastrados: 0 };
   }
+}
+
+/**
+ * Aviso bajo el campo de consumo.
+ *
+ * Existe porque el fallo que corrige es silencioso: quien teclea «53.558»
+ * pensando en cincuenta y tres mil no ve nada raro al guardar, y el error
+ * aparece semanas después en una oferta. Aquí se enseña siempre cómo se ha
+ * entendido la cifra, no solo cuando hay problema: leer «53.558 kWh» debajo
+ * de lo que acabas de escribir es lo que evita la equivocación.
+ */
+export function AvisoConsumo({ consumo, bruto }: { consumo: ConsumoLeido; bruto: string }) {
+  if (!bruto.trim()) return null;
+  if (consumo.sospechoso) {
+    return (
+      <p className="mt-1 flex gap-1.5 text-xs text-amber-700 dark:text-amber-400">
+        <span aria-hidden>⚠</span>
+        <span>{consumo.motivo}</span>
+      </p>
+    );
+  }
+  return <p className="mt-1 text-xs text-muted-foreground">Se guardará {fmtKwh(consumo.kwh)} al año.</p>;
 }

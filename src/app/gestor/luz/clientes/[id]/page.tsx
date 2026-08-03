@@ -11,9 +11,10 @@ import {
   ESTADOS_COMISION, ESTADO_COMISION_LABEL, TIPOS_COMISION, TIPO_COMISION_LABEL, TIPOS_FECHA, TIPO_FECHA_LABEL,
   TAREAS_ABIERTAS, TIPOS_OPORTUNIDAD, MOTIVOS_ELIMINACION, VIA_ENTRADA_LABEL,
   TIPO_OPORTUNIDAD_LABEL, tituloFechaCritica, fmtEur, fmtFecha, fmtKwh, normCups,
+  leerConsumo,
 } from '@/lib/luz';
 import {
-  Card, Badge, BadgePrioridad, BadgeVencimiento, EstadoCarga, useListaLuz, guardarLuz,
+  AvisoConsumo, Card, Badge, BadgePrioridad, BadgeVencimiento, EstadoCarga, useListaLuz, guardarLuz,
   inputCls, labelCls, btnPrimario, btnSecundario, SelectorResponsable,
 } from '../../ui';
 import {
@@ -63,6 +64,11 @@ export default function FichaClienteLuz() {
 
   const consumoTotal = cups.datos.reduce((s, c) => s + (Number(c.consumo_anual_kwh) || 0), 0);
   const tareasAbiertas = tareas.datos.filter((t) => TAREAS_ABIERTAS.includes(t.estado));
+
+  // El consumo se interpreta antes de guardar para poder avisar en pantalla:
+  // «53.558» escrito a la española valía 53 kWh y el error no se veía hasta la oferta.
+  const consumoNuevo = leerConsumo(formCups?.consumo_anual_kwh ?? '');
+  const consumoEdit = leerConsumo(formEditCups.consumo_anual_kwh ?? '');
 
   // ── Objetivo · Precliente · Cliente ──
   // Lo marcado manda, porque los contratos todavía viven en papel. El cálculo
@@ -124,11 +130,11 @@ export default function FichaClienteLuz() {
     const err = await guardarLuz('cups', 'POST', {
       ...formCups,
       cliente_id: clienteId,
-      consumo_anual_kwh: parseFloat(formCups.consumo_anual_kwh) || 0,
+      consumo_anual_kwh: consumoNuevo.kwh,
       dias_preaviso: parseInt(formCups.dias_preaviso) || null,
       fecha_fin_contrato: finContrato,
       fecha_fin_permanencia: formCups.fecha_fin_permanencia || null,
-      estado_cups: !finContrato || !parseFloat(formCups.consumo_anual_kwh) ? 'datos_incompletos' : 'factura_recibida',
+      estado_cups: !finContrato || !consumoNuevo.kwh ? 'datos_incompletos' : 'factura_recibida',
       prioridad: cliente?.prioridad || 'C',
       responsable: formCups.responsable || cliente?.responsable || null,
     });
@@ -166,7 +172,7 @@ export default function FichaClienteLuz() {
     const err = await guardarLuz('cups', 'PUT', {
       id: editCupsId,
       ...formEditCups,
-      consumo_anual_kwh: parseFloat(formEditCups.consumo_anual_kwh) || 0,
+      consumo_anual_kwh: consumoEdit.kwh,
       coste_anual_estimado: parseFloat(formEditCups.coste_anual_estimado) || 0,
       dias_preaviso: parseInt(formEditCups.dias_preaviso) || null,
       fecha_fin_contrato: formEditCups.fecha_fin_contrato || null,
@@ -535,7 +541,8 @@ export default function FichaClienteLuz() {
                 </select>
               </div>
               <div><label className={labelCls}>Comercializadora actual</label><input className={inputCls} value={formCups.comercializadora_actual} onChange={(e) => setFormCups({ ...formCups, comercializadora_actual: e.target.value })} /></div>
-              <div><label className={labelCls}>Consumo anual (kWh)</label><input className={inputCls} type="number" value={formCups.consumo_anual_kwh} onChange={(e) => setFormCups({ ...formCups, consumo_anual_kwh: e.target.value })} /></div>
+              <div><label className={labelCls}>Consumo anual (kWh)</label><input className={inputCls} type="text" inputMode="decimal" placeholder="53.558" value={formCups.consumo_anual_kwh} onChange={(e) => setFormCups({ ...formCups, consumo_anual_kwh: e.target.value })} />
+                <AvisoConsumo consumo={consumoNuevo} bruto={formCups.consumo_anual_kwh} /></div>
               <div><label className={labelCls}>Fin contrato</label><input className={inputCls} type="date" value={formCups.fecha_fin_contrato} onChange={(e) => setFormCups({ ...formCups, fecha_fin_contrato: e.target.value })} /></div>
               <div><label className={labelCls}>Fin permanencia</label><input className={inputCls} type="date" value={formCups.fecha_fin_permanencia} onChange={(e) => setFormCups({ ...formCups, fecha_fin_permanencia: e.target.value })} /></div>
             </div>
@@ -593,7 +600,8 @@ export default function FichaClienteLuz() {
                       <div><label className={labelCls}>Comercializadora</label><input className={inputCls} value={formEditCups.comercializadora_actual} onChange={(e) => setFormEditCups({ ...formEditCups, comercializadora_actual: e.target.value })} /></div>
                       <div><label className={labelCls}>Distribuidora</label><input className={inputCls} value={formEditCups.distribuidora} onChange={(e) => setFormEditCups({ ...formEditCups, distribuidora: e.target.value })} /></div>
                       <div className="md:col-span-2"><label className={labelCls}>Dirección suministro</label><input className={inputCls} value={formEditCups.direccion_suministro} onChange={(e) => setFormEditCups({ ...formEditCups, direccion_suministro: e.target.value })} /></div>
-                      <div><label className={labelCls}>Consumo anual (kWh)</label><input className={inputCls} type="number" value={formEditCups.consumo_anual_kwh} onChange={(e) => setFormEditCups({ ...formEditCups, consumo_anual_kwh: e.target.value })} /></div>
+                      <div><label className={labelCls}>Consumo anual (kWh)</label><input className={inputCls} type="text" inputMode="decimal" placeholder="53.558" value={formEditCups.consumo_anual_kwh} onChange={(e) => setFormEditCups({ ...formEditCups, consumo_anual_kwh: e.target.value })} />
+                        <AvisoConsumo consumo={consumoEdit} bruto={formEditCups.consumo_anual_kwh} /></div>
                       <div><label className={labelCls}>Coste anual (€)</label><input className={inputCls} type="number" step="0.01" value={formEditCups.coste_anual_estimado} onChange={(e) => setFormEditCups({ ...formEditCups, coste_anual_estimado: e.target.value })} /></div>
                       <div><label className={labelCls}>Fin contrato</label><input className={inputCls} type="date" value={formEditCups.fecha_fin_contrato} onChange={(e) => setFormEditCups({ ...formEditCups, fecha_fin_contrato: e.target.value })} /></div>
                       <div><label className={labelCls}>Fin permanencia</label><input className={inputCls} type="date" value={formEditCups.fecha_fin_permanencia} onChange={(e) => setFormEditCups({ ...formEditCups, fecha_fin_permanencia: e.target.value })} /></div>

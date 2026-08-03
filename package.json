@@ -19,6 +19,7 @@
     "test:rendimiento": "node scripts/test-parte-rendimiento.mjs",
     "test:huecos": "node scripts/test-huecos.mjs",
     "test:clasificacion": "node scripts/test-clasificacion.mjs",
+    "test:consumo": "node scripts/test-consumo.mjs",
     "test:agenda-calle": "node scripts/test-agenda-calle.mjs",
     "test:rutas": "node scripts/test-rutas.mjs"
   },

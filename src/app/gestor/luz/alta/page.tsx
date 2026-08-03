@@ -7,9 +7,9 @@ import { Check, ChevronLeft, ChevronRight, PartyPopper } from 'lucide-react';
 import {
   TIPOS_CLIENTE, TIPO_CLIENTE_LABEL, PRIORIDADES, PRIORIDAD_LABEL, TARIFAS_ACCESO,
   TIPOS_OPORTUNIDAD, TIPO_OPORTUNIDAD_LABEL, TIPOS_TAREA, TIPO_TAREA_LABEL,
-  TIPOS_FECHA, TIPO_FECHA_LABEL, tituloFechaCritica, normCups, fmtFecha,
+  TIPOS_FECHA, TIPO_FECHA_LABEL, tituloFechaCritica, normCups, fmtFecha, leerConsumo,
 } from '@/lib/luz';
-import { Card, guardarLuz, inputCls, labelCls, btnPrimario, btnSecundario, SelectorResponsable } from '../ui';
+import { AvisoConsumo, Card, guardarLuz, inputCls, labelCls, btnPrimario, btnSecundario, SelectorResponsable } from '../ui';
 import { tokenSesion } from '@/lib/usuario';
 
 /** POST autenticado que devuelve el registro creado (para enlazar los pasos). */
@@ -85,6 +85,10 @@ export default function AltaGuiadaPage() {
 
   const diasProyecto = Math.round((new Date(fFechas.presentar_proyecto).getTime() - Date.now()) / 86400000) + 1;
 
+  // El consumo se lee aquí para poder avisar en pantalla ANTES de guardar: un
+  // «53.558» mal leído se convierte en 53 kWh y arrastra el error a la oferta.
+  const consumo = leerConsumo(fCups.consumo_anual_kwh);
+
   // ── Guardado por paso ──
   async function guardarPaso1() {
     if (!fCliente.nombre.trim()) { setError('El nombre del cliente es obligatorio.'); return; }
@@ -108,9 +112,9 @@ export default function AltaGuiadaPage() {
     setGuardando(true); setError('');
     const res = await crearConId('cups', {
       ...fCups, cliente_id: clienteId,
-      consumo_anual_kwh: parseFloat(fCups.consumo_anual_kwh) || 0,
+      consumo_anual_kwh: consumo.kwh,
       fecha_fin_contrato: fCups.fecha_fin_contrato || null,
-      estado_cups: fCups.fecha_fin_contrato && parseFloat(fCups.consumo_anual_kwh) ? 'factura_recibida' : 'datos_incompletos',
+      estado_cups: fCups.fecha_fin_contrato && consumo.kwh ? 'factura_recibida' : 'datos_incompletos',
       prioridad: fCliente.prioridad, responsable: fCliente.responsable || null,
     });
     setGuardando(false);
@@ -305,7 +309,8 @@ export default function AltaGuiadaPage() {
             <div><label className={labelCls}>Comercializadora actual</label>
               <input className={inputCls} value={fCups.comercializadora_actual} onChange={(e) => setFCups({ ...fCups, comercializadora_actual: e.target.value })} /></div>
             <div><label className={labelCls}>Consumo anual (kWh)</label>
-              <input className={inputCls} type="number" value={fCups.consumo_anual_kwh} onChange={(e) => setFCups({ ...fCups, consumo_anual_kwh: e.target.value })} /></div>
+              <input className={inputCls} type="text" inputMode="decimal" placeholder="53.558" value={fCups.consumo_anual_kwh} onChange={(e) => setFCups({ ...fCups, consumo_anual_kwh: e.target.value })} />
+              <AvisoConsumo consumo={consumo} bruto={fCups.consumo_anual_kwh} /></div>
             <div><label className={labelCls}>Fin de contrato (si se sabe)</label>
               <input className={inputCls} type="date" value={fCups.fecha_fin_contrato} onChange={(e) => setFCups({ ...fCups, fecha_fin_contrato: e.target.value })} /></div>
           </div>
