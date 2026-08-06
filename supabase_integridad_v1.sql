@@ -84,6 +84,43 @@ select 'A · REVISAR a mano (fechas que no cuadran)' as aviso,
  order by c.nombre;
 
 -- ────────────────────────────────────────────────────────────────────────────
+-- A2. Fechas críticas repetidas ENTRE ELLAS
+--
+--     El bloque A solo se lleva las que cuadran con la fecha de un CUPS. Si
+--     alguien corrigió después el suministro, la copia ya no cuadra y las DOS
+--     sobreviven — y entonces el índice del bloque C no se puede crear. Eso es
+--     justo lo que pasó al ejecutarlo la primera vez: reventaba en la última
+--     línea y el `commit` echaba atrás los dos bloques buenos.
+--
+--     Se conserva LA VINCULADA AL CUPS, no la más antigua. Son el mismo
+--     vencimiento metido dos veces por el importador: la primera pasada lo dejó
+--     suelto y la segunda lo vinculó. Quedarse con la suelta sería tirar el
+--     único dato que las diferencia. A igualdad, manda la más antigua.
+-- ────────────────────────────────────────────────────────────────────────────
+create temporary table _fechas_repes on commit drop as
+select id from (
+  select f.id,
+         row_number() over (
+           partition by f.cliente_id, f.tipo_fecha, f.fecha
+           order by (f.cups_id is not null) desc, f.creado_en asc) as puesto
+    from luz_fechas_criticas f
+   where f.borrado_en is null and f.estado = 'pendiente') t
+where puesto > 1;
+
+insert into respaldo_integridad_v1 (bloque, tabla, registro_id, fila)
+select 'A2_fecha_critica_repetida', 'luz_fechas_criticas', f.id, to_jsonb(f)
+from luz_fechas_criticas f join _fechas_repes r on r.id = f.id;
+
+update luz_fechas_criticas f
+   set borrado_en  = now(),
+       borrado_por = 'supabase_integridad_v1',
+       motivo_borrado = 'Copia repetida del mismo vencimiento; se conserva la vinculada al CUPS'
+  from _fechas_repes r
+ where r.id = f.id;
+
+select 'A2 · copias repetidas archivadas' as bloque, count(*) from _fechas_repes;
+
+-- ────────────────────────────────────────────────────────────────────────────
 -- B. Contratos sin CUPS
 --
 --    NO se inventa el vínculo. Solo se rellena cuando no hay ninguna duda:
@@ -152,16 +189,27 @@ commit;
 --   from luz_contratos where borrado_en is null and cups_id is null;
 
 -- ============================================================================
+-- EJECUTADO el 6 de agosto de 2026 sobre producción. Resultado:
+--   A  · 75 fechas críticas archivadas (duplicaban el dato del CUPS)
+--   A2 ·  2 copias repetidas archivadas (Coheri Logística y Global HMG)
+--   B  · 27 contratos vinculados a su suministro
+--   C  · índice creado
+-- Quedan 38 contratos sin CUPS a propósito: 23 de clientes sin ningún
+-- suministro dado de alta y 15 de clientes con varios, donde elegir cuál es
+-- decisión de una persona.
+-- ============================================================================
+
+-- ============================================================================
 -- VUELTA ATRÁS — deshace todo lo anterior leyendo del respaldo.
 -- Ejecutar SOLO si hay que revertir.
 -- ============================================================================
 -- begin;
 --
--- -- A: devolver las fechas críticas archivadas
+-- -- A y A2: devolver las fechas críticas archivadas
 -- update luz_fechas_criticas f
 --    set borrado_en = null, borrado_por = null, motivo_borrado = null
 --   from respaldo_integridad_v1 r
---  where r.bloque = 'A_fecha_fin_contrato_duplicada'
+--  where r.bloque in ('A_fecha_fin_contrato_duplicada', 'A2_fecha_critica_repetida')
 --    and r.tabla = 'luz_fechas_criticas'
 --    and r.registro_id = f.id;
 --
