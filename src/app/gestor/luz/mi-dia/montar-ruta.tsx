@@ -12,7 +12,7 @@ import {
   ordenarPorCercania, cabeEnLaManana, oportunidadesDePaso, enlaceRutaOptima,
   MAX_PARADAS, type Parada,
 } from '@/lib/ruta-optima';
-import { municipioDe, coordsDe } from '@/lib/agenda-calle';
+import { municipioDe, ubicacionDe, paradaDe } from '@/lib/agenda-calle';
 import { Card, btnPrimario, btnSecundario } from '../ui';
 
 /**
@@ -56,18 +56,21 @@ export function MontarRuta({ clientes, cups, prospectos }: Props) {
     return clientes
       .map((c) => {
         const dirSum = dirDe.get(c.id) || null;
-        const coords = coordsDe(c.direccion_fiscal, dirSum);
-        const dir = c.direccion_fiscal || dirSum;
+        // El suministro manda sobre el domicilio fiscal: es donde está la nave.
+        const u = ubicacionDe(dirSum, c.direccion_fiscal);
+        const coords = u?.tipo === 'coords' ? { lat: u.lat, lon: u.lon } : null;
+        const parada = paradaDe(u);
         return {
           clave: `cli:${c.id}`,
           id: c.id,
           nombre: c.nombre,
           coords,
-          direccion: dir,
+          direccion: parada,
           municipio: municipioDe(c.direccion_fiscal, dirSum),
-          zona: zonaDeParada(dir, coords),
+          zona: zonaDeParada(c.direccion_fiscal || dirSum, coords),
         };
       })
+      // Sin coordenadas ni parada usable no se puede montar la ruta con él.
       .filter((c) => c.coords || c.direccion);
   }, [clientes, cups]);
 

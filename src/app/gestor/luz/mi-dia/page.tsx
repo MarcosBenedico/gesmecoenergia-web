@@ -183,6 +183,18 @@ export default function MiDiaPage() {
     [clientes.datos]
   );
 
+  // Adónde se va físicamente. Manda la dirección del SUMINISTRO sobre el
+  // domicilio fiscal: el fiscal de una granja suele ser el piso del dueño en el
+  // pueblo, y con eso la navegación llevaba a un portal en vez de a la nave.
+  const dondeEsta = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const s of cups.datos) {
+      const d = s.direccion_suministro || s.alias_suministro;
+      if (d && !m.has(s.cliente_id)) m.set(s.cliente_id, d);
+    }
+    return m;
+  }, [cups.datos]);
+
   // La vista se recuerda: quien siempre trabaja por zona no tiene que elegirla cada día.
   const [vista, setVista] = useState<Vista>('hoy');
   const [aplazando, setAplazando] = useState<string | null>(null);
@@ -355,7 +367,7 @@ export default function MiDiaPage() {
           <div className="mt-2 pt-2 border-t border-border/25 flex flex-wrap items-center gap-2">
             <AccionesContacto
               telefono={ficha.telefono}
-              ubicacion={ficha.direccion_fiscal}
+              ubicacion={dondeEsta.get(ficha.id) || ficha.direccion_fiscal}
               nombre={ficha.nombre}
             />
             {/* Si al ver la acción decide ir en persona, la ruta se arma desde aquí */}

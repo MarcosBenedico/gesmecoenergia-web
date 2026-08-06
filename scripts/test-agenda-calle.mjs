@@ -11,7 +11,7 @@
  */
 
 const {
-  municipioDe, coordsDe, queLeFalta, enriquecerParaCalle, agruparPorZona,
+  municipioDe, coordsDe, ubicacionDe, paradaDe, queLeFalta, enriquecerParaCalle, agruparPorZona,
   telefonoMarcable, enlaceWhatsApp, enlaceMapa, enlaceRuta, SIN_ZONA, MAX_PARADAS_RUTA,
 } = await import('../src/lib/agenda-calle.ts');
 
@@ -30,12 +30,40 @@ eq('formato del importador',
 eq('con bloque y piso por medio',
   municipioDe('Calle OBISPO MIRANDA, 2, BQ . B , Piso 3, 22550, Tamarite de Litera, Huesca'), 'Tamarite de Litera');
 eq('otro municipio', municipioDe('Calle DEL ORIENTE 20, 22549, Vencillón, Huesca'), 'Vencillón');
-eq('las minúsculas se respetan bien', municipioDe('22500, BINEFAR'), 'Binefar');
+eq('las minúsculas se respetan bien', municipioDe('22500, BINEFAR'), 'Binéfar');
 eq('sin código postal no se inventa nada', municipioDe('Calle de la Iglesia 4'), null);
 eq('sin dirección tampoco', municipioDe(null, '', undefined), null);
 eq('si la primera no vale, prueba la siguiente',
   municipioDe(null, 'Polígono 3, 22535, Esplús, Huesca'), 'Esplús');
 eq('un número detrás del CP no es un municipio', municipioDe('22500 4 bajo'), null);
+
+// El formato de la comercializadora, que es de donde vienen la mayoría de altas:
+// el municipio va DELANTE del código postal y separado por barras.
+eq('municipio delante del CP, con barras',
+  municipioDe('SAN ESTEBAN 23 | Binefar | 22500'), 'Binéfar');
+eq('lo mismo pero en mayúsculas y con más campos',
+  municipioDe('AV SAN VICENTE DE PAUL, 37 NUM 4 3 | TAMARITE DE LITERA | 22550'),
+  'Tamarite de Litera');
+eq('un portal de cinco cifras no tapa el CP de verdad',
+  municipioDe('AVENIDA SAN VICENTE DE PAUL 00043 03 A, 22550 TAMARITE'), 'Tamarite de Litera');
+eq('la provincia pegada al CP no es el municipio',
+  municipioDe('CL MAYOR 3 | Huesca | 22500'), null);
+eq('...ni cuando viene detrás sin municipio delante',
+  municipioDe('22550, Tamarite de Litera, Huesca'), 'Tamarite de Litera');
+eq('una calle delante del CP no es un municipio',
+  municipioDe('POLIGONO INDUSTRIAL NºB-7, B-8 22550'), null);
+eq('el CP al final sin nada más tampoco inventa',
+  municipioDe('CALLE LA BALSA, 5 22500'), null);
+
+// Un pueblo, un nombre. Escrito de dos maneras salían dos zonas en la pantalla
+// y quien montaba la ruta abría una y se dejaba la otra.
+eq('Binefar y Binéfar son la misma zona',
+  municipioDe('22500 Binefar'), municipioDe('22500 Binéfar'));
+eq('Tamarite y Tamarite de Litera también',
+  municipioDe('22550 TAMARITE'), municipioDe('22550 TAMARITE DE LITERA'));
+eq('Esplus y Esplús también', municipioDe('22535 Esplus'), 'Esplús');
+eq('un pueblo que no está en la lista se deja como venga',
+  municipioDe('22549, Peralta de Calasanz'), 'Peralta de Calasanz');
 
 console.log('\n── Coordenadas dentro de un texto ──');
 eq('de un enlace de Google Maps',
@@ -43,6 +71,64 @@ eq('de un enlace de Google Maps',
 eq('separadas por barra', coordsDe('41.9542572/0.2995116'), { lat: 41.9542572, lon: 0.2995116 });
 eq('un texto sin coordenadas', coordsDe('Calle Mayor 4'), null);
 eq('una latitud imposible se descarta', coordsDe('99.99999,0.53488'), null);
+eq('el 0,0 del Atlantico no es una ubicacion', coordsDe('0.00000,0.00000'), null);
+
+console.log('\n── Coordenadas escritas a mano ──');
+// Marcos las mete a mano en la ficha, asi que tienen que valer con menos
+// decimales que las que salen de una URL de Google.
+eq('con dos decimales vale', coordsDe('41.79,0.58'), { lat: 41.79, lon: 0.58 });
+eq('con espacio despues de la coma tambien', coordsDe('41.7946, 0.5816'), { lat: 41.7946, lon: 0.5816 });
+eq('con UN decimal no: son 11 km de error, eso no es una ubicacion',
+  coordsDe('41.8,0.5'), null);
+
+console.log('\n── Grados, minutos y segundos: el otro formato de Google ──');
+// Al copiar un sitio de Google Maps sale este formato en la parte /place/, y
+// ademas codificado. Antes no se leia y esos clientes salian «sin ubicacion».
+{
+  const r = coordsDe("41°47'40.8\"N 0°34'53.8\"E");
+  cierto('grados sin codificar', r && Math.abs(r.lat - 41.7946) < 0.001 && Math.abs(r.lon - 0.5816) < 0.001);
+}
+{
+  const url = "https://www.google.com/maps/place/41%C2%B047'40.8%22N+0%C2%B034'53.8%22E";
+  const r = coordsDe(url);
+  cierto('grados codificados dentro de una URL', r && Math.abs(r.lat - 41.7946) < 0.001);
+}
+{
+  const r = coordsDe("41°47'40.8\"S 0°34'53.8\"O");
+  cierto('sur y oeste restan', r && r.lat < 0 && r.lon < 0);
+}
+eq('la altura de camara de la URL no se confunde con coordenadas',
+  coordsDe('https://www.google.com/maps/place/Algo/@41.7946587,0.5816007,662m/data=x'),
+  { lat: 41.7946587, lon: 0.5816007 });
+
+console.log('\n── Qué se puede hacer con cada ubicación ──');
+{
+  const u = ubicacionDe('https://www.google.com/maps?q=41.81242,0.64731');
+  eq('coordenadas → tipo coords', u.tipo, 'coords');
+  eq('y sirven de parada', paradaDe(u), '41.81242,0.64731');
+}
+{
+  const u = ubicacionDe('CALLE JOAQUIN COSTA 20, 22540 ALTORRICON');
+  eq('dirección postal → tipo texto', u.tipo, 'texto');
+  eq('y sirve de parada tal cual', paradaDe(u), 'CALLE JOAQUIN COSTA 20, 22540 ALTORRICON');
+}
+{
+  // Este es el caso de PIRINEOS GLOBAL: un enlace corto sin coordenadas dentro.
+  const u = ubicacionDe('https://maps.app.goo.gl/W3hfwvb3gGfyvsuJ9');
+  eq('enlace corto → tipo enlace', u.tipo, 'enlace');
+  eq('NO sirve de parada: metido en la ruta, Google la descarta entera', paradaDe(u), null);
+  eq('pero se guarda para poder abrirlo', u.url, 'https://maps.app.goo.gl/W3hfwvb3gGfyvsuJ9');
+}
+{
+  const u = ubicacionDe('https://www.google.com/maps/place/Av%C3%ADcola+Gimenells+S.L/data=x');
+  eq('de un enlace con nombre de sitio se saca el nombre', u.tipo, 'texto');
+  cierto('y el nombre está legible', u.texto.includes('Gimenells'));
+}
+eq('sin nada, no hay ubicación', ubicacionDe('', null, undefined), null);
+{
+  const u = ubicacionDe(null, 'POLIGONO 3 PARCELA 82, ALBALATE');
+  eq('se coge el primero que tenga algo', u.texto, 'POLIGONO 3 PARCELA 82, ALBALATE');
+}
 
 console.log('\n── Qué le falta para poder ofertar ──');
 const cli = { id: 'c1', nombre: 'Granja Norte', telefono: '974 000 111' };
@@ -129,17 +215,30 @@ cierto('...y no lo dobla si ya lo trae',
   enlaceWhatsApp('+34974000111').includes('wa.me/34974000111'));
 eq('sin teléfono no hay enlace', enlaceWhatsApp(null), null);
 cierto('el mapa usa las coordenadas si las hay',
-  enlaceMapa({ coords: { lat: 41.8, lon: 0.5 }, direccion: 'Calle X' }).includes('41.8,0.5'));
+  enlaceMapa({ ubicacion: ubicacionDe('41.8046,0.5312') }).includes('41.8046,0.5312'));
 cierto('...y la dirección si no',
-  enlaceMapa({ coords: null, direccion: 'Calle Mayor 4' }).includes('Calle%20Mayor%204'));
-eq('sin nada, no hay mapa', enlaceMapa({ coords: null, direccion: null }), null);
+  enlaceMapa({ ubicacion: ubicacionDe('Calle Mayor 4') }).includes('Calle%20Mayor%204'));
+cierto('un enlace corto se abre tal cual, sin convertirlo en búsqueda',
+  enlaceMapa({ ubicacion: ubicacionDe('https://maps.app.goo.gl/W3hfw') }) === 'https://maps.app.goo.gl/W3hfw');
+eq('sin nada, no hay mapa', enlaceMapa({ ubicacion: null }), null);
 
 console.log('\n── La ruta: lo que convierte la lista en una mañana ──');
 const ruta = enlaceRuta(ric.filter((i) => i.ubicable));
 cierto('sale de la oficina', ruta.includes('origin=Av.'));
 cierto('tiene destino', ruta.includes('destination='));
 eq('sin paradas ubicables no hay ruta', enlaceRuta([]), null);
-const muchas = Array.from({ length: 15 }, (_, n) => ({ coords: { lat: 41 + n / 100, lon: 0.5 }, direccion: null }));
+eq('un enlace corto NO entra en la ruta: la rompería entera',
+  enlaceRuta([{ ubicacion: ubicacionDe('https://maps.app.goo.gl/W3hfw') }]), null);
+{
+  // Mezclado: el enlace se descarta y la ruta se monta igual con el resto.
+  const mixta = enlaceRuta([
+    { ubicacion: ubicacionDe('https://maps.app.goo.gl/W3hfw') },
+    { ubicacion: ubicacionDe('41.8046,0.5312') },
+  ]);
+  cierto('la parada buena entra', mixta.includes('41.8046'));
+  cierto('y el enlace se queda fuera', !mixta.includes('goo.gl'));
+}
+const muchas = Array.from({ length: 15 }, (_, n) => ({ ubicacion: ubicacionDe(`${(41 + n / 100).toFixed(4)},0.5312`) }));
 const rutaLarga = enlaceRuta(muchas);
 cierto(`no mete más de ${MAX_PARADAS_RUTA} paradas`,
   (rutaLarga.match(/\|/g) || []).length <= MAX_PARADAS_RUTA - 2 + 1);

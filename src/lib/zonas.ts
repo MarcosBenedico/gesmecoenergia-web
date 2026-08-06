@@ -16,17 +16,26 @@ export interface Zona {
   nombre: string;
   color: string;      // color de la zona (chips y mapa)
   centro: { lat: number; lon: number }; // centro aproximado, para asignar por cercanía
+  /**
+   * El pueblo cabecera, tal y como se escribe en las listas.
+   *
+   * Sirve para que un cliente del que solo tenemos coordenadas caiga en la MISMA
+   * caja que los que sí traen dirección. Si aquí saliera el nombre largo de la
+   * zona, «Tamarite de Litera» y «La Litera (Tamarite)» serían dos grupos del
+   * mismo viaje, y quien monta la ruta abriría uno y se dejaría el otro.
+   */
+  cabecera: string;
   pueblos: string[];  // nombres normalizados (minúsculas, sin acentos)
 }
 
 export const ZONAS: Zona[] = [
   {
-    id: 'binefar', nombre: 'Binéfar (núcleo)', color: '#e11d48',
+    id: 'binefar', cabecera: 'Binéfar', nombre: 'Binéfar (núcleo)', color: '#e11d48',
     centro: { lat: 41.85, lon: 0.294 },
     pueblos: ['binefar'],
   },
   {
-    id: 'san-esteban-estadilla', nombre: 'Litera Alta – Somontano', color: '#8b5cf6',
+    id: 'san-esteban-estadilla', cabecera: 'San Esteban de Litera', nombre: 'Litera Alta – Somontano', color: '#8b5cf6',
     centro: { lat: 42.0, lon: 0.27 },
     pueblos: [
       'san esteban de litera', 'azanuy', 'alins del monte', 'calasanz', 'peralta de calasanz',
@@ -35,7 +44,7 @@ export const ZONAS: Zona[] = [
     ],
   },
   {
-    id: 'tamarite-alcampell', nombre: 'La Litera (Tamarite)', color: '#0ea5e9',
+    id: 'tamarite-alcampell', cabecera: 'Tamarite de Litera', nombre: 'La Litera (Tamarite)', color: '#0ea5e9',
     pueblos: [
       'tamarite', 'alcampell', 'altorricon', 'albelda', 'baells', 'nacha', 'castillonroy',
       'baldellou', 'camporrells', 'estopiñan', 'estopinan',
@@ -43,7 +52,7 @@ export const ZONAS: Zona[] = [
     centro: { lat: 41.87, lon: 0.43 },
   },
   {
-    id: 'alfarras-almacelles', nombre: 'Segrià Nord (Almacelles)', color: '#f59e0b',
+    id: 'alfarras-almacelles', cabecera: 'Almacelles', nombre: 'Segrià Nord (Almacelles)', color: '#f59e0b',
     pueblos: [
       'alfarras', 'almenar', 'alguaire', 'rossello', 'rosello', 'torrefarrera', 'vilanova de segria',
       'benavent de segria', 'almacelles', 'ivars de noguera', 'albesa', 'algerri', 'la portella', 'corbins',
@@ -52,7 +61,7 @@ export const ZONAS: Zona[] = [
     centro: { lat: 41.73, lon: 0.55 },
   },
   {
-    id: 'alcarras-fraga', nombre: 'Bajo Cinca – Baix Segre (Fraga)', color: '#22c55e',
+    id: 'alcarras-fraga', cabecera: 'Fraga', nombre: 'Bajo Cinca – Baix Segre (Fraga)', color: '#22c55e',
     pueblos: [
       'alcarras', 'fraga', 'soses', 'torres de segre', 'aitona', 'seros', 'massalcoreig',
       'torrente de cinca', 'torrent de cinca', 'velilla de cinca', 'miralsot', 'sudanell', 'montoliu',
@@ -61,7 +70,7 @@ export const ZONAS: Zona[] = [
     centro: { lat: 41.55, lon: 0.35 },
   },
   {
-    id: 'esplus-osso', nombre: 'Ribera del Cinca (Esplús)', color: '#14b8a6',
+    id: 'esplus-osso', cabecera: 'Esplús', nombre: 'Ribera del Cinca (Esplús)', color: '#14b8a6',
     pueblos: [
       'vencillon', 'esplus', 'osso de cinca', 'almudafar', 'albalate de cinca', 'belver de cinca',
       'zaidin', 'ontiñena', 'ontinena', 'chalamera', 'ballobar', 'alcolea de cinca',
@@ -71,7 +80,7 @@ export const ZONAS: Zona[] = [
   },
   {
     // Fuera del radio habitual, pero hay cartera allí y necesita su etiqueta.
-    id: 'barcelona', nombre: 'Barcelona', color: '#ec4899',
+    id: 'barcelona', cabecera: 'Barcelona', nombre: 'Barcelona', color: '#ec4899',
     centro: { lat: 41.39, lon: 2.16 },
     pueblos: [
       'barcelona', 'hospitalet', 'badalona', 'sabadell', 'terrassa', 'mataro',
@@ -83,7 +92,7 @@ export const ZONAS: Zona[] = [
     ],
   },
   {
-    id: 'binaced-monzon', nombre: 'Cinca Medio (Monzón)', color: '#f97316',
+    id: 'binaced-monzon', cabecera: 'Monzón', nombre: 'Cinca Medio (Monzón)', color: '#f97316',
     pueblos: [
       'binaced', 'valcarca', 'pueyo de santa cruz', 'monzon', 'selgua', 'conchel',
       'castejon del puente', 'ariestolas', 'alfantega', 'pomar de cinca', 'santalecina',

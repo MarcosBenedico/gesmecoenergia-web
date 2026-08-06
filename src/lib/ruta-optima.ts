@@ -35,7 +35,12 @@ export interface Parada {
   clave: string;
   nombre: string;
   coords: Punto | null;
-  /** Por si no hay coordenadas: se manda la dirección tal cual a Google. */
+  /**
+   * Por si no hay coordenadas: se manda la dirección tal cual a Google.
+   * TIENE que ser una dirección postal o un nombre de sitio, nunca una URL:
+   * un enlace metido en `waypoints` hace que Google descarte la ruta entera.
+   * Se rellena con `paradaDe()`, que ya deja los enlaces fuera.
+   */
   direccion?: string | null;
 }
 
@@ -166,7 +171,7 @@ export function enlaceRutaOptima(
 ): string | null {
   const puntos = paradas
     .map((p) => (p.coords ? `${p.coords.lat},${p.coords.lon}` : p.direccion))
-    .filter(Boolean) as string[];
+    .filter((v): v is string => !!v && !/^https?:\/\//i.test(v));
   if (!puntos.length) return null;
 
   const usables = puntos.slice(0, MAX_PARADAS);
