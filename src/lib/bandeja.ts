@@ -417,7 +417,7 @@ export function construirBandeja(f: Fuentes): ItemBandeja[] {
         clienteId: t.cliente_id,
         accion: t.descripcion,
         detalle: t.notas || undefined,
-        href: `/gestor/luz/agenda`,
+        href: `/gestor/luz/mi-dia`,
         dias,
         peso: 30 + Math.min(20, dias ?? 0),
       });

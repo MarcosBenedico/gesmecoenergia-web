@@ -16,7 +16,7 @@ const QUIEN_HACE_QUE = [
     quien: 'David · Calle',
     bloque: 'Bloque CALLE del menú',
     hace: 'Visita, capta y empuja las ventas.',
-    suyo: ['Mi Día', 'Agenda', 'Rutas de visitas', 'Pipeline'],
+    suyo: ['Mi Día', 'Rutas de visitas', 'Pipeline'],
     regla: 'No da de alta clientes ni tramita papeleo: eso frena la calle. Lo que capta se lo pasa a Nicola.',
     color: 'border-accent/40 bg-accent/5',
     href: '/gestor/luz/mi-dia',
@@ -46,18 +46,18 @@ const QUIEN_HACE_QUE = [
 const HERRAMIENTAS = [
   {
     icono: '📋',
-    nombre: 'Agenda',
-    donde: 'Agenda · Mi Día',
-    es: 'TODO lo que hay que hacer, en una sola lista.',
+    nombre: 'Mi Día',
+    donde: 'Mi Día',
+    es: 'TODO lo que hay que hacer, en una sola pantalla con tres vistas.',
     ejemplos: ['Llamar a Casa Guardia el jueves', 'Visitar la granja de Alcampell', 'Vence el contrato de Talleres Cinca'],
-    regla: 'Aquí está todo junto: tus tareas y los vencimientos. Ya no hay que mirar en dos sitios distintos. Tiene vista de lista y de calendario.',
+    regla: 'HOY es qué hago ahora. POR ZONA agrupa por pueblo para salir a la calle y montar la ruta. CALENDARIO es qué me espera. Las tres enseñan lo mismo: tus tareas y los vencimientos, juntos.',
     color: 'border-amber-500/40 bg-amber-500/5',
-    href: '/gestor/luz/agenda',
+    href: '/gestor/luz/mi-dia',
   },
   {
     icono: '⚙️',
     nombre: 'Avisos automáticos',
-    donde: 'Salen solos en la Agenda',
+    donde: 'Salen solos en Mi Día',
     es: 'Fin de contrato, fin de permanencia y límite de preaviso.',
     ejemplos: ['Vence el contrato · Casa Guardia', 'Acaba la permanencia · Granja Perlag'],
     regla: 'NO se crean a mano: el panel los lee del suministro. Si cambia la fecha del contrato, el aviso se corrige solo. Vienen marcados como «automático».',
@@ -70,7 +70,7 @@ const HERRAMIENTAS = [
     donde: 'Pipeline Energético',
     es: 'En qué punto está LA VENTA con ese cliente.',
     ejemplos: ['Prospecto → Factura recibida → Oferta enviada → GANADO', 'Comisión potencial: 500 €'],
-    regla: 'Su color se ve también en la Agenda y en Mi Día: naranja es «pendiente de firma», o sea a punto de caer.',
+    regla: 'Su color se ve también en Mi Día: naranja es «pendiente de firma», o sea a punto de caer.',
     color: 'border-secondary/40 bg-secondary/5',
     href: '/gestor/luz/pipeline',
   },
@@ -96,14 +96,14 @@ const DIA_DAVID: [string, string, string][] = [
 
 const DIA_NICOLA: [string, string, string][] = [
   ['1', 'Alta guiada para todo cliente nuevo', 'Nunca a mano: el asistente crea cliente, suministro, oportunidad y primera tarea sin olvidar nada.'],
-  ['2', 'Mete las fechas del contrato en el CUPS', 'Fin de contrato, permanencia y preaviso. Con eso, los avisos de la Agenda salen solos y siempre correctos.'],
+  ['2', 'Mete las fechas del contrato en el CUPS', 'Fin de contrato, permanencia y preaviso. Con eso, los avisos de Mi Día salen solos y siempre correctos.'],
   ['3', 'Tramita lo que esté firmado', 'Contratos y activaciones. Al cambiar el estado del contrato, el suministro y el cliente se actualizan solos.'],
-  ['4', 'Revisa tu Agenda', 'Lo administrativo se te asigna automáticamente según el tipo de tarea: papeleo, cobros y activaciones.'],
+  ['4', 'Revisa Mi Día', 'Lo administrativo se te asigna automáticamente según el tipo de tarea: papeleo, cobros y activaciones.'],
 ];
 
 const REGLAS_ORO: [string, string][] = [
   ['Ningún cliente vivo sin próxima acción', 'Es la alerta roja del Dashboard. Si no sabes el siguiente paso, ponle "Revisar más adelante" con fecha.'],
-  ['Los vencimientos no se apuntan: van en el CUPS', 'Fin de contrato, permanencia y preaviso se meten en el suministro. La Agenda los saca de ahí sola. Si los apuntas aparte tendrás dos avisos, y uno se quedará viejo.'],
+  ['Los vencimientos no se apuntan: van en el CUPS', 'Fin de contrato, permanencia y preaviso se meten en el suministro. Mi Día los saca de ahí solo. Si los apuntas aparte tendrás dos avisos, y uno se quedará viejo.'],
   ['Mover de día, siempre con motivo', 'El panel te lo pide y lo guarda. No es control: es para saber por qué una gestión lleva tres semanas dando vueltas.'],
   ['Los estados se actualizan solos', 'Al mover el pipeline o cambiar un contrato, el suministro y el cliente se ponen al día automáticamente. No hay que tocarlo en tres pantallas.'],
   ['Nada se borra del todo', 'Lo eliminado va a la Papelera y se recupera con todo lo que colgaba de ello. Aun así, mejor posponer o cerrar con motivo que borrar.'],
@@ -235,7 +235,7 @@ export default function GuiaPage() {
         <Zap className="w-5 h-5 text-accent shrink-0" />
         <p className="text-xs text-muted">
           <b className="text-foreground">¿Duda de dónde apuntar algo?</b> Si lo hace una persona un día concreto, es una tarea
-          (va a la Agenda). Si es una fecha del contrato, va en el CUPS y el aviso sale solo. Si es cómo va la venta, es el
+          (sale en Mi Día). Si es una fecha del contrato, va en el CUPS y el aviso sale solo. Si es cómo va la venta, es el
           pipeline. Y si es el siguiente paso con el cliente, su próxima acción.
         </p>
       </Card>

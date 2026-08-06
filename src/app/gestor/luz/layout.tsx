@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-  LayoutDashboard, Users, Plug, CalendarClock, Target, FileSignature,
+  LayoutDashboard, Users, Plug, Target, FileSignature,
   Euro, ArrowDownUp, Settings, ChevronLeft, ChevronDown, Zap, UserCog, ShieldCheck, Route, History, Sun, UserPlus, Radar, Inbox, BookOpen, Calculator, FileText, TrendingUp, Trash2, Activity, ClipboardList, Wand2, Menu, X,
 } from 'lucide-react';
 import { GuardiaModulo } from '@/components/guardia-modulo';
@@ -41,8 +41,9 @@ const BLOQUES: Bloque[] = [
     titulo: 'Calle',
     pista: 'Visitar, mover y cerrar',
     secciones: [
+      // Mi Día se comió la Agenda: eran la misma lista con otro recorte, y
+      // tener las dos en el menú era lo que hacía que se mezclaran.
       { href: '/gestor/luz/mi-dia', icono: Sun, nombre: 'Mi Día' },
-      { href: '/gestor/luz/agenda', icono: CalendarClock, nombre: 'Agenda' },
       { href: '/gestor/luz/rutas', icono: Route, nombre: 'Rutas de visitas' },
       { href: '/gestor/luz/pipeline', icono: Target, nombre: 'Pipeline Energético' },
     ],

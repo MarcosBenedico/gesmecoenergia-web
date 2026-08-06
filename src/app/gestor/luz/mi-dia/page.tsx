@@ -1,13 +1,15 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { Sun, AlertTriangle, Check, Target, ArrowRight, Flame } from 'lucide-react';
+import { Sun, AlertTriangle, Check, Target, ArrowRight, Flame, MapPin, CalendarDays } from 'lucide-react';
 import {
-  LuzCliente, LuzCups, LuzFechaCritica, LuzOportunidad, LuzTarea,
-  PIPELINE_CERRADO, diasHasta,
+  LuzCliente, LuzCups, LuzFechaCritica, LuzOportunidad, LuzTarea, LuzVisita,
+  PIPELINE_CERRADO, diasHasta, fmtFecha,
 } from '@/lib/luz';
 import { construirAgenda, esDe, ItemAgenda } from '@/lib/agenda';
+import { planDelDia, esDiaDeCalle } from '@/lib/plan-rutas';
+import { ZONAS } from '@/lib/zonas';
 import { fmtEur0 } from '@/lib/correbin';
 import { useUsuario } from '@/lib/usuario';
 import { Card, EstadoCarga, useListaLuz, guardarLuz, SelectorResponsable } from '../ui';
@@ -17,21 +19,45 @@ import { FotoSitio } from '../foto-sitio';
 import { BotonRuta } from '../boton-ruta';
 import { ResolverVisita } from '../resolver-visita';
 import { MontarRuta } from './montar-ruta';
+import { VistaCalle } from '../agenda/calle';
+import { CalendarioAgenda } from '../agenda/calendario';
+import { PanelAplazar } from '../agenda/aplazar';
 import { ProspectoGuardado } from '@/lib/prospeccion';
 
 /**
- * MI DÍA — la pantalla de David.
+ * MI DÍA — la única pantalla de trabajo de David.
  *
- * Una sola pregunta: ¿qué hago hoy, y qué me espera mañana?
- * Nada más. Lo que va más allá de mañana vive en la Agenda.
+ * Antes esto y la Agenda eran dos entradas de menú distintas que llamaban a la
+ * MISMA función (`construirAgenda`) sobre los MISMOS registros. Mi Día era la
+ * Agenda filtrada por «yo» y por «hoy»: no se parecían, es que una era un
+ * subconjunto de la otra. Por eso se mezclaban, y por eso están juntas.
  *
- * Bebe de la misma fuente que la Agenda (`construirAgenda`), así que nunca
- * puede decir una cosa distinta. Lo atrasado NO va en su propia sección:
- * se mezcla arriba del todo con lo de hoy, porque para quien está en la calle
- * atrasado y de hoy son lo mismo — hay que hacerlo YA.
+ * Tres vistas de lo mismo, según lo que se esté haciendo:
+ *
+ *   HOY        · qué hago ahora. Es la que se abre, porque es la pregunta de
+ *                cada mañana. Atrasado y de hoy van juntos: para quien está en
+ *                la calle son lo mismo, hay que hacerlo YA.
+ *   POR ZONA   · qué hago cuando salgo. Agrupa por municipio, no por fecha:
+ *                nadie conduce a una fecha, se conduce a Tamarite. Aquí se
+ *                monta la ruta.
+ *   CALENDARIO · qué me espera. Para mirar la semana, no para trabajar.
+ *
+ * La vista elegida se recuerda, así que quien siempre usa la misma no tiene
+ * que volver a elegirla cada día.
  *
  * Los clientes A mandan: salen primero y con la banda roja.
  */
+
+/** Las tres formas de mirar lo mismo. Ninguna trae registros que no traigan las otras. */
+type Vista = 'hoy' | 'zona' | 'calendario';
+
+const VISTAS: { id: Vista; nombre: string; icono: typeof Sun; pista: string }[] = [
+  { id: 'hoy', nombre: 'Hoy', icono: Sun, pista: 'Qué hago ahora' },
+  { id: 'zona', nombre: 'Por zona', icono: MapPin, pista: 'Para salir a la calle' },
+  { id: 'calendario', nombre: 'Calendario', icono: CalendarDays, pista: 'Qué me espera' },
+];
+
+const CLAVE_VISTA = 'gesmeco:mi-dia:vista';
 
 /** Peso de cada prioridad: A primero. Lo urgente de un cliente A vale más. */
 const PESO: Record<string, number> = { A: 0, B: 1, C: 2, D: 3 };
@@ -62,6 +88,8 @@ export default function MiDiaPage() {
   // Solo los que Marcos ha marcado para que vaya David: el resto del mapa no
   // es trabajo decidido, y meterlo aquí sería devolverle el problema de elegir.
   const prospectos = useListaLuz<ProspectoGuardado>('prospectos', { estado: 'para_visitar' });
+  // Las visitas alimentan el marcador de puertas de la vista por zona.
+  const visitas = useListaLuz<LuzVisita>('visitas');
 
   const persona = verComo ?? perfil?.responsable ?? null;
   /** Quién puede mirar el día de otro: administradores y quien tenga el permiso. */
@@ -114,6 +142,39 @@ export default function MiDiaPage() {
     [clientes.datos]
   );
 
+  // La vista se recuerda: quien siempre trabaja por zona no tiene que elegirla cada día.
+  const [vista, setVista] = useState<Vista>('hoy');
+  const [aplazando, setAplazando] = useState<string | null>(null);
+  const [ancla, setAncla] = useState(new Date());
+  const [diaSel, setDiaSel] = useState<string | null>(null);
+  const [msg, setMsg] = useState('');
+
+  // Todo lo de la persona, sin recortar por fecha: es lo que consumen las
+  // vistas por zona y calendario. La vista de Hoy trabaja con `dia`, que es
+  // este mismo conjunto partido por días.
+  const mios = useMemo(() => {
+    if (!persona) return [] as ItemAgenda[];
+    return construirAgenda({
+      tareas: tareas.datos, cups: cups.datos, fechas: fechas.datos, pipeline: pipeline.datos,
+    }).filter((i) => esDe(i.responsable, persona));
+  }, [persona, tareas.datos, cups.datos, fechas.datos, pipeline.datos]);
+
+  // Puertas de hoy: visitas registradas con fecha de hoy. Es el único número que
+  // mide lo que de verdad depende de David, y por eso va arriba de la vista de zona.
+  const visitasHoy = useMemo(() => {
+    const h = new Date();
+    const iso = `${h.getFullYear()}-${String(h.getMonth() + 1).padStart(2, '0')}-${String(h.getDate()).padStart(2, '0')}`;
+    return visitas.datos.filter((v) => String(v.fecha || '').slice(0, 10) === iso
+      && (!persona || esDe(v.responsable, persona))).length;
+  }, [visitas.datos, persona]);
+
+  // En calendario manda el día elegido; en zona van todos.
+  const delCalendario = useMemo(() => (
+    diaSel === 'sin_fecha' ? mios.filter((i) => !i.fecha)
+      : diaSel ? mios.filter((i) => i.fecha?.slice(0, 10) === diaSel)
+      : []
+  ), [mios, diaSel]);
+
   /** Cliente cuya visita se está resolviendo, si hay alguno. */
   const [visitando, setVisitando] = useState<{ id: string; nombre: string; responsable?: string | null } | null>(null);
 
@@ -124,8 +185,56 @@ export default function MiDiaPage() {
       ? await guardarLuz('tareas', 'PUT', { id: i.id, estado: 'completada' })
       : await guardarLuz('fechas', 'PUT', { id: i.id, estado: 'completada' });
     setOcupado('');
-    if (err) return;
+    if (err) { setMsg(`⚠️ ${err}`); return; }
+    setMsg('✓ Hecho.');
     if (i.origen === 'tarea') tareas.recargar(); else fechas.recargar();
+  }
+
+  /** Mover de día dejando el motivo escrito en el historial del registro. */
+  async function aplazar(item: ItemAgenda, fechaNueva: string, motivo: string) {
+    if (!item.id) return;
+    setOcupado(item.clave);
+    const sello = new Date().toLocaleDateString('es-ES');
+    const linea = `[${sello}] Movida ${item.fecha ? `del ${fmtFecha(item.fecha)} ` : ''}al ${fmtFecha(fechaNueva)} · ${motivo}`;
+    let err: string | null;
+    if (item.origen === 'tarea') {
+      const t = tareas.datos.find((x) => x.id === item.id);
+      err = await guardarLuz('tareas', 'PUT', {
+        id: item.id, fecha_limite: fechaNueva,
+        notas: t?.notas ? `${t.notas}\n${linea}` : linea,
+      });
+    } else {
+      const f = fechas.datos.find((x) => x.id === item.id);
+      err = await guardarLuz('fechas', 'PUT', {
+        id: item.id, fecha: fechaNueva,
+        descripcion: f?.descripcion ? `${f.descripcion}\n${linea}` : linea,
+      });
+    }
+    setOcupado(''); setAplazando(null);
+    if (err) { setMsg(`⚠️ ${err}`); return; }
+    setMsg('✓ Movida de día.');
+    if (item.origen === 'tarea') tareas.recargar(); else fechas.recargar();
+  }
+
+  // La vista elegida se recuerda entre sesiones. Se lee en un efecto y no en
+  // el estado inicial para no romper el render del servidor.
+  useEffect(() => {
+    const guardada = localStorage.getItem(CLAVE_VISTA);
+    if (guardada === 'hoy' || guardada === 'zona' || guardada === 'calendario') {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setVista(guardada);
+    }
+  }, []);
+
+  function cambiarVista(v: Vista) {
+    setVista(v);
+    setMsg('');
+    localStorage.setItem(CLAVE_VISTA, v);
+  }
+
+  /** Recarga todo lo que puede haber cambiado al resolver una visita. */
+  function recargarTodo() {
+    tareas.recargar(); fechas.recargar(); pipeline.recargar(); clientes.recargar(); visitas.recargar();
   }
 
   /**
@@ -267,6 +376,37 @@ export default function MiDiaPage() {
         )}
       </div>
 
+      {/* Las tres formas de mirar lo mismo. Botones de 44 px: se usan desde el
+          coche y con el pulgar, así que no pueden ser pastillas pequeñas. */}
+      {!cargando && persona && (
+        <div className="grid grid-cols-3 gap-2">
+          {VISTAS.map((v) => {
+            const Ico = v.icono;
+            const activa = vista === v.id;
+            return (
+              <button
+                key={v.id}
+                onClick={() => cambiarVista(v.id)}
+                className={`min-h-[44px] rounded-xl border px-2 py-2 transition text-center ${
+                  activa
+                    ? 'bg-accent text-white border-accent shadow-sm'
+                    : 'bg-card/70 border-border/50 text-muted hover:text-foreground'
+                }`}
+              >
+                <span className="flex items-center justify-center gap-1.5 text-sm font-bold">
+                  <Ico className="w-4 h-4" /> {v.nombre}
+                </span>
+                <span className={`block text-[10px] mt-0.5 ${activa ? 'text-white/80' : 'text-muted'}`}>
+                  {v.pista}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {msg && <p className="fv-fade-in text-xs text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-2.5">{msg}</p>}
+
       <EstadoCarga cargando={cargando} error={tareas.error} faltaMigracion={tareas.faltaMigracion} vacio={false} textoVacio="" sqlFile="supabase_luz.sql" />
 
       {!cargando && !persona && (
@@ -279,7 +419,7 @@ export default function MiDiaPage() {
         </Card>
       )}
 
-      {!cargando && persona && dia && (
+      {!cargando && persona && dia && vista === 'hoy' && (
         <>
           {/* El número del día: lo primero y lo único que importa al abrir */}
           <Card className="!p-5 relative overflow-hidden text-center">
@@ -345,7 +485,29 @@ export default function MiDiaPage() {
 
           {/* La zona que toca hoy y el montador de rutas: quita la decisión de en
               medio, que es lo que se comía las mañanas. */}
-          <MontarRuta clientes={dia.misClientes} cups={cups.datos} prospectos={prospectos.datos} />
+          {/* Los días de calle, el recordatorio de adónde toca ir. El montador
+              vive en la vista Por zona, así que esto lleva allí en vez de
+              repetir el mismo bloque en dos sitios. */}
+          {esDiaDeCalle(new Date()) && (() => {
+            const plan = planDelDia(new Date());
+            const zona = ZONAS.find((z) => z.id === plan.zonaId);
+            return (
+              <button onClick={() => cambiarVista('zona')} className="block w-full text-left">
+                <Card className="!p-3 border-accent/30 hover:border-accent/50 transition flex items-center gap-3">
+                  <MapPin className="w-5 h-5 text-accent shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-bold text-foreground">
+                      Hoy toca calle{zona ? `: ${zona.nombre}` : ''}
+                    </p>
+                    <p className="text-[11px] text-muted">
+                      {plan.objetivos.puertas} puertas y {plan.objetivos.facturas} facturas · {plan.franja} — monta la ruta desde «Por zona»
+                    </p>
+                  </div>
+                  <ArrowRight className="w-4 h-4 text-muted shrink-0" />
+                </Card>
+              </button>
+            );
+          })()}
 
           {/* Sus clientes en marcha: los que están a punto y los fáciles de recuperar */}
           <ClientesEnMarcha clientes={dia.misClientes} pipeline={pipeline.datos} />
@@ -368,11 +530,12 @@ export default function MiDiaPage() {
             </Link>
           )}
 
-          {/* Lo que va más allá de mañana no se enseña aquí: vive en la Agenda */}
-          <Link href="/gestor/luz/agenda" className="block">
+          {/* Lo que va más allá de mañana está en las otras dos vistas de esta
+              misma pantalla, así que esto cambia de vista en vez de navegar. */}
+          <button onClick={() => cambiarVista('calendario')} className="block w-full text-left">
             <Card className="!p-3 hover:border-accent/40 transition flex items-center gap-3">
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-bold text-foreground">Ver toda la agenda</p>
+                <p className="text-sm font-bold text-foreground">Ver lo que viene después</p>
                 <p className="text-[11px] text-muted">
                   {dia.despues.length} más adelante
                   {dia.sinFecha.length > 0 && ` · ${dia.sinFecha.length} sin fecha`}
@@ -380,7 +543,7 @@ export default function MiDiaPage() {
               </div>
               <ArrowRight className="w-4 h-4 text-muted shrink-0" />
             </Card>
-          </Link>
+          </button>
         </>
       )}
 
@@ -395,10 +558,75 @@ export default function MiDiaPage() {
           onHecho={() => {
             setVisitando(null);
             // Todo se mueve a la vez: la visita cambia tareas, pipeline y cliente
-            tareas.recargar(); pipeline.recargar(); clientes.recargar(); cups.recargar();
+            recargarTodo(); cups.recargar();
+            setMsg('✓ Visita registrada.');
           }}
         />
       )}
+
+      {/* ── POR ZONA ──────────────────────────────────────────────────────
+          Agrupa por municipio y no por fecha, que es la diferencia entre una
+          lista y un plan: nadie conduce a una fecha, se conduce a Tamarite, y
+          allí se hace todo lo de Tamarite aunque venza dentro de tres semanas,
+          porque volver cuesta 40 km. Aquí es donde se monta la ruta. */}
+      {!cargando && persona && vista === 'zona' && (
+        <div className="space-y-4">
+          {/* El plan del día va arriba: primero se decide adónde se va y luego
+              se mira qué hay allí. Al revés se sale sin ruta y se improvisa. */}
+          <MontarRuta
+            clientes={clientes.datos.filter((c) => esDe(c.responsable, persona))}
+            cups={cups.datos}
+            prospectos={prospectos.datos}
+          />
+          <VistaCalle
+            items={mios}
+            clientes={clientes.datos}
+            cups={cups.datos}
+            visitasHoy={visitasHoy}
+            onResolverVisita={(id, nombre) => setVisitando({ id, nombre, responsable: persona })}
+            onAplazar={(i) => setAplazando(i.clave)}
+            onCompletar={completar}
+            ocupado={ocupado}
+          />
+        </div>
+      )}
+
+      {/* ── CALENDARIO ────────────────────────────────────────────────────
+          Para mirar la semana, no para trabajar. Al elegir un día se listan
+          sus acciones con los mismos botones que en Hoy. */}
+      {!cargando && persona && vista === 'calendario' && (
+        <div className="space-y-3">
+          <CalendarioAgenda items={mios} ancla={ancla} setAncla={setAncla} diaSel={diaSel} setDiaSel={setDiaSel} />
+          {diaSel && (
+            <div className="space-y-2">
+              {delCalendario.length === 0 ? (
+                <Card className="text-center py-6">
+                  <p className="text-sm text-muted">Nada para ese día.</p>
+                </Card>
+              ) : (
+                delCalendario.map((i) => <Accion key={i.clave} i={i} />)
+              )}
+            </div>
+          )}
+          {!diaSel && (
+            <p className="text-center text-xs text-muted py-2">Toca un día para ver lo que hay.</p>
+          )}
+        </div>
+      )}
+
+      {/* Aplazar exige motivo: mover una acción de día sin decir por qué es lo
+          que hace que una lista deje de significar nada al cabo de un mes. */}
+      {aplazando && (() => {
+        const item = mios.find((i) => i.clave === aplazando);
+        return item ? (
+          <PanelAplazar
+            item={item}
+            onCancelar={() => setAplazando(null)}
+            onConfirmar={(fecha, motivo) => aplazar(item, fecha, motivo)}
+            ocupado={ocupado === item.clave}
+          />
+        ) : null;
+      })()}
     </div>
   );
 }

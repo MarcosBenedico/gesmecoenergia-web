@@ -47,20 +47,25 @@ No hay suite de tests formal; la verificación es `npm run build` + `scripts/smo
 - `src/app/(site)/` — web pública (home, servicios, sectores, analizador de facturas, etc.).
 - `src/app/gestor/` — panel interno, con login Supabase Auth:
   - `gestor/luz/` — Gestión Luz: cartera energética. El menú está organizado en **5 bloques por forma de trabajar** (`layout.tsx`), no por tipo de dato:
-    - **Calle** (David) — mi-día, agenda, rutas, pipeline.
+    - **Calle** (David) — mi-día, rutas, pipeline.
     - **Oficina** (Nicola) — bandeja, **rellenar**, captura, alta, clientes, cups, contratos, importar, guía.
     - **Dirección** (Marcos) — solo lo que se mira a diario: dashboard, parte, consumo, comisiones, equipo.
     - **Herramientas** — oportunidades, FV, tarifas, proyectos, mercado. **Nace plegado.**
     - **Ajustes** — control, usuarios, configuración, papelera. **Nace plegado.**
 
     Antes eran 3 bloques con 12 entradas en Dirección y 10 en Oficina. La auditoría enseñó por qué había que partirlo: **el 73 % del trabajo real es clientes y tareas**, y había pantallas con cero uso ocupando sitio en el menú de quien más prisa tiene. **La regla al añadir algo: si no se abre casi todos los días, va a Herramientas.** Una entrada de menú que nadie usa no cuesta servidor, cuesta atención, y la paga cada día quien sí tiene trabajo. Cada uno pliega los bloques que no usa y se recuerda en localStorage.
-    - **Agenda** (`gestor/luz/agenda`, lógica en `src/lib/agenda.ts`) — única lista de trabajo del equipo; sustituye en el menú a "Tareas" + "Fechas Críticas" (esas páginas siguen existiendo para crear/editar en detalle). Los vencimientos de contrato/permanencia/preaviso **no se guardan**: se calculan en vivo desde el CUPS, así nunca quedan desfasados.
-      - Tres vistas: **Calle** (por defecto), Lista (por urgencia) y Calendario (por día).
-      - **Vista Calle** (`agenda/calle.tsx`, lógica en `src/lib/agenda-calle.ts`) — **agrupa por ZONA, no por fecha**, y es la diferencia entre una lista y un plan: de marzo a julio, los días que David llevaba ruta preparada hizo **9 visitas de media; los días que salía con una lista, 0,7**. Nadie conduce a una fecha: se conduce a Tamarite y allí se hace todo lo de Tamarite, lo que vence mañana y lo que vence en tres semanas, porque volver cuesta 40 km.
-      - Las zonas se ordenan **por lo que urge dentro de cada una**, no por número de paradas: veinte cosas tranquilas en Binéfar no valen más que tres vencidas en Esplús. La primera se abre sola.
-      - **Cada línea dice qué le falta a ese cliente** (`queLeFalta`). El peor resultado de una visita no es un no: es plantarse allí y no poder ofertar porque el consumo no estaba metido — eso ya pasó y sale en los partes.
-      - Se marcan paradas y **`enlaceRuta()` saca la ruta en Google Maps** saliendo de la oficina (tope de 10 paradas, que es lo que admite). Es exactamente lo que Marcos mandaba a mano los ocho días que rindieron nueve visitas, pero sin depender de que él lo prepare.
-      - Todo a un toque y con el pulgar: llamar, WhatsApp con mensaje ya escrito, abrir el mapa, **resolver la visita** (que desde la Agenda no se podía y por eso había cero visitas registradas) y aplazar. Filtros por objetivo/precliente/cliente y por «listos para cerrar».
+    - **Mi Día** (`gestor/luz/mi-dia`, lógica en `src/lib/agenda.ts`) — la única pantalla de trabajo de David, y la única lista del equipo. Sustituye en el menú a «Tareas» + «Fechas Críticas» (esas páginas siguen existiendo para crear y editar en detalle) y **absorbió la Agenda**, que era una entrada aparte.
+      - **Mi Día y la Agenda llamaban a la MISMA función** (`construirAgenda`) sobre los mismos registros: Mi Día era la Agenda filtrada por «yo» y por «hoy». No se parecían — una era un subconjunto de la otra —, y por eso se mezclaban en la cabeza de quien las usaba. Ahora son tres vistas de una sola pantalla, y `/gestor/luz/agenda` redirige para no romper enlaces guardados en el móvil.
+      - **HOY** (por defecto) · qué hago ahora. Atrasado y de hoy van juntos: para quien está en la calle son lo mismo. Los días de calle sale el aviso de a qué zona toca ir, que lleva a la vista de al lado.
+      - **POR ZONA** (`agenda/calle.tsx`, lógica en `src/lib/agenda-calle.ts`) · para salir. Aquí vive el **montador de ruta**, porque primero se decide adónde se va y luego se mira qué hay allí; al revés se sale sin ruta y se improvisa.
+      - **CALENDARIO** · qué me espera. Para mirar la semana, no para trabajar.
+      - **La vista elegida se recuerda** en localStorage: quien siempre trabaja por zona no tiene que elegirla cada mañana.
+      - Los vencimientos de contrato/permanencia/preaviso **no se guardan**: se calculan en vivo desde el CUPS, así nunca quedan desfasados.
+      - **Agrupar por ZONA y no por fecha** es la diferencia entre una lista y un plan: de marzo a julio, los días que David llevaba ruta preparada hizo **9 visitas de media; los días que salía con una lista, 0,7**. Nadie conduce a una fecha: se conduce a Tamarite y allí se hace todo lo de Tamarite, lo que vence mañana y lo que vence en tres semanas, porque volver cuesta 40 km.
+      - Las zonas se ordenan **por lo que urge dentro de cada una**, no por número de paradas. La primera se abre sola.
+      - **Cada línea dice qué le falta a ese cliente** (`queLeFalta`). El peor resultado de una visita no es un no: es plantarse allí y no poder ofertar porque el consumo no estaba metido.
+      - Se marcan paradas y **`enlaceRuta()` saca la ruta en Google Maps** saliendo de la oficina (tope de 10 paradas, que es lo que admite).
+      - Todo a un toque y con el pulgar: llamar, WhatsApp con mensaje ya escrito, abrir el mapa, **resolver la visita** y aplazar (con motivo obligatorio, que sin él una lista deja de significar nada al mes).
       - **Marcador de puertas del día** contra el objetivo de 9, que sale de su propio ritmo demostrado.
       - `municipioDe()` saca el municipio de direcciones escritas de tres maneras distintas usando el **código postal como ancla**, que es lo único fiable que tienen todas. Cubierto por `npm run test:agenda-calle`.
     - **Plan de rutas y montador** (`src/lib/plan-rutas.ts` + `src/lib/ruta-optima.ts`, UI en `mi-dia/montar-ruta.tsx`) — los días de calle están **diseñados de antemano** para quitar la decisión de en medio, que es lo que se comía las mañanas.
