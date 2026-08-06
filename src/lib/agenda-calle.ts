@@ -28,7 +28,7 @@ import type { ItemAgenda, UrgenciaAgenda } from './agenda.ts';
 import { ORDEN_URGENCIA } from './agenda.ts';
 import type { Clasificacion } from './clasificacion.ts';
 import { ES_CLASIFICACION } from './clasificacion.ts';
-import { zonaMasCercana } from './zonas.ts';
+import { zonaMasCercana, zonaPorId } from './zonas.ts';
 
 // ── Zona ───────────────────────────────────────────────────────────────────
 
@@ -321,12 +321,15 @@ export function enriquecerParaCalle({ items, clientes, cups }: FuentesCalle): It
 
     // El suministro también va primero para la zona, por lo mismo: el fiscal
     // suele ser el piso del dueño y puede estar en otro pueblo que la nave.
-    // Si la dirección no da municipio pero SÍ hay coordenadas, la zona sale del
-    // mapa: 80 clientes con la ubicación puesta caían en «sin dirección» y no
-    // aparecían al montar la ruta, que es exactamente lo contrario de lo que
-    // pasa cuando alguien se molesta en pegar el punto de Google Maps.
+    //
+    // Y si la dirección no da municipio, hay dos respaldos por orden de quién
+    // sabe más: la zona que alguien eligió A MANO en la ficha (`luz_clientes.
+    // zona`, que la vista de calle se estaba saltando aunque 53 clientes la
+    // tuvieran puesta) y, si tampoco, la zona más cercana a las coordenadas.
+    // 80 clientes con la ubicación pegada de Google caían en «sin dirección».
     const municipio =
       municipioDe(dirSuministro, c?.direccion_fiscal) ||
+      zonaPorId((c as { zona?: string } | undefined)?.zona)?.cabecera ||
       (coords ? zonaMasCercana(coords.lat, coords.lon).cabecera : null);
 
     return {

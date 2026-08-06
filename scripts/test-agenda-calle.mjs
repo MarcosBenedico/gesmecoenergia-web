@@ -183,6 +183,36 @@ eq('al del CUPS provisional le faltan dos cosas', ric[1].falta.length, 3);
 eq('un item sin cliente no es ubicable', ric[3].ubicable, false);
 eq('el de la dirección sí lo es', ric[0].ubicable, true);
 
+console.log('\n── Los tres respaldos de la zona, por orden de quién sabe más ──');
+{
+  // 1) La dirección manda cuando se puede leer.
+  const [a] = enriquecerParaCalle({
+    items: [{ clave: 'a', clienteId: 'z1', urgencia: 'hoy', dias: 0 }],
+    clientes: [{ id: 'z1', nombre: 'A', direccion_fiscal: 'Calle X 1, 22535, Esplús, Huesca',
+                 zona: 'binefar' }],
+    cups: [],
+  });
+  eq('la dirección gana a la zona puesta a mano', a.municipio, 'Esplús');
+
+  // 2) Sin dirección legible, la zona que eligió una persona.
+  const [b] = enriquecerParaCalle({
+    items: [{ clave: 'b', clienteId: 'z2', urgencia: 'hoy', dias: 0 }],
+    clientes: [{ id: 'z2', nombre: 'B', direccion_fiscal: 'La torre de siempre', zona: 'binefar' }],
+    cups: [],
+  });
+  eq('sin dirección legible, vale la zona puesta a mano', b.municipio, 'Binéfar');
+
+  // 3) Y si tampoco, las coordenadas. Cae en la MISMA caja que los de dirección.
+  const [c] = enriquecerParaCalle({
+    items: [{ clave: 'c', clienteId: 'z3', urgencia: 'hoy', dias: 0 }],
+    clientes: [{ id: 'z3', nombre: 'C', direccion_fiscal: '41.834091,0.534880' }],
+    cups: [],
+  });
+  cierto('con solo coordenadas ya no cae en «sin dirección»', c.municipio);
+  eq('...y cae en una caja de pueblo, no en una etiqueta de zona distinta',
+    typeof c.municipio === 'string' && c.municipio.includes('('), false);
+}
+
 console.log('\n── Zonas: se conduce a un sitio, no a una fecha ──');
 const zonas = agruparPorZona(ric);
 eq('tres zonas más el cajón de los que no se sabe dónde están', zonas.length, 4);
