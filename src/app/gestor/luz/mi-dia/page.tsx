@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { Sun, AlertTriangle, Check, Target, ArrowRight, Flame, MapPin, CalendarDays } from 'lucide-react';
+import { Sun, AlertTriangle, Check, Target, ArrowRight, Flame, MapPin, CalendarDays, ChevronDown } from 'lucide-react';
 import {
   LuzCliente, LuzCups, LuzFechaCritica, LuzOportunidad, LuzTarea, LuzVisita,
   PIPELINE_CERRADO, diasHasta, fmtFecha,
@@ -13,7 +13,7 @@ import { ZONAS } from '@/lib/zonas';
 import { fmtEur0 } from '@/lib/correbin';
 import { useUsuario } from '@/lib/usuario';
 import { Card, EstadoCarga, useListaLuz, guardarLuz, SelectorResponsable } from '../ui';
-import { ClientesEnMarcha } from './clientes-en-marcha';
+import { ClientesEnMarcha, contarEnMarcha } from './clientes-en-marcha';
 import { AccionesContacto } from '../acciones-contacto';
 import { FotoSitio } from '../foto-sitio';
 import { BotonRuta } from '../boton-ruta';
@@ -47,6 +47,47 @@ import { ProspectoGuardado } from '@/lib/prospeccion';
  *
  * Los clientes A mandan: salen primero y con la banda roja.
  */
+
+/**
+ * Acceso plegable del pie de la vista Hoy.
+ *
+ * Lo de abajo no es trabajo de ahora: es consulta. Antes iban los cuatro
+ * bloques desplegados uno detrás de otro y había que bajar media pantalla
+ * para llegar al último, así que en la práctica no se veían. Ahora cada uno
+ * es una línea con su número y se abre solo si hace falta.
+ */
+function Plegable({ titulo, cuenta, tono = 'normal', abierto, onToggle, children }: {
+  titulo: string;
+  cuenta: number;
+  tono?: 'normal' | 'aviso';
+  abierto: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+}) {
+  const vacio = cuenta === 0;
+  return (
+    <div className="rounded-xl border border-border/40 bg-card/40 overflow-hidden">
+      <button
+        onClick={onToggle}
+        disabled={vacio}
+        className={`w-full min-h-[44px] flex items-center gap-3 px-3 py-2.5 text-left transition ${
+          vacio ? 'opacity-50 cursor-default' : 'hover:bg-card/70'
+        }`}
+      >
+        <span className={`text-lg font-black tabular-nums shrink-0 w-7 text-center ${
+          vacio ? 'text-muted/50' : tono === 'aviso' ? 'text-amber-300' : 'text-foreground'
+        }`}>
+          {cuenta}
+        </span>
+        <span className="min-w-0 flex-1 text-sm font-bold text-foreground">{titulo}</span>
+        {!vacio && (
+          <ChevronDown className={`w-4 h-4 text-muted shrink-0 transition-transform ${abierto ? 'rotate-180' : ''}`} />
+        )}
+      </button>
+      {abierto && !vacio && <div className="px-3 pb-3 space-y-2">{children}</div>}
+    </div>
+  );
+}
 
 /** Las tres formas de mirar lo mismo. Ninguna trae registros que no traigan las otras. */
 type Vista = 'hoy' | 'zona' | 'calendario';
@@ -145,6 +186,9 @@ export default function MiDiaPage() {
   // La vista se recuerda: quien siempre trabaja por zona no tiene que elegirla cada día.
   const [vista, setVista] = useState<Vista>('hoy');
   const [aplazando, setAplazando] = useState<string | null>(null);
+  // Solo uno abierto a la vez: si se pudieran abrir todos, volvería a ser la
+  // misma pantalla larga que había antes.
+  const [pieAbierto, setPieAbierto] = useState<string | null>(null);
   const [ancla, setAncla] = useState(new Date());
   const [diaSel, setDiaSel] = useState<string | null>(null);
   const [msg, setMsg] = useState('');
@@ -463,31 +507,9 @@ export default function MiDiaPage() {
             </div>
           </Card>
 
-          {/* HOY */}
-          {dia.hoy.length > 0 && (
-            <div className="space-y-2">
-              <p className="text-xs font-black uppercase tracking-[0.15em] text-foreground">Hoy</p>
-              <div className="space-y-2">{dia.hoy.map((i) => <Accion key={i.clave} i={i} />)}</div>
-            </div>
-          )}
-
-          {/* MAÑANA — para llegar preparado, no para trabajarlo ahora */}
-          <div className="space-y-2">
-            <p className="text-xs font-black uppercase tracking-[0.15em] text-muted">
-              Mañana {dia.manana.length > 0 && <span className="text-muted/60">· {dia.manana.length}</span>}
-            </p>
-            {dia.manana.length === 0 ? (
-              <p className="text-xs text-muted/70 px-1">Mañana no tienes nada apuntado todavía.</p>
-            ) : (
-              <div className="space-y-2">{dia.manana.map((i) => <Accion key={i.clave} i={i} apagado />)}</div>
-            )}
-          </div>
-
-          {/* La zona que toca hoy y el montador de rutas: quita la decisión de en
-              medio, que es lo que se comía las mañanas. */}
-          {/* Los días de calle, el recordatorio de adónde toca ir. El montador
-              vive en la vista Por zona, así que esto lleva allí en vez de
-              repetir el mismo bloque en dos sitios. */}
+          {/* Los días de calle, adónde toca ir. Va ANTES de la lista porque es
+              lo primero que hay que saber al abrir la pantalla por la mañana:
+              decide si el día es de coche o de teléfono. */}
           {esDiaDeCalle(new Date()) && (() => {
             const plan = planDelDia(new Date());
             const zona = ZONAS.find((z) => z.id === plan.zonaId);
@@ -500,7 +522,7 @@ export default function MiDiaPage() {
                       Hoy toca calle{zona ? `: ${zona.nombre}` : ''}
                     </p>
                     <p className="text-[11px] text-muted">
-                      {plan.objetivos.puertas} puertas y {plan.objetivos.facturas} facturas · {plan.franja} — monta la ruta desde «Por zona»
+                      {plan.objetivos.puertas} puertas y {plan.objetivos.facturas} facturas · {plan.franja} — monta la ruta en «Por zona»
                     </p>
                   </div>
                   <ArrowRight className="w-4 h-4 text-muted shrink-0" />
@@ -509,41 +531,77 @@ export default function MiDiaPage() {
             );
           })()}
 
-          {/* Sus clientes en marcha: los que están a punto y los fáciles de recuperar */}
-          <ClientesEnMarcha clientes={dia.misClientes} pipeline={pipeline.datos} />
-
-          {/* Oportunidades paradas: dinero suyo que no se está moviendo */}
-          {dia.paradas.length > 0 && (
-            <Link href="/gestor/luz/pipeline" className="block">
-              <Card className="!p-3 border-amber-500/30 hover:border-amber-500/50 transition flex items-center gap-3">
-                <Target className="w-5 h-5 text-amber-300 shrink-0" />
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-bold text-foreground">
-                    {dia.paradas.length} {dia.paradas.length === 1 ? 'oportunidad parada' : 'oportunidades paradas'}
-                  </p>
-                  <p className="text-[11px] text-muted">
-                    Sin próxima acción o con la fecha pasada · {fmtEur0(dia.comisionEnJuego)} en juego
-                  </p>
-                </div>
-                <ArrowRight className="w-4 h-4 text-muted shrink-0" />
-              </Card>
-            </Link>
+          {/* HOY */}
+          {dia.hoy.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs font-black uppercase tracking-[0.15em] text-foreground">Hoy</p>
+              <div className="space-y-2">{dia.hoy.map((i) => <Accion key={i.clave} i={i} />)}</div>
+            </div>
           )}
 
-          {/* Lo que va más allá de mañana está en las otras dos vistas de esta
-              misma pantalla, así que esto cambia de vista en vez de navegar. */}
-          <button onClick={() => cambiarVista('calendario')} className="block w-full text-left">
-            <Card className="!p-3 hover:border-accent/40 transition flex items-center gap-3">
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-bold text-foreground">Ver lo que viene después</p>
-                <p className="text-[11px] text-muted">
-                  {dia.despues.length} más adelante
-                  {dia.sinFecha.length > 0 && ` · ${dia.sinFecha.length} sin fecha`}
-                </p>
+          {/* ── LO QUE NO ES DE AHORA ────────────────────────────────────
+              Cuatro accesos plegados, uno por línea, con su número delante.
+              Antes iban los cuatro desplegados y había que bajar media
+              pantalla para llegar al último: en la práctica no se veían. */}
+          <div className="pt-1 space-y-2">
+            <p className="text-[11px] font-black uppercase tracking-[0.15em] text-muted/70 px-1">
+              Para mirar, no para hacer ahora
+            </p>
+
+            <Plegable
+              titulo="Mañana"
+              cuenta={dia.manana.length}
+              abierto={pieAbierto === 'manana'}
+              onToggle={() => setPieAbierto(pieAbierto === 'manana' ? null : 'manana')}
+            >
+              {dia.manana.map((i) => <Accion key={i.clave} i={i} apagado />)}
+            </Plegable>
+
+            <Plegable
+              titulo="Clientes en marcha"
+              cuenta={contarEnMarcha(dia.misClientes)}
+              abierto={pieAbierto === 'marcha'}
+              onToggle={() => setPieAbierto(pieAbierto === 'marcha' ? null : 'marcha')}
+            >
+              <ClientesEnMarcha clientes={dia.misClientes} pipeline={pipeline.datos} />
+            </Plegable>
+
+            {/* Las paradas llevan al pipeline, así que no se pliegan: es un salto. */}
+            {dia.paradas.length > 0 && (
+              <Link href="/gestor/luz/pipeline" className="block">
+                <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 hover:bg-amber-500/10 transition min-h-[44px] flex items-center gap-3 px-3 py-2.5">
+                  <span className="text-lg font-black tabular-nums text-amber-300 shrink-0 w-7 text-center">
+                    {dia.paradas.length}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-bold text-foreground">
+                      {dia.paradas.length === 1 ? 'Oportunidad parada' : 'Oportunidades paradas'}
+                    </p>
+                    <p className="text-[11px] text-muted">
+                      Sin próxima acción o con la fecha pasada · {fmtEur0(dia.comisionEnJuego)} en juego
+                    </p>
+                  </div>
+                  <Target className="w-4 h-4 text-amber-300 shrink-0" />
+                </div>
+              </Link>
+            )}
+
+            {/* Lo de más allá de mañana está en otra vista de esta misma pantalla. */}
+            <button onClick={() => cambiarVista('calendario')} className="block w-full text-left">
+              <div className="rounded-xl border border-border/40 bg-card/40 hover:bg-card/70 transition min-h-[44px] flex items-center gap-3 px-3 py-2.5">
+                <span className="text-lg font-black tabular-nums text-foreground shrink-0 w-7 text-center">
+                  {dia.despues.length}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-bold text-foreground">Más adelante</p>
+                  {dia.sinFecha.length > 0 && (
+                    <p className="text-[11px] text-muted">{dia.sinFecha.length} sin fecha puesta</p>
+                  )}
+                </div>
+                <CalendarDays className="w-4 h-4 text-muted shrink-0" />
               </div>
-              <ArrowRight className="w-4 h-4 text-muted shrink-0" />
-            </Card>
-          </button>
+            </button>
+          </div>
         </>
       )}
 

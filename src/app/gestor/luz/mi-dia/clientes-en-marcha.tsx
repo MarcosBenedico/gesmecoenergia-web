@@ -78,6 +78,23 @@ function Fila({ c, tono, estadoPipe }: { c: LuzCliente; tono: 'cerca' | 'frio'; 
   );
 }
 
+/**
+ * Cuántos clientes saldrían en el bloque. Lo usa el pie plegable de Mi Día
+ * para poner el número delante sin tener que montar la lista entera. Vive
+ * aquí para que el contador y la lista no puedan decir cosas distintas.
+ */
+export function contarEnMarcha(clientes: LuzCliente[]): number {
+  const vivos = clientes.filter((c) => !CLIENTE_CERRADO.includes(c.estado_comercial));
+  const cerca = vivos.filter((c) => A_PUNTO_DE_CERRAR.includes(c.estado_comercial)).slice(0, 5);
+  const clavesCerca = new Set(cerca.map((c) => c.id));
+  const frios = vivos.filter((c) => {
+    if (clavesCerca.has(c.id)) return false;
+    const d = diasHasta(c.fecha_ultimo_contacto);
+    return d == null || Math.abs(d) >= DIAS_FRIO;
+  }).slice(0, 4);
+  return cerca.length + frios.length;
+}
+
 export function ClientesEnMarcha({ clientes, pipeline = [] }: { clientes: LuzCliente[]; pipeline?: LuzOportunidad[] }) {
   const vivos = clientes.filter((c) => !CLIENTE_CERRADO.includes(c.estado_comercial));
 
