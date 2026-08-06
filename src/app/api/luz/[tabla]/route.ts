@@ -260,6 +260,35 @@ function filtrarCampos(def: DefTabla, body: Record<string, unknown>) {
   return out;
 }
 
+/**
+ * Vínculos que NO se pueden romper con un valor vacío.
+ *
+ * Un formulario que manda `cups_id: ''` porque el desplegable venía sin
+ * seleccionar dejaba el contrato huérfano: luego aparecía como «sin CUPS» y al
+ * activarlo el suministro no pasaba a activado, porque la sincronización busca
+ * el CUPS por ese campo. Borrar un vínculo tiene que ser algo que se pida a
+ * propósito (mandando null explícito), nunca el efecto de un campo en blanco.
+ */
+const VINCULOS_PROTEGIDOS: Record<string, string[]> = {
+  contratos: ['cliente_id', 'cups_id'],
+  comisiones: ['cliente_id', 'cups_id', 'contrato_id'],
+  pipeline: ['cliente_id', 'cups_id'],
+  tareas: ['cliente_id'],
+  fechas: ['cliente_id'],
+  cups: ['cliente_id'],
+};
+
+/** Quita del update los vínculos que llegan vacíos y ya tienen valor guardado. */
+async function protegerVinculos(supabase: Supa, tabla: string, def: DefTabla, id: string, campos: Record<string, unknown>) {
+  const claves = (VINCULOS_PROTEGIDOS[tabla] || []).filter((k) => k in campos && campos[k] == null);
+  if (!claves.length) return;
+  const { data: actual } = await supabase.from(def.tabla).select(claves.join(',')).eq('id', id).single();
+  const fila = actual as Record<string, unknown> | null;
+  for (const k of claves) {
+    if (fila?.[k]) delete campos[k];   // ya tenía vínculo: el vacío no lo pisa
+  }
+}
+
 export async function GET(req: NextRequest, ctx: { params: Promise<{ tabla: string }> }) {
   const supabase = clienteSupabase(req);
   const { tabla } = await ctx.params;
@@ -414,6 +443,8 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ tabla: stri
         if (!Number(actual?.importe_cobrado)) campos.importe_cobrado = actual?.importe_previsto ?? 0;
       }
     }
+
+    await protegerVinculos(supabase, tabla, def, String(id), campos);
 
     campos.actualizado_en = new Date().toISOString();
     const { error } = await supabase.from(def.tabla).update(campos).eq('id', id);

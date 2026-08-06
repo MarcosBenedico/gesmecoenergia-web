@@ -58,7 +58,7 @@ export default function FichaClienteLuz() {
   const [borrandoFecha, setBorrandoFecha] = useState<LuzFechaCritica | null>(null);
   const [borrandoCliente, setBorrandoCliente] = useState(false);
   const [borrandoOp, setBorrandoOp] = useState<LuzOportunidad | null>(null);
-  const [formContrato, setFormContrato] = useState<{ comercializadora_final: string; estado_contrato: string; fecha_activacion_prevista: string } | null>(null);
+  const [formContrato, setFormContrato] = useState<{ cups_id: string; comercializadora_final: string; estado_contrato: string; fecha_activacion_prevista: string } | null>(null);
   const [formCom, setFormCom] = useState<{ comercializadora: string; tipo_comision: string; importe_previsto: string; fecha_prevista_cobro: string } | null>(null);
   const [msg, setMsg] = useState('');
 
@@ -139,15 +139,9 @@ export default function FichaClienteLuz() {
       responsable: formCups.responsable || cliente?.responsable || null,
     });
     if (err) { setMsg(err); return; }
-    // Fecha crítica automática si hay fin de contrato
-    if (finContrato && cliente) {
-      await guardarLuz('fechas', 'POST', {
-        cliente_id: clienteId, tipo_fecha: 'fin_contrato', fecha: finContrato,
-        titulo: tituloFechaCritica(cliente.nombre, normCups(formCups.cups), 'fin_contrato', formCups.comercializadora_actual),
-        prioridad: cliente.prioridad, responsable: formCups.responsable || cliente.responsable,
-      });
-      fechas.recargar();
-    }
+    // El fin de contrato NO genera fecha crítica: ya queda guardado en el CUPS y
+    // la Agenda lo calcula en vivo desde ahí. Duplicarlo lo pintaba dos veces y
+    // además la copia se quedaba desfasada en cuanto alguien corregía el CUPS.
     setFormCups(null); setMsg('');
     cups.recargar();
   }
@@ -168,7 +162,6 @@ export default function FichaClienteLuz() {
   async function guardarEdicionCups(e: React.FormEvent) {
     e.preventDefault();
     if (!editCupsId) return;
-    const original = cups.datos.find((c) => c.id === editCupsId);
     const err = await guardarLuz('cups', 'PUT', {
       id: editCupsId,
       ...formEditCups,
@@ -180,15 +173,7 @@ export default function FichaClienteLuz() {
       tiene_permanencia: !!formEditCups.fecha_fin_permanencia,
     });
     if (err) { setMsg(err); return; }
-    // Si se acaba de poner fin de contrato y antes no lo tenía → fecha crítica automática
-    if (formEditCups.fecha_fin_contrato && original && !original.fecha_fin_contrato && cliente) {
-      await guardarLuz('fechas', 'POST', {
-        cliente_id: clienteId, cups_id: editCupsId, tipo_fecha: 'fin_contrato', fecha: formEditCups.fecha_fin_contrato,
-        titulo: tituloFechaCritica(cliente.nombre, original.cups, 'fin_contrato', formEditCups.comercializadora_actual),
-        prioridad: cliente.prioridad, responsable: formEditCups.responsable || cliente.responsable,
-      });
-      fechas.recargar();
-    }
+    // Igual que al crear: el vencimiento vive en el CUPS, no se copia a fechas críticas.
     setEditCupsId(null); setMsg('');
     cups.recargar();
   }
@@ -285,8 +270,12 @@ export default function FichaClienteLuz() {
   async function crearContrato(e: React.FormEvent) {
     e.preventDefault();
     if (!formContrato) return;
+    // El suministro es obligatorio: un contrato sin CUPS no puede activar nada
+    // y acaba apareciendo como "sin CUPS" en Contratos y Activaciones.
+    if (!formContrato.cups_id) { setMsg('Elige a qué suministro pertenece el contrato.'); return; }
     const err = await guardarLuz('contratos', 'POST', {
       cliente_id: clienteId,
+      cups_id: formContrato.cups_id,
       comercializadora_final: formContrato.comercializadora_final || null,
       estado_contrato: formContrato.estado_contrato,
       fecha_activacion_prevista: formContrato.fecha_activacion_prevista || null,
@@ -755,7 +744,7 @@ export default function FichaClienteLuz() {
           <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
             <h3 className="font-bold text-foreground">Contratos y comisiones</h3>
             <div className="flex gap-1.5">
-              <button onClick={() => { setFormCom(null); setFormContrato(formContrato ? null : { comercializadora_final: '', estado_contrato: 'pendiente_preparar', fecha_activacion_prevista: '' }); }} className={btnSecundario}>
+              <button onClick={() => { setFormCom(null); setFormContrato(formContrato ? null : { cups_id: cups.datos.length === 1 ? cups.datos[0].id : '', comercializadora_final: '', estado_contrato: 'pendiente_preparar', fecha_activacion_prevista: '' }); }} className={btnSecundario}>
                 {formContrato ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />} Contrato
               </button>
               <button onClick={() => { setFormContrato(null); setFormCom(formCom ? null : { comercializadora: '', tipo_comision: 'desconocida', importe_previsto: '', fecha_prevista_cobro: '' }); }} className={btnSecundario}>
@@ -767,6 +756,10 @@ export default function FichaClienteLuz() {
           {formContrato && (
             <form onSubmit={crearContrato} className="mb-3 space-y-2">
               <div className="grid grid-cols-2 gap-2">
+                <select className={inputCls} value={formContrato.cups_id} onChange={(e) => setFormContrato({ ...formContrato, cups_id: e.target.value })}>
+                  <option value="">¿Qué suministro? (obligatorio)</option>
+                  {cups.datos.map((u) => <option key={u.id} value={u.id}>{u.alias_suministro || u.cups}</option>)}
+                </select>
                 <input className={inputCls} value={formContrato.comercializadora_final} onChange={(e) => setFormContrato({ ...formContrato, comercializadora_final: e.target.value })} placeholder="Comercializadora" />
                 <select className={inputCls} value={formContrato.estado_contrato} onChange={(e) => setFormContrato({ ...formContrato, estado_contrato: e.target.value })}>
                   {ESTADOS_CONTRATO.map((es) => <option key={es} value={es}>{ESTADO_CONTRATO_LABEL[es]}</option>)}

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Check, ChevronLeft, ChevronRight, PartyPopper } from 'lucide-react';
@@ -55,6 +55,13 @@ export default function AltaGuiadaPage() {
   // Lo ya creado (para enlazar los siguientes pasos y el resumen final)
   const [clienteId, setClienteId] = useState<string | null>(null);
   const [cupsId, setCupsId] = useState<string | null>(null);
+  // Lo ya creado por pasos que se pueden repetir al volver atras.
+  const [opCreada, setOpCreada] = useState(false);
+  const [tareaCreada, setTareaCreada] = useState(false);
+  const [fechasCreadas, setFechasCreadas] = useState(false);
+  // Cerrojo sincrono: `guardando` es estado y tarda un render en aplicarse,
+  // asi que un doble toque en el movil colaba dos peticiones.
+  const enCurso = useRef(false);
   const [creado, setCreado] = useState<string[]>([]);
 
   // ── Formularios de cada paso ──
@@ -80,7 +87,6 @@ export default function AltaGuiadaPage() {
     tipo: 'presentar_proyecto',      // qué toca hacer con este cliente (editable)
     titulo_personalizado: '',        // texto libre si el tipo es 'personalizada'
     presentar_proyecto: enDias(7),   // fecha de esa próxima acción
-    fin_contrato: '',
   });
 
   const diasProyecto = Math.round((new Date(fFechas.presentar_proyecto).getTime() - Date.now()) / 86400000) + 1;
@@ -120,12 +126,14 @@ export default function AltaGuiadaPage() {
     setGuardando(false);
     if (!res?.ok) { setError(res?.json?.error || 'No se pudo guardar el CUPS.'); return; }
     setCupsId(res.json.dato.id);
-    if (fCups.fecha_fin_contrato) setFFechas((f) => ({ ...f, fin_contrato: fCups.fecha_fin_contrato }));
     setCreado((c) => [...c, `Suministro ${normCups(fCups.cups).slice(0, 10)}… guardado`]);
     setPaso(3);
   }
 
   async function guardarPaso3() {
+    if (opCreada) { setPaso(4); return; }   // ya se creo al pasar por aqui
+    if (enCurso.current) return;
+    enCurso.current = true;
     setGuardando(true); setError('');
     const err = await guardarLuz('pipeline', 'POST', {
       cliente_id: clienteId, cups_id: cupsId,
@@ -136,8 +144,9 @@ export default function AltaGuiadaPage() {
       fecha_proxima_accion: fOp.fecha_proxima_accion || null,
       responsable: fCliente.responsable || null,
     });
-    setGuardando(false);
+    setGuardando(false); enCurso.current = false;
     if (err) { setError(err); return; }
+    setOpCreada(true);
     setCreado((c) => [...c, 'Oportunidad creada en el Pipeline']);
     setPaso(4);
   }
@@ -151,11 +160,14 @@ export default function AltaGuiadaPage() {
    * próxima acción del paso anterior, que no cuenta como tarea.
    */
   async function guardarPaso4() {
+    if (tareaCreada) { setPaso(5); return; }   // ya se creo al pasar por aqui
+    if (enCurso.current) return;
     if (!fTarea.descripcion.trim()) {
       // Sin descripción, se sigue sin crear nada
       setError(''); setPaso(5);
       return;
     }
+    enCurso.current = true;
     setGuardando(true); setError('');
     const err = await guardarLuz('tareas', 'POST', {
       cliente_id: clienteId, cups_id: cupsId,
@@ -163,8 +175,9 @@ export default function AltaGuiadaPage() {
       fecha_limite: fTarea.fecha_limite || null, prioridad: 'media',
       responsable: fCliente.responsable || null,
     });
-    setGuardando(false);
+    setGuardando(false); enCurso.current = false;
     if (err) { setError(err); return; }
+    setTareaCreada(true);
     setCreado((c) => [...c, `Tarea "${fTarea.descripcion.slice(0, 40)}" para el ${fmtFecha(fTarea.fecha_limite)}`]);
     setPaso(5);
   }
@@ -174,6 +187,9 @@ export default function AltaGuiadaPage() {
     if (fFechas.tipo === 'personalizada' && !fFechas.titulo_personalizado.trim()) {
       setError('Escribe qué hay que hacer en esa visita (nombre de la fecha).'); return;
     }
+    if (fechasCreadas) { setPaso(6); return; }   // ya se crearon al pasar por aqui
+    if (enCurso.current) return;
+    enCurso.current = true;
     setGuardando(true); setError('');
     const errores: string[] = [];
     // Fecha crítica de la próxima acción: el tipo lo decide lo hablado con el cliente
@@ -191,19 +207,12 @@ export default function AltaGuiadaPage() {
     });
     if (e1) errores.push(e1);
     else setCreado((c) => [...c, `Fecha crítica: ${etiqueta} el ${fmtFecha(fFechas.presentar_proyecto)}`]);
-    // Fecha crítica: fin de contrato (si la sabemos)
-    if (fFechas.fin_contrato) {
-      const e2 = await guardarLuz('fechas', 'POST', {
-        cliente_id: clienteId, cups_id: cupsId, tipo_fecha: 'fin_contrato',
-        fecha: fFechas.fin_contrato,
-        titulo: tituloFechaCritica(fCliente.nombre, fCups.cups ? normCups(fCups.cups) : '', 'fin_contrato', fCups.comercializadora_actual || null),
-        prioridad: fCliente.prioridad, responsable: fCliente.responsable || null,
-      });
-      if (e2) errores.push(e2);
-      else setCreado((c) => [...c, `Fecha crítica: fin de contrato el ${fmtFecha(fFechas.fin_contrato)}`]);
-    }
-    setGuardando(false);
+    // El fin de contrato NO se duplica aquí: ya está guardado en el CUPS y la
+    // Agenda lo calcula en vivo desde ahí, así nunca queda desfasado. Crear
+    // además una fecha crítica hacía que el mismo vencimiento saliera dos veces.
+    setGuardando(false); enCurso.current = false;
     if (errores.length) { setError(errores.join(' · ')); return; }
+    setFechasCreadas(true);
     setPaso(6);
   }
 
@@ -434,16 +443,19 @@ export default function AltaGuiadaPage() {
                 <p className="text-[11px] text-muted mt-1">Dentro de {Math.max(diasProyecto, 0)} día(s).</p>
               )}
             </div>
-            <div className="md:col-span-2">
-              <label className={labelCls}>Fin de contrato actual (si se sabe)</label>
-              <input className={inputCls} type="date" value={fFechas.fin_contrato}
-                onChange={(e) => setFFechas({ ...fFechas, fin_contrato: e.target.value })} />
-              <p className="text-[11px] text-muted mt-1">Generará su aviso en el calendario de fechas críticas.</p>
-            </div>
+            {fCups.fecha_fin_contrato && (
+              <div className="md:col-span-2 rounded-lg border border-border/40 bg-background/40 px-3 py-2">
+                <p className="text-[11px] text-muted">
+                  El contrato actual vence el <strong className="text-foreground">{fmtFecha(fCups.fecha_fin_contrato)}</strong> y ya está
+                  guardado en el suministro. El aviso de preaviso lo calcula la Agenda sola desde ahí, así que no hace
+                  falta crear ninguna fecha para eso.
+                </p>
+              </div>
+            )}
           </div>
           <div className="flex justify-end pt-2">
             <button onClick={guardarPaso5} disabled={guardando || (fFechas.tipo === 'presentar_proyecto' && diasProyecto > 7)} className={btnSiguiente}>
-              Crear fechas <ChevronRight className="w-4 h-4" />
+              Crear la fecha <ChevronRight className="w-4 h-4" />
             </button>
           </div>
         </Card>

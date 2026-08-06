@@ -27,6 +27,7 @@ npm run test:rendimiento                   # tests del juicio del parte (product
 npm run test:huecos                        # tests de los huecos de la cartera (rellenar en tanda)
 npm run test:clasificacion                 # tests de objetivo / precliente / cliente
 npm run test:consumo                       # tests de cómo se lee un consumo escrito a mano
+npm run test:integridad                    # tests de integridad: alta sin duplicados y vínculos que no se rompen
 npm run test:agenda-calle                  # tests de la agenda por zonas (vista Calle)
 npm run test:rutas                         # tests del plan de rutas y del montador de rutas
 npm run verify:supabase                    # comprueba conexión Supabase
@@ -79,6 +80,13 @@ No hay suite de tests formal; la verificación es `npm run build` + `scripts/smo
       - Además avisa por debajo de `CONSUMO_MINIMO_CREIBLE` (500 kWh/año): ni un pozo ni un garaje bajan de ahí, así que una cifra menor casi siempre es un punto de miles perdido.
       - El campo es `type="text"` y no `type="number"` **a propósito**: un campo numérico no deja teclear el punto de miles en algunos navegadores y empuja a escribir mal.
       - Cubierto por `npm run test:consumo`.
+    - **Integridad del alta y de los vínculos** (`scripts/test-integridad.mjs`, `supabase_integridad_v1.sql`) — tres fallos que corrompían datos en silencio.
+      - **El asistente de alta se podía repetir.** Deja volver atrás, y cada pasada volvía a crear la oportunidad, la tarea y la fecha crítica: un cliente acababa con tres tareas iguales que nadie había pedido. Ahora cada paso recuerda lo que ya creó (`opCreada`, `tareaCreada`, `fechasCreadas`) y al repetirlo simplemente avanza.
+      - **El cerrojo del doble envío es un `useRef`, no el estado `guardando`.** El estado tarda un render en aplicarse, así que dos toques seguidos en el móvil colaban dos peticiones antes de que el botón se deshabilitara. Un ref se lee y se escribe en el mismo tick.
+      - **El fin de contrato vive SOLO en el CUPS.** Se guardaba ahí y además como fecha crítica, en tres sitios distintos (alta, crear CUPS y editar CUPS). El mismo vencimiento salía dos veces en la Agenda y la copia se quedaba desfasada en cuanto alguien corregía el suministro. La Agenda ya lo calcula en vivo desde el CUPS, así que la copia solo podía estorbar. Había **86 fechas críticas** duplicando ese dato.
+      - **Un campo vacío no puede romper un vínculo** (`VINCULOS_PROTEGIDOS` en `api/luz/[tabla]/route.ts`). `filtrarCampos` convierte `''` en `null`, así que un desplegable sin seleccionar dejaba el contrato sin `cups_id`: figuraba como «sin CUPS» y al activarlo el suministro no pasaba a activado, porque la sincronización lo busca por ese campo. Había **65 contratos** así. Borrar un vínculo tiene que pedirse a propósito, nunca ser el efecto de un campo en blanco.
+      - El formulario de contrato de la ficha del cliente **no mandaba `cups_id` en absoluto**: ahora lleva selector de suministro y es obligatorio.
+      - Cubierto por `npm run test:integridad`.
     - **Estado único del viaje comercial** (`src/lib/estados-luz.ts`) — el **CUPS es la fuente de verdad**; pipeline y contrato empujan su estado (traducción por tabla), y el estado comercial del cliente **se deriva** de todos sus CUPS. La sincronización vive en el PUT/POST de `src/app/api/luz/[tabla]/route.ts`. Nunca retrocede un suministro por accidente (`debeAplicarseAlCups`). Cubierto por `npm run test:estados`.
     - **Rellenar en tanda** (`gestor/luz/rellenar`, lógica en `src/lib/huecos.ts`) — la pantalla para Nicola. De cada tres cosas que hace en el sistema, **dos son rellenar un campo vacío**, y las hacía de una en una: abrir ficha, escribir una palabra, guardar, cerrar. Aquí se le da la vuelta: se elige **un campo** y se rellenan de golpe todos los registros que lo tienen vacío, en una rejilla.
       - **El orden no es por cuántos faltan, es por qué bloquea.** Cuarenta clientes sin email no paran nada; cinco CUPS sin `fecha_fin_contrato` paran la Agenda entera, porque el preaviso se calcula desde ahí. Cada hueco lleva su `peso` y su `porque` escrito, y el porqué se enseña siempre: rellenar a ciegas cansa.
