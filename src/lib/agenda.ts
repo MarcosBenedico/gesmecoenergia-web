@@ -55,6 +55,14 @@ export interface ItemAgenda {
   cupsTexto: string | null;
   /** Las derivadas no se editan en la agenda: se corrigen en la ficha del CUPS. */
   editable: boolean;
+  /**
+   * Cuándo ENTRÓ esto en el sistema, que no es lo mismo que cuándo vence.
+   * Es lo que permite ordenar por orden de llegada: lo que lleva más tiempo
+   * esperando va primero y nada se queda enterrado bajo lo recién metido.
+   * En las derivadas del CUPS no hay fila propia, así que se usa el alta del
+   * suministro: es el momento en que ese aviso pasó a existir.
+   */
+  alta: string | null;
   /** En qué punto del embudo está ese cliente. Mismo estado y color que el Pipeline. */
   estadoPipeline?: string | null;
   estadoPipelineLabel?: string | null;
@@ -115,6 +123,7 @@ export function itemsDeTareas(tareas: LuzTarea[]): ItemAgenda[] {
         cupsId: t.cups_id,
         cupsTexto: null,
         editable: true,
+        alta: t.creado_en || null,
       };
     });
 }
@@ -166,6 +175,7 @@ export function itemsDeCups(cups: LuzCups[], horizonteDias = 180): ItemAgenda[] 
         cupsId: c.id,
         cupsTexto: c.cups ? normCups(c.cups) : null,
         editable: false,
+        alta: c.creado_en || null,
       });
     }
   }
@@ -205,6 +215,7 @@ export function itemsDeFechasManuales(fechas: LuzFechaCritica[]): ItemAgenda[] {
         cupsId: f.cups_id,
         cupsTexto: null,
         editable: true,
+        alta: f.creado_en || null,
       };
     });
 }
@@ -286,4 +297,96 @@ export function resumenAgenda(items: ItemAgenda[]): Record<UrgenciaAgenda, numbe
   const base = { vencido: 0, hoy: 0, semana: 0, mes: 0, lejano: 0, sin_fecha: 0 } as Record<UrgenciaAgenda, number>;
   for (const i of items) base[i.urgencia]++;
   return base;
+}
+
+/* ────────────────────────────────────────────────────────────────────────
+   EL DÍA NO ES LA CARTERA: APARTAR LO VIEJO Y ELEGIR EL ORDEN
+
+   Mi Día juntaba «vencido» y «de hoy» en una sola lista porque para quien
+   está en la calle son lo mismo: las dos hay que hacerlas. Con una cartera
+   pequeña eso funcionaba. Con la de julio de 2026 dejó de funcionar: la
+   importación creó 74 líneas de golpe para el comercial, y el número grande
+   de la pantalla —el que existe para decir «esto es lo de hoy»— pasó a
+   marcar 74 cuando el ritmo demostrado son 9 puertas al día.
+
+   Un número que no se puede hacer no se prioriza: se ignora. Y en cuanto se
+   ignora uno, se ignoran todos, incluido el día que de verdad son tres cosas.
+
+   Así que el día se parte en dos, y hay que tener cuidado con qué significa
+   «viejo». Medido sobre la cartera real: NADA pasaba de 17 días de retraso,
+   así que un corte a 30 días apartaba 1 línea de 74 y no arreglaba nada. El
+   corte útil está bastante más abajo, y por eso se elige desde la pantalla
+   en vez de quedar clavado aquí: el número correcto depende de cuánta
+   cartera haya entrado de golpe, y eso cambia.
+   ──────────────────────────────────────────────────────────────────────── */
+
+/** Cortes que se ofrecen en la pantalla, en días de retraso. */
+export const UMBRALES_ATRASO = [3, 7, 14, 30] as const;
+
+export type ModoOrden = 'entrada' | 'urgencia';
+
+export const MODO_ORDEN_LABEL: Record<ModoOrden, string> = {
+  entrada: 'Por orden de llegada',
+  urgencia: 'Por urgencia',
+};
+
+/**
+ * Compara por ANTIGÜEDAD DE ENTRADA: lo que lleva más tiempo esperando, primero.
+ *
+ * Es el orden por defecto y no es un capricho de presentación. Ordenar por
+ * prioridad hace que un cliente A recién metido adelante todos los días a uno
+ * que lleva tres semanas esperando, y ese segundo no sale nunca: cada mañana
+ * hay un A nuevo. Por orden de llegada la cola avanza — lo viejo sube solo
+ * según lo de delante se va cerrando, sin que nadie tenga que acordarse.
+ *
+ * Sin fecha de alta van al final: no se sabe cuándo entraron, así que no
+ * pueden reclamar antigüedad, pero tampoco se pierden.
+ */
+function porEntrada(a: ItemAgenda, b: ItemAgenda): number {
+  if (a.alta && b.alta && a.alta !== b.alta) return a.alta < b.alta ? -1 : 1;
+  if (a.alta && !b.alta) return -1;
+  if (!a.alta && b.alta) return 1;
+  // Empate real (mismo alta, típico de una importación): manda lo más vencido.
+  return (a.dias ?? 99) - (b.dias ?? 99);
+}
+
+/** Compara por urgencia: cliente A primero y, dentro, lo más vencido. */
+function porUrgencia(a: ItemAgenda, b: ItemAgenda): number {
+  return (PESO_PRIORIDAD[a.prioridad] ?? 2) - (PESO_PRIORIDAD[b.prioridad] ?? 2)
+    || (a.dias ?? 99) - (b.dias ?? 99);
+}
+
+/** Ordena una lista del día con el criterio elegido. No muta la original. */
+export function ordenarDia(items: ItemAgenda[], modo: ModoOrden = 'entrada'): ItemAgenda[] {
+  return [...items].sort(modo === 'entrada' ? porEntrada : porUrgencia);
+}
+
+export interface DiaPartido {
+  /** Lo que se enseña arriba: vence hoy o lleva poco esperando. */
+  activo: ItemAgenda[];
+  /** Lo que lleva más de `umbral` días de retraso. No se borra: se aparta. */
+  aparcado: ItemAgenda[];
+}
+
+/**
+ * Parte lo de hoy (vencido + de hoy) en lo que se trabaja y lo aparcado.
+ *
+ * Solo se aparta lo que ARRASTRA retraso. Lo que vence hoy nunca se aparta,
+ * por viejo que sea el registro: hoy es su día y apartarlo sería justo el
+ * fallo que esto viene a evitar.
+ *
+ * `umbral` es el retraso máximo que se queda arriba: con 7, algo con 8 días
+ * de retraso se aparca y algo con 7 se queda.
+ */
+export function partirPorAtraso(
+  items: ItemAgenda[], umbral: number, modo: ModoOrden = 'entrada'
+): DiaPartido {
+  const activo: ItemAgenda[] = [];
+  const aparcado: ItemAgenda[] = [];
+  for (const i of items) {
+    // `dias` es negativo cuando va con retraso, así que el retraso es -dias.
+    const retraso = i.dias == null ? 0 : -i.dias;
+    (retraso > umbral ? aparcado : activo).push(i);
+  }
+  return { activo: ordenarDia(activo, modo), aparcado: ordenarDia(aparcado, modo) };
 }

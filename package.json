@@ -18,6 +18,7 @@
     "test:parte": "node scripts/test-parte.mjs",
     "test:rendimiento": "node scripts/test-parte-rendimiento.mjs",
     "test:huecos": "node scripts/test-huecos.mjs",
+    "test:dia": "node scripts/test-dia.mjs",
     "test:clasificacion": "node scripts/test-clasificacion.mjs",
     "test:consumo": "node scripts/test-consumo.mjs",
     "test:integridad": "node scripts/test-integridad.mjs",

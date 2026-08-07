@@ -334,6 +334,8 @@ export interface LuzFechaCritica {
   prioridad: string;
   estado: string;
   responsable: string | null;
+  /** Cuándo entró en el sistema. Lo usa Mi Día para ordenar por llegada. */
+  creado_en?: string;
   luz_clientes?: { nombre: string; prioridad?: string } | null;
 }
 
@@ -440,6 +442,8 @@ export interface LuzTarea {
   fecha_limite: string | null;
   estado: string;
   prioridad: string;
+  /** Cuándo entró en el sistema. Lo usa Mi Día para ordenar por llegada. */
+  creado_en?: string;
   actualizado_en?: string;
   luz_clientes?: { nombre: string } | null;
 }

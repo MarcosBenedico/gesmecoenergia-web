@@ -7,7 +7,10 @@ import {
   LuzCliente, LuzCups, LuzFechaCritica, LuzOportunidad, LuzTarea, LuzVisita,
   PIPELINE_CERRADO, diasHasta, fmtFecha,
 } from '@/lib/luz';
-import { construirAgenda, esDe, ItemAgenda } from '@/lib/agenda';
+import {
+  construirAgenda, esDe, ItemAgenda,
+  partirPorAtraso, ordenarDia, UMBRALES_ATRASO, MODO_ORDEN_LABEL, type ModoOrden,
+} from '@/lib/agenda';
 import { planDelDia, esDiaDeCalle } from '@/lib/plan-rutas';
 import { ZONAS } from '@/lib/zonas';
 import { fmtEur0 } from '@/lib/correbin';
@@ -99,9 +102,8 @@ const VISTAS: { id: Vista; nombre: string; icono: typeof Sun; pista: string }[] 
 ];
 
 const CLAVE_VISTA = 'gesmeco:mi-dia:vista';
-
-/** Peso de cada prioridad: A primero. Lo urgente de un cliente A vale más. */
-const PESO: Record<string, number> = { A: 0, B: 1, C: 2, D: 3 };
+const CLAVE_UMBRAL = 'gesmeco:mi-dia:umbral';
+const CLAVE_ORDEN = 'gesmeco:mi-dia:orden';
 
 /** Banda de color lateral según la prioridad del cliente: se reconoce sin leer. */
 const BANDA: Record<string, string> = {
@@ -138,6 +140,16 @@ export default function MiDiaPage() {
   const mirandoAOtro = !!verComo && verComo !== perfil?.responsable;
   const cargando = cargandoPerfil || tareas.cargando || cups.cargando || fechas.cargando;
 
+  /**
+   * Hasta cuántos días de retraso se quedan arriba, y con qué orden.
+   *
+   * Los dos se eligen desde la pantalla y se recuerdan, porque el corte bueno
+   * depende de cuánta cartera haya entrado de golpe y eso cambia: la
+   * importación de julio metió 74 líneas al comercial de una vez.
+   */
+  const [umbral, setUmbral] = useState<number>(7);
+  const [orden, setOrden] = useState<ModoOrden>('entrada');
+
   const dia = useMemo(() => {
     if (!persona) return null;
 
@@ -146,12 +158,13 @@ export default function MiDiaPage() {
       tareas: tareas.datos, cups: cups.datos, fechas: fechas.datos, pipeline: pipeline.datos,
     }).filter((i) => esDe(i.responsable, persona));
 
-    const ordenar = (a: ItemAgenda, b: ItemAgenda) =>
-      (PESO[a.prioridad] ?? 2) - (PESO[b.prioridad] ?? 2) || (a.dias ?? 99) - (b.dias ?? 99);
-
     // Atrasado y de hoy van juntos: para quien está en la calle es lo mismo.
-    const hoy = todo.filter((i) => i.dias != null && i.dias <= 0).sort(ordenar);
-    const manana = todo.filter((i) => i.dias === 1).sort(ordenar);
+    // Pero lo que arrastra mucho retraso se aparta, o el número de arriba deja
+    // de ser un número que se pueda hacer y se ignora la pantalla entera.
+    const { activo: hoy, aparcado } = partirPorAtraso(
+      todo.filter((i) => i.dias != null && i.dias <= 0), umbral, orden
+    );
+    const manana = ordenarDia(todo.filter((i) => i.dias === 1), orden);
     const despues = todo.filter((i) => i.dias != null && i.dias > 1);
     const sinFecha = todo.filter((i) => i.dias == null);
 
@@ -167,14 +180,14 @@ export default function MiDiaPage() {
     const paradas = miPipe.filter((o) => !o.proxima_accion || (diasHasta(o.fecha_proxima_accion) ?? 1) < 0);
 
     return {
-      hoy, manana, despues, sinFecha, hechasHoy,
+      hoy, aparcado, manana, despues, sinFecha, hechasHoy,
       atrasadas: hoy.filter((i) => (i.dias ?? 0) < 0).length,
       clientesA: hoy.filter((i) => i.prioridad === 'A').length,
       paradas,
       misClientes: clientes.datos.filter((c) => esDe(c.responsable, persona)),
       comisionEnJuego: miPipe.reduce((s, o) => s + (Number(o.comision_potencial) || 0), 0),
     };
-  }, [persona, tareas.datos, cups.datos, fechas.datos, pipeline.datos, clientes.datos]);
+  }, [persona, tareas.datos, cups.datos, fechas.datos, pipeline.datos, clientes.datos, umbral, orden]);
 
   // Teléfono, dirección y foto de cada cliente: la agenda no los lleva, y son
   // justo lo que hace falta para llamar o arrancar la navegación desde aquí
@@ -280,7 +293,23 @@ export default function MiDiaPage() {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setVista(guardada);
     }
+    // El corte y el orden se recuerdan igual: cada uno trabaja a su ritmo y no
+    // tiene que volver a elegirlos cada mañana.
+    const u = Number(localStorage.getItem(CLAVE_UMBRAL));
+    if (UMBRALES_ATRASO.includes(u as (typeof UMBRALES_ATRASO)[number])) setUmbral(u);
+    const o = localStorage.getItem(CLAVE_ORDEN);
+    if (o === 'entrada' || o === 'urgencia') setOrden(o);
   }, []);
+
+  function cambiarUmbral(u: number) {
+    setUmbral(u);
+    localStorage.setItem(CLAVE_UMBRAL, String(u));
+  }
+
+  function cambiarOrden(o: ModoOrden) {
+    setOrden(o);
+    localStorage.setItem(CLAVE_ORDEN, o);
+  }
 
   function cambiarVista(v: Vista) {
     setVista(v);
@@ -546,8 +575,73 @@ export default function MiDiaPage() {
           {/* HOY */}
           {dia.hoy.length > 0 && (
             <div className="space-y-2">
-              <p className="text-xs font-black uppercase tracking-[0.15em] text-foreground">Hoy</p>
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <p className="text-xs font-black uppercase tracking-[0.15em] text-foreground">Hoy</p>
+                {/* Cambiar el orden es de un toque: en la calle no se entra en ajustes */}
+                <button
+                  onClick={() => cambiarOrden(orden === 'entrada' ? 'urgencia' : 'entrada')}
+                  className="min-h-[36px] px-2.5 rounded-lg border border-border/50 bg-card/60 text-[11px] font-bold text-muted hover:text-foreground hover:border-accent/40 transition"
+                  title="Cambiar el orden de la lista"
+                >
+                  {MODO_ORDEN_LABEL[orden]}
+                </button>
+              </div>
               <div className="space-y-2">{dia.hoy.map((i) => <Accion key={i.clave} i={i} />)}</div>
+            </div>
+          )}
+
+          {/* ── APARCADO ─────────────────────────────────────────────────
+              Lo que arrastra más retraso del que se ha elegido. No se borra
+              y no se pierde: se quita de en medio para que la lista de arriba
+              sea la de hoy. Con el corte se decide cuánto se aparta, porque
+              el número bueno depende de cuánta cartera haya entrado de golpe. */}
+          {(dia.aparcado.length > 0 || dia.hoy.length > 0) && (
+            <div className="rounded-xl border border-border/40 bg-card/40 overflow-hidden">
+              <button
+                onClick={() => setPieAbierto(pieAbierto === 'aparcado' ? null : 'aparcado')}
+                disabled={dia.aparcado.length === 0}
+                className={`w-full min-h-[44px] flex items-center gap-3 px-3 py-2.5 text-left transition ${
+                  dia.aparcado.length === 0 ? 'opacity-50 cursor-default' : 'hover:bg-card/70'
+                }`}
+              >
+                <span className={`text-lg font-black tabular-nums shrink-0 w-7 text-center ${
+                  dia.aparcado.length === 0 ? 'text-muted/50' : 'text-amber-300'
+                }`}>
+                  {dia.aparcado.length}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-bold text-foreground">Aparcado por antiguo</span>
+                  <span className="block text-[11px] text-muted">
+                    Más de {umbral} {umbral === 1 ? 'día' : 'días'} de retraso · sigue aquí, no se ha borrado
+                  </span>
+                </span>
+                <ChevronDown className={`w-4 h-4 text-muted shrink-0 transition ${pieAbierto === 'aparcado' ? 'rotate-180' : ''}`} />
+              </button>
+
+              {/* El corte va dentro del bloque que gobierna, no suelto arriba:
+                  se toca una vez cada mucho y no debe competir con la lista. */}
+              <div className="px-3 pb-2.5 flex items-center gap-1.5 flex-wrap">
+                <span className="text-[10px] font-black uppercase tracking-wider text-muted/70">Apartar a partir de</span>
+                {UMBRALES_ATRASO.map((u) => (
+                  <button
+                    key={u}
+                    onClick={() => cambiarUmbral(u)}
+                    className={`min-h-[32px] px-2.5 rounded-lg border text-[11px] font-bold transition ${
+                      u === umbral
+                        ? 'bg-accent/20 border-accent/50 text-foreground'
+                        : 'bg-card/60 border-border/50 text-muted hover:text-foreground'
+                    }`}
+                  >
+                    {u} días
+                  </button>
+                ))}
+              </div>
+
+              {pieAbierto === 'aparcado' && dia.aparcado.length > 0 && (
+                <div className="px-2 pb-2 space-y-2">
+                  {dia.aparcado.map((i) => <Accion key={i.clave} i={i} apagado />)}
+                </div>
+              )}
             </div>
           )}
 

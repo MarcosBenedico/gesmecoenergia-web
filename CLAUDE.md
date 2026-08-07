@@ -25,6 +25,7 @@ npm run test:potencia                      # tests del optimizador de potencias 
 npm run test:parte                         # tests del parte del día (auditoría → qué mejoró en cada cliente)
 npm run test:rendimiento                   # tests del juicio del parte (productividad, probabilidad de cierre, pendiente)
 npm run test:huecos                        # tests de los huecos de la cartera (rellenar en tanda)
+npm run test:dia                           # tests del reparto del día (qué se aparca por viejo y en qué orden sale)
 npm run test:clasificacion                 # tests de objetivo / precliente / cliente
 npm run test:consumo                       # tests de cómo se lee un consumo escrito a mano
 npm run test:integridad                    # tests de integridad: alta sin duplicados y vínculos que no se rompen
@@ -57,6 +58,11 @@ No hay suite de tests formal; la verificación es `npm run build` + `scripts/smo
     - **Mi Día** (`gestor/luz/mi-dia`, lógica en `src/lib/agenda.ts`) — la única pantalla de trabajo de David, y la única lista del equipo. Sustituye en el menú a «Tareas» + «Fechas Críticas» (esas páginas siguen existiendo para crear y editar en detalle) y **absorbió la Agenda**, que era una entrada aparte.
       - **Mi Día y la Agenda llamaban a la MISMA función** (`construirAgenda`) sobre los mismos registros: Mi Día era la Agenda filtrada por «yo» y por «hoy». No se parecían — una era un subconjunto de la otra —, y por eso se mezclaban en la cabeza de quien las usaba. Ahora son tres vistas de una sola pantalla, y `/gestor/luz/agenda` redirige para no romper enlaces guardados en el móvil.
       - **HOY** (por defecto) · qué hago ahora. Atrasado y de hoy van juntos: para quien está en la calle son lo mismo. Los días de calle sale el aviso de a qué zona toca ir, que lleva a la vista de al lado.
+        - **Lo que arrastra mucho retraso se aparca** (`partirPorAtraso` en `agenda.ts`). La importación de julio de 2026 creó **74 líneas de golpe** para David y el número grande de la pantalla —el que existe para decir «esto es lo de hoy»— pasó a marcar 74 cuando su ritmo demostrado son **9 puertas al día**. Un número que no se puede hacer no se prioriza: se ignora, y en cuanto se ignora uno se ignoran todos, incluido el día que de verdad son tres cosas. Lo aparcado **no se borra**: baja a un plegable con su cuenta.
+        - **Cuidado con qué significa «viejo».** Medido sobre la cartera real, **nada pasaba de 17 días de retraso**: un corte a 30 días apartaba **1 línea de 74** (y esa era un año tecleado a dos cifras, ver `supabase_fecha_ano_26.sql`). El corte útil está mucho más abajo, así que **se elige desde la pantalla** (3/7/14/30) en vez de quedar clavado en el código: el número bueno depende de cuánta cartera haya entrado de golpe, y eso cambia. Con 7 días la lista de David pasa de 74 a 25.
+        - **Lo que vence hoy no se aparca nunca**, por viejo que sea el registro: hoy es su día, y apartarlo sería justo el fallo que esto viene a evitar.
+        - **El orden por defecto es por orden de llegada**, no por prioridad. Ordenando por prioridad, un cliente A recién metido adelanta cada día a uno que lleva tres semanas esperando, y ese segundo **no sale nunca** porque cada mañana hay un A nuevo. Por llegada la cola avanza sola según se cierra lo de delante. El orden por urgencia sigue a un toque, y la elección se recuerda en localStorage junto con el corte.
+        - Cubierto por `npm run test:dia`.
       - **POR ZONA** (`agenda/calle.tsx`, lógica en `src/lib/agenda-calle.ts`) · para salir. Aquí vive el **montador de ruta**, porque primero se decide adónde se va y luego se mira qué hay allí; al revés se sale sin ruta y se improvisa.
       - **CALENDARIO** · qué me espera. Para mirar la semana, no para trabajar.
       - **La vista elegida se recuerda** en localStorage: quien siempre trabaja por zona no tiene que elegirla cada mañana.
