@@ -1,0 +1,4 @@
+# Vídeos que genera la demo: no van al repo.
+demo/
+*.mp4
+*.mov

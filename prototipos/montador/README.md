@@ -14,12 +14,24 @@ Solo **ffmpeg** (trae `ffprobe` dentro) y Node 18+.
 # macOS
 brew install ffmpeg
 # Windows
-winget install ffmpeg
+winget install Gyan.FFmpeg
 # Ubuntu / Debian
 sudo apt install ffmpeg
 ```
 
 Comprueba que está: `ffmpeg -version`
+
+## Probarlo sin tener vídeos
+
+```bash
+node demo.mjs
+```
+
+Se fabrica tres vídeos de prueba (con resoluciones y fps distintos, como
+salen de móviles distintos), los monta y deja el resultado en `demo/`. Sirve
+para confirmar que ffmpeg está bien instalado antes de meter material de
+verdad. Los vídeos son rectángulos de colores con pitidos: **no valen para
+juzgar si el criterio acierta**, solo para ver que la cadena funciona.
 
 ## Cómo se usa
 
