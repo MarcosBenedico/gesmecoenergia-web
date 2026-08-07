@@ -12,7 +12,7 @@ import { useCallback, useRef, useState } from 'react';
 import { momentosDeArchivo, elegirMontaje, type MomentoElegido } from '@/lib/montaje-video';
 import {
   energiaDeArchivo, inspeccionarArchivo, argumentosCorte, listaConcat,
-  nombreTrozo, segundosEstimados, FORMATOS, FFMPEG_BASE, type Formato,
+  nombreTrozo, segundosEstimados, FORMATOS, FFMPEG_BASE, urlAbsoluta, type Formato,
 } from '@/lib/montaje-navegador';
 
 type Fase = 'inicio' | 'analizando' | 'plan' | 'montando' | 'listo';
@@ -87,9 +87,14 @@ export default function Montador() {
       if (!ffmpegRef.current) {
         setPaso('Cargando el motor de vídeo (31 MB, solo la primera vez)...');
         const ff = new FFmpeg();
+        // Las tres van ABSOLUTAS. Con rutas relativas la librería las resuelve
+        // contra `import.meta.url`, que en el paquete de Turbopack es un
+        // `file://`, y el navegador rechaza el worker resultante. Ver
+        // urlAbsoluta() en montaje-navegador.ts.
         await ff.load({
-          coreURL: `${FFMPEG_BASE}/ffmpeg-core.js`,
-          wasmURL: `${FFMPEG_BASE}/ffmpeg-core.wasm`,
+          coreURL: urlAbsoluta(`${FFMPEG_BASE}/ffmpeg-core.js`),
+          wasmURL: urlAbsoluta(`${FFMPEG_BASE}/ffmpeg-core.wasm`),
+          classWorkerURL: urlAbsoluta(`${FFMPEG_BASE}/worker.js`),
         });
         ffmpegRef.current = ff;
       }

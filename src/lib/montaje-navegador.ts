@@ -23,6 +23,19 @@ import { VENTANA_S, type MomentoElegido } from './montaje-video';
 /** Se usa el core de UN SOLO HILO a posta. */
 export const FFMPEG_BASE = '/ffmpeg';
 
+/**
+ * Convierte una ruta del sitio en URL absoluta.
+ *
+ * Hace falta para el worker y no es un adorno. La librería hace
+ * `new Worker(new URL(ruta, import.meta.url))`, y en el paquete que genera
+ * Turbopack `import.meta.url` es un `file://...`. Al resolver «/ffmpeg/worker.js»
+ * contra esa base sale `file:///ffmpeg/worker.js`, y el navegador lo rechaza:
+ * «cannot be accessed from origin». Con una URL absoluta la base se ignora.
+ */
+export function urlAbsoluta(ruta: string): string {
+  return typeof window === 'undefined' ? ruta : new URL(ruta, window.location.origin).href;
+}
+
 export const FORMATOS = {
   vertical: { ancho: 1080, alto: 1920, etiqueta: 'Vertical (TikTok, Reels)' },
   cuadrado: { ancho: 1080, alto: 1080, etiqueta: 'Cuadrado' },

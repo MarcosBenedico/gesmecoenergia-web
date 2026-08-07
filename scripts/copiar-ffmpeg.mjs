@@ -13,9 +13,30 @@
 import { copyFile, mkdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 
-const ORIGEN = 'node_modules/@ffmpeg/core/dist/umd';
 const DESTINO = 'public/ffmpeg';
+
+/**
+ * El motor (el .wasm de 31 MB y su cargador).
+ */
+const ORIGEN = 'node_modules/@ffmpeg/core/dist/umd';
 const ARCHIVOS = ['ffmpeg-core.js', 'ffmpeg-core.wasm'];
+
+/**
+ * El worker, que va aparte y es la parte que se atraganta.
+ *
+ * @ffmpeg/ffmpeg arranca su worker con `new Worker(new URL('./worker.js',
+ * import.meta.url))`. Turbopack no sabe resolver eso al empaquetar y falla en
+ * tiempo de ejecución con «Cannot find module as expression is too dynamic»,
+ * que además salta al pulsar el botón y no al construir: el build pasa en
+ * verde y la página se rompe en las manos del usuario.
+ *
+ * La salida es `classWorkerURL`, que la propia librería ofrece para esto: se
+ * sirve el worker desde nuestro dominio y se le pasa la ruta. Como se crea con
+ * `type: "module"` y sus dos imports son relativos, hay que copiar también
+ * const.js y errors.js AL LADO para que el navegador los resuelva.
+ */
+const ORIGEN_WORKER = 'node_modules/@ffmpeg/ffmpeg/dist/esm';
+const ARCHIVOS_WORKER = ['worker.js', 'const.js', 'errors.js'];
 
 if (!existsSync(ORIGEN)) {
   // No se aborta el build: el resto de la web no depende de esto y tumbar un
@@ -26,4 +47,5 @@ if (!existsSync(ORIGEN)) {
 
 await mkdir(DESTINO, { recursive: true });
 for (const a of ARCHIVOS) await copyFile(`${ORIGEN}/${a}`, `${DESTINO}/${a}`);
-console.log(`✓ Motor de vídeo copiado a ${DESTINO}`);
+for (const a of ARCHIVOS_WORKER) await copyFile(`${ORIGEN_WORKER}/${a}`, `${DESTINO}/${a}`);
+console.log(`✓ Motor de vídeo y worker copiados a ${DESTINO}`);
