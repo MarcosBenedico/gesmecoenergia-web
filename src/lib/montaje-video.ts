@@ -15,6 +15,25 @@
  * los mejores momentos. Lo que interesa es «alto PARA ESE vídeo».
  */
 
+/** Un tramo candidato a entrar en el montaje. */
+export interface Momento {
+  inicio: number;
+  fin: number;
+  duracion: number;
+  puntos: number;
+}
+
+/** Un momento ya asignado a su archivo de origen. */
+export interface MomentoElegido extends Momento {
+  archivo: string;
+}
+
+export interface Montaje {
+  momentos: MomentoElegido[];
+  duracionTotal: number;
+  usados: string[];
+}
+
 /** Ventana de análisis: medio segundo. Más corto es ruido, más largo se pasa los golpes. */
 export const VENTANA_S = 0.5;
 
@@ -36,14 +55,14 @@ export const AIRE_ANTES_S = 0.4;
 export const AIRE_DESPUES_S = 0.25;
 
 /** Media aritmética, o 0 si no hay nada. */
-const media = (xs) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
+const media = (xs: number[]): number => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
 
 /**
  * Percentil por interpolación lineal. Se usa el percentil y no el máximo
  * porque un solo pico (un portazo, un golpe al micro) dispararía el máximo y
  * dejaría todo lo demás pareciendo silencio al normalizar.
  */
-export function percentil(valores, p) {
+export function percentil(valores: number[], p: number): number {
   if (!valores.length) return 0;
   const orden = [...valores].sort((a, b) => a - b);
   const pos = (orden.length - 1) * p;
@@ -65,7 +84,7 @@ const SILENCIO_DB = -90;
  * cero, o sea, "aquí no pasa nada"—, pero son solo unos 30 dB por encima, que
  * es una diferencia que la escala absorbe sin borrar el resto.
  */
-export function aDb(rms) {
+export function aDb(rms: number): number {
   if (!(rms > 0)) return SILENCIO_DB;
   return Math.max(SILENCIO_DB, 20 * Math.log10(rms));
 }
@@ -78,7 +97,7 @@ export function aDb(rms) {
  * nunca es cero: siempre hay nevera, tráfico o siseo del micro) y el techo el
  * percentil 95, para que un pico aislado no marque el máximo él solo.
  */
-export function normalizar(energias) {
+export function normalizar(energias: number[]): number[] {
   const db = energias.map(aDb);
   const suelo = percentil(db, 0.1);
   const techo = percentil(db, 0.95);
@@ -94,9 +113,11 @@ export function normalizar(energias) {
  * `tolerancia` es cuántas ventanas flojas seguidas se perdonan sin partir el
  * momento en dos. Sin ella, una coma en mitad de una frase parte la frase.
  */
-export function agruparEnMomentos(normalizadas, listón, tolerancia = 2) {
-  const momentos = [];
-  let inicio = null;
+export function agruparEnMomentos(
+  normalizadas: number[], listón: number, tolerancia = 2
+): [number, number][] {
+  const momentos: [number, number][] = [];
+  let inicio: number | null = null;
   let flojas = 0;
 
   for (let i = 0; i < normalizadas.length; i++) {
@@ -126,7 +147,11 @@ export function agruparEnMomentos(normalizadas, listón, tolerancia = 2) {
  * silencio; con la media gana el tramo que se mantiene interesante, que es lo
  * que se quiere ver.
  */
-export function momentosDeArchivo(energias, { listón = 0.45, ventana = VENTANA_S, duracion = null } = {}) {
+export function momentosDeArchivo(
+  energias: number[],
+  { listón = 0.45, ventana = VENTANA_S, duracion = null }:
+    { listón?: number; ventana?: number; duracion?: number | null } = {}
+): Momento[] {
   const norm = normalizar(energias);
   const tope = duracion ?? energias.length * ventana;
 
@@ -146,8 +171,8 @@ export function momentosDeArchivo(energias, { listón = 0.45, ventana = VENTANA_
 }
 
 /** Parte los momentos largos en trozos de tamaño visible en vez de descartarlos. */
-function recortarLargos(momentos) {
-  const salida = [];
+function recortarLargos<T extends Momento>(momentos: T[]): T[] {
+  const salida: T[] = [];
   for (const m of momentos) {
     if (m.duracion <= MAXIMO_MOMENTO_S) { salida.push(m); continue; }
     const trozos = Math.ceil(m.duracion / MAXIMO_MOMENTO_S);
@@ -178,21 +203,24 @@ function recortarLargos(momentos) {
  *    que es cada trozo destroza cualquier continuidad: se salta del final de
  *    una escena a su principio. Se elige por puntos y se MONTA por orden.
  */
-export function elegirMontaje(porArchivo, { objetivoS = 45, cupoPorArchivo = 0.6 } = {}) {
+export function elegirMontaje(
+  porArchivo: Record<string, Momento[]>,
+  { objetivoS = 45, cupoPorArchivo = 0.6 }: { objetivoS?: number; cupoPorArchivo?: number } = {}
+): Montaje {
   const archivos = Object.keys(porArchivo);
   if (!archivos.length) return { momentos: [], duracionTotal: 0, usados: [] };
 
   // Con un solo archivo el cupo no aplica: si no, se limitaría a sí mismo.
   const cupoS = archivos.length === 1 ? Infinity : objetivoS * cupoPorArchivo;
 
-  const candidatos = [];
+  const candidatos: MomentoElegido[] = [];
   for (const archivo of archivos) {
     for (const m of recortarLargos(porArchivo[archivo])) candidatos.push({ ...m, archivo });
   }
   candidatos.sort((a, b) => b.puntos - a.puntos);
 
-  const elegidos = [];
-  const gastadoPor = Object.fromEntries(archivos.map((a) => [a, 0]));
+  const elegidos: MomentoElegido[] = [];
+  const gastadoPor: Record<string, number> = Object.fromEntries(archivos.map((a) => [a, 0]));
   let total = 0;
 
   // RESERVA: el mejor momento de cada archivo entra antes de repartir el resto.

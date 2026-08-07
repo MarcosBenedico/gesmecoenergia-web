@@ -43,3 +43,6 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 .tmp-*
+
+# Motor de ffmpeg: 31 MB, se copia en cada build desde node_modules.
+/public/ffmpeg/

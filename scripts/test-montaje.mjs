@@ -1,7 +1,7 @@
 /**
  * Tests del criterio de selección de momentos.
  *
- *   node prototipos/montador/test-seleccion.mjs
+ *   npm run test:montaje
  *
  * Se testea con energías inventadas a mano y no con vídeos: lo que se está
  * comprobando es el CRITERIO, y un test que necesite un archivo de 200 MB para
@@ -10,7 +10,7 @@
 import {
   percentil, normalizar, agruparEnMomentos, momentosDeArchivo, elegirMontaje,
   MINIMO_MOMENTO_S, VENTANA_S,
-} from './lib/seleccion.mjs';
+} from '../src/lib/montaje-video.ts';
 
 let ok = 0, fallos = 0;
 function comprueba(nombre, condicion, detalle = '') {

@@ -16,7 +16,7 @@
  */
 import { basename, resolve } from 'node:path';
 import { inspeccionar, energiaPorVentana } from './lib/analisis.mjs';
-import { momentosDeArchivo, elegirMontaje } from './lib/seleccion.mjs';
+import { momentosDeArchivo, elegirMontaje } from '../../src/lib/montaje-video.ts';
 import { montar, FORMATOS } from './lib/montaje.mjs';
 
 function leerArgumentos(argv) {

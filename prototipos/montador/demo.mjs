@@ -18,7 +18,7 @@ import { mkdir } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ejecutar, inspeccionar, energiaPorVentana } from './lib/analisis.mjs';
-import { momentosDeArchivo, elegirMontaje } from './lib/seleccion.mjs';
+import { momentosDeArchivo, elegirMontaje } from '../../src/lib/montaje-video.ts';
 import { montar } from './lib/montaje.mjs';
 
 const aqui = dirname(fileURLToPath(import.meta.url));

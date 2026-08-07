@@ -8,7 +8,7 @@
  * una hora de vídeo son 57 MB de audio, que caben en memoria sin drama.
  */
 import { spawn } from 'node:child_process';
-import { VENTANA_S } from './seleccion.mjs';
+import { VENTANA_S } from '../../../src/lib/montaje-video.ts';
 
 const HZ = 8000;
 
