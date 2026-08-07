@@ -17,8 +17,14 @@ const DESTINO = 'public/ffmpeg';
 
 /**
  * El motor (el .wasm de 31 MB y su cargador).
+ *
+ * Se coge el build ESM y NO el UMD. El worker de @ffmpeg/ffmpeg se crea con
+ * `type: "module"`, y ahí `importScripts` no existe: la librería lo intenta,
+ * falla, y cae a `await import(coreURL)` esperando un módulo con
+ * `export default`. Dándole el UMD, ese import no encuentra el default y sale
+ * un «failed to import ffmpeg-core.js» que no dice nada de la causa real.
  */
-const ORIGEN = 'node_modules/@ffmpeg/core/dist/umd';
+const ORIGEN = 'node_modules/@ffmpeg/core/dist/esm';
 const ARCHIVOS = ['ffmpeg-core.js', 'ffmpeg-core.wasm'];
 
 /**

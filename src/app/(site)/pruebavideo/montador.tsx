@@ -199,7 +199,9 @@ export default function Montador() {
                   {seg(a.duracion)} · {a.ancho}×{a.alto}
                 </span>
                 <span className="text-white/60 shrink-0 w-24 text-right">
-                  {a.sinAudio ? 'sin audio' : `${a.momentos.length} momentos`}
+                  {a.sinAudio
+                    ? 'sin audio'
+                    : `${a.momentos.length} ${a.momentos.length === 1 ? 'momento' : 'momentos'}`}
                 </span>
               </div>
             ))}

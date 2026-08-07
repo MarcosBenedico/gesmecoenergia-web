@@ -47,8 +47,13 @@ export const metadata: Metadata = {
     title: "Gesmeco Energía",
   },
   icons: {
-    icon: "/gesmeco-logo.png",
-    apple: "/gesmeco-logo.png",
+    // Estos dos apuntaban a "/gesmeco-logo.png", que NO existe: el archivo se
+    // llama logo-gesmeco.png (las palabras al revés). Resultado: un 404 en
+    // TODAS las páginas del sitio y el icono roto en la pestaña y al añadir a
+    // la pantalla de inicio. Se usan los iconos hechos para esto, que son los
+    // mismos que ya declara manifest.json — el 180 es la medida de Apple.
+    icon: "/icon-192.png",
+    apple: "/icon-180.png",
   },
 };
 

@@ -36,10 +36,23 @@ export function urlAbsoluta(ruta: string): string {
   return typeof window === 'undefined' ? ruta : new URL(ruta, window.location.origin).href;
 }
 
+/**
+ * Se sale a 720p y no a 1080p, y es una decisión medida, no una dejadez.
+ *
+ * Cronometrado en esta misma página: a 1080×1920 el montaje tarda unos 5,4
+ * segundos por cada segundo de clip, o sea que un clip de 45 s son CUATRO
+ * MINUTOS de espera mirando una pantalla. A 720×1280 hay 2,25 veces menos
+ * píxeles que codificar y baja a algo más de minuto y medio.
+ *
+ * Y no se pierde casi nada donde importa: TikTok, Reels y Shorts recomprimen
+ * todo lo que se les sube, así que ese 1080 no llega entero al espectador de
+ * ninguna manera. Cambiar cuatro minutos de espera por una diferencia que no
+ * se ve en el móvil es un mal negocio.
+ */
 export const FORMATOS = {
-  vertical: { ancho: 1080, alto: 1920, etiqueta: 'Vertical (TikTok, Reels)' },
-  cuadrado: { ancho: 1080, alto: 1080, etiqueta: 'Cuadrado' },
-  horizontal: { ancho: 1920, alto: 1080, etiqueta: 'Horizontal (sin recorte)' },
+  vertical: { ancho: 720, alto: 1280, etiqueta: 'Vertical (TikTok, Reels)' },
+  cuadrado: { ancho: 720, alto: 720, etiqueta: 'Cuadrado' },
+  horizontal: { ancho: 1280, alto: 720, etiqueta: 'Horizontal (sin recorte)' },
 } as const;
 
 export type Formato = keyof typeof FORMATOS;
@@ -162,5 +175,10 @@ export const nombreTrozo = (i: number) => `t${String(i).padStart(3, '0')}.mp4`;
  */
 export function segundosEstimados(momentos: MomentoElegido[]): number {
   const segundosDeVideo = momentos.reduce((s, m) => s + (m.fin - m.inicio), 0);
-  return Math.round(segundosDeVideo * 4 + 8);
+  // El 3,5 está CRONOMETRADO en esta página, no estimado a ojo: 20 s de clip a
+  // 720×1280 tardaron unos 70 s. La primera versión puso 2,4 —dividiendo el
+  // 5,4 medido a 1080p por los píxeles— y se quedó corta, porque no todo el
+  // coste escala con la resolución. Se prefiere pasarse: quedarse corto en la
+  // promesa es lo que hace que se cierre la pestaña a medio montaje.
+  return Math.round(segundosDeVideo * 3.5 + 8);
 }
