@@ -6,7 +6,7 @@
  * Todo lo que David capta y todo lo que se habla con esa gente, en una sola
  * pantalla, para que no se caiga nadie por olvido.
  *
- * TRES DECISIONES QUE EXPLICAN CÓMO SE VE
+ * CUATRO DECISIONES QUE EXPLICAN CÓMO SE VE
  *
  * 1. LOS NÚMEROS DE ARRIBA SON RELOJES, NO TOTALES. «23 preclientes» no se
  *    puede accionar; «7 esperando factura, 14 días de media» sí. Cada reloj
@@ -14,17 +14,24 @@
  * 2. LA FRANJA ROJA ES CORTA A PROPÓSITO. Solo lo que se muere esta semana:
  *    preavisos a punto de cerrarse y ofertas enfriándose. Si ahí cabe todo,
  *    deja de ser una alarma y pasa a ser la misma lista otra vez.
- * 3. SE APUNTA SIN SALIR. El apunte de lo que se ha hablado se escribe en la
- *    propia tarjeta. Cada clic de más entre hablar con el cliente y dejarlo
- *    escrito es una nota que no se escribe, y a la semana el panel miente.
+ * 3. SE GESTIONA SIN SALIR. Apuntar lo hablado, cambiar el estado del embudo y
+ *    poner la fecha de firma o de activación, todo desde la propia tarjeta.
+ *    Cada clic de más entre hablar con el cliente y dejarlo escrito es una
+ *    nota que no se escribe, y a la semana el panel miente.
+ * 4. LOS FAVORITOS VAN ARRIBA Y SE GUARDAN EN EL SERVIDOR. Son «a estos los
+ *    llevo yo», y esa lista tiene que verse igual en la oficina y en el móvil.
  */
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  AlertTriangle, Phone, MessageCircle, Clock, Euro, Search, Plus, Check, Loader,
+  AlertTriangle, Phone, MessageCircle, Clock, Euro, Search, Check, Loader,
+  Star, SlidersHorizontal, PenLine,
 } from 'lucide-react';
-import { useUsuario } from '@/lib/usuario';
-import type { LuzCliente, LuzCups, LuzOportunidad, LuzContrato } from '@/lib/luz';
+import { tokenSesion, useUsuario } from '@/lib/usuario';
+import {
+  ESTADO_PIPELINE_LABEL, ESTADO_PIPELINE_TONO,
+  type LuzCliente, type LuzCups, type LuzOportunidad, type LuzContrato,
+} from '@/lib/luz';
 import {
   FASE, PELOTA_LABEL, faseDe, diasEntre, ultimoMovimiento, queFalta,
   seMuereEstaSemana, relojes, type FaseSeguimiento, type FichaSeguimiento,
@@ -42,6 +49,14 @@ interface Seguimiento {
   autor: string | null;
 }
 
+/** Lo que la tarjeta necesita para poder EDITAR, no solo para pintar. */
+interface Entidades {
+  cups: LuzCups[];
+  pipeline: LuzOportunidad[];
+  contratos: LuzContrato[];
+  apuntes: Seguimiento[];
+}
+
 const hoyISO = () => {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -56,6 +71,20 @@ const VIAS = [
   { id: 'email', label: 'Email' },
 ];
 
+/**
+ * Los estados que se pueden poner desde aquí, en el orden del viaje.
+ *
+ * Es la lista completa a propósito, incluidos «perdido» y «revisar más
+ * adelante»: si desde el panel solo se pudiera avanzar, la única forma de
+ * cerrar un cliente que ha dicho que no sería irse a otra pantalla, y lo que
+ * pasaría en realidad es que nadie lo cerraría y seguiría contando como vivo.
+ */
+const ESTADOS_EDITABLES = [
+  'prospecto', 'factura_solicitada', 'factura_recibida', 'pendiente_ofertar',
+  'oferta_enviada', 'seguimiento', 'doc_incompleta', 'pendiente_permanencia',
+  'pendiente_firma', 'ganado', 'perdido', 'revisar_adelante',
+];
+
 export default function SeguimientoPage() {
   const { esAdmin, cargando: cargandoPerfil, perfil } = useUsuario();
 
@@ -67,15 +96,44 @@ export default function SeguimientoPage() {
 
   const [faseElegida, setFaseElegida] = useState<FaseSeguimiento | null>(null);
   const [busca, setBusca] = useState('');
-  const [apuntando, setApuntando] = useState<string | null>(null);
+  const [abierta, setAbierta] = useState<string | null>(null);
+  const [favoritos, setFavoritos] = useState<string[]>([]);
   const [msg, setMsg] = useState('');
 
   const hoy = hoyISO();
   const cargando = cargandoPerfil || clientes.cargando || cups.cargando || pipeline.cargando;
 
+  // ── FAVORITOS ────────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!esAdmin) return;
+    (async () => {
+      const token = await tokenSesion();
+      const r = await fetch('/api/luz/favoritos', {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      const j = await r.json().catch(() => ({}));
+      if (Array.isArray(j?.favoritos)) setFavoritos(j.favoritos);
+    })();
+  }, [esAdmin]);
+
+  const alternarFavorito = useCallback(async (id: string) => {
+    // Se pinta al instante y se guarda detrás: marcar un favorito no puede
+    // hacer esperar a nadie. Si el guardado falla, se avisa y se deshace.
+    const antes = favoritos;
+    const nuevos = favoritos.includes(id) ? favoritos.filter((x) => x !== id) : [...favoritos, id];
+    setFavoritos(nuevos);
+    const token = await tokenSesion();
+    const r = await fetch('/api/luz/favoritos', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      body: JSON.stringify({ ids: nuevos }),
+    });
+    if (!r.ok) { setFavoritos(antes); setMsg('⚠️ No he podido guardar el favorito.'); }
+  }, [favoritos]);
+
   /** Índices por cliente: se construyen una vez y no en cada tarjeta. */
   const porCliente = useMemo(() => {
-    const m = new Map<string, { cups: LuzCups[]; pipeline: LuzOportunidad[]; contratos: LuzContrato[]; apuntes: Seguimiento[] }>();
+    const m = new Map<string, Entidades>();
     const dame = (id: string) => {
       if (!m.has(id)) m.set(id, { cups: [], pipeline: [], contratos: [], apuntes: [] });
       return m.get(id)!;
@@ -136,6 +194,10 @@ export default function SeguimientoPage() {
 
   const marcadores = useMemo(() => relojes(fichas), [fichas]);
   const urgentes = useMemo(() => seMuereEstaSemana(fichas), [fichas]);
+  const misFavoritos = useMemo(
+    () => fichas.filter((f) => favoritos.includes(f.clienteId)),
+    [fichas, favoritos]
+  );
 
   const visibles = useMemo(() => {
     const t = busca.trim().toLowerCase();
@@ -146,28 +208,54 @@ export default function SeguimientoPage() {
       .sort((a, b) => Number(b.enRojo) - Number(a.enRojo) || (b.diasParado ?? -1) - (a.diasParado ?? -1));
   }, [fichas, faseElegida, busca]);
 
-  const apuntar = useCallback(async (clienteId: string, datos: { via: string; que_se_hablo: string; proximo_paso: string }) => {
-    if (!datos.que_se_hablo.trim()) return;
+  /** Recarga solo lo que puede haber cambiado, no la pantalla entera. */
+  const refrescar = useCallback(() => {
+    pipeline.recargar?.();
+    contratos.recargar?.();
+    seguimientos.recargar?.();
+  }, [pipeline, contratos, seguimientos]);
+
+  const avisar = useCallback((err: string) => {
+    // El fallo más probable al empezar es que falte ejecutar el SQL. Decirlo
+    // con nombre y apellidos evita media hora buscando dónde está el problema.
+    setMsg(/relation|does not exist|schema/i.test(err)
+      ? '⚠️ Falta ejecutar supabase_seguimientos.sql en Supabase.'
+      : `⚠️ ${err}`);
+  }, []);
+
+  const apuntar = useCallback(async (clienteId: string, d: { via: string; que_se_hablo: string; proximo_paso: string }) => {
     const err = await guardarLuz('seguimientos', 'POST', {
-      cliente_id: clienteId,
-      fecha: hoy,
-      via: datos.via,
-      que_se_hablo: datos.que_se_hablo.trim(),
-      proximo_paso: datos.proximo_paso.trim() || null,
+      cliente_id: clienteId, fecha: hoy, via: d.via,
+      que_se_hablo: d.que_se_hablo.trim(),
+      proximo_paso: d.proximo_paso.trim() || null,
       autor: perfil?.responsable || null,
     });
-    if (err) {
-      // El fallo más probable es que falte ejecutar el SQL. Decirlo con nombre
-      // y apellidos evita media hora de buscar dónde está el problema.
-      setMsg(/relation|does not exist|schema/i.test(err)
-        ? '⚠️ Falta ejecutar supabase_seguimientos.sql en Supabase.'
-        : `⚠️ ${err}`);
-      return;
-    }
-    setApuntando(null);
+    if (err) return avisar(err);
     setMsg('✓ Apuntado.');
-    seguimientos.recargar?.();
-  }, [hoy, perfil, seguimientos]);
+    refrescar();
+  }, [hoy, perfil, refrescar, avisar]);
+
+  /**
+   * Cambiar el estado del embudo.
+   *
+   * Va por el PUT de /api/luz/pipeline y no por una escritura directa porque
+   * ese PUT lleva dentro la sincronización de estados con el CUPS. Saltárselo
+   * por ir más rápido dejaría el suministro descuadrado, que es justo el fallo
+   * que costó semanas arreglar en su día.
+   */
+  const cambiarEstado = useCallback(async (oportunidadId: string, estado: string) => {
+    const err = await guardarLuz('pipeline', 'PUT', { id: oportunidadId, estado });
+    if (err) return avisar(err);
+    setMsg('✓ Estado actualizado.');
+    refrescar();
+  }, [refrescar, avisar]);
+
+  const guardarContrato = useCallback(async (contratoId: string, campos: Record<string, string | null>) => {
+    const err = await guardarLuz('contratos', 'PUT', { id: contratoId, ...campos });
+    if (err) return avisar(err);
+    setMsg('✓ Contrato actualizado.');
+    refrescar();
+  }, [refrescar, avisar]);
 
   if (!cargandoPerfil && !esAdmin) {
     return (
@@ -185,6 +273,22 @@ export default function SeguimientoPage() {
     );
   }
 
+  const pintarTarjeta = (f: FichaSeguimiento, compacta = false) => (
+    <Tarjeta
+      key={f.clienteId}
+      f={f}
+      entidades={porCliente.get(f.clienteId)}
+      compacta={compacta}
+      favorito={favoritos.includes(f.clienteId)}
+      abierta={abierta === f.clienteId + (compacta ? ':fav' : '')}
+      onAbrir={() => setAbierta(abierta === f.clienteId + (compacta ? ':fav' : '') ? null : f.clienteId + (compacta ? ':fav' : ''))}
+      onFavorito={() => alternarFavorito(f.clienteId)}
+      onApuntar={(d) => apuntar(f.clienteId, d)}
+      onEstado={cambiarEstado}
+      onContrato={guardarContrato}
+    />
+  );
+
   return (
     <div className="space-y-4">
       <div className="flex items-baseline justify-between gap-3 flex-wrap">
@@ -194,6 +298,20 @@ export default function SeguimientoPage() {
         </div>
         {msg && <p className="text-xs font-bold text-accent">{msg}</p>}
       </div>
+
+      {/* ── FAVORITOS ───────────────────────────────────────────────
+          Arriba del todo y por delante de los relojes: es la lista de
+          «a estos los llevo yo», y para eso tiene que verse sin buscar. */}
+      {misFavoritos.length > 0 && (
+        <div className="rounded-xl border border-amber-400/30 bg-amber-400/[0.04] p-3">
+          <p className="text-[11px] font-black uppercase tracking-[0.15em] text-amber-300 mb-2 flex items-center gap-1.5">
+            <Star className="w-3 h-3 fill-amber-300" /> Favoritos · {misFavoritos.length}
+          </p>
+          <div className="grid md:grid-cols-2 gap-2">
+            {misFavoritos.map((f) => pintarTarjeta(f, true))}
+          </div>
+        </div>
+      )}
 
       {/* ── RELOJES ─────────────────────────────────────────────────
           No son totales: son «cuántos y desde cuándo». Se pueden tocar
@@ -260,9 +378,7 @@ export default function SeguimientoPage() {
           />
         </div>
         {faseElegida && (
-          <button onClick={() => setFaseElegida(null)} className={btnSecundario}>
-            Ver todos
-          </button>
+          <button onClick={() => setFaseElegida(null)} className={btnSecundario}>Ver todos</button>
         )}
       </div>
 
@@ -282,41 +398,52 @@ export default function SeguimientoPage() {
         </Card>
       )}
 
-      {/* ── LAS TARJETAS ────────────────────────────────────────────── */}
       <div className="grid md:grid-cols-2 gap-2">
-        {visibles.map((f) => (
-          <Tarjeta
-            key={f.clienteId}
-            f={f}
-            abierta={apuntando === f.clienteId}
-            onAbrir={() => setApuntando(apuntando === f.clienteId ? null : f.clienteId)}
-            onApuntar={(d) => apuntar(f.clienteId, d)}
-          />
-        ))}
+        {visibles.map((f) => pintarTarjeta(f))}
       </div>
     </div>
   );
 }
 
-/** Una tarjeta por cliente. Se lee de un vistazo o no se lee. */
-function Tarjeta({ f, abierta, onAbrir, onApuntar }: {
+/** Una tarjeta por cliente. Se lee de un vistazo, y se gestiona sin salir. */
+function Tarjeta({ f, entidades, favorito, abierta, compacta, onAbrir, onFavorito, onApuntar, onEstado, onContrato }: {
   f: FichaSeguimiento;
+  entidades?: Entidades;
+  favorito: boolean;
   abierta: boolean;
+  compacta?: boolean;
   onAbrir: () => void;
+  onFavorito: () => void;
   onApuntar: (d: { via: string; que_se_hablo: string; proximo_paso: string }) => void;
+  onEstado: (oportunidadId: string, estado: string) => void;
+  onContrato: (contratoId: string, campos: Record<string, string | null>) => void;
 }) {
+  const [panel, setPanel] = useState<'nota' | 'estado'>('nota');
   const [via, setVia] = useState('telefono');
   const [texto, setTexto] = useState('');
   const [paso, setPaso] = useState('');
   const [guardando, setGuardando] = useState(false);
 
   const tel = (f.telefono || '').replace(/[^\d+]/g, '');
+  // Manda la oportunidad ABIERTA: una cerrada hace meses describe peor dónde
+  // está el cliente hoy que la que sigue en juego.
+  const op = entidades?.pipeline.find((o) => !['ganado', 'perdido'].includes(o.estado))
+    || entidades?.pipeline[0];
+  const contrato = entidades?.contratos.find((k) => !k.fecha_activacion_real) || entidades?.contratos[0];
 
   return (
     <div className={`rounded-xl border bg-card/50 p-3 space-y-2 ${
       f.enRojo ? 'border-red-500/40' : 'border-border/50'
     }`}>
       <div className="flex items-start gap-2">
+        <button
+          onClick={onFavorito}
+          className="shrink-0 mt-0.5 text-muted hover:text-amber-300 transition"
+          title={favorito ? 'Quitar de favoritos' : 'Añadir a favoritos'}
+          aria-label={favorito ? 'Quitar de favoritos' : 'Añadir a favoritos'}
+        >
+          <Star className={`w-4 h-4 ${favorito ? 'fill-amber-300 text-amber-300' : ''}`} />
+        </button>
         <div className="min-w-0 flex-1">
           <p className="font-bold text-foreground text-[15px] leading-tight truncate">{f.nombre}</p>
           <p className="text-[11px] text-accent font-semibold">{f.queFalta}</p>
@@ -331,9 +458,18 @@ function Tarjeta({ f, abierta, onAbrir, onApuntar }: {
       </div>
 
       <div className="flex items-center gap-1.5 flex-wrap">
-        <span className="px-1.5 py-0.5 rounded-full bg-card border border-border/50 text-[9px] font-bold uppercase text-muted">
-          {FASE[f.fase].titulo}
-        </span>
+        {op && (
+          <span className={`px-1.5 py-0.5 rounded-full border text-[9px] font-black uppercase ${ESTADO_PIPELINE_TONO[op.estado] || 'bg-card border-border/50 text-muted'}`}>
+            {ESTADO_PIPELINE_LABEL[op.estado] || op.estado}
+          </span>
+        )}
+        {/* La fase solo si aporta algo: cuando dice lo mismo que el estado del
+            embudo («Oferta enviada» las dos), repetirla es ruido. */}
+        {FASE[f.fase].titulo.toLowerCase() !== (ESTADO_PIPELINE_LABEL[op?.estado || ''] || '').toLowerCase() && (
+          <span className="px-1.5 py-0.5 rounded-full bg-card border border-border/50 text-[9px] font-bold uppercase text-muted">
+            {FASE[f.fase].titulo}
+          </span>
+        )}
         {f.diasPreaviso != null && f.diasPreaviso <= 30 && (
           <span className="px-1.5 py-0.5 rounded-full bg-red-500/15 border border-red-500/30 text-[9px] font-black uppercase text-red-300">
             Preaviso en {f.diasPreaviso} d
@@ -346,7 +482,7 @@ function Tarjeta({ f, abierta, onAbrir, onApuntar }: {
         )}
       </div>
 
-      {f.ultimoApunte && (
+      {!compacta && f.ultimoApunte && (
         <p className="text-[11px] text-muted leading-snug line-clamp-2">
           <Clock className="w-3 h-3 inline -mt-0.5 mr-1" />
           {f.ultimaFecha && <span className="font-semibold">{f.ultimaFecha.slice(8, 10)}/{f.ultimaFecha.slice(5, 7)} · </span>}
@@ -367,12 +503,22 @@ function Tarjeta({ f, abierta, onAbrir, onApuntar }: {
             </a>
           </>
         )}
-        <button onClick={onAbrir} className={`${btnSecundario} !min-h-[36px] flex-1 !text-[11px]`}>
-          <Plus className="w-3.5 h-3.5" /> Apuntar lo hablado
+        <button
+          onClick={() => { setPanel('nota'); onAbrir(); }}
+          className={`${btnSecundario} !min-h-[36px] flex-1 !text-[11px]`}
+        >
+          <PenLine className="w-3.5 h-3.5" /> Apuntar
+        </button>
+        <button
+          onClick={() => { setPanel('estado'); if (!abierta) onAbrir(); }}
+          className={`${btnSecundario} !min-h-[36px] !px-2.5`}
+          title="Cambiar estado, firma y activación"
+        >
+          <SlidersHorizontal className="w-3.5 h-3.5" />
         </button>
       </div>
 
-      {abierta && (
+      {abierta && panel === 'nota' && (
         <div className="space-y-2 pt-1 border-t border-border/40">
           <div className="flex gap-1">
             {VIAS.map((v) => (
@@ -388,25 +534,18 @@ function Tarjeta({ f, abierta, onAbrir, onApuntar }: {
             ))}
           </div>
           <textarea
-            value={texto}
-            onChange={(e) => setTexto(e.target.value)}
-            placeholder="Qué se ha hablado..."
-            rows={2}
-            className="w-full !text-[13px]"
-            autoFocus
+            value={texto} onChange={(e) => setTexto(e.target.value)}
+            placeholder="Qué se ha hablado..." rows={2} className="w-full !text-[13px]" autoFocus
           />
           <input
-            value={paso}
-            onChange={(e) => setPaso(e.target.value)}
-            placeholder="Próximo paso (opcional)"
-            className="w-full !text-[13px]"
+            value={paso} onChange={(e) => setPaso(e.target.value)}
+            placeholder="Próximo paso (opcional)" className="w-full !text-[13px]"
           />
           <button
             onClick={async () => {
               setGuardando(true);
               await onApuntar({ via, que_se_hablo: texto, proximo_paso: paso });
-              setGuardando(false);
-              setTexto(''); setPaso('');
+              setGuardando(false); setTexto(''); setPaso('');
             }}
             disabled={guardando || !texto.trim()}
             className={`${btnPrimario} w-full !min-h-[40px] disabled:opacity-40`}
@@ -414,6 +553,69 @@ function Tarjeta({ f, abierta, onAbrir, onApuntar }: {
             {guardando ? <Loader className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
             Guardar apunte
           </button>
+        </div>
+      )}
+
+      {abierta && panel === 'estado' && (
+        <div className="space-y-2.5 pt-1 border-t border-border/40">
+          {/* ── ESTADO DEL EMBUDO ── */}
+          {op ? (
+            <label className="block">
+              <span className="text-[10px] font-black uppercase tracking-wider text-muted">Estado del embudo</span>
+              <select
+                value={op.estado}
+                onChange={(e) => onEstado(op.id, e.target.value)}
+                className="w-full mt-1 !text-[13px]"
+              >
+                {ESTADOS_EDITABLES.map((e) => (
+                  <option key={e} value={e}>{ESTADO_PIPELINE_LABEL[e] || e}</option>
+                ))}
+              </select>
+            </label>
+          ) : (
+            <p className="text-[11px] text-amber-300/90 leading-snug">
+              Este cliente no tiene ninguna oportunidad en el pipeline, así que no hay
+              estado que cambiar. Créala desde su ficha y aparecerá aquí.
+            </p>
+          )}
+
+          {/* ── CONTRATO ──
+              Las dos fechas que de verdad se olvidan. La de firma cierra la
+              venta; la de activación es la que dice si el cambio llegó a pasar,
+              y es la que más se queda sin poner. */}
+          {contrato ? (
+            <div className="grid grid-cols-2 gap-2">
+              <label className="block">
+                <span className="text-[10px] font-black uppercase tracking-wider text-muted">Fecha de firma</span>
+                <input
+                  type="date"
+                  defaultValue={contrato.fecha_firma ? String(contrato.fecha_firma).slice(0, 10) : ''}
+                  onChange={(e) => onContrato(contrato.id, { fecha_firma: e.target.value || null })}
+                  className="w-full mt-1 !text-[13px]"
+                />
+              </label>
+              <label className="block">
+                <span className="text-[10px] font-black uppercase tracking-wider text-muted">Activación real</span>
+                <input
+                  type="date"
+                  defaultValue={contrato.fecha_activacion_real ? String(contrato.fecha_activacion_real).slice(0, 10) : ''}
+                  onChange={(e) => onContrato(contrato.id, {
+                    fecha_activacion_real: e.target.value || null,
+                    // Poner la fecha de activación y dejar el estado en «firmado»
+                    // es lo que hace que un contrato ya cerrado siga saliendo
+                    // aquí para siempre. Se mueven las dos cosas a la vez.
+                    ...(e.target.value ? { estado_contrato: 'activado' } : {}),
+                  })}
+                  className="w-full mt-1 !text-[13px]"
+                />
+              </label>
+            </div>
+          ) : (
+            <p className="text-[11px] text-muted leading-snug">
+              Todavía no hay contrato. Se crea al pasar la oportunidad a
+              «Pendiente firma» desde Contratos y Activaciones.
+            </p>
+          )}
         </div>
       )}
     </div>
