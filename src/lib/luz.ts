@@ -281,6 +281,12 @@ export interface LuzCliente {
   prioridad: string;
   estado_comercial: string;
   potencial_comercial: string | null;
+  /**
+   * Objetivo · precliente · cliente. Otro eje distinto de `estado_comercial`:
+   * ese dice por dónde va el viaje, este qué tipo de relación es. Ver
+   * clasificacion.ts. Estaba en la BD y faltaba en el tipo.
+   */
+  clasificacion?: string | null;
   origen_cliente: string | null;
   via_entrada?: string | null;
   zona?: string | null;

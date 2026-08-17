@@ -77,6 +77,9 @@ const BLOQUES: Bloque[] = [
     pista: 'Lo que hay que mirar cada día',
     secciones: [
       { href: '/gestor/luz', icono: LayoutDashboard, nombre: 'Dashboard Luz' },
+      // Va justo después del dashboard porque es lo que se abre a diario: qué
+      // está en marcha y qué espera a quién. El parte cuenta lo que YA pasó.
+      { href: '/gestor/luz/seguimiento', icono: Radar, nombre: 'Seguimiento', soloAdmin: true },
       { href: '/gestor/luz/parte', icono: ClipboardList, nombre: 'Parte del día', soloAdmin: true },
       { href: '/gestor/luz/consumo', icono: Activity, nombre: 'Consumo real', soloAdmin: true },
       { href: '/gestor/luz/comisiones', icono: Euro, nombre: 'Comisiones' },

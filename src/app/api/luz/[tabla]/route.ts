@@ -100,6 +100,18 @@ const TABLAS: Record<string, DefTabla> = {
     orden: { col: 'fecha', asc: false },
     colFecha: 'fecha',
   },
+  // El hilo de lo que se habla con cada cliente. Requiere
+  // supabase_seguimientos.sql; sin él las peticiones devuelven error de tabla
+  // inexistente y el panel lo dice en pantalla en vez de salir vacío.
+  seguimientos: {
+    tabla: 'luz_seguimientos',
+    select: '*, luz_clientes(nombre)',
+    columnas: ['cliente_id', 'cups_id', 'fecha', 'via', 'con_quien', 'que_se_hablo', 'proximo_paso', 'fecha_proximo', 'autor'],
+    filtros: ['cliente_id', 'via', 'autor'],
+    buscarEn: 'que_se_hablo',
+    orden: { col: 'fecha', asc: false },
+    colFecha: 'fecha',
+  },
   proyectos: {
     tabla: 'luz_proyectos',
     select: '*, luz_clientes(nombre)',
