@@ -98,7 +98,7 @@ INSERT INTO luz_seguimientos (cliente_id, fecha, via, que_se_hablo, autor, cread
 SELECT c.id,
        -- La marca viene en dd/mm/yyyy; si no se puede leer, se usa el alta.
        COALESCE(
-         NULLIF(to_date(NULLIF(substring(m[1] from '^\d{1,2}/\d{1,2}/\d{4}'), ''), 'DD/MM/YYYY'), NULL),
+         to_date(substring(m[1] from '^\d{1,2}/\d{1,2}/\d{4}'), 'DD/MM/YYYY'),
          c.creado_en::date
        ),
        'otro',
@@ -108,11 +108,19 @@ SELECT c.id,
   FROM luz_clientes c,
        LATERAL regexp_matches(
          c.observaciones,
-         '\[([^\]·]+?)(?:\s*·\s*([^\]]+))?\]\s*([^\n\[]+)', 'g'
+         -- OJO: el primer grupo va GREEDY (+) y no perezoso (+?) a propósito.
+         -- En Postgres el primer cuantificador decide la codicia de TODA la
+         -- expresión, así que con `+?` el último grupo se volvía perezoso
+         -- también y capturaba un solo carácter: el apunte se guardaba como
+         -- un espacio en blanco. Comprobado contra los datos reales.
+         '\[([^\]·]+)(?:\s*·\s*([^\]]+))?\]\s*([^\n\[]+)', 'g'
        ) AS m
  WHERE c.borrado_en IS NULL
    AND c.observaciones IS NOT NULL
    AND trim(m[3]) <> ''
+   -- Las marcas [Fusión 24/7/2026] no son conversaciones: las pone el sistema
+   -- al unir fichas duplicadas. Meterlas ensuciaría el historial de todos.
+   AND m[1] !~ '^Fusión'
    -- No re-importar si ya se ejecutó antes.
    AND NOT EXISTS (
      SELECT 1 FROM luz_seguimientos s
