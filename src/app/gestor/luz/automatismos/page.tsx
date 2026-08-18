@@ -133,7 +133,6 @@ export default function Automatismos() {
   /** Aplicar un grupo entero: de una en una, para que un fallo no arrastre al resto. */
   const aplicarGrupo = useCallback(async (ps: Propuesta[]) => {
     for (const p of ps) {
-      // eslint-disable-next-line no-await-in-loop
       const ok = await aplicar(p);
       if (!ok) break;
     }

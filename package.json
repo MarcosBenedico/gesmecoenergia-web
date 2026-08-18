@@ -35,7 +35,8 @@
     "test:integridad": "node scripts/test-integridad.mjs",
     "test:agenda-calle": "node scripts/test-agenda-calle.mjs",
     "test:rutas": "node scripts/test-rutas.mjs",
-    "test:automatismos": "node scripts/test-automatismos.mjs"
+    "test:automatismos": "node scripts/test-automatismos.mjs",
+    "test:vistas": "node scripts/test-vistas.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.110.0",
