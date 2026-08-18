@@ -173,7 +173,7 @@ export default function DashboardLuz() {
                 {prioridades.map((p, i) => (
                   <li key={`${p.clienteId}-${p.tipo}`}>
                     <Link
-                      href={`/gestor/luz/clientes/${p.clienteId}`}
+                      href={p.href}
                       className={`flex items-center gap-3 p-3 rounded-xl border transition hover:translate-x-0.5 ${TONO_PRIORIDAD[p.tipo]}`}
                     >
                       <span className="w-6 h-6 rounded-full bg-background/40 flex items-center justify-center text-xs font-black shrink-0 tabular-nums">

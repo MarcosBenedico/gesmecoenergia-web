@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
+import { revisarFactura } from '@/lib/factura';
 
 /**
  * Lee una foto o PDF de una factura de luz con Claude (visión) y
@@ -51,6 +52,28 @@ const SCHEMA = {
       type: 'string' as const,
       description: 'Nombre del titular de la factura si es visible, si no cadena vacía',
     },
+    cups: {
+      type: 'string' as const,
+      description:
+        'Código CUPS del suministro (empieza por ES y tiene 20-22 caracteres). Cadena vacía si no se ve.',
+    },
+    comercializadora: {
+      type: 'string' as const,
+      description: 'Nombre de la comercializadora que emite la factura. Cadena vacía si no se ve.',
+    },
+    distribuidora: {
+      type: 'string' as const,
+      description: 'Nombre de la distribuidora, si aparece. Cadena vacía si no.',
+    },
+    direccion_suministro: {
+      type: 'string' as const,
+      description: 'Dirección del punto de suministro, si aparece. Cadena vacía si no.',
+    },
+    fecha_fin_contrato: {
+      type: 'string' as const,
+      description:
+        'Fecha de fin del contrato o de renovación en formato AAAA-MM-DD, si la factura la indica. Cadena vacía si no.',
+    },
     observaciones: {
       type: 'string' as const,
       description:
@@ -65,6 +88,11 @@ const SCHEMA = {
     'precios_energia_eur_kwh',
     'precios_potencia_eur_kw_dia',
     'nombre_titular',
+    'cups',
+    'comercializadora',
+    'distribuidora',
+    'direccion_suministro',
+    'fecha_fin_contrato',
     'observaciones',
   ],
   additionalProperties: false,
@@ -165,7 +193,21 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    return NextResponse.json({ ok: true, datos });
+    // La revisión viaja con los datos: quien pinta la pantalla no tiene que
+    // saber de rangos de precios ni de cuántos periodos lleva cada tarifa, y
+    // sobre todo no puede olvidarse de comprobarlo. Ver src/lib/factura.ts.
+    const revision = revisarFactura({
+      tarifa: datos.tarifa,
+      consumosMes: datos.consumos_kwh_mes,
+      potencias: datos.potencias_kw,
+      preciosEnergia: datos.precios_energia_eur_kwh,
+      preciosPotencia: datos.precios_potencia_eur_kw_dia,
+      titular: datos.nombre_titular || null,
+      cups: datos.cups || null,
+      observaciones: datos.observaciones || null,
+    });
+
+    return NextResponse.json({ ok: true, datos, revision });
   } catch (e: any) {
     console.error('Error leyendo factura:', e?.message || e);
     return NextResponse.json(

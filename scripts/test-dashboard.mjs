@@ -136,6 +136,21 @@ titulo('Cada prioridad dice a las claras qué es');
     p.every((x) => x.titulo === TITULO_PRIORIDAD[x.tipo]));
   comprueba('todas llevan detalle escrito', p.every((x) => x.detalle.length > 10));
   comprueba('todas llevan a un cliente concreto', p.every((x) => !!x.clienteId));
+
+  // El plan lo pide expresamente: una línea que dice qué hacer y no lleva a
+  // hacerlo se convierte en texto que se lee y no se ejecuta.
+  comprueba('todas llevan a alguna parte', p.every((x) => x.href?.startsWith('/gestor/luz/')));
+
+  const estudio = prioridadesDeHoy([cli({ id: 'e', ...enEtapa('factura_recibida', 40, 100) })], HOY);
+  comprueba('«falta el estudio» lleva a preparar el estudio, no a leer una ficha',
+    estudio[0]?.tipo === 'estudio' && estudio[0].href === '/gestor/luz/estudios',
+    JSON.stringify(estudio[0]));
+
+  const activar = prioridadesDeHoy([
+    cli({ id: 'f', cups: [{ estado_cups: 'contrato_firmado' }], contratos: [{ estado_contrato: 'firmado', fecha_firma: hace(60) }], pipeline: [{ estado: 'x', actualizado_en: hace(60) }] }),
+  ], HOY);
+  comprueba('«firmado sin activar» lleva a contratos',
+    activar[0]?.href.startsWith('/gestor/luz/contratos'), JSON.stringify(activar[0]));
 }
 
 titulo('Las tres cifras de cabecera');

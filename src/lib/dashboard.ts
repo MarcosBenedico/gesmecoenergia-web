@@ -62,11 +62,30 @@ export const TITULO_PRIORIDAD: Record<TipoPrioridad, string> = {
   factura: 'Sin la factura no se puede ofertar',
 };
 
+/**
+ * A dónde lleva cada decisión.
+ *
+ * El plan insiste en esto: «cuando el CRM detecte "falta el estudio", debe
+ * mostrar un botón "Preparar estudio". Nunca dejar esa instrucción como simple
+ * texto». Una línea que dice lo que hay que hacer y no lleva a hacerlo obliga a
+ * buscar la pantalla a mano, y lo que pasa es que se hace luego.
+ */
+export const DESTINO_PRIORIDAD: Record<TipoPrioridad, (clienteId: string) => string> = {
+  preaviso: (id) => `/gestor/luz/clientes/${id}`,
+  activacion: () => '/gestor/luz/contratos?estado_contrato=pendiente_activacion',
+  propuesta: (id) => `/gestor/luz/clientes/${id}`,
+  // Aquí está el botón que pide el plan: lleva directo a preparar el estudio.
+  estudio: () => '/gestor/luz/estudios',
+  factura: (id) => `/gestor/luz/clientes/${id}`,
+};
+
 export interface Prioridad {
   clienteId: string;
   cliente: string;
   tipo: TipoPrioridad;
   titulo: string;
+  /** Dónde se resuelve esto. Nunca vacío. */
+  href: string;
   /** El porqué, en una frase, con el número que lo justifica. */
   detalle: string;
   /** Comisión en juego, para que se vea qué hay detrás. */
@@ -117,6 +136,7 @@ export function prioridadesDeHoy(clientes: EntradaCliente[], hoy: string, tope =
     const suyas: Prioridad[] = [];
     const nueva = (tipo: TipoPrioridad, detalle: string, extra = 0) => suyas.push({
       clienteId: c.id, cliente: c.nombre, tipo, titulo: TITULO_PRIORIDAD[tipo],
+      href: DESTINO_PRIORIDAD[tipo](c.id),
       detalle, importe, puntos: PESO[tipo] + extra,
     });
 

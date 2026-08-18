@@ -31,7 +31,7 @@
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
-import type { TarifaAcceso } from './tarifas.ts';
+import type { TarifaAcceso } from './tarifas-base.ts';
 
 /**
  * Precio del término de exceso de potencia para tarifas de 6 periodos, €/kW.

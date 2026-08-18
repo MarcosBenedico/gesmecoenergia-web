@@ -87,6 +87,10 @@ const BLOQUES: Bloque[] = [
       // Seguimiento vive dentro, en la pestaña «Parados»: es la misma cartera
       // mirada por tiempo parado en vez de por etapa.
       { href: '/gestor/luz/pipeline', icono: Target, nombre: 'Pipeline' },
+      // Va aquí y no en Herramientas porque no es una calculadora que se abre
+      // de vez en cuando: es el paso que hay entre tener la factura y tener
+      // una oferta, y ese paso se da casi todos los días.
+      { href: '/gestor/luz/estudios', icono: FileText, nombre: 'Estudios y propuestas' },
     ],
   },
   {

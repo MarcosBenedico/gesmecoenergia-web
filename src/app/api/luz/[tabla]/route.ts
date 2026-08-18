@@ -112,6 +112,14 @@ const TABLAS: Record<string, DefTabla> = {
     orden: { col: 'fecha', asc: false },
     colFecha: 'fecha',
   },
+  estudios: {
+    tabla: 'luz_estudios',
+    select: '*, luz_clientes(nombre), luz_cups(cups, alias_suministro)',
+    columnas: ['cliente_id', 'cups_id', 'pipeline_id', 'origen_id', 'version', 'titulo', 'tarifa', 'estado', 'factura_path', 'datos_factura', 'revision', 'escenarios', 'hipotesis', 'escenario_recomendado', 'recomendacion', 'coste_actual_anual', 'coste_propuesto_anual', 'ahorro_anual', 'ahorro_pct', 'comision_estimada', 'bloqueado', 'fecha_bloqueo', 'pdf_path', 'fecha_generado', 'fecha_enviado', 'fecha_aceptado', 'sustituido_por', 'responsable', 'observaciones'],
+    filtros: ['cliente_id', 'cups_id', 'pipeline_id', 'estado', 'responsable'],
+    buscarEn: 'titulo',
+    orden: { col: 'creado_en', asc: false },
+  },
   proyectos: {
     tabla: 'luz_proyectos',
     select: '*, luz_clientes(nombre)',
@@ -210,7 +218,7 @@ async function recalcularEstadoCliente(supabase: Supa, clienteId: string | null 
  */
 const CON_PAPELERA = new Set([
   'clientes', 'cups', 'fechas', 'pipeline', 'contratos', 'comisiones', 'tareas', 'visitas', 'proyectos',
-  'prospectos',
+  'prospectos', 'estudios',
 ]);
 
 /**
@@ -230,6 +238,7 @@ const CASCADA: Record<string, { tabla: string; campo: string }[]> = {
     { tabla: 'luz_comisiones', campo: 'cliente_id' },
     { tabla: 'luz_tareas', campo: 'cliente_id' },
     { tabla: 'luz_visitas', campo: 'cliente_id' },
+    { tabla: 'luz_estudios', campo: 'cliente_id' },
   ],
   cups: [
     { tabla: 'luz_fechas_criticas', campo: 'cups_id' },
@@ -237,6 +246,7 @@ const CASCADA: Record<string, { tabla: string; campo: string }[]> = {
     { tabla: 'luz_contratos', campo: 'cups_id' },
     { tabla: 'luz_comisiones', campo: 'cups_id' },
     { tabla: 'luz_tareas', campo: 'cups_id' },
+    { tabla: 'luz_estudios', campo: 'cups_id' },
   ],
 };
 
@@ -288,6 +298,9 @@ const VINCULOS_PROTEGIDOS: Record<string, string[]> = {
   tareas: ['cliente_id'],
   fechas: ['cliente_id'],
   cups: ['cliente_id'],
+  // Un estudio sin cliente no es un estudio de nadie, y `origen_id` es lo que
+  // encadena las versiones: perderlo rompe el historial de la propuesta.
+  estudios: ['cliente_id', 'cups_id', 'origen_id'],
 };
 
 /** Quita del update los vínculos que llegan vacíos y ya tienen valor guardado. */

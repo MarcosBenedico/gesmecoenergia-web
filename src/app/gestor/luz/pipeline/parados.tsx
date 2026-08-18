@@ -33,7 +33,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import {
   AlertTriangle, Phone, MessageCircle, Clock, Euro, Search, Check, Loader,
-  Star, SlidersHorizontal, PenLine,
+  Star, SlidersHorizontal, PenLine, FileText,
 } from 'lucide-react';
 import { tokenSesion, useUsuario } from '@/lib/usuario';
 import {
@@ -515,6 +515,15 @@ function Tarjeta({ f, entidades, favorito, abierta, compacta, onAbrir, onFavorit
           {f.ultimaFecha && <span className="font-semibold">{f.ultimaFecha.slice(8, 10)}/{f.ultimaFecha.slice(5, 7)} · </span>}
           {f.ultimoApunte}
         </p>
+      )}
+
+      {/* «Falta el estudio» tiene que ser un botón y no una frase. Es lo que
+          pide el plan y el motivo es práctico: quien lee «hacer el estudio» y
+          tiene que ir a buscar la pantalla lo hace luego, y luego es nunca. */}
+      {f.etapa === 'en_analisis' && (
+        <a href={`/gestor/luz/estudios?cliente=${f.clienteId}`} className={`${btnSecundario} !min-h-[36px] w-full justify-center`}>
+          <FileText className="w-3.5 h-3.5" /> Preparar el estudio
+        </a>
       )}
 
       <div className="flex items-center gap-1.5">
