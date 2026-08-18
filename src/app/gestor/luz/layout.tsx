@@ -53,6 +53,9 @@ const BLOQUES: Bloque[] = [
     pista: 'Qué hay que decidir hoy',
     secciones: [
       { href: '/gestor/luz', icono: LayoutDashboard, nombre: 'Dashboard' },
+      // Va junto al Dashboard porque contestan preguntas distintas del mismo
+      // momento: aquel dice qué decidir hoy, este dónde se escapa el control.
+      { href: '/gestor/luz/control-cartera', icono: ShieldCheck, nombre: 'Control de cartera', soloAdmin: true },
     ],
   },
   {

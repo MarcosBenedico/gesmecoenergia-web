@@ -28,6 +28,7 @@
     "test:plantilla": "node scripts/test-plantilla.mjs",
     "test:informe": "node scripts/test-informe.mjs",
     "test:ficha": "node scripts/test-ficha.mjs",
+    "test:reglas": "node scripts/test-reglas.mjs",
     "test:montaje": "node scripts/test-montaje.mjs",
     "test:clasificacion": "node scripts/test-clasificacion.mjs",
     "test:consumo": "node scripts/test-consumo.mjs",

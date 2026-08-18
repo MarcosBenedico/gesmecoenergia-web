@@ -39,6 +39,7 @@ npm run test:escenarios                    # tests del motor de comparativa (qu�
 npm run test:plantilla                     # tests de la plantilla de consumos (Excel: 12 meses por periodo)
 npm run test:informe                       # tests del estudio técnico y del informe en PDF
 npm run test:ficha                         # tests del estado de cada suministro en la ficha de cliente
+npm run test:reglas                        # tests de la regla madre (ningún expediente abierto sin acción)
 npm run verify:supabase                    # comprueba conexión Supabase
 ```
 
@@ -97,6 +98,14 @@ No hay suite de tests formal; la verificación es `npm run build` + `scripts/smo
       - **El informe no puede contradecirse a sí mismo.** Salieron impresas dos: «no hay ahorro que enseñar» junto a un resumen de 189 € (la alerta la generaba la alternativa que perdía) y «las potencias están bien ajustadas» debajo de una tabla que ponía EN EXCESO en los dos periodos. Estar en exceso no es estar ajustado, es lo contrario. Las dos tienen test con nombre propio.
       - Requiere ejecutar `supabase_estudios.sql`.
       - Cubierto por `npm run test:factura`, `npm run test:escenarios`, `npm run test:plantilla` y `npm run test:informe`.
+    - **Control de cartera** (`gestor/luz/control-cartera`, solo admin, lógica en `src/lib/reglas-cartera.ts`) — la vista de **excepciones** de Dirección: aquí solo sale lo que está mal, con nombre, responsable y **lista abierta de un clic** — un número sin lista detrás no se puede accionar. Está separada del Dashboard a propósito: aquel contesta «qué decido hoy» en cinco líneas, y esto «dónde se escapa el control», que son listas largas por naturaleza.
+      - **La regla madre: ningún expediente abierto sin siguiente acción.** Con responsable, acción concreta y fecha. Lo demás cuelga de ahí.
+      - **`proxima_accion` era un campo de TEXTO LIBRE** en `luz_clientes` y otro en `luz_pipeline`, al lado de `luz_tareas` que tiene responsable, fecha y estado. Dos sitios para lo mismo acaban diciendo cosas distintas: *la ficha pone «llamar mañana» y la tarea real venció hace ocho días*. Nadie miente —uno se actualizó y el otro no— pero quien abre la ficha se queda tranquilo y el cliente se cae. Ahora **manda la tarea** (`proximaAccionReal`), el campo se conserva como nota y **la contradicción se enseña** (`tipo: 'contradiccion'`, la más crítica de todas).
+      - **Una excepción a medias no es una excepción.** «Pospuesto» sin fecha de reactivación es un olvido con nombre bonito; «perdido» sin motivo es una pérdida de la que no se aprende nada. Los dos se avisan.
+      - **El umbral de «parado» depende de la etapa** (`DIAS_SIN_ACTIVIDAD`): tres días en un contrato es mucho —hay una firma esperando— y catorce en captación es normal. Un umbral único o se llena de ruido o se calla donde importa.
+      - **Ninguna regla cambia un dato por su cuenta**: detectan y avisan. El documento lo prohíbe expresamente, y con razón — cambiar una etapa porque pasó el tiempo es inventarse un resultado.
+      - **Todo con reglas, sin IA ni servicios de pago.** Fechas, estados y relaciones. No depende del saldo de ninguna cuenta.
+      - Cubierto por `npm run test:reglas`.
     - **Ficha de cliente** (`gestor/luz/clientes/[id]`, lógica en `src/lib/ficha-suministro.ts`, UI en `resumen.tsx`) — la cabecera metía en la misma caja el nombre, tres etiquetas, el NIF, el selector de clasificación, **cuatro indicadores**, la foto del sitio, ocho campos de contacto y los botones. Y los **suministros salían en quinto lugar**, detrás de Próxima acción, Zona, Visitas y Seguimiento: para saber si un cliente necesitaba algo había que bajar.
       - Ahora el orden es **cabecera → siguiente acción → cuatro indicadores → suministros**, y el resto de la ficha (oportunidades, fechas, contratos, comisiones, historial) baja a un plegable. **No se ha borrado nada**: se ha reubicado.
       - **Una información, un sitio.** El CUPS, la tarifa, la comercializadora y el consumo son del SUMINISTRO y ya no salen agregados arriba. El «consumo anual total del cliente» que había en la cabecera era una cifra que se mira, no una que se usa.
