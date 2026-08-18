@@ -22,6 +22,11 @@ import {
   ES_CLASIFICACION, type Clasificacion,
 } from '@/lib/clasificacion';
 import { ProximaAccion, TareasCliente, HistorialCliente, VisitasYFV, SeguimientoCliente, ZonaCliente, SepararCliente } from './componentes';
+import {
+  CabeceraCliente, BandaSiguienteAccion, ResumenOperativo, ListaSuministros,
+  ActividadReciente, haceCuanto, type LineaActividad,
+} from './resumen';
+import type { EntradaSuministro } from '@/lib/ficha-suministro';
 import { PedirMotivo } from '../../motivo';
 import { AccionesContacto } from '../../acciones-contacto';
 import { FotoSitio } from '../../foto-sitio';
@@ -64,6 +69,63 @@ export default function FichaClienteLuz() {
 
   const consumoTotal = cups.datos.reduce((s, c) => s + (Number(c.consumo_anual_kwh) || 0), 0);
   const tareasAbiertas = tareas.datos.filter((t) => TAREAS_ABIERTAS.includes(t.estado));
+
+  /**
+   * Los suministros en la forma que espera `ficha-suministro.ts`.
+   *
+   * Cada uno se lleva SUS tareas y SUS contratos. Es lo que permite que la
+   * tarjeta diga «falta el DNI del representante» en vez de «pendiente»: sin
+   * saber qué cuelga de cada CUPS, lo único que se puede escribir es un
+   * genérico, y un genérico obliga a investigar.
+   */
+  const suministros: EntradaSuministro[] = cups.datos.map((c) => ({
+    id: c.id,
+    cups: c.cups,
+    alias: c.alias_suministro,
+    direccion: c.direccion_suministro,
+    tarifa: c.tarifa_acceso,
+    comercializadora: c.comercializadora_actual,
+    tipoContrato: c.tipo_contrato,
+    estadoCups: c.estado_cups,
+    consumoAnual: c.consumo_anual_kwh,
+    potencias: c.potencias_kw,
+    fechaFinContrato: c.fecha_fin_contrato,
+    fechaLimitePreaviso: c.fecha_limite_preaviso,
+    fechaFinPermanencia: c.fecha_fin_permanencia,
+    tareas: tareas.datos.filter((t) => t.cups_id === c.id),
+    contratos: contratos.datos.filter((k) => k.cups_id === c.id),
+  }));
+
+  // Las tareas SIN suministro son del cliente. El documento pide poder
+  // distinguirlas: «llamar al gestor» no es de ningún CUPS en concreto.
+  const tareasGenerales = tareas.datos.filter((t) => !t.cups_id);
+
+  /** Lo último que ha pasado, de lo que ya se guarda. */
+  const actividad: LineaActividad[] = [
+    ...contratos.datos
+      .filter((k) => k.fecha_firma)
+      .map((k) => ({
+        icono: 'documento' as const,
+        titulo: 'Contrato firmado',
+        detalle: `${k.comercializadora_final || 'Comercializadora'}${k.luz_cups?.cups ? ` · ${k.luz_cups.cups}` : ''}`,
+        cuando: haceCuanto(k.fecha_firma),
+        autor: k.responsable,
+        orden: k.fecha_firma || '',
+      })),
+    ...tareas.datos
+      .filter((t) => t.estado === 'completada')
+      .map((t) => ({
+        icono: 'cambio' as const,
+        titulo: 'Tarea completada',
+        detalle: t.descripcion || 'Sin descripción',
+        cuando: haceCuanto(t.actualizado_en || t.fecha_limite),
+        autor: t.responsable,
+        orden: t.actualizado_en || t.fecha_limite || '',
+      })),
+  ]
+    .sort((a, b) => String(b.orden).localeCompare(String(a.orden)))
+    .slice(0, 5)
+    .map((l) => ({ icono: l.icono, titulo: l.titulo, detalle: l.detalle, cuando: l.cuando, autor: l.autor }));
 
   // El consumo se interpreta antes de guardar para poder avisar en pantalla:
   // «53.558» escrito a la española valía 53 kWh y el error no se veía hasta la oferta.
@@ -315,21 +377,89 @@ export default function FichaClienteLuz() {
     );
   }
 
+  /** Baja a la sección de suministros sin salir de la ficha. */
+  const irASuministros = () => {
+    document.getElementById('suministros')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <Link href="/gestor/luz/clientes" className={btnSecundario}><ChevronLeft className="w-4 h-4" /> Clientes</Link>
-        {/* Tarea y próxima acción son cosas distintas, y aquí se dice cuál hay */}
-        {tareasAbiertas.length > 0
-          ? <Badge tono="verde">✓ {tareasAbiertas.length} tarea{tareasAbiertas.length === 1 ? '' : 's'} abierta{tareasAbiertas.length === 1 ? '' : 's'}</Badge>
-          : cliente.proxima_accion
-            ? <Badge tono="accent">🎯 Con seguimiento, sin tareas</Badge>
-            : <Badge tono="rojo">⚠️ Sin acción abierta</Badge>}
-      </div>
-
       {msg && <p className="text-xs text-red-400 bg-red-500/10 border border-red-500/30 rounded-lg p-2.5">{msg}</p>}
 
-      {/* Cabecera */}
+      {/* ═══ 1. CABECERA: solo quién es y cómo se le llama ═══
+          Nada de CUPS, tarifa, comercializadora ni consumo: son del
+          suministro, y repetirlos aquí obligaba a leerlo todo para saber de
+          qué se estaba hablando. */}
+      {!editando && (
+        <CabeceraCliente
+          cliente={cliente}
+          onNuevaTarea={() => router.push(`/gestor/luz/tareas?cliente=${clienteId}`)}
+          onAnadirSuministro={() => { setFormCups({ ...CUPS_VACIO }); irASuministros(); }}
+          acciones={
+            <>
+              <button onClick={empezarEdicion} className={btnSecundario}><Pencil className="w-4 h-4" /> Editar</button>
+              <button
+                onClick={() => setBorrandoCliente(true)}
+                className={`${btnSecundario} !text-red-400 hover:!border-red-500/50`}
+                title="Enviar el cliente a la papelera (se puede recuperar)"
+              >
+                <Trash2 className="w-4 h-4" /> Eliminar
+              </button>
+            </>
+          }
+        />
+      )}
+
+      {/* ═══ 2. LA ACCIÓN MANDA SOBRE EL DATO ═══ */}
+      {!editando && (
+        <BandaSiguienteAccion
+          suministros={suministros}
+          tareasGenerales={tareasGenerales}
+          responsable={cliente.responsable}
+          totalTareas={tareasAbiertas.length}
+          onCrearTarea={() => router.push(`/gestor/luz/tareas?cliente=${clienteId}`)}
+          onVerTodas={() => router.push(`/gestor/luz/tareas?cliente=${clienteId}`)}
+        />
+      )}
+
+      {/* ═══ 3. CUATRO INDICADORES, NINGUNO DECORATIVO ═══ */}
+      {!editando && (
+        <ResumenOperativo
+          suministros={suministros}
+          docsPendientes={cups.datos.filter((c) => !c.consumo_anual_kwh).length}
+        />
+      )}
+
+      {/* ═══ 4. LOS SUMINISTROS: el centro real de la ficha ═══
+          Antes salían en quinto lugar, detrás de Próxima acción, Zona,
+          Visitas y Seguimiento: había que bajar para saber si el cliente
+          necesitaba algo. */}
+      {!editando && (
+        <div id="suministros" className="grid lg:grid-cols-3 gap-4 items-start">
+          <div className="lg:col-span-2">
+            <ListaSuministros
+              suministros={suministros}
+              cupsCrudos={cups.datos}
+              onAbrir={(id) => setEditCupsId(editCupsId === id ? null : id)}
+              onAnadir={() => setFormCups(formCups ? null : { ...CUPS_VACIO })}
+            />
+          </div>
+          <ActividadReciente lineas={actividad} />
+        </div>
+      )}
+
+      {/* ═══ 5. EL DETALLE, BAJO DEMANDA ═══
+          Nada de esto se ha borrado: se ha bajado. El documento lo pide así
+          —«el detalle se revela bajo demanda; no se borra»— y de paso deja la
+          primera pantalla contestando a la única pregunta que importa al
+          abrirla: qué hay que hacer con este cliente. */}
+      <details className="group" open={editando}>
+        <summary className="cursor-pointer list-none flex items-center gap-2 text-xs font-bold text-muted hover:text-foreground transition py-2">
+          <ChevronLeft className="w-4 h-4 -rotate-90 group-open:rotate-90 transition" />
+          Ficha completa: datos, oportunidades, fechas, contratos y comisiones
+        </summary>
+
+      <div className="space-y-4 pt-2">
       <Card>
         {!editando ? (
           <div className="space-y-3">
@@ -832,6 +962,8 @@ export default function FichaClienteLuz() {
           onSeparado={() => { cups.recargar(); pipeline.recargar(); clientes.recargar(); }}
         />
       </div>
+      </div>
+      </details>
 
       {borrandoCliente && (
         <PedirMotivo

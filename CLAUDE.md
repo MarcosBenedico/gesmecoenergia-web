@@ -38,6 +38,7 @@ npm run test:factura                       # tests de la revisión de la factura
 npm run test:escenarios                    # tests del motor de comparativa (qué se recomienda y por qué)
 npm run test:plantilla                     # tests de la plantilla de consumos (Excel: 12 meses por periodo)
 npm run test:informe                       # tests del estudio técnico y del informe en PDF
+npm run test:ficha                         # tests del estado de cada suministro en la ficha de cliente
 npm run verify:supabase                    # comprueba conexión Supabase
 ```
 
@@ -96,6 +97,15 @@ No hay suite de tests formal; la verificación es `npm run build` + `scripts/smo
       - **El informe no puede contradecirse a sí mismo.** Salieron impresas dos: «no hay ahorro que enseñar» junto a un resumen de 189 € (la alerta la generaba la alternativa que perdía) y «las potencias están bien ajustadas» debajo de una tabla que ponía EN EXCESO en los dos periodos. Estar en exceso no es estar ajustado, es lo contrario. Las dos tienen test con nombre propio.
       - Requiere ejecutar `supabase_estudios.sql`.
       - Cubierto por `npm run test:factura`, `npm run test:escenarios`, `npm run test:plantilla` y `npm run test:informe`.
+    - **Ficha de cliente** (`gestor/luz/clientes/[id]`, lógica en `src/lib/ficha-suministro.ts`, UI en `resumen.tsx`) — la cabecera metía en la misma caja el nombre, tres etiquetas, el NIF, el selector de clasificación, **cuatro indicadores**, la foto del sitio, ocho campos de contacto y los botones. Y los **suministros salían en quinto lugar**, detrás de Próxima acción, Zona, Visitas y Seguimiento: para saber si un cliente necesitaba algo había que bajar.
+      - Ahora el orden es **cabecera → siguiente acción → cuatro indicadores → suministros**, y el resto de la ficha (oportunidades, fechas, contratos, comisiones, historial) baja a un plegable. **No se ha borrado nada**: se ha reubicado.
+      - **Una información, un sitio.** El CUPS, la tarifa, la comercializadora y el consumo son del SUMINISTRO y ya no salen agregados arriba. El «consumo anual total del cliente» que había en la cabecera era una cifra que se mira, no una que se usa.
+      - **La fase, la alerta y la próxima acción son TRES cosas distintas** (`estadoDeSuministro`). Un suministro puede estar en «pendiente de firma» y tener alerta «lleva 5 días sin firmar» sin que eso cambie su fase. Antes, un problema o cambiaba el estado del expediente —y entonces el embudo mentía— o no se veía por ningún lado.
+      - **NO hay un catálogo de fases nuevo.** El documento de rediseño proponía nueve; son casi una a una las de `etapas.ts`. Crear un segundo vocabulario sería el fallo que `etapas.ts` vino a arreglar, así que la fase sale de allí y aquí se añade solo lo que de verdad faltaba: alerta, bloqueo y prioridad.
+      - **El bloqueo dice QUÉ falta, nunca «pendiente»**: «falta el consumo anual, sin él no se puede calcular el ahorro» se resuelve; «pendiente» hay que investigarlo.
+      - **Rojo solo para bloqueo, vencimiento o riesgo real.** Una tarea futura no es roja. Y cada nivel de prioridad lleva **texto obligatorio** además del color: con sol en la pantalla del móvil, el borde de color no se ve.
+      - **El preaviso se vigila aunque el suministro esté ACTIVO.** Al principio lo silenciaba con el resto de lo cerrado y es justo al revés: un cliente que ya es nuestro y se le acaba el contrato es precisamente quien tiene ventana de preaviso, y si se pasa queda bloqueado un año.
+      - Cubierto por `npm run test:ficha`.
     - **Mi Día** (`gestor/luz/mi-dia`, lógica en `src/lib/agenda.ts`) — la única pantalla de trabajo de David, y la única lista del equipo. Sustituye en el menú a «Tareas» + «Fechas Críticas» (esas páginas siguen existiendo para crear y editar en detalle) y **absorbió la Agenda**, que era una entrada aparte.
       - **Mi Día y la Agenda llamaban a la MISMA función** (`construirAgenda`) sobre los mismos registros: Mi Día era la Agenda filtrada por «yo» y por «hoy». No se parecían — una era un subconjunto de la otra —, y por eso se mezclaban en la cabeza de quien las usaba. Ahora son tres vistas de una sola pantalla, y `/gestor/luz/agenda` redirige para no romper enlaces guardados en el móvil.
       - **HOY** (por defecto) · qué hago ahora. Atrasado y de hoy van juntos: para quien está en la calle son lo mismo. Los días de calle sale el aviso de a qué zona toca ir, que lleva a la vista de al lado.
