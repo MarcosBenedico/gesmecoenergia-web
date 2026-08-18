@@ -6,117 +6,157 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard, Users, Plug, Target, FileSignature,
-  Euro, ArrowDownUp, Settings, ChevronLeft, ChevronDown, Zap, UserCog, ShieldCheck, Route, History, Sun, UserPlus, Radar, Inbox, BookOpen, Calculator, FileText, TrendingUp, Trash2, Activity, ClipboardList, Wand2, Menu, X,
+  Euro, ArrowDownUp, Settings, ChevronLeft, ChevronDown, Zap, UserCog, ShieldCheck, Route, History, Sun, Radar, Inbox, BookOpen, Calculator, FileText, TrendingUp, Trash2, Activity, ClipboardList, Wand2, Menu, X,
 } from 'lucide-react';
 import { GuardiaModulo } from '@/components/guardia-modulo';
 import { useUsuario } from '@/lib/usuario';
+import { BotonCapturar } from './boton-capturar';
 
 /**
- * Menú por FORMA DE TRABAJAR, no por tipo de dato.
+ * Menú por RESPONSABILIDAD, según el plan de optimización (GL-02).
  *
- *  · Calle       — lo que usa David: capta, visita y mueve oportunidades.
- *  · Oficina     — lo que usa Nicola: mete el dato, lo completa y tramita.
- *  · Dirección   — lo que Marcos mira cada día. Poco, para que se mire.
- *  · Herramientas— de usar cuando toca, no a diario. Nace plegado.
- *  · Ajustes     — se tocan una vez y se olvidan. Nace plegado.
+ *  · Inicio     — qué hay que decidir hoy.
+ *  · Trabajo    — lo mío de hoy y lo que está bloqueado.
+ *  · Cartera    — quién es cada uno y qué suministros tiene.
+ *  · Comercial  — vender y hacer seguimiento.
+ *  · Operación  — firma, envío, validación y activación.
+ *  · Control    — cobro, rendimiento y trazabilidad. Nace plegado.
+ *  · Herramientas y Ajustes — de usar cuando toca. Nacen plegados.
  *
- * POR QUÉ HAY CINCO BLOQUES Y NO TRES: con tres, Dirección acumulaba doce
- * entradas y Oficina diez, y en la auditoría se veía el resultado — de todo el
- * trabajo real, el 73 % cae en clientes y tareas, y había pantallas con cero
- * uso ocupando sitio en el menú de quien más prisa tiene.
+ * OCHO DESTINOS VISIBLES, QUE ES EL TOPE QUE FIJA EL PLAN. Antes había 26 en
+ * cinco bloques, y la auditoría enseñaba por qué sobraban: el 73 % del trabajo
+ * real cae en clientes y tareas, y había pantallas con cero uso ocupando sitio
+ * en el menú de quien más prisa tiene.
  *
- * La regla al añadir algo aquí: si no se abre casi todos los días, va a
- * Herramientas. Una entrada de menú que nadie usa no cuesta servidor, cuesta
- * atención, y la paga cada día quien sí tiene trabajo.
+ * Nada desaparece: lo que no se abre a diario baja a un bloque plegado. Una
+ * entrada de menú que nadie usa no cuesta servidor, cuesta atención, y la paga
+ * cada día quien sí tiene trabajo.
  *
- * Todos ven todos los bloques (nadie se queda sin poder consultar algo), y cada
- * uno pliega los que no son suyos: su elección se recuerda en su navegador.
+ * DOS DESVIACIONES DEL PLAN, Y SU MOTIVO. El documento está escrito para
+ * Dirección, y aplicarlo al pie de la letra le arreglaría el menú a Marcos
+ * rompiéndoselo a los otros dos:
+ *  · «Rutas de visitas» se queda visible aunque sume un noveno destino para
+ *    quien no es comercial: es la herramienta diaria de David.
+ *  · «Captura rápida» y «Alta guiada» salen del menú pero NO se esconden en un
+ *    plegable: pasan al botón global «+ Capturar», que es lo que pide el plan
+ *    y además las deja a un toque para Nicola y para David.
+ *
+ * Cada uno pliega los bloques que no son suyos y su elección se recuerda.
  */
 interface Seccion { href: string; icono: typeof LayoutDashboard; nombre: string; soloAdmin?: boolean }
-interface Bloque { id: string; titulo: string; pista: string; secciones: Seccion[] }
+interface Bloque { id: string; titulo: string; pista: string; secciones: Seccion[]; plegadoPorDefecto?: boolean }
 
 const BLOQUES: Bloque[] = [
   {
-    id: 'calle',
-    titulo: 'Calle',
-    pista: 'Visitar, mover y cerrar',
+    id: 'inicio',
+    titulo: 'Inicio',
+    pista: 'Qué hay que decidir hoy',
+    secciones: [
+      { href: '/gestor/luz', icono: LayoutDashboard, nombre: 'Dashboard' },
+    ],
+  },
+  {
+    id: 'trabajo',
+    titulo: 'Trabajo',
+    pista: 'Lo mío de hoy y lo que está bloqueado',
     secciones: [
       // Mi Día se comió la Agenda: eran la misma lista con otro recorte, y
       // tener las dos en el menú era lo que hacía que se mezclaran.
       { href: '/gestor/luz/mi-dia', icono: Sun, nombre: 'Mi Día' },
-      { href: '/gestor/luz/rutas', icono: Route, nombre: 'Rutas de visitas' },
-      { href: '/gestor/luz/pipeline', icono: Target, nombre: 'Pipeline Energético' },
-    ],
-  },
-  {
-    // El bloque de Nicola solo lleva lo que usa para su trabajo: meter el dato,
-    // completarlo y tramitarlo. Las herramientas de precio y los generadores de
-    // documentos se fueron a Herramientas, que son de Marcos y las abre de
-    // Pascuas a Ramos. Cada entrada que sobra aquí es atención que se le quita
-    // a lo que sí hace todos los días.
-    id: 'oficina',
-    titulo: 'Oficina',
-    pista: 'Meter el dato, completarlo y tramitar',
-    secciones: [
       { href: '/gestor/luz/bandeja', icono: Inbox, nombre: 'Bandeja' },
-      { href: '/gestor/luz/rellenar', icono: Wand2, nombre: 'Rellenar en tanda' },
-      { href: '/gestor/luz/captura', icono: Zap, nombre: 'Captura rápida' },
-      { href: '/gestor/luz/alta', icono: UserPlus, nombre: 'Alta guiada de cliente' },
-      { href: '/gestor/luz/clientes', icono: Users, nombre: 'Clientes Energía' },
-      { href: '/gestor/luz/cups', icono: Plug, nombre: 'CUPS / Suministros' },
-      { href: '/gestor/luz/contratos', icono: FileSignature, nombre: 'Contratos y Activaciones' },
-      { href: '/gestor/luz/importar', icono: ArrowDownUp, nombre: 'Importación / Exportación' },
-      { href: '/gestor/luz/guia', icono: BookOpen, nombre: 'Guía rápida' },
+      // Rutas se queda visible aunque el plan liste ocho destinos pensando en
+      // Dirección: es la herramienta diaria de David, y esconderla en un
+      // plegable le costaría a él lo que el plan quiere ahorrarle a Marcos.
+      { href: '/gestor/luz/rutas', icono: Route, nombre: 'Rutas de visitas' },
     ],
   },
   {
-    // Lo que Marcos mira a diario. Nada más: si aquí caben doce cosas, no se
-    // mira ninguna.
-    id: 'direccion',
-    titulo: 'Dirección',
-    pista: 'Lo que hay que mirar cada día',
+    id: 'cartera',
+    titulo: 'Cartera',
+    pista: 'Quién es cada uno y qué suministros tiene',
     secciones: [
-      { href: '/gestor/luz', icono: LayoutDashboard, nombre: 'Dashboard Luz' },
+      { href: '/gestor/luz/clientes', icono: Users, nombre: 'Clientes' },
+      { href: '/gestor/luz/cups', icono: Plug, nombre: 'Suministros' },
+    ],
+  },
+  {
+    id: 'comercial',
+    titulo: 'Comercial',
+    pista: 'Vender y hacer seguimiento',
+    secciones: [
+      // Seguimiento vive dentro, en la pestaña «Parados»: es la misma cartera
+      // mirada por tiempo parado en vez de por etapa.
+      { href: '/gestor/luz/pipeline', icono: Target, nombre: 'Pipeline' },
+    ],
+  },
+  {
+    id: 'operacion',
+    titulo: 'Operación',
+    pista: 'Firma, envío, validación y activación',
+    secciones: [
+      { href: '/gestor/luz/contratos', icono: FileSignature, nombre: 'Contratos y activaciones' },
+    ],
+  },
+  {
+    // Riesgo, cobro, rendimiento y trazabilidad. Nace plegado: Marcos lo mira
+    // cuando decide, no mientras trabaja, y a David y Nicola no les toca.
+    id: 'control',
+    titulo: 'Control',
+    pista: 'Cobro, rendimiento y trazabilidad',
+    plegadoPorDefecto: true,
+    secciones: [
+      { href: '/gestor/luz/comisiones', icono: Euro, nombre: 'Comisiones' },
       { href: '/gestor/luz/parte', icono: ClipboardList, nombre: 'Parte del día', soloAdmin: true },
       { href: '/gestor/luz/consumo', icono: Activity, nombre: 'Consumo real', soloAdmin: true },
-      { href: '/gestor/luz/comisiones', icono: Euro, nombre: 'Comisiones' },
-      { href: '/gestor/luz/equipo', icono: UserCog, nombre: 'Equipo y Logros' },
+      { href: '/gestor/luz/equipo', icono: UserCog, nombre: 'Equipo y logros' },
+      { href: '/gestor/luz/oportunidades', icono: Radar, nombre: 'Mapa de oportunidades', soloAdmin: true },
+      { href: '/gestor/luz/importar', icono: ArrowDownUp, nombre: 'Importación / Exportación' },
     ],
   },
   {
-    // De usar cuando toca, no cada día. Plegado por defecto.
     id: 'herramientas',
     titulo: 'Herramientas',
     pista: 'De usar cuando toca',
+    plegadoPorDefecto: true,
     secciones: [
-      { href: '/gestor/luz/oportunidades', icono: Radar, nombre: 'Mapa de oportunidades', soloAdmin: true },
       { href: '/gestor/luz/fv', icono: Calculator, nombre: 'Calculadora FV', soloAdmin: true },
-      { href: '/gestor/luz/tarifas', icono: TrendingUp, nombre: 'Tarifas y Comparador', soloAdmin: true },
+      { href: '/gestor/luz/tarifas', icono: TrendingUp, nombre: 'Tarifas y comparador', soloAdmin: true },
       { href: '/gestor/luz/proyectos', icono: FileText, nombre: 'Proyectos de ahorro', soloAdmin: true },
+      // El plan la baja a herramienta secundaria: es para consultar, no un
+      // destino al que se va a trabajar.
       { href: '/gestor/luz/mercado', icono: TrendingUp, nombre: 'Precio de la luz', soloAdmin: true },
+      // Pendiente de GL-10: el plan pide que sea una acción masiva dentro de
+      // Clientes, CUPS y Contratos, no una pantalla propia.
+      { href: '/gestor/luz/rellenar', icono: Wand2, nombre: 'Rellenar en tanda' },
+      { href: '/gestor/luz/guia', icono: BookOpen, nombre: 'Guía rápida' },
     ],
   },
   {
     id: 'ajustes',
     titulo: 'Ajustes',
     pista: 'Se tocan una vez y se olvidan',
+    plegadoPorDefecto: true,
     secciones: [
-      { href: '/gestor/luz/control', icono: History, nombre: 'Control General', soloAdmin: true },
-      { href: '/gestor/luz/usuarios', icono: ShieldCheck, nombre: 'Usuarios y Permisos', soloAdmin: true },
+      { href: '/gestor/luz/control', icono: History, nombre: 'Control general', soloAdmin: true },
+      { href: '/gestor/luz/usuarios', icono: ShieldCheck, nombre: 'Usuarios y permisos', soloAdmin: true },
       { href: '/gestor/luz/configuracion', icono: Settings, nombre: 'Configuración', soloAdmin: true },
       { href: '/gestor/luz/papelera', icono: Trash2, nombre: 'Papelera', soloAdmin: true },
     ],
   },
 ];
 
-const CLAVE_PLEGADOS = 'gesmeco:luz:bloques-plegados';
+// La clave lleva versión: al reagrupar el menú (GL-02) los identificadores de
+// bloque cambiaron, así que la preferencia guardada apuntaba a bloques que ya
+// no existen y habría dejado a todo el mundo con Control desplegado. Subir la
+// versión da los valores nuevos una vez y a partir de ahí manda cada uno.
+const CLAVE_PLEGADOS = 'gesmeco:luz:bloques-plegados:v2';
 
 /**
- * Lo que se abre la primera vez. Herramientas y Ajustes nacen plegados: no son
- * trabajo diario de nadie, y un menú que se lee de un vistazo vale más que uno
- * que lo enseña todo.
+ * Lo que nace plegado. Sale de los propios bloques para que no haya dos sitios
+ * que decidan lo mismo: si un bloque se marca como plegado arriba, aquí se
+ * respeta solo.
  */
-const PLEGADOS_POR_DEFECTO = ['herramientas', 'ajustes'];
+const PLEGADOS_POR_DEFECTO = BLOQUES.filter((b) => b.plegadoPorDefecto).map((b) => b.id);
 
 export default function LuzLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
@@ -366,6 +406,9 @@ export default function LuzLayout({ children }: { children: ReactNode }) {
           <GuardiaModulo modulo="luz" nombre="Gestión Luz · Cartera Energética">{children}</GuardiaModulo>
         </main>
       </div>
+      {/* Meter algo nuevo se hace EN MEDIO de otra cosa: por eso va flotante y
+          no en el menú, que es lo que el plan quiere despejar. */}
+      <BotonCapturar />
     </div>
   );
 }
