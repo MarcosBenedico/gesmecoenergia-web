@@ -3,7 +3,7 @@
 import { Suspense, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { FileSignature, LayoutGrid, Plus, Table2, X, Trash2 } from 'lucide-react';
+import { FileSignature, LayoutGrid, Plus, Table2, X, Trash2, Radar } from 'lucide-react';
 import {
   LuzOportunidad, LuzCliente, ESTADOS_PIPELINE, ESTADO_PIPELINE_LABEL, TIPOS_OPORTUNIDAD, TIPO_OPORTUNIDAD_LABEL,
   PIPELINE_CERRADO, ResponsableEquipo, responsableSugerido, MOTIVOS_PERDIDA, MOTIVOS_ELIMINACION,
@@ -11,6 +11,7 @@ import {
 } from '@/lib/luz';
 import { BotonDescarga, Card, Kpi, Badge, BadgePrioridad, EstadoCarga, useListaLuz, guardarLuz, inputCls, labelCls, btnPrimario, btnSecundario, SelectorResponsable } from '../ui';
 import { TableroPipeline } from './tablero';
+import { VistaParados } from './parados';
 import { PedirMotivo } from '../motivo';
 import { Consejo } from '../consejo';
 
@@ -24,7 +25,15 @@ function PipelineContenido() {
   const [fTipo, setFTipo] = useState('');
   const [fEspecial, setFEspecial] = useState(sp.get('alerta') || '');
   const [msg, setMsg] = useState('');
-  const [vista, setVista] = useState<'tablero' | 'tabla'>('tablero');
+  // «Parados» es la misma cartera mirada por tiempo sin moverse, no otra
+  // pantalla: por eso es una pestaña más y no una entrada de menú.
+  //
+  // Se lee de la URL porque /gestor/luz/seguimiento redirige aquí con
+  // ?vista=parados: quien tuviera guardado el enlace antiguo tiene que
+  // aterrizar en lo que buscaba, no en el tablero.
+  const [vista, setVista] = useState<'tablero' | 'tabla' | 'parados'>(
+    sp.get('vista') === 'parados' ? 'parados' : 'tablero'
+  );
   const [mostrarForm, setMostrarForm] = useState(false);
   // Eliminar una oportunidad creada por error: va a la papelera, con motivo
   const [borrandoOp, setBorrandoOp] = useState<LuzOportunidad | null>(null);
@@ -162,6 +171,12 @@ function PipelineContenido() {
             >
               <Table2 className="w-3.5 h-3.5" /> Tabla
             </button>
+            <button
+              onClick={() => setVista('parados')}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition ${vista === 'parados' ? 'bg-accent text-white' : 'text-muted hover:text-foreground'}`}
+            >
+              <Radar className="w-3.5 h-3.5" /> Parados
+            </button>
           </div>
           <BotonDescarga href={`/api/luz/exportar?tipo=pipeline${fEstado ? `&estado=${fEstado}` : ''}${fResp ? `&responsable=${encodeURIComponent(fResp)}` : ''}`} className={btnSecundario}>Exportar</BotonDescarga>
           <button onClick={() => setMostrarForm((v) => !v)} className={btnPrimario}>
@@ -245,6 +260,8 @@ function PipelineContenido() {
       <EstadoCarga cargando={cargando} error={error} faltaMigracion={faltaMigracion}
         vacio={!cargando && !error && vista === 'tabla' && filtradas.length === 0}
         textoVacio="Sin oportunidades con este filtro." sqlFile="supabase_luz.sql" />
+
+      {vista === 'parados' && <VistaParados />}
 
       {vista === 'tablero' && !cargando && !error && !faltaMigracion && (
         <TableroPipeline
