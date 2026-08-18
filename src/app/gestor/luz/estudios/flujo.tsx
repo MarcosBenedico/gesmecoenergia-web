@@ -26,9 +26,9 @@
 import { useCallback, useMemo, useState } from 'react';
 import {
   AlertTriangle, ArrowLeft, ArrowRight, Camera, Check, Download, FileUp, Loader,
-  Lock, PenLine, Save, Table, X,
+  FileDown, Lock, PenLine, Save, Table, X,
 } from 'lucide-react';
-import { tokenSesion } from '@/lib/usuario';
+import { tokenSesion, useUsuario } from '@/lib/usuario';
 import { fmtEur, type LuzCliente, type LuzCups } from '@/lib/luz';
 import {
   revisarFactura, porQueNoSePuedeOfertar, ORIGEN_LABEL,
@@ -37,6 +37,8 @@ import {
 import { TARIFA_INFO, type TarifaAcceso } from '@/lib/tarifas-base';
 import { prepararFactura } from '@/lib/factura-archivo';
 import { type LecturaPlantilla } from '@/lib/plantilla-consumos';
+import { construirEstudio } from '@/lib/estudio-completo';
+import { descargarInformePdf } from '@/lib/estudio-pdf';
 import { compararConComercializadoras } from '@/lib/tarifas';
 import {
   evaluarEscenarios, recomendar, alertasDeLaComparativa, resumenComparativa,
@@ -98,6 +100,10 @@ export function FlujoEstudio({
   clientePorDefecto?: string | null;
 }) {
   const cups = useListaLuz<LuzCups>('cups');
+  const { perfil } = useUsuario();
+  // Quien firma el informe. Sale en el pie del PDF: un estudio sin nombre
+  // detrás es un papel, y un papel no lo defiende nadie.
+  const perfilNombre = perfil?.nombre || null;
 
   const [paso, setPaso] = useState(estudio ? 1 : 0);
   const [id, setId] = useState<string | null>(estudio?.id ?? null);
@@ -325,9 +331,43 @@ export function FlujoEstudio({
     }
   }, [tarifa, consumos, potencias, precioE, precioP, ctx, frase]);
 
+  const [bajandoPdf, setBajandoPdf] = useState(false);
+
   const rec = useMemo(() => (comparado ? recomendar(comparado) : null), [comparado]);
   const alertas = useMemo(() => (comparado ? alertasDeLaComparativa(comparado) : []), [comparado]);
   const resumen = useMemo(() => (rec ? resumenComparativa(ctx, rec) : null), [ctx, rec]);
+
+  /**
+   * El informe completo en PDF.
+   *
+   * Necesita la plantilla: el mes a mes, los maxímetros, la reactiva y los
+   * excedentes solo existen si se ha subido. Con una factura suelta se puede
+   * comparar, pero no hay informe técnico que escribir — y sacar uno con
+   * medio contenido en blanco es peor que no sacarlo.
+   */
+  const bajarPdf = useCallback(async () => {
+    if (!plantilla || !rec || !comparado) return;
+    setBajandoPdf(true);
+    setMsg('');
+    try {
+      const estudioTecnico = construirEstudio(plantilla);
+      if (!estudioTecnico) { setMsg('Faltan datos para montar el informe.'); return; }
+      await descargarInformePdf({
+        lectura: plantilla,
+        estudio: estudioTecnico,
+        escenarios: comparado,
+        recomendacion: rec,
+        alertas,
+        cliente: clientes.find((c) => c.id === clienteId)?.nombre || plantilla.suministro.titular,
+        responsable: perfilNombre,
+        fecha: hoyISO(),
+      });
+    } catch (e) {
+      setMsg(`No se ha podido generar el PDF: ${e instanceof Error ? e.message : 'error desconocido'}`);
+    } finally {
+      setBajandoPdf(false);
+    }
+  }, [plantilla, rec, comparado, alertas, clientes, clienteId, perfilNombre]);
 
   // ── Guardar ──────────────────────────────────────────────────────────────
   const guardar = useCallback(async (opciones: { bloquear?: boolean; estado?: string } = {}) => {
@@ -740,6 +780,15 @@ export function FlujoEstudio({
           </Card>
 
           <div className="flex items-center gap-3 flex-wrap">
+            <button
+              onClick={bajarPdf}
+              disabled={!plantilla || bajandoPdf || !rec?.elegido}
+              className={`${btnPrimario} disabled:opacity-50`}
+              title={plantilla ? 'Informe completo en PDF' : 'Hace falta la plantilla de consumos'}
+            >
+              {bajandoPdf ? <Loader className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />}
+              Descargar informe en PDF
+            </button>
             <button onClick={() => guardar()} disabled={guardando} className={`${btnSecundario} disabled:opacity-50`}>
               <Save className="w-4 h-4" /> Guardar sin enviar
             </button>
@@ -755,6 +804,13 @@ export function FlujoEstudio({
             Congelar los precios es lo que hace que, dentro de dos meses, esta propuesta siga
             diciendo lo mismo que el papel que tiene el cliente.
           </p>
+          {!plantilla && (
+            <p className="text-[11px] text-amber-300">
+              El informe en PDF necesita la plantilla de consumos: el mes a mes, los maxímetros, la
+              reactiva y los excedentes solo salen de ahí. Con una factura suelta se puede comparar,
+              pero no hay informe técnico que escribir.
+            </p>
+          )}
         </>
       )}
 

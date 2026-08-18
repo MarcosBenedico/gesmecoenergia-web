@@ -157,7 +157,7 @@ export interface ColumnaMes {
   clave: string;
   titulo: string;
   /** Grupo al que pertenece, para la cabecera de dos pisos. */
-  grupo: 'mes' | 'energia' | 'potencia' | 'maximetro';
+  grupo: 'mes' | 'energia' | 'potencia' | 'maximetro' | 'reactiva' | 'excedentes';
   ancho: number;
 }
 
@@ -184,6 +184,12 @@ export function columnasDeConsumo(tarifa: TarifaAcceso): ColumnaMes[] {
   info.periodosPotencia.forEach((p, i) => {
     cols.push({ clave: `m${i}`, titulo: p.replace(' · ', ' '), grupo: 'maximetro', ancho: 13 });
   });
+  // Reactiva y excedentes van al final y en una sola columna cada uno: la
+  // reactiva se factura sobre el total del periodo punta y los excedentes son
+  // lo que la instalación vierte a la red. No los tiene todo el mundo, pero
+  // quien los tiene los tiene en la factura, y sin la casilla no se piden.
+  cols.push({ clave: 'reactiva', titulo: 'Reactiva (kVArh)', grupo: 'reactiva', ancho: 16 });
+  cols.push({ clave: 'excedentes', titulo: 'Excedentes (kWh)', grupo: 'excedentes', ancho: 17 });
   return cols;
 }
 
@@ -218,6 +224,10 @@ export interface FilaMes {
   energia: number[];
   potenciaContratada: number[];
   maximetro: number[];
+  /** Energía reactiva facturada, kVArh. 0 si no viene en la factura. */
+  reactiva: number;
+  /** Excedentes vertidos a la red, kWh. Solo si ya tiene autoconsumo. */
+  excedentes: number;
 }
 
 export interface LecturaPlantilla {
@@ -235,6 +245,10 @@ export interface LecturaPlantilla {
   potencias: number[];
   /** Máximo del maxímetro por periodo en todo el año. */
   maximetros: number[];
+  /** Reactiva del año, kVArh. Anualizada por días como el consumo. */
+  reactivaAnual: number;
+  /** Excedentes vertidos al año, kWh. Cero si no tiene autoconsumo. */
+  excedentesAnual: number;
   /**
    * Periodos donde el maxímetro se pasa de la potencia contratada (1..n).
    *
@@ -352,6 +366,8 @@ export function interpretarPlantilla(hojas: {
       energia,
       potenciaContratada: lee(2 + nE, nP, 'decimal'),
       maximetro: lee(2 + nE + nP, nP, 'decimal'),
+      reactiva: leerNumero(f[2 + nE + nP * 2], 'cantidad').valor,
+      excedentes: leerNumero(f[3 + nE + nP * 2], 'cantidad').valor,
     });
   }
 
@@ -392,6 +408,12 @@ export function interpretarPlantilla(hojas: {
   }
 
   const consumoAnual = consumoAnualPorPeriodo.reduce((s, v) => s + v, 0);
+
+  // Reactiva y excedentes se anualizan igual que el consumo: por días. Si no
+  // hay meses o no hay días, se quedan a cero en vez de dar infinito.
+  const factorAnual = diasTotales >= DIAS_MINIMOS ? DIAS_ANIO / diasTotales : 0;
+  const reactivaAnual = meses.reduce((s, m) => s + m.reactiva, 0) * factorAnual;
+  const excedentesAnual = meses.reduce((s, m) => s + m.excedentes, 0) * factorAnual;
 
   /**
    * COMPROBACIÓN FÍSICA: un suministro no puede consumir más de lo que da su
@@ -486,6 +508,8 @@ export function interpretarPlantilla(hojas: {
     consumosMes: consumoAnualPorPeriodo.map((v) => v / 12),
     potencias,
     maximetros,
+    reactivaAnual,
+    excedentesAnual,
     periodosEnExceso,
     preciosEnergia,
     preciosPotencia,

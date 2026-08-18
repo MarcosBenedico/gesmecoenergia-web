@@ -387,8 +387,22 @@ export function recomendar(evaluados: EscenarioEvaluado[]): Recomendacion {
 export function alertasDeLaComparativa(evaluados: EscenarioEvaluado[]): Alerta[] {
   const vistas = new Set<string>();
   const salida: Alerta[] = [];
+
+  /**
+   * «No hay ahorro que enseñar» es de UN escenario, no de la comparativa.
+   *
+   * Se coló entera: la alerta la generaba la tercera alternativa —la que salía
+   * perdiendo— y se pintaba junto a un resumen que decía «ahorro 189 €». El
+   * informe se contradecía a sí mismo en la misma pantalla, que es la forma
+   * más rápida de que un cliente deje de creerse el resto.
+   *
+   * Solo tiene sentido si NINGUNA alternativa mejora.
+   */
+  const algunaAhorra = evaluados.some((e) => e.ahorroAnual > 0);
+
   for (const e of evaluados) {
     for (const a of e.alertas) {
+      if (a.tipo === 'sin_ahorro' && algunaAhorra) continue;
       const clave = `${a.tipo}|${a.texto}`;
       if (vistas.has(clave)) continue;
       vistas.add(clave);

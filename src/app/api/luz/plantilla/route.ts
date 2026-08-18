@@ -109,6 +109,8 @@ function construirPlantilla(tarifa: TarifaAcceso): ExcelJS.Workbook {
     ['⚠', `Esta plantilla es de ${info.nombre}: ${nE} periodos de energía y ${nP} de potencia. Si el suministro es de otra tarifa, descarga la plantilla que le corresponda — rellenar tres periodos de los seis que hay deja el ahorro calculado al doble de lo real.`],
     ['⚠', 'Los decimales pueden ir con coma o con punto, da igual. Lo que NO hay que hacer es escribir el punto de los miles en los kWh: «53.558» se entiende, pero «3.42» es ambiguo y saldrá marcado para revisar.'],
     ['⚠', 'Los precios de potencia van en €/kW y DÍA. Si en la factura vienen en €/kW y año, divídelos entre 365.'],
+    ['5', 'MAXÍMETRO: la potencia máxima que registró el contador ese mes. Es lo que permite decir si sobra o falta potencia contratada sin adivinar. Si la factura no lo trae, déjalo en blanco.'],
+    ['6', 'REACTIVA y EXCEDENTES: solo si aparecen en la factura. La reactiva se penaliza a partir de cierto punto y los excedentes son lo que ya se vierte a la red si hay placas.'],
     ['', ''],
     ['', 'Las casillas con fondo crema y línea naranja son las que hay que rellenar. El resto no se toca.'],
     ['', 'No hace falta rellenarlo todo: lo que falte se avisa al subirlo, y se dice si algo impide calcular o solo conviene revisarlo.'],
@@ -170,6 +172,7 @@ function construirPlantilla(tarifa: TarifaAcceso): ExcelJS.Workbook {
     ['ENERGÍA CONSUMIDA (kWh)', nE],
     ['POTENCIA CONTRATADA (kW)', nP],
     ['MAXÍMETRO (kW)', nP],
+    ['OTROS CONCEPTOS', 2],
   ];
   let c = 1;
   for (const [nombre, ancho] of grupos) {

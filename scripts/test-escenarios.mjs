@@ -255,6 +255,26 @@ titulo('Las alertas del contexto no se repiten una vez por escenario');
   comprueba('lo que toca al ahorro va primero', todas[0].afectaAlAhorro === true);
   comprueba('sin contexto problemático no hay alertas',
     alertasDeLaComparativa(evaluarEscenarios(CTX, [esc({ id: 'a' })], HOY)).length === 0);
+
+  // Salió en pantalla: la comparativa decía «ahorro 189 €» arriba y «no hay
+  // ahorro que enseñar» abajo, porque la alerta la generaba la alternativa que
+  // perdía. Un informe que se contradice a sí mismo no se cree nadie.
+  const mezcla = evaluarEscenarios(CTX, [
+    esc({ id: 'buena', pe: [0.14, 0.13, 0.11] }),
+    esc({ id: 'mala', pe: [0.40, 0.40, 0.40] }),
+  ], HOY);
+  comprueba('la alternativa que pierde SÍ lleva su aviso',
+    mezcla.some((e) => e.alertas.some((a) => a.tipo === 'sin_ahorro')));
+  comprueba('pero NO sale como aviso de toda la comparativa si alguna ahorra',
+    !alertasDeLaComparativa(mezcla).some((a) => a.tipo === 'sin_ahorro'),
+    JSON.stringify(alertasDeLaComparativa(mezcla)));
+
+  const ningunaAhorra = evaluarEscenarios(CTX, [
+    esc({ id: 'mala1', pe: [0.40, 0.40, 0.40] }),
+    esc({ id: 'mala2', pe: [0.50, 0.50, 0.50] }),
+  ], HOY);
+  comprueba('si no ahorra ninguna, ahí sí se dice',
+    alertasDeLaComparativa(ningunaAhorra).some((a) => a.tipo === 'sin_ahorro'));
 }
 
 titulo('El resumen de portada dice lo mismo que la pantalla');
