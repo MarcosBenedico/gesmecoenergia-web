@@ -31,6 +31,9 @@ npm run test:consumo                       # tests de cómo se lee un consumo es
 npm run test:integridad                    # tests de integridad: alta sin duplicados y vínculos que no se rompen
 npm run test:agenda-calle                  # tests de la agenda por zonas (vista Calle)
 npm run test:rutas                         # tests del plan de rutas y del montador de rutas
+npm run test:etapas                        # tests del vocabulario único de estados (etapas.ts)
+npm run test:seguimiento                   # tests del reloj de seguimiento (cuánto lleva parado y cuándo es problema)
+npm run test:dashboard                     # tests del dashboard de dirección (qué se decide hoy y en qué orden)
 npm run verify:supabase                    # comprueba conexión Supabase
 ```
 
@@ -55,6 +58,13 @@ No hay suite de tests formal; la verificación es `npm run build` + `scripts/smo
     - **Ajustes** — control, usuarios, configuración, papelera. **Nace plegado.**
 
     Antes eran 3 bloques con 12 entradas en Dirección y 10 en Oficina. La auditoría enseñó por qué había que partirlo: **el 73 % del trabajo real es clientes y tareas**, y había pantallas con cero uso ocupando sitio en el menú de quien más prisa tiene. **La regla al añadir algo: si no se abre casi todos los días, va a Herramientas.** Una entrada de menú que nadie usa no cuesta servidor, cuesta atención, y la paga cada día quien sí tiene trabajo. Cada uno pliega los bloques que no usa y se recuerda en localStorage.
+    - **Dashboard de dirección** (`gestor/luz/page.tsx`, lógica en `src/lib/dashboard.ts`) — la portada de Marcos. Tenía **ocho tarjetas de KPI con el mismo peso**, hasta doce alertas rojas seguidas y una lista de accesos rápidos que repetía el menú: todo cierto y nada accionable. Ahora enseña **decisiones, no inventario**, y el listón es poder señalar en diez segundos lo que hay que hacer hoy.
+      - **Las cinco decisiones del día** (`prioridadesDeHoy`) van ordenadas por **lo que se pierde para siempre**, no por importe: preaviso que se cierra → firmado sin activar → propuesta sin seguir → estudio pendiente → factura que no llega. Un preaviso que caduca bloquea al cliente **un año**, así que manda sobre cualquier comisión; el dinero ordena **dentro** de cada escalón y nunca salta al de arriba (por eso los pesos van separados de 1000 en 1000).
+      - **Un cliente ocupa una sola línea**, la de su peor problema. Si aportara una por cada cosa pendiente, el mismo nombre llenaría los cinco huecos y taparía a los otros cuatro que también se están cayendo.
+      - **Lo que no es una decisión de HOY no gasta un hueco**: un preaviso a tres meses sale en el bloque de vencimientos, no arriba; una oferta enviada ayer aún está en plazo; un preaviso ya vencido no se pinta como si aún se pudiera hacer algo.
+      - Tres cifras arriba en vez de ocho (`cabecera`): **qué requiere decisión** —que es lo que está en rojo, no el total de la cartera—, **qué hay propuesto sin respuesta** y **qué está por cerrar**. Debajo, el embudo **con su valor** (`embudo`), los vencimientos por tramos **30/60/90** (`vencimientos`) y **como mucho tres** avisos de calidad (`alertasCalidad`), solo de datos que bloquean trabajo real: un email que falta no impide hacer nada, un teléfono que falta sí.
+      - **No tiene criterio propio de urgencia.** Las etapas salen de `etapas.ts` y los plazos de `seguimiento.ts`. Si el dashboard tuviera su propia idea de qué es urgente, diría una cosa y el Pipeline otra, y no habría forma de saber cuál creerse.
+      - Cubierto por `npm run test:dashboard`.
     - **Mi Día** (`gestor/luz/mi-dia`, lógica en `src/lib/agenda.ts`) — la única pantalla de trabajo de David, y la única lista del equipo. Sustituye en el menú a «Tareas» + «Fechas Críticas» (esas páginas siguen existiendo para crear y editar en detalle) y **absorbió la Agenda**, que era una entrada aparte.
       - **Mi Día y la Agenda llamaban a la MISMA función** (`construirAgenda`) sobre los mismos registros: Mi Día era la Agenda filtrada por «yo» y por «hoy». No se parecían — una era un subconjunto de la otra —, y por eso se mezclaban en la cabeza de quien las usaba. Ahora son tres vistas de una sola pantalla, y `/gestor/luz/agenda` redirige para no romper enlaces guardados en el móvil.
       - **HOY** (por defecto) · qué hago ahora. Atrasado y de hoy van juntos: para quien está en la calle son lo mismo. Los días de calle sale el aviso de a qué zona toca ir, que lleva a la vista de al lado.

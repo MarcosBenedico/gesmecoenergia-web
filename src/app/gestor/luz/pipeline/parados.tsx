@@ -30,6 +30,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import {
   AlertTriangle, Phone, MessageCircle, Clock, Euro, Search, Check, Loader,
   Star, SlidersHorizontal, PenLine,
@@ -102,7 +103,14 @@ export function VistaParados() {
   const contratos = useListaLuz<LuzContrato>('contratos');
   const seguimientos = useListaLuz<Seguimiento>('seguimientos');
 
-  const [etapaElegida, setEtapaElegida] = useState<Etapa | null>(null);
+  // El Dashboard enlaza aquí con la etapa ya elegida («18 en análisis» →
+  // esos 18). Sin leer el parámetro, el enlace llevaría a la lista entera y
+  // habría que volver a filtrar a mano justo después de haber pinchado.
+  const sp = useSearchParams();
+  const etapaUrl = sp.get('etapa');
+  const [etapaElegida, setEtapaElegida] = useState<Etapa | null>(
+    etapaUrl && ETAPA[etapaUrl as Etapa] ? (etapaUrl as Etapa) : null
+  );
   const [busca, setBusca] = useState('');
   const [abierta, setAbierta] = useState<string | null>(null);
   const [favoritos, setFavoritos] = useState<string[]>([]);

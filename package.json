@@ -22,6 +22,7 @@
     "test:dia": "node scripts/test-dia.mjs",
     "test:seguimiento": "node scripts/test-seguimiento.mjs",
     "test:etapas": "node scripts/test-etapas.mjs",
+    "test:dashboard": "node scripts/test-dashboard.mjs",
     "test:montaje": "node scripts/test-montaje.mjs",
     "test:clasificacion": "node scripts/test-clasificacion.mjs",
     "test:consumo": "node scripts/test-consumo.mjs",
