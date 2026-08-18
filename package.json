@@ -25,6 +25,7 @@
     "test:dashboard": "node scripts/test-dashboard.mjs",
     "test:factura": "node scripts/test-factura.mjs",
     "test:escenarios": "node scripts/test-escenarios.mjs",
+    "test:plantilla": "node scripts/test-plantilla.mjs",
     "test:montaje": "node scripts/test-montaje.mjs",
     "test:clasificacion": "node scripts/test-clasificacion.mjs",
     "test:consumo": "node scripts/test-consumo.mjs",

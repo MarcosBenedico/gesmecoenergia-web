@@ -25,7 +25,8 @@
 
 import { useCallback, useMemo, useState } from 'react';
 import {
-  AlertTriangle, ArrowLeft, ArrowRight, Check, FileUp, Loader, Lock, Save, X,
+  AlertTriangle, ArrowLeft, ArrowRight, Camera, Check, Download, FileUp, Loader,
+  Lock, PenLine, Save, Table, X,
 } from 'lucide-react';
 import { tokenSesion } from '@/lib/usuario';
 import { fmtEur, type LuzCliente, type LuzCups } from '@/lib/luz';
@@ -35,6 +36,7 @@ import {
 } from '@/lib/factura';
 import { TARIFA_INFO, type TarifaAcceso } from '@/lib/tarifas-base';
 import { prepararFactura } from '@/lib/factura-archivo';
+import { type LecturaPlantilla } from '@/lib/plantilla-consumos';
 import { compararConComercializadoras } from '@/lib/tarifas';
 import {
   evaluarEscenarios, recomendar, alertasDeLaComparativa, resumenComparativa,
@@ -122,6 +124,12 @@ export function FlujoEstudio({
   const marcaMano = (campo: string) =>
     setOrigenes((o) => (o[campo] === 'introducido' ? o : { ...o, [campo]: 'introducido' }));
 
+  // Lo que sale de la plantilla de Excel: 12 meses desglosados por periodo.
+  // Se guarda entero aunque el motor de comparativa solo necesite el mes medio,
+  // porque la estacionalidad es lo que decide si unas placas tienen sentido.
+  const [plantilla, setPlantilla] = useState<LecturaPlantilla | null>(null);
+  const [subiendo, setSubiendo] = useState(false);
+
   const [comparado, setComparado] = useState<EscenarioEvaluado[] | null>(null);
   const [comparando, setComparando] = useState(false);
   const [frase, setFrase] = useState(estudio?.recomendacion || '');
@@ -154,12 +162,22 @@ export function FlujoEstudio({
       preciosEnergiaActual: listaNum(precioE),
       preciosPotenciaActual: listaNum(precioP),
       permanenciaRestanteMeses: null,
-      penalizacionActual: Number(suministro?.penalizacion) || null,
+      penalizacionActual: Number(suministro?.penalizacion)
+        || Number(plantilla?.suministro?.penalizacion) || null,
+      // Doce meses desglosados son un perfil de consumo real, no una curva
+      // horaria: sirven para el reparto por periodos, no para el autoconsumo.
       tieneCurva: false,
-      tieneMaximetro: false,
-      datosEstimados: Object.values(origenes).some((o) => o === 'introducido'),
+      // ESTO ES LO QUE MÁS CAMBIA con la plantilla. Con maxímetro, proponer
+      // bajar potencia deja de ser riesgo alto: hay un pico medido detrás en
+      // vez de un promedio que aplana los picos.
+      tieneMaximetro: !!plantilla?.maximetros?.some((m) => m > 0),
+      // Un año extrapolado desde tres meses ES un dato estimado, y el motor de
+      // escenarios tiene que saberlo para subir el riesgo y decirlo.
+      datosEstimados: plantilla
+        ? plantilla.extrapolado
+        : Object.values(origenes).some((o) => o === 'introducido'),
     };
-  }, [tarifa, consumos, potencias, precioE, precioP, cupsId, cups.datos, origenes]);
+  }, [tarifa, consumos, potencias, precioE, precioP, cupsId, cups.datos, origenes, plantilla]);
 
   // ── Leer la factura ──────────────────────────────────────────────────────
   const leerArchivo = useCallback(async (file: File) => {
@@ -205,6 +223,48 @@ export function FlujoEstudio({
       setMsg('No se pudo leer el archivo.');
     } finally {
       setLeyendo(false);
+    }
+  }, []);
+
+  // ── Leer la plantilla de Excel ───────────────────────────────────────────
+  const leerPlantilla = useCallback(async (file: File) => {
+    setSubiendo(true);
+    setMsg('');
+    try {
+      const { data } = await prepararFactura(file);
+      const r = await fetch('/api/luz/plantilla', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ archivo: data }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) { setMsg(j.error || `No se ha podido leer el Excel (error ${r.status}).`); return; }
+
+      const l = j.lectura as LecturaPlantilla;
+      setPlantilla(l);
+
+      if (l.tarifa) setTarifa(l.tarifa);
+      // El mes medio es lo que come el motor de coste; sale del año completo,
+      // así que no se pierde nada por el camino.
+      if (l.consumosMes?.length) setConsumos(l.consumosMes.map((x) => Math.round(x)).join(', '));
+      if (l.potencias?.length) setPotencias(l.potencias.join(', '));
+      if (l.preciosEnergia?.some((x) => x)) setPrecioE(l.preciosEnergia.join(', '));
+      if (l.preciosPotencia?.some((x) => x)) setPrecioP(l.preciosPotencia.join(', '));
+      if (l.suministro?.titular) setTitular(l.suministro.titular);
+      if (l.suministro?.cups) setCupsTexto(l.suministro.cups);
+
+      // Todo esto lo ha escrito una persona con la factura delante: es dato
+      // introducido, no leído. La diferencia se enseña en cada campo.
+      setOrigenes({
+        tarifa: 'introducido', consumos: 'introducido', potencias: 'introducido',
+        precios_energia: 'introducido', precios_potencia: 'introducido',
+        titular: 'introducido', cups: 'introducido',
+      });
+      setPaso(1);
+    } catch {
+      setMsg('No se ha podido abrir el archivo.');
+    } finally {
+      setSubiendo(false);
     }
   }, []);
 
@@ -354,31 +414,104 @@ export function FlujoEstudio({
 
       {/* ── 0. FACTURA ──────────────────────────────────────────────────── */}
       {paso === 0 && (
-        <Card>
-          <h2 className="font-bold text-sm mb-1">Sube la factura</h2>
-          <p className="text-xs text-muted mb-4">
-            Una foto o el PDF. Se leen los consumos, las potencias y los precios que paga hoy.
-            Todo lo que salga se puede corregir en el paso siguiente.
-          </p>
+        <>
+          {/* ── LA VÍA PRINCIPAL: LA PLANTILLA ──────────────────────────── */}
+          <Card>
+            <h2 className="font-bold text-sm mb-1 flex items-center gap-2">
+              <Table className="w-4 h-4 text-accent" /> Rellena la plantilla de consumos
+            </h2>
+            <p className="text-xs text-muted mb-4">
+              Doce meses desglosados por periodo. Con el año entero, el consumo no se estima:
+              se suma. Es la diferencia entre una comparativa que aguanta y una que se cae
+              cuando el cliente la mira con su factura al lado.
+            </p>
 
-          <label className="flex flex-col items-center justify-center gap-2 p-8 rounded-2xl border-2 border-dashed border-border/50 cursor-pointer hover:border-accent/50 transition">
-            {leyendo ? <Loader className="w-6 h-6 animate-spin text-accent" /> : <FileUp className="w-6 h-6 text-accent" />}
-            <span className="text-sm font-bold">
-              {leyendo ? 'Leyendo la factura…' : 'Elegir foto o PDF'}
-            </span>
-            <input
-              type="file"
-              accept="image/*,application/pdf"
-              className="hidden"
-              disabled={leyendo}
-              onChange={(e) => { const f = e.target.files?.[0]; if (f) leerArchivo(f); }}
-            />
-          </label>
+            <div className="grid sm:grid-cols-3 gap-2 mb-4">
+              {(['2.0', '3.0', '6.1'] as TarifaAcceso[]).map((t) => (
+                <a
+                  key={t}
+                  href={`/api/luz/plantilla?tarifa=${t}`}
+                  className="flex items-center gap-2.5 p-3 rounded-xl border border-border/50 hover:border-accent/50 transition"
+                >
+                  <Download className="w-4 h-4 text-accent shrink-0" />
+                  <span className="min-w-0">
+                    <span className="block text-sm font-bold">{TARIFA_INFO[t].nombre}</span>
+                    <span className="block text-[10px] text-muted leading-snug">
+                      {TARIFA_INFO[t].periodosEnergia.length} periodos · {TARIFA_INFO[t].descripcion}
+                    </span>
+                  </span>
+                </a>
+              ))}
+            </div>
 
-          <button onClick={() => setPaso(1)} className="mt-4 text-xs font-semibold text-accent hover:underline">
-            No tengo la factura a mano: meter los datos yo →
-          </button>
-        </Card>
+            {/* Cada tarifa tiene su plantilla y ese es el motivo, no un capricho */}
+            <p className="text-[11px] text-muted mb-4">
+              Descarga la de <b>su</b> tarifa: las columnas son exactamente los periodos que tiene.
+              Rellenar tres de los seis que lleva una 3.0TD deja el ahorro calculado al doble del real
+              y nada en pantalla lo delata.
+            </p>
+
+            <label className="flex flex-col items-center justify-center gap-2 p-8 rounded-2xl border-2 border-dashed border-accent/40 bg-accent/[0.04] cursor-pointer hover:border-accent transition">
+              {subiendo ? <Loader className="w-6 h-6 animate-spin text-accent" /> : <FileUp className="w-6 h-6 text-accent" />}
+              <span className="text-sm font-bold">
+                {subiendo ? 'Leyendo la plantilla…' : 'Subir la plantilla rellenada'}
+              </span>
+              <span className="text-[11px] text-muted">Archivo .xlsx</span>
+              <input
+                type="file"
+                accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                className="hidden"
+                disabled={subiendo}
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) leerPlantilla(f); }}
+              />
+            </label>
+          </Card>
+
+          {/* ── LAS OTRAS DOS VÍAS ──────────────────────────────────────── */}
+          <Card className="!p-4">
+            <h3 className="font-bold text-xs uppercase text-muted mb-3">Si no tienes los doce meses</h3>
+
+            <div className="grid sm:grid-cols-2 gap-2">
+              <label className="flex items-center gap-2.5 p-3 rounded-xl border border-border/50 hover:border-accent/50 transition cursor-pointer">
+                {leyendo ? <Loader className="w-4 h-4 animate-spin text-accent shrink-0" /> : <Camera className="w-4 h-4 text-accent shrink-0" />}
+                <span className="min-w-0">
+                  <span className="block text-sm font-bold">
+                    {leyendo ? 'Leyendo…' : 'Leer una factura suelta'}
+                  </span>
+                  <span className="block text-[10px] text-muted leading-snug">
+                    Foto o PDF. Sale un mes, así que el año se estima
+                  </span>
+                </span>
+                <input
+                  type="file"
+                  accept="image/*,application/pdf"
+                  className="hidden"
+                  disabled={leyendo}
+                  onChange={(e) => { const f = e.target.files?.[0]; if (f) leerArchivo(f); }}
+                />
+              </label>
+
+              <button
+                onClick={() => setPaso(1)}
+                className="flex items-center gap-2.5 p-3 rounded-xl border border-border/50 hover:border-accent/50 transition text-left"
+              >
+                <PenLine className="w-4 h-4 text-accent shrink-0" />
+                <span className="min-w-0">
+                  <span className="block text-sm font-bold">Meter los datos a mano</span>
+                  <span className="block text-[10px] text-muted leading-snug">
+                    Directamente en el paso siguiente
+                  </span>
+                </span>
+              </button>
+            </div>
+
+            <p className="text-[11px] text-muted mt-3">
+              Con una sola factura, el año sale de multiplicar ese mes por doce. En esta comarca
+              eso no vale: una granja con riego en agosto no se parece a la misma granja en febrero.
+              Sirve para una primera cifra, no para firmar.
+            </p>
+          </Card>
+        </>
       )}
 
       {/* ── 1. DATOS Y VALIDACIÓN ───────────────────────────────────────── */}
@@ -480,6 +613,8 @@ export function FlujoEstudio({
               </div>
             </div>
           </Card>
+
+          {plantilla && <ResumenPlantilla lectura={plantilla} />}
 
           <Reparos revision={revision} />
 
@@ -688,6 +823,49 @@ function CampoLista({
       {pie && <p className="text-[10px] text-muted mt-0.5">{pie}</p>}
       <Pista origen={origen} confianza={confianza} />
     </div>
+  );
+}
+
+/**
+ * Lo que ha aportado la plantilla: cuántos meses reales hay detrás.
+ *
+ * Se enseña porque cambia lo que vale la comparativa. «12 meses, 365 días» es
+ * un año medido; «3 meses, 90 días» es un año estimado desde el verano, y
+ * quien firme tiene derecho a saber sobre qué está construido el ahorro.
+ */
+function ResumenPlantilla({ lectura }: { lectura: LecturaPlantilla }) {
+  return (
+    <Card className="!p-4">
+      <h3 className="font-bold text-sm mb-2 flex items-center gap-2">
+        <Table className="w-4 h-4 text-accent" /> Lo que trae la plantilla
+      </h3>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+        <Cifra etiqueta="Meses" valor={String(lectura.meses.length)} />
+        <Cifra etiqueta="Días facturados" valor={String(lectura.diasTotales)} />
+        <Cifra
+          etiqueta="Consumo al año"
+          valor={`${Math.round(lectura.consumoAnual).toLocaleString('es-ES')} kWh`}
+        />
+        <Cifra
+          etiqueta="El año es"
+          valor={lectura.extrapolado ? 'estimado' : 'medido'}
+          tono={lectura.extrapolado ? 'text-amber-300' : 'text-emerald-400'}
+        />
+      </div>
+      {lectura.extrapolado && (
+        <p className="text-[11px] text-amber-300 mt-3">
+          Con {lectura.meses.length} mes(es) el año se calcula extrapolando por días. Sirve, pero la
+          estacionalidad puede desviarlo: si puedes conseguir el resto de facturas, la propuesta
+          aguantará mucho mejor delante del cliente.
+        </p>
+      )}
+      {lectura.maximetros.some((m) => m > 0) && (
+        <p className="text-[11px] text-muted mt-2">
+          Hay maxímetro ({lectura.maximetros.map((m) => `${m} kW`).join(' · ')}): con eso la potencia
+          recomendada deja de ser una suposición y se puede afinar de verdad.
+        </p>
+      )}
+    </Card>
   );
 }
 
