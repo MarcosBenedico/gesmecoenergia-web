@@ -1,5 +1,5 @@
 /**
- * SEGUIMIENTO DE PRECLIENTES — el panel de Marcos.
+ * SEGUIMIENTO — el reloj de cada cliente.
  *
  * Un precliente de energía casi nunca se pierde por un «no». Se pierde por
  * tres silencios, y ninguno de los tres hace ruido:
@@ -12,101 +12,39 @@
  *   3. LA ACTIVACIÓN QUE NO SE COMPLETA. Firmó y la comercializadora no lo
  *      activó. Es dinero ya ganado que se cae sin que nadie se entere.
  *
- * Por eso este archivo no calcula «estados»: calcula RELOJES. Un estado dice
- * dónde está; un reloj dice cuánto lleva ahí y si eso ya es un problema.
+ * Por eso este archivo no calcula «en qué punto está» —de eso se encarga
+ * `etapas.ts`, que es el vocabulario único— sino CUÁNTO LLEVA AHÍ y si eso
+ * ya es un problema. Un estado dice dónde; un reloj dice desde cuándo.
  *
- * LA IDEA QUE ORDENA TODO LO DEMÁS: DE QUIÉN ES LA PELOTA
+ * ESTE ARCHIVO NO INVENTA SU PROPIA LISTA DE FASES.
  *
- * El plazo razonable no depende de la fase, depende de quién tiene que mover
- * ficha. Si la pelota es NUESTRA —hacer el estudio, presentar la oferta— cinco
- * días ya es tarde y la culpa es de casa. Si es del CLIENTE —mandar la
+ * La tuvo: cinco fases propias que se parecían a las etapas pero no eran las
+ * mismas. Con dos vocabularios, la misma tarjeta enseñaba dos etiquetas
+ * distintas para lo mismo y había que traducir de cabeza. Ahora los plazos se
+ * cuelgan de las etapas de `etapas.ts` y hay un solo idioma en todo el panel.
+ *
+ * LA IDEA QUE ORDENA LOS PLAZOS: DE QUIÉN ES LA PELOTA
+ *
+ * El plazo razonable no depende de la etapa, depende de quién tiene que mover
+ * ficha. Si la pelota es NUESTRA —hacer el estudio, presentar la oferta—
+ * cinco días ya es tarde y la culpa es de casa. Si es del CLIENTE —mandar la
  * factura, contestar a una oferta— hay que darle aire, pero no infinito. Y si
  * es de la COMERCIALIZADORA —activar el suministro— el plazo es largo pero
  * hay que vigilarlo, porque ahí es donde se cae lo ya vendido.
  *
  * Usar el mismo listón para las tres cosas es lo que hace que un panel grite
- * cuando no debe y calle cuando sí. De ahí salen los números de abajo.
+ * cuando no debe y calle cuando sí.
  */
 
-// Con extensión, para que Node ejecute los tests sin compilar nada.
-import type { LuzCups, LuzOportunidad, LuzContrato } from './luz.ts';
+import {
+  ETAPAS, ETAPA, etapaDeCliente, type Etapa,
+} from './etapas.ts';
+
+export { ETAPA, ETAPAS, etapaDeCliente };
+export type { Etapa };
 
 /** Quién tiene que mover ficha ahora mismo. */
 export type Pelota = 'nuestra' | 'del_cliente' | 'de_la_comercializadora';
-
-export type FaseSeguimiento =
-  | 'esperando_factura'
-  | 'falta_estudio'
-  | 'esperando_respuesta'
-  | 'cerrando'
-  | 'esperando_activacion';
-
-export interface DefinicionFase {
-  id: FaseSeguimiento;
-  titulo: string;
-  /** Qué se está esperando exactamente. Se enseña bajo el título de la columna. */
-  pista: string;
-  pelota: Pelota;
-  /** Días a partir de los cuales esto ya es un problema. */
-  limiteDias: number;
-}
-
-/**
- * Los plazos. Cada uno con su motivo, porque un número sin motivo se acaba
- * cambiando por capricho y entonces el panel deja de significar nada.
- */
-export const FASES: DefinicionFase[] = [
-  {
-    id: 'esperando_factura',
-    titulo: 'Esperando factura',
-    pista: 'Sin factura no hay estudio ni oferta',
-    pelota: 'del_cliente',
-    // Diez días es lo que tarda alguien en encontrar una factura entre otras
-    // cosas. Más allá no es que esté ocupado: es que se ha olvidado, y hay
-    // que volver a llamar en vez de seguir esperando.
-    limiteDias: 10,
-  },
-  {
-    id: 'falta_estudio',
-    titulo: 'Falta el estudio',
-    pista: 'Ya tenemos la factura. La pelota es nuestra',
-    pelota: 'nuestra',
-    // Cinco días. Aquí no hay a quién echarle la culpa: el cliente hizo su
-    // parte y está esperando. Es el atasco más caro porque enfría a alguien
-    // que ya había dicho que sí a mirarlo.
-    limiteDias: 5,
-  },
-  {
-    id: 'esperando_respuesta',
-    titulo: 'Oferta enviada',
-    pista: 'Presentada y sin respuesta',
-    pelota: 'del_cliente',
-    // Cuatro días. Una oferta que no se sigue a la semana se da por perdida
-    // sola: el cliente entiende el silencio como que a nosotros tampoco nos
-    // importaba tanto.
-    limiteDias: 4,
-  },
-  {
-    id: 'cerrando',
-    titulo: 'Cerrando',
-    pista: 'Falta firma o documentación',
-    pelota: 'nuestra',
-    // Siete días. Está dicho que sí y lo único que falta es papeleo; que se
-    // caiga aquí es el peor final posible.
-    limiteDias: 7,
-  },
-  {
-    id: 'esperando_activacion',
-    titulo: 'Esperando activación',
-    pista: 'Firmado. Falta que la comercializadora lo active',
-    pelota: 'de_la_comercializadora',
-    // Veinte días es el plazo normal de un cambio de comercializadora. Pasado
-    // eso hay que reclamar: casi siempre es un rechazo del ATR que nadie vio.
-    limiteDias: 20,
-  },
-];
-
-export const FASE = Object.fromEntries(FASES.map((f) => [f.id, f])) as Record<FaseSeguimiento, DefinicionFase>;
 
 export const PELOTA_LABEL: Record<Pelota, string> = {
   nuestra: 'Nos toca a nosotros',
@@ -114,51 +52,69 @@ export const PELOTA_LABEL: Record<Pelota, string> = {
   de_la_comercializadora: 'Le toca a la comercializadora',
 };
 
-/** Estados de pipeline que ya no están en juego. */
-const PIPELINE_CERRADO = ['ganado', 'perdido'];
+export interface Plazo {
+  pelota: Pelota;
+  /** Días a partir de los cuales esto ya es un problema. */
+  limiteDias: number;
+  /** Qué se está esperando exactamente. Se enseña bajo el título. */
+  pista: string;
+}
 
 /**
- * En qué punto del viaje está un cliente.
- *
- * Se deduce de los datos reales —si hay CUPS con consumo, en qué estado está
- * la oportunidad, si hay contrato activado— y NO de un campo que alguien tenga
- * que mantener a mano. Se comprobó que los campos de estado van por detrás de
- * la realidad: hay contratos con la fecha de firma puesta que seguían
- * figurando como «pendiente de firma». Un panel que se creyera ese campo
- * estaría mintiendo.
+ * El reloj de cada etapa, con su motivo escrito. Un número sin motivo se acaba
+ * cambiando por capricho, y entonces el panel deja de significar nada.
  */
-export function faseDe(e: {
-  cups?: LuzCups[];
-  pipeline?: LuzOportunidad[];
-  contratos?: LuzContrato[];
-}): FaseSeguimiento | null {
-  const contratos = e.contratos || [];
-  const cups = e.cups || [];
-  const pipe = (e.pipeline || []).filter((o) => !PIPELINE_CERRADO.includes(o.estado));
+export const PLAZOS: Partial<Record<Etapa, Plazo>> = {
+  detectado: {
+    pelota: 'nuestra', limiteDias: 7,
+    // Un detectado es alguien con quien no se ha hecho nada todavía. Una
+    // semana sin tocarlo y deja de ser una oportunidad para ser una lista.
+    pista: 'Nadie le ha pedido nada aún',
+  },
+  factura_solicitada: {
+    pelota: 'del_cliente', limiteDias: 10,
+    // Diez días es lo que tarda alguien en encontrar una factura entre otras
+    // cosas. Más allá no es que esté ocupado: es que se ha olvidado, y hay
+    // que volver a llamar en vez de seguir esperando.
+    pista: 'Sin factura no hay estudio ni oferta',
+  },
+  en_analisis: {
+    pelota: 'nuestra', limiteDias: 5,
+    // Cinco días. Aquí no hay a quién echarle la culpa: el cliente hizo su
+    // parte y está esperando. Es el atasco más caro porque enfría a alguien
+    // que ya había dicho que sí a mirarlo.
+    pista: 'Ya tenemos la factura. La pelota es nuestra',
+  },
+  propuesta_enviada: {
+    pelota: 'del_cliente', limiteDias: 4,
+    // Cuatro días. Una oferta que no se sigue a la semana se da por perdida
+    // sola: el cliente entiende el silencio como que a nosotros tampoco nos
+    // importaba tanto.
+    pista: 'Presentada y sin respuesta',
+  },
+  pendiente_decision: {
+    pelota: 'del_cliente', limiteDias: 6,
+    pista: 'Le estamos esperando a él',
+  },
+  pendiente_firma: {
+    pelota: 'nuestra', limiteDias: 7,
+    // Está dicho que sí y lo único que falta es papeleo; que se caiga aquí es
+    // el peor final posible.
+    pista: 'Falta firma o documentación',
+  },
+  activacion: {
+    pelota: 'de_la_comercializadora', limiteDias: 20,
+    // Veinte días es el plazo normal de un cambio de comercializadora. Pasado
+    // eso hay que reclamar: casi siempre es un rechazo del ATR que nadie vio.
+    pista: 'Firmado. Falta que la comercializadora lo active',
+  },
+};
 
-  // 1. ¿Hay algo firmado que todavía no está activado? Manda sobre todo lo
-  //    demás: es lo único que ya está vendido y se puede caer.
-  const firmadoSinActivar = contratos.some(
-    (c) => (c.fecha_firma || c.estado_contrato === 'firmado') && !c.fecha_activacion_real
-  );
-  if (firmadoSinActivar) return 'esperando_activacion';
-
-  // Todo activado y sin nada abierto: fuera del panel.
-  if (!pipe.length && contratos.length && contratos.every((c) => c.fecha_activacion_real)) return null;
-
-  const estados = pipe.map((o) => o.estado);
-  if (estados.some((s) => ['pendiente_firma', 'doc_incompleta'].includes(s))) return 'cerrando';
-  if (estados.some((s) => ['oferta_enviada', 'seguimiento'].includes(s))) return 'esperando_respuesta';
-
-  // 2. ¿Tenemos ya con qué trabajar? Un CUPS sin consumo no sirve para
-  //    ofertar, así que cuenta como que la factura todavía no ha llegado.
-  const tieneDatos = cups.some((c) => Number(c.consumo_anual_kwh) > 0);
-  if (tieneDatos) return 'falta_estudio';
-
-  // 3. Por defecto, lo que falta es la factura. Es el caso más común con
-  //    diferencia y el que más clientes se lleva por delante.
-  return 'esperando_factura';
-}
+/** Las etapas que aparecen en el panel, en orden y solo las que tienen reloj. */
+export const ETAPAS_SEGUIMIENTO: Etapa[] = ETAPAS
+  .filter((e) => PLAZOS[e.id])
+  .sort((a, b) => a.avance - b.avance)
+  .map((e) => e.id);
 
 /** Días enteros entre dos fechas ISO. Null si falta alguna. */
 export function diasEntre(desde: string | null | undefined, hasta: string): number | null {
@@ -190,10 +146,10 @@ export interface FichaSeguimiento {
   clienteId: string;
   nombre: string;
   telefono: string | null;
-  fase: FaseSeguimiento;
+  etapa: Etapa;
   /** Días desde el último movimiento. Null si no hay ninguna señal. */
   diasParado: number | null;
-  /** Ha pasado del plazo de su fase. */
+  /** Ha pasado del plazo de su etapa. */
   enRojo: boolean;
   /** Qué le falta para poder avanzar, en una frase. */
   queFalta: string;
@@ -202,24 +158,35 @@ export interface FichaSeguimiento {
   comision: number;
   /** Días hasta que se cierre la ventana de preaviso, si la hay. */
   diasPreaviso: number | null;
+  /** Incoherencias entre etiqueta y hechos, ya en castellano. */
+  avisos: string[];
 }
 
 /**
  * Lo que hay que hacer para que este cliente avance. Una frase, no una lista:
  * la tarjeta se lee de un vistazo o no se lee.
  */
-export function queFalta(fase: FaseSeguimiento, tieneTelefono: boolean): string {
-  if (!tieneTelefono && fase === 'esperando_factura') {
+export function queFalta(etapa: Etapa, tieneTelefono: boolean): string {
+  if (!tieneTelefono && (etapa === 'factura_solicitada' || etapa === 'detectado')) {
     // Sin teléfono no se puede reclamar nada: hay que ir o buscar el contacto.
     return 'Falta el teléfono: hay que ir o conseguirlo';
   }
-  switch (fase) {
-    case 'esperando_factura': return 'Reclamar la factura';
-    case 'falta_estudio': return 'Hacer el estudio y preparar la oferta';
-    case 'esperando_respuesta': return 'Llamar para saber qué le ha parecido';
-    case 'cerrando': return 'Cerrar firma y documentación';
-    case 'esperando_activacion': return 'Comprobar la activación con la comercializadora';
+  switch (etapa) {
+    case 'detectado': return 'Llamar y pedir la factura';
+    case 'factura_solicitada': return 'Reclamar la factura';
+    case 'en_analisis': return 'Hacer el estudio y preparar la oferta';
+    case 'propuesta_enviada': return 'Llamar para saber qué le ha parecido';
+    case 'pendiente_decision': return 'Cerrar la decisión';
+    case 'pendiente_firma': return 'Cerrar firma y documentación';
+    case 'activacion': return 'Comprobar la activación con la comercializadora';
+    default: return ETAPA[etapa].condicion;
   }
+}
+
+/** ¿Se ha pasado del plazo de su etapa? */
+export function estaEnRojo(etapa: Etapa, diasParado: number | null): boolean {
+  const p = PLAZOS[etapa];
+  return !!p && diasParado != null && diasParado > p.limiteDias;
 }
 
 /**
@@ -231,7 +198,7 @@ export function queFalta(fase: FaseSeguimiento, tieneTelefono: boolean): string 
 export function seMuereEstaSemana(fichas: FichaSeguimiento[], diasVentana = 7): FichaSeguimiento[] {
   return fichas
     .filter((f) => (f.diasPreaviso != null && f.diasPreaviso >= 0 && f.diasPreaviso <= diasVentana)
-      || (f.enRojo && (f.fase === 'esperando_respuesta' || f.fase === 'cerrando')))
+      || (f.enRojo && (f.etapa === 'propuesta_enviada' || f.etapa === 'pendiente_decision' || f.etapa === 'pendiente_firma')))
     .sort((a, b) => {
       // Primero lo que tiene fecha de caducidad real; después lo más parado.
       const pa = a.diasPreaviso ?? 999;
@@ -240,13 +207,18 @@ export function seMuereEstaSemana(fichas: FichaSeguimiento[], diasVentana = 7): 
     });
 }
 
-/** Recuento por fase, para los relojes de la cabecera. */
+/** Recuento por etapa, para los relojes de la cabecera. */
 export function relojes(fichas: FichaSeguimiento[]) {
-  return FASES.map((f) => {
-    const suyas = fichas.filter((x) => x.fase === f.id);
+  return ETAPAS_SEGUIMIENTO.map((id) => {
+    const plazo = PLAZOS[id]!;
+    const suyas = fichas.filter((x) => x.etapa === id);
     const conDias = suyas.map((x) => x.diasParado).filter((d): d is number => d != null);
     return {
-      ...f,
+      id,
+      titulo: ETAPA[id].titulo,
+      pista: plazo.pista,
+      pelota: plazo.pelota,
+      limiteDias: plazo.limiteDias,
       total: suyas.length,
       enRojo: suyas.filter((x) => x.enRojo).length,
       // La media solo se enseña si hay de dónde sacarla: una media de un solo

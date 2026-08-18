@@ -36,13 +36,14 @@ import {
 } from 'lucide-react';
 import { tokenSesion, useUsuario } from '@/lib/usuario';
 import {
-  ESTADO_PIPELINE_LABEL, ESTADO_PIPELINE_TONO,
+  ESTADO_PIPELINE_LABEL,
   type LuzCliente, type LuzCups, type LuzOportunidad, type LuzContrato,
 } from '@/lib/luz';
 import {
-  FASE, PELOTA_LABEL, faseDe, diasEntre, ultimoMovimiento, queFalta,
-  seMuereEstaSemana, relojes, type FaseSeguimiento, type FichaSeguimiento,
+  ETAPA, PELOTA_LABEL, etapaDeCliente, diasEntre, ultimoMovimiento, queFalta,
+  estaEnRojo, seMuereEstaSemana, relojes, type Etapa, type FichaSeguimiento,
 } from '@/lib/seguimiento';
+import { contradicciones, ETAPAS_EN_JUEGO } from '@/lib/etapas';
 import { Card, btnPrimario, btnSecundario, useListaLuz, guardarLuz } from '../ui';
 
 interface Seguimiento {
@@ -101,7 +102,7 @@ export function VistaParados() {
   const contratos = useListaLuz<LuzContrato>('contratos');
   const seguimientos = useListaLuz<Seguimiento>('seguimientos');
 
-  const [faseElegida, setFaseElegida] = useState<FaseSeguimiento | null>(null);
+  const [etapaElegida, setEtapaElegida] = useState<Etapa | null>(null);
   const [busca, setBusca] = useState('');
   const [abierta, setAbierta] = useState<string | null>(null);
   const [favoritos, setFavoritos] = useState<string[]>([]);
@@ -164,8 +165,14 @@ export function VistaParados() {
       .filter((c) => c.clasificacion === 'precliente' || c.clasificacion === 'cliente')
       .map((c) => {
         const e = porCliente.get(c.id) || { cups: [], pipeline: [], contratos: [], apuntes: [] };
-        const fase = faseDe(e);
-        if (!fase) return null;
+        // La etapa la calcula el vocabulario común, no esta pantalla.
+        const etapa = etapaDeCliente({
+          estadoComercial: c.estado_comercial,
+          pipeline: e.pipeline, cups: e.cups, contratos: e.contratos,
+        });
+        // Solo lo que sigue en juego: lo activo, lo perdido y lo aparcado no
+        // se persigue, y meterlo aquí convertiría el panel en la lista entera.
+        if (!ETAPAS_EN_JUEGO.includes(etapa)) return null;
 
         const apuntes = [...e.apuntes].sort((a, b) => b.fecha.localeCompare(a.fecha));
         const movimiento = ultimoMovimiento([
@@ -186,14 +193,18 @@ export function VistaParados() {
           clienteId: c.id,
           nombre: c.nombre,
           telefono: c.telefono || null,
-          fase,
+          etapa,
           diasParado,
-          enRojo: diasParado != null && diasParado > FASE[fase].limiteDias,
-          queFalta: queFalta(fase, !!c.telefono),
+          enRojo: estaEnRojo(etapa, diasParado),
+          queFalta: queFalta(etapa, !!c.telefono),
           ultimoApunte: apuntes[0]?.que_se_hablo || null,
           ultimaFecha: apuntes[0]?.fecha || null,
           comision: e.pipeline.reduce((s, o) => s + (Number(o.comision_potencial) || 0), 0),
           diasPreaviso: preavisos.length ? Math.min(...preavisos) : null,
+          avisos: contradicciones({
+            nombre: c.nombre, estadoComercial: c.estado_comercial,
+            pipeline: e.pipeline, cups: e.cups, contratos: e.contratos,
+          }),
         };
       })
       .filter((f): f is FichaSeguimiento => !!f);
@@ -209,11 +220,11 @@ export function VistaParados() {
   const visibles = useMemo(() => {
     const t = busca.trim().toLowerCase();
     return fichas
-      .filter((f) => !faseElegida || f.fase === faseElegida)
+      .filter((f) => !etapaElegida || f.etapa === etapaElegida)
       .filter((f) => !t || f.nombre.toLowerCase().includes(t))
       // Lo más parado arriba: es lo que se está perdiendo.
       .sort((a, b) => Number(b.enRojo) - Number(a.enRojo) || (b.diasParado ?? -1) - (a.diasParado ?? -1));
-  }, [fichas, faseElegida, busca]);
+  }, [fichas, etapaElegida, busca]);
 
   /** Recarga solo lo que puede haber cambiado, no la pantalla entera. */
   const refrescar = useCallback(() => {
@@ -317,13 +328,13 @@ export function VistaParados() {
       {/* ── RELOJES ─────────────────────────────────────────────────
           No son totales: son «cuántos y desde cuándo». Se pueden tocar
           para filtrar, que es lo que convierte un dato en una acción. */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-2">
+      <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-7 gap-2">
         {marcadores.map((m) => {
-          const activo = faseElegida === m.id;
+          const activo = etapaElegida === m.id;
           return (
             <button
               key={m.id}
-              onClick={() => setFaseElegida(activo ? null : m.id)}
+              onClick={() => setEtapaElegida(activo ? null : m.id)}
               className={`text-left rounded-xl border p-3 transition min-h-[84px] ${
                 activo ? 'border-accent bg-accent/10' : 'border-border/50 bg-card/50 hover:border-accent/40'
               }`}
@@ -378,8 +389,8 @@ export function VistaParados() {
             className="w-full !pl-9"
           />
         </div>
-        {faseElegida && (
-          <button onClick={() => setFaseElegida(null)} className={btnSecundario}>Ver todos</button>
+        {etapaElegida && (
+          <button onClick={() => setEtapaElegida(null)} className={btnSecundario}>Ver todos</button>
         )}
       </div>
 
@@ -459,18 +470,12 @@ function Tarjeta({ f, entidades, favorito, abierta, compacta, onAbrir, onFavorit
       </div>
 
       <div className="flex items-center gap-1.5 flex-wrap">
-        {op && (
-          <span className={`px-1.5 py-0.5 rounded-full border text-[9px] font-black uppercase ${ESTADO_PIPELINE_TONO[op.estado] || 'bg-card border-border/50 text-muted'}`}>
-            {ESTADO_PIPELINE_LABEL[op.estado] || op.estado}
-          </span>
-        )}
-        {/* La fase solo si aporta algo: cuando dice lo mismo que el estado del
-            embudo («Oferta enviada» las dos), repetirla es ruido. */}
-        {FASE[f.fase].titulo.toLowerCase() !== (ESTADO_PIPELINE_LABEL[op?.estado || ''] || '').toLowerCase() && (
-          <span className="px-1.5 py-0.5 rounded-full bg-card border border-border/50 text-[9px] font-bold uppercase text-muted">
-            {FASE[f.fase].titulo}
-          </span>
-        )}
+        {/* Una sola etiqueta de situación, la del vocabulario común. El estado
+            crudo del embudo ya no se enseña aparte: decía lo mismo con otras
+            palabras y obligaba a traducir de cabeza. */}
+        <span className={`px-1.5 py-0.5 rounded-full border text-[9px] font-black uppercase ${ETAPA[f.etapa].tono}`}>
+          {ETAPA[f.etapa].titulo}
+        </span>
         {f.diasPreaviso != null && f.diasPreaviso <= 30 && (
           <span className="px-1.5 py-0.5 rounded-full bg-red-500/15 border border-red-500/30 text-[9px] font-black uppercase text-red-300">
             Preaviso en {f.diasPreaviso} d
@@ -482,6 +487,19 @@ function Tarjeta({ f, entidades, favorito, abierta, compacta, onAbrir, onFavorit
           </span>
         )}
       </div>
+
+      {/* Contradicciones entre la etiqueta y los hechos. Salen aquí y no en un
+          informe aparte porque se arreglan justo donde se ven: el panel de
+          abajo ya trae el estado y las fechas del contrato. */}
+      {f.avisos.length > 0 && (
+        <div className="rounded-lg border border-amber-400/30 bg-amber-400/[0.06] px-2 py-1.5">
+          {f.avisos.map((a) => (
+            <p key={a} className="text-[10px] text-amber-200/90 leading-snug flex items-start gap-1.5">
+              <AlertTriangle className="w-3 h-3 shrink-0 mt-px" /> {a}
+            </p>
+          ))}
+        </div>
+      )}
 
       {!compacta && f.ultimoApunte && (
         <p className="text-[11px] text-muted leading-snug line-clamp-2">
