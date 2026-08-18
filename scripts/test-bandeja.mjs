@@ -10,8 +10,10 @@
  * no tener bandeja.
  */
 
-const { construirBandeja, resumenBandeja, GRUPOS, esCupsProvisional } =
-  await import('../src/lib/bandeja.ts');
+const {
+  construirBandeja, resumenBandeja, GRUPOS, esCupsProvisional,
+  BANDEJAS, aplicarBandeja, contarBandejas,
+} = await import('../src/lib/bandeja.ts');
 
 let ok = 0, fallos = 0;
 const eq = (nombre, real, esperado) => {
@@ -235,6 +237,69 @@ const r = resumenBandeja(mezcla);
 eq('cuenta por grupo', r.bloquea_venta + r.esperando_cliente, mezcla.length);
 eq('hay cuatro grupos definidos', GRUPOS.length, 4);
 cierto('todos explican por qué corren prisa', GRUPOS.every((g) => g.porque.length > 10));
+
+
+console.log('\n── Bandejas guardadas (las tandas con nombre) ──');
+{
+  const items = construirBandeja({
+    ...vacio,
+    clientes: [
+      { id: 'c1', nombre: 'Firmante', estado_comercial: 'doc_recibida', clasificacion: 'precliente', creado_en: hace(4) },
+      { id: 'c2', nombre: 'Con contrato', estado_comercial: 'activo', clasificacion: 'cliente', creado_en: hace(9) },
+    ],
+    pipeline: [{ id: 'p1', cliente_id: 'c2', estado: 'factura_recibida', nombre_oportunidad: 'Nave', creado_en: hace(6) }],
+    contratos: [
+      { id: 'k1', cliente_id: 'c2', estado_contrato: 'firmado', fecha_firma: hace(5) },
+      { id: 'k2', cliente_id: 'c2', estado_contrato: 'pendiente_firma', fecha_envio_contrato: hace(11) },
+      { id: 'k3', cliente_id: 'c2', estado_contrato: 'incidencia', actualizado_en: hace(3) },
+    ],
+    comisiones: [{ id: 'm1', cliente_id: 'c2', estado_comision: 'pendiente_cobro', fecha_prevista_cobro: hace(30), importe_previsto: 400 }],
+    tareas: [
+      { id: 't1', cliente_id: 'c2', descripcion: 'Llamar', responsable: 'Nicola', estado: 'pendiente', fecha_limite: hace(3) },
+      { id: 't2', cliente_id: 'c2', descripcion: 'Para mañana', responsable: 'Nicola', estado: 'pendiente', fecha_limite: null },
+    ],
+    persona: 'Nicola',
+  });
+
+  cierto('todas las líneas dicen de qué van', items.every((i) => !!i.asunto));
+  eq('«Todo» no filtra nada', aplicarBandeja(items, 'todo').length, items.length);
+  eq('una bandeja que no existe tampoco filtra', aplicarBandeja(items, 'inventada').length, items.length);
+
+  const vencidas = aplicarBandeja(items, 'mis_vencidas');
+  cierto('«Mis vencidas» solo trae tareas', vencidas.every((i) => i.asunto === 'tarea'));
+  cierto('...y solo las que ya pasaron de fecha', vencidas.every((i) => i.dias > 0));
+  cierto('una tarea SIN fecha no es una vencida: está sin planificar',
+    !vencidas.some((i) => i.accion === 'Para mañana'));
+
+  const contratos = aplicarBandeja(items, 'contratos_bloqueados');
+  cierto('«Contratos bloqueados» trae el firmado sin enviar y la incidencia',
+    contratos.some((i) => i.asunto === 'enviar_comercializadora')
+    && contratos.some((i) => i.asunto === 'incidencia'));
+  cierto('...y NO trae la comisión', !contratos.some((i) => i.asunto === 'comision'));
+
+  eq('«Cobros pendientes» trae solo comisiones',
+    aplicarBandeja(items, 'cobros').every((i) => i.asunto === 'comision'), true);
+  eq('«Esperando respuesta» trae solo lo que está en manos del cliente',
+    aplicarBandeja(items, 'esperando_respuesta').every((i) => i.grupo === 'esperando_cliente'), true);
+  eq('«Ofertas por preparar» trae solo eso',
+    aplicarBandeja(items, 'ofertas').every((i) => i.asunto === 'preparar_oferta'), true);
+
+  const cuenta = contarBandejas(items);
+  eq('la cuenta de «Todo» es el total', cuenta.todo, items.length);
+  eq('cada bandeja cuenta lo que trae',
+    BANDEJAS.every((b) => cuenta[b.clave] === aplicarBandeja(items, b.clave).length), true);
+
+  cierto('ninguna bandeja se queda con más de lo que hay',
+    BANDEJAS.every((b) => cuenta[b.clave] <= items.length));
+  cierto('todas explican para qué son', BANDEJAS.every((b) => b.porque.length > 15));
+  eq('los nombres no se repiten', new Set(BANDEJAS.map((b) => b.clave)).size, BANDEJAS.length);
+  // Cada línea tiene que caber en alguna tanda: si un asunto no entra en
+  // ninguna, existe trabajo que no se puede pedir por su nombre.
+  const cubiertos = new Set(BANDEJAS.flatMap((b) => b.asuntos || []));
+  cierto('ningún asunto se queda fuera de todas las bandejas',
+    items.every((i) => cubiertos.has(i.asunto)),
+    items.filter((i) => !cubiertos.has(i.asunto)).map((i) => i.asunto).join(', '));
+}
 
 console.log(`\n${fallos === 0 ? '✅' : '❌'} ${ok} correctos, ${fallos} fallos\n`);
 process.exit(fallos === 0 ? 0 : 1);

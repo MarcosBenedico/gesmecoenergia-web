@@ -102,11 +102,29 @@ export const GRUPOS: DefGrupo[] = [
   },
 ];
 
+/**
+ * DE QUÉ VA CADA LÍNEA. No es lo mismo que `tipo` ni que `grupo`:
+ *
+ *   · `grupo` dice a quién bloquea (para ordenar).
+ *   · `tipo` dice qué se hace con las manos (para ir por tandas).
+ *   · `asunto` dice de qué es (para las bandejas guardadas).
+ *
+ * Es un campo y no un prefijo de la clave a propósito: la clave es la
+ * identidad de la línea, y sacarle la categoría partiéndola por guiones es de
+ * las cosas que se rompen callando el día que alguien renombra una.
+ */
+export type AsuntoBandeja =
+  | 'falta_suministro' | 'falta_cups_real' | 'falta_consumo' | 'preparar_oferta'
+  | 'enviar_comercializadora' | 'activacion' | 'incidencia' | 'comision'
+  | 'firma' | 'tarea';
+
 export interface ItemBandeja {
   clave: string;
   grupo: GrupoBandeja;
   /** Qué clase de trabajo es, para hacerlo por tandas. */
   tipo: TipoTrabajo;
+  /** De qué va. Ver `AsuntoBandeja`. */
+  asunto: AsuntoBandeja;
   /** De quién es. Es lo primero que se lee. */
   cliente: string;
   clienteId: string | null;
@@ -244,7 +262,7 @@ export function construirBandeja(f: Fuentes): ItemBandeja[] {
     const porPipeline = conFacturaEnPipeline.has(c.id);
     if (!esCliente && !porEstado && !porPipeline) continue;
     items.push({
-      clave: `sin-cups-${c.id}`, grupo: 'bloquea_venta', tipo: 'meter_datos',
+      clave: `sin-cups-${c.id}`, grupo: 'bloquea_venta', tipo: 'meter_datos', asunto: 'falta_suministro',
       cliente: c.nombre, clienteId: c.id,
       accion: 'Darle de alta el suministro',
       href: `/gestor/luz/clientes/${c.id}`,
@@ -266,7 +284,7 @@ export function construirBandeja(f: Fuentes): ItemBandeja[] {
     // CUPS provisional: se creó en la captura o en la puerta, falta el de verdad
     if (esCupsProvisional(s.cups)) {
       items.push({
-        clave: `cups-prov-${s.id}`, grupo: 'bloquea_venta', tipo: 'meter_datos',
+        clave: `cups-prov-${s.id}`, grupo: 'bloquea_venta', tipo: 'meter_datos', asunto: 'falta_cups_real',
         cliente, clienteId: s.cliente_id,
         accion: 'Poner el CUPS real',
         href: `/gestor/luz/cups`,
@@ -290,7 +308,7 @@ export function construirBandeja(f: Fuentes): ItemBandeja[] {
       && !esCupsProvisional(s.cups)
     ) {
       items.push({
-        clave: `cups-sin-consumo-${s.id}`, grupo: 'bloquea_venta', tipo: 'meter_datos',
+        clave: `cups-sin-consumo-${s.id}`, grupo: 'bloquea_venta', tipo: 'meter_datos', asunto: 'falta_consumo',
         cliente, clienteId: s.cliente_id,
         accion: 'Meter el consumo anual',
         href: `/gestor/luz/cups`,
@@ -307,7 +325,7 @@ export function construirBandeja(f: Fuentes): ItemBandeja[] {
   for (const o of f.pipeline) {
     if (o.estado !== 'factura_recibida' && o.estado !== 'pendiente_ofertar') continue;
     items.push({
-      clave: `ofertar-${o.id}`, grupo: 'bloquea_venta', tipo: 'preparar',
+      clave: `ofertar-${o.id}`, grupo: 'bloquea_venta', tipo: 'preparar', asunto: 'preparar_oferta',
       cliente: nombreDe.get(o.cliente_id || '') || o.nombre_oportunidad,
       clienteId: o.cliente_id,
       accion: 'Preparar la oferta',
@@ -328,7 +346,7 @@ export function construirBandeja(f: Fuentes): ItemBandeja[] {
     // Firmado pero sin mandar: el cliente ya dijo que sí y nadie lo tramita
     if (c.estado_contrato === 'firmado') {
       items.push({
-        clave: `enviar-comer-${c.id}`, grupo: 'bloquea_cobro', tipo: 'tramitar',
+        clave: `enviar-comer-${c.id}`, grupo: 'bloquea_cobro', tipo: 'tramitar', asunto: 'enviar_comercializadora',
         cliente, clienteId: c.cliente_id,
         accion: 'Enviarlo a la comercializadora',
         detalle: 'Está firmado y sin tramitar: hasta que no entre, no hay activación ni comisión.',
@@ -345,7 +363,7 @@ export function construirBandeja(f: Fuentes): ItemBandeja[] {
       (diasHasta(c.fecha_activacion_prevista) ?? 1) < 0
     ) {
       items.push({
-        clave: `activacion-${c.id}`, grupo: 'bloquea_cobro', tipo: 'tramitar',
+        clave: `activacion-${c.id}`, grupo: 'bloquea_cobro', tipo: 'tramitar', asunto: 'activacion',
         cliente, clienteId: c.cliente_id,
         accion: 'Confirmar si ya está activado',
         detalle: 'La fecha prevista ya pasó y no consta la real.',
@@ -358,7 +376,7 @@ export function construirBandeja(f: Fuentes): ItemBandeja[] {
     // Incidencia abierta: se queda parado hasta que alguien la toque
     if (c.estado_contrato === 'incidencia') {
       items.push({
-        clave: `incidencia-${c.id}`, grupo: 'bloquea_cobro', tipo: 'resolver',
+        clave: `incidencia-${c.id}`, grupo: 'bloquea_cobro', tipo: 'resolver', asunto: 'incidencia',
         cliente, clienteId: c.cliente_id,
         accion: 'Resolver la incidencia',
         detalle: c.incidencia || 'Hay una incidencia abierta en el contrato.',
@@ -374,7 +392,7 @@ export function construirBandeja(f: Fuentes): ItemBandeja[] {
     if (!COMISION_PENDIENTE.includes(m.estado_comision)) continue;
     if (!m.fecha_prevista_cobro || (diasHasta(m.fecha_prevista_cobro) ?? 1) >= 0) continue;
     items.push({
-      clave: `comision-${m.id}`, grupo: 'bloquea_cobro', tipo: 'reclamar',
+      clave: `comision-${m.id}`, grupo: 'bloquea_cobro', tipo: 'reclamar', asunto: 'comision',
       cliente: nombreDe.get(m.cliente_id || '') || m.comercializadora || 'Comercializadora',
       clienteId: m.cliente_id,
       accion: 'Reclamar la comisión',
@@ -391,7 +409,7 @@ export function construirBandeja(f: Fuentes): ItemBandeja[] {
     if (!['enviado_cliente', 'pendiente_firma'].includes(c.estado_contrato)) continue;
     const dias = diasParado(c.fecha_envio_contrato);
     items.push({
-      clave: `firma-${c.id}`, grupo: 'esperando_cliente', tipo: 'reclamar',
+      clave: `firma-${c.id}`, grupo: 'esperando_cliente', tipo: 'reclamar', asunto: 'firma',
       cliente: nombreDe.get(c.cliente_id || '') || 'Cliente',
       clienteId: c.cliente_id,
       accion: 'Reclamar la firma',
@@ -412,7 +430,7 @@ export function construirBandeja(f: Fuentes): ItemBandeja[] {
       if (!suya(t.responsable)) continue;
       const dias = diasParado(t.fecha_limite);
       items.push({
-        clave: `tarea-${t.id}`, grupo: 'mio', tipo: 'tarea',
+        clave: `tarea-${t.id}`, grupo: 'mio', tipo: 'tarea', asunto: 'tarea',
         cliente: nombreDe.get(t.cliente_id || '') || 'Sin cliente',
         clienteId: t.cliente_id,
         accion: t.descripcion,
@@ -439,5 +457,98 @@ export function porTipoTrabajo(items: ItemBandeja[]): Record<TipoTrabajo, number
 export function resumenBandeja(items: ItemBandeja[]): Record<GrupoBandeja, number> {
   const r = { bloquea_venta: 0, bloquea_cobro: 0, esperando_cliente: 0, mio: 0 };
   for (const i of items) r[i.grupo]++;
+  return r;
+}
+
+// ── BANDEJAS GUARDADAS ──────────────────────────────────────────────────────
+//
+// El análisis operativo las pide por nombre, y el motivo es el mismo que en el
+// listado de clientes: la bandeja ya sabe filtrar por grupo, por tipo y por
+// texto, pero montar la combinación cuesta tres clics CADA VEZ. Al tercer día
+// se deja de montar y se trabaja con la lista entera, que es justo lo que la
+// bandeja venía a evitar.
+//
+// Son fijas y no configurables a propósito: no son el gusto de cada uno, son
+// las tandas de trabajo que existen. Una bandeja que cada uno se monta a su
+// manera deja de poder decirse en voz alta («hazme las activaciones»).
+//
+// LO QUE NO ESTÁ Y ES A PROPÓSITO: «vencimientos próximos». Los vencimientos
+// de contrato, permanencia y preaviso NO se guardan en ningún sitio — se
+// calculan en vivo desde el CUPS para que nunca queden desfasados — y viven en
+// Mi Día, que es la pantalla que se abre para eso. Repetirlos aquí sería tener
+// el mismo vencimiento en dos listas que se pueden contradecir, que es
+// exactamente el fallo que costó 86 fechas críticas duplicadas.
+
+export interface DefBandeja {
+  clave: string;
+  titulo: string;
+  emoji: string;
+  /** Para qué es. Se enseña al elegirla; una tanda sin motivo no se hace. */
+  porque: string;
+  /** Asuntos que entran. Vacío = todos. */
+  asuntos?: AsuntoBandeja[];
+  /** Solo lo que ya ha pasado de fecha. */
+  soloVencidas?: boolean;
+}
+
+export const BANDEJAS: DefBandeja[] = [
+  {
+    clave: 'todo', titulo: 'Todo', emoji: '📥',
+    porque: 'Todo lo que está esperando a alguien.',
+  },
+  {
+    clave: 'mis_vencidas', titulo: 'Mis vencidas', emoji: '🔴',
+    porque: 'Tus tareas con la fecha ya pasada. Lo primero de la mañana.',
+    asuntos: ['tarea'], soloVencidas: true,
+  },
+  {
+    clave: 'meter_facturas', titulo: 'Datos de factura por meter', emoji: '🧾',
+    porque: 'Suministros y consumos sin teclear. Hasta que no estén, David no puede ofertar.',
+    asuntos: ['falta_suministro', 'falta_cups_real', 'falta_consumo'],
+  },
+  {
+    clave: 'ofertas', titulo: 'Ofertas por preparar', emoji: '📊',
+    porque: 'La factura ya está en casa y el estudio sin empezar: el atasco más caro.',
+    asuntos: ['preparar_oferta'],
+  },
+  {
+    clave: 'esperando_respuesta', titulo: 'Esperando respuesta', emoji: '⏳',
+    porque: 'Está en manos del cliente. Se reclama, no se teclea.',
+    asuntos: ['firma'],
+  },
+  {
+    clave: 'contratos_bloqueados', titulo: 'Contratos bloqueados', emoji: '🚧',
+    porque: 'Firmado o con incidencia y parado. Es dinero ya vendido.',
+    asuntos: ['enviar_comercializadora', 'incidencia'],
+  },
+  {
+    clave: 'activaciones', titulo: 'Activaciones', emoji: '🔌',
+    porque: 'Tramitado y sin confirmar que esté activo. Casi siempre es un rechazo del ATR que nadie vio.',
+    asuntos: ['activacion'],
+  },
+  {
+    clave: 'cobros', titulo: 'Cobros pendientes', emoji: '💶',
+    porque: 'Comisiones con la fecha de cobro pasada: trabajo hecho y sin cobrar.',
+    asuntos: ['comision'],
+  },
+];
+
+/** Deja solo lo que entra en esa bandeja. Una clave desconocida no filtra nada. */
+export function aplicarBandeja(items: ItemBandeja[], clave: string): ItemBandeja[] {
+  const b = BANDEJAS.find((x) => x.clave === clave);
+  if (!b || b.clave === 'todo') return items;
+  return items.filter((i) => {
+    if (b.asuntos && !b.asuntos.includes(i.asunto)) return false;
+    // Vencida es que la fecha ya pasó. Una tarea sin fecha no está retrasada,
+    // está sin planificar — y mezclarlas hace la lista inservible para las dos.
+    if (b.soloVencidas && !(i.dias != null && i.dias > 0)) return false;
+    return true;
+  });
+}
+
+/** Cuántas líneas tiene cada bandeja, para poder saltarse las vacías. */
+export function contarBandejas(items: ItemBandeja[]): Record<string, number> {
+  const r: Record<string, number> = {};
+  for (const b of BANDEJAS) r[b.clave] = aplicarBandeja(items, b.clave).length;
   return r;
 }

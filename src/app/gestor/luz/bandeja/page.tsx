@@ -8,6 +8,7 @@ import {
 } from '@/lib/luz';
 import {
   construirBandeja, resumenBandeja, porTipoTrabajo, GRUPOS, TIPOS_TRABAJO,
+  BANDEJAS, aplicarBandeja, contarBandejas,
   GrupoBandeja, TipoTrabajo, ItemBandeja,
 } from '@/lib/bandeja';
 import { useUsuario } from '@/lib/usuario';
@@ -49,26 +50,42 @@ export default function BandejaPage() {
     [clientes.datos, cups.datos, pipeline.datos, contratos.datos, comisiones.datos, tareas.datos, persona]
   );
 
-  const resumen = useMemo(() => resumenBandeja(items), [items]);
-  const conteoTipo = useMemo(() => porTipoTrabajo(items), [items]);
-
   const [grupoAbierto, setGrupoAbierto] = useState<GrupoBandeja | null>(null);
   /** Filtro por clase de trabajo: es lo que permite ir por tandas. */
   const [tipoAbierto, setTipoAbierto] = useState<TipoTrabajo | null>(null);
   const [buscar, setBuscar] = useState('');
+  /**
+   * La tanda elegida. Es un filtro más, pero con nombre: montar «los contratos
+   * bloqueados» a mano son tres clics CADA VEZ, y al tercer día se deja de
+   * montar y se trabaja con la lista entera — justo lo que la bandeja venía a
+   * evitar. Con nombre además se puede decir en voz alta.
+   */
+  const [bandeja, setBandeja] = useState('todo');
+
+  const conteoBandeja = useMemo(() => contarBandejas(items), [items]);
+
+  /**
+   * Lo que hay dentro de la tanda elegida. Los montones y los tipos se cuentan
+   * SOBRE ESTO y no sobre todo: si la pastilla dijera «tramitar 12» y al
+   * pulsarla salieran 3 porque la tanda ya había filtrado, el número dejaría de
+   * significar nada, que es la manera más rápida de que se deje de mirar.
+   */
+  const enTanda = useMemo(() => aplicarBandeja(items, bandeja), [items, bandeja]);
+  const resumen = useMemo(() => resumenBandeja(enTanda), [enTanda]);
+  const conteoTipo = useMemo(() => porTipoTrabajo(enTanda), [enTanda]);
 
   const visibles = useMemo(() => {
     const q = buscar.trim().toLowerCase();
-    return items.filter((i) => {
+    return enTanda.filter((i) => {
       if (grupoAbierto && i.grupo !== grupoAbierto) return false;
       if (tipoAbierto && i.tipo !== tipoAbierto) return false;
       if (q && !i.cliente.toLowerCase().includes(q) && !i.accion.toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [items, grupoAbierto, tipoAbierto, buscar]);
+  }, [enTanda, grupoAbierto, tipoAbierto, buscar]);
 
-  const hayFiltro = !!grupoAbierto || !!tipoAbierto || !!buscar.trim();
-  const limpiarFiltros = () => { setGrupoAbierto(null); setTipoAbierto(null); setBuscar(''); };
+  const hayFiltro = !!grupoAbierto || !!tipoAbierto || !!buscar.trim() || bandeja !== 'todo';
+  const limpiarFiltros = () => { setGrupoAbierto(null); setTipoAbierto(null); setBuscar(''); setBandeja('todo'); };
 
   /** Cuántas se enseñan de golpe: una lista infinita agobia igual que ninguna. */
   const [tope, setTope] = useState(25);
@@ -94,6 +111,41 @@ export default function BandejaPage() {
 
       {!cargando && (
         <>
+          {/* Las tandas con nombre. Van arriba del todo porque lo primero que
+              se decide es «qué voy a hacer esta media hora», y después ya se
+              afina con los montones y los tipos. Las vacías no se pintan: una
+              tanda con cero no es una opción, es ruido. */}
+          {items.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {BANDEJAS.filter((b) => b.clave === 'todo' || conteoBandeja[b.clave] > 0).map((b) => {
+                const activa = bandeja === b.clave;
+                return (
+                  <button
+                    key={b.clave}
+                    onClick={() => { setBandeja(b.clave); setTope(25); }}
+                    title={b.porque}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition ${
+                      activa ? 'bg-accent text-white border-accent' : 'bg-card/70 text-muted border-border/50 hover:text-foreground'
+                    }`}
+                  >
+                    {b.emoji} {b.titulo}
+                    <span className={`tabular-nums ${activa ? 'text-white/80' : 'text-foreground/70'}`}>
+                      {conteoBandeja[b.clave]}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {/* El porqué de la tanda elegida. Una tanda sin motivo escrito se
+              hace a ciegas, y a ciegas se hace mal o no se hace. */}
+          {bandeja !== 'todo' && (
+            <p className="text-xs text-muted">
+              {BANDEJAS.find((b) => b.clave === bandeja)?.porque}
+            </p>
+          )}
+
           {/* Los cuatro montones, en grande. Se pulsa para quedarse con uno. */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             {GRUPOS.map((g) => {
@@ -156,7 +208,7 @@ export default function BandejaPage() {
                   </button>
                 )}
                 <span className="text-sm font-bold text-muted">
-                  {visibles.length} de {items.length}
+                  {visibles.length} de {enTanda.length}
                 </span>
               </div>
             </div>
