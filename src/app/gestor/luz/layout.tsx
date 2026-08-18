@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard, Users, Plug, Target, FileSignature,
-  Euro, ArrowDownUp, Settings, ChevronLeft, ChevronDown, Zap, UserCog, ShieldCheck, Route, History, Sun, Radar, Inbox, BookOpen, Calculator, FileText, TrendingUp, Trash2, Activity, ClipboardList, Wand2, Menu, X,
+  Euro, ArrowDownUp, Settings, ChevronLeft, ChevronDown, Zap, UserCog, ShieldCheck, Route, History, Sun, Radar, Inbox, BookOpen, Calculator, FileText, TrendingUp, Trash2, Activity, ClipboardList, Wand2, Sparkles, Menu, X,
 } from 'lucide-react';
 import { GuardiaModulo } from '@/components/guardia-modulo';
 import { useUsuario } from '@/lib/usuario';
@@ -135,6 +135,8 @@ const BLOQUES: Bloque[] = [
       // Pendiente de GL-10: el plan pide que sea una acción masiva dentro de
       // Clientes, CUPS y Contratos, no una pantalla propia.
       { href: '/gestor/luz/rellenar', icono: Wand2, nombre: 'Rellenar en tanda' },
+      // Se mira de vez en cuando, no cada día: por la regla del menú, aquí.
+      { href: '/gestor/luz/automatismos', icono: Sparkles, nombre: 'Automatizaciones', soloAdmin: true },
       { href: '/gestor/luz/guia', icono: BookOpen, nombre: 'Guía rápida' },
     ],
   },
