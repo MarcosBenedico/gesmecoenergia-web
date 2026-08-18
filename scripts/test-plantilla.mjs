@@ -445,6 +445,23 @@ titulo('El maxímetro por encima de lo contratado: ahí toca SUBIR');
   comprueba('y lo avisa nombrando el periodo', /P1/.test(a.texto), a?.texto);
   comprueba('diciendo que ahí se sube, no se baja',
     /SUBIR/.test(a.arreglo), a?.arreglo);
+  // El consejo es el mismo en las dos tarifas pero el motivo no: en 2.0TD no
+  // hay término de exceso, salta el ICP. Decir el motivo que no es delante de
+  // un cliente cuesta credibilidad.
+  comprueba('y en 2.0TD el motivo es el ICP, no la facturación de excesos',
+    /salta el interruptor/.test(a.arreglo) && !/se factura como exceso/.test(a.arreglo),
+    a?.arreglo);
+
+  const en30 = interpretarPlantilla({
+    suministro: suministro('3.0TD'),
+    consumos: [['Mes', 'Días', 'P1', 'P2', 'P3', 'P4', 'P5', 'P6'],
+      ['Julio', 30, 4000, 3000, 2000, 1000, 1000, 2000,
+        40, 40, 40, 40, 40, 40, 55, 30, 30, 30, 30, 30]],
+    precios: PRECIOS_OK,
+  });
+  comprueba('en 3.0TD el motivo sí es que se factura el exceso',
+    /se factura como exceso/.test(
+      avisos(en30).find((x) => x.campo === 'potencias').arreglo));
   comprueba('no bloquea', r.utilizable);
 
   const sinExceso = interpretarPlantilla({

@@ -432,9 +432,15 @@ export function interpretarPlantilla(hojas: {
     if (kw > 0 && maximetros[i] > kw) periodosEnExceso.push(i + 1);
   });
   if (periodosEnExceso.length) {
+    // El consejo es el mismo en las dos tarifas, pero el motivo NO, y decir el
+    // que no es delante de un cliente cuesta credibilidad. En 3.0TD y 6.1TD
+    // cada cuarto de hora por encima se factura como exceso; en 2.0TD no hay
+    // término de exceso: lo que pasa es que salta el ICP y se queda sin luz.
     pega('potencias', 'revisar',
       `Se pasa de la potencia contratada en ${periodosEnExceso.map((p) => `P${p}`).join(', ')}`,
-      'Ahí toca SUBIR potencia, no bajarla: los excesos se facturan aparte y ya los está pagando');
+      tarifa === '2.0'
+        ? 'Ahí toca SUBIR potencia, no bajarla: en 2.0TD no se factura exceso, salta el interruptor y se queda sin luz'
+        : 'Ahí toca SUBIR potencia, no bajarla: cada cuarto de hora por encima se factura como exceso y ya lo está pagando');
   }
 
   if (meses.length && potencias.every((p) => p === 0)) {
