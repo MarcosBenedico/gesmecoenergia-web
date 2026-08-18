@@ -10,7 +10,23 @@ import { revisarFactura } from '@/lib/factura';
  * Coste aproximado: unos céntimos por factura.
  */
 
-export const maxDuration = 60;
+/**
+ * PDF de tres páginas contra un modelo de visión no cabe en un minuto siempre.
+ * Cada página se convierte a imagen antes de leerla, así que el tiempo crece
+ * con las páginas y no con los megas: una foto suelta tarda segundos y una
+ * factura de empresa de seis páginas puede irse a dos o tres minutos.
+ */
+export const maxDuration = 300;
+
+/**
+ * Tope de entrada.
+ *
+ * La API admite 32 MB, pero el archivo llega en base64 dentro de un JSON y eso
+ * son 4/3 del tamaño original; por encima de esto la petición se corta ANTES de
+ * llegar aquí y el error que ve el usuario no lo escribimos nosotros. Vale más
+ * decirlo con nuestras palabras y a tiempo.
+ */
+const MAX_BYTES = 3 * 1024 * 1024;
 
 const SCHEMA = {
   type: 'object' as const,
@@ -124,6 +140,21 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // base64 son 4 caracteres por cada 3 bytes: así se recupera el tamaño real
+    // sin volver a decodificar el archivo entero en memoria.
+    const bytes = Math.floor((String(data).length * 3) / 4);
+    if (bytes > MAX_BYTES) {
+      return NextResponse.json(
+        {
+          error: `El archivo ocupa ${(bytes / 1024 / 1024).toFixed(1)} MB y el tope son ${MAX_BYTES / 1024 / 1024} MB. `
+            + (esPdf
+              ? 'Sube solo la página del desglose de consumos y precios.'
+              : 'Haz la foto con menos resolución o recorta el apartado de consumos.'),
+        },
+        { status: 413 }
+      );
+    }
+
     const client = new Anthropic();
 
     const bloqueArchivo = esPdf
@@ -141,8 +172,8 @@ export async function POST(req: NextRequest) {
         };
 
     const response = await client.messages.create({
-      model: 'claude-opus-4-8',
-      max_tokens: 2048,
+      model: 'claude-opus-5',
+      max_tokens: 16000,
       system:
         'Eres un experto en facturas de electricidad españolas (tarifas de acceso 2.0TD, 3.0TD y 6.1TD). ' +
         'Extraes datos con precisión absoluta: si un valor no es legible, usa 0 y anótalo en observaciones. ' +
@@ -162,6 +193,10 @@ export async function POST(req: NextRequest) {
         },
       ],
       output_config: {
+        // Leer una factura es mecánico, no es un problema que haya que pensar:
+        // el esfuerzo bajo aquí ahorra tiempo de espera, que es lo que decide
+        // si esto se usa en la calle o se acaba tecleando a mano.
+        effort: 'low',
         format: { type: 'json_schema', schema: SCHEMA },
       },
     });
@@ -181,7 +216,27 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const datos = JSON.parse(texto.text);
+    // Si la respuesta se ha cortado por llegar al tope, el JSON viene a medias
+    // y `JSON.parse` revienta. Antes eso caía en el catch de abajo y salía
+    // «error al procesar la factura», que no dice nada y manda a probar otra
+    // vez lo mismo. Con el tope alto esto no debería pasar; si pasa, se dice.
+    if (response.stop_reason === 'max_tokens') {
+      return NextResponse.json(
+        { error: 'La respuesta se ha cortado a mitad. Prueba con una sola página de la factura (la del desglose).' },
+        { status: 422 }
+      );
+    }
+
+    let datos;
+    try {
+      datos = JSON.parse(texto.text);
+    } catch {
+      console.error('leer-factura: respuesta no es JSON:', texto.text.slice(0, 300));
+      return NextResponse.json(
+        { error: 'La lectura ha devuelto algo que no se entiende. Vuelve a intentarlo.' },
+        { status: 422 }
+      );
+    }
 
     if (!datos.encontrada) {
       return NextResponse.json(
@@ -208,11 +263,47 @@ export async function POST(req: NextRequest) {
     });
 
     return NextResponse.json({ ok: true, datos, revision });
-  } catch (e: any) {
-    console.error('Error leyendo factura:', e?.message || e);
+  } catch (e: unknown) {
+    /**
+     * EL MOTIVO SE ENSEÑA, NO SE ESCONDE.
+     *
+     * Aquí ponía «Error al procesar la factura. Inténtalo de nuevo» y se
+     * tiraba la causa a un console.error que solo se ve entrando en Vercel.
+     * Cuando esto falló con un PDF real no se pudo arreglar: no había forma de
+     * saber si era el tamaño, el modelo, el formato o la cuenta, y el mensaje
+     * invitaba a repetir exactamente lo que acababa de no funcionar.
+     *
+     * Es el panel interno de la empresa, no una web pública: aquí el detalle
+     * no filtra nada a nadie y ahorra media hora de adivinar.
+     */
+    const err = e as { status?: number; message?: string; request_id?: string;
+                       error?: { error?: { type?: string; message?: string } } };
+    const tipo = err?.error?.error?.type;
+    const detalleApi = err?.error?.error?.message || err?.message || String(e);
+
+    console.error('leer-factura falló:', {
+      status: err?.status, tipo, request_id: err?.request_id, mensaje: detalleApi,
+    });
+
+    // Los casos que sabemos explicar en cristiano se explican; el resto sale
+    // tal cual, que es infinitamente mejor que «inténtalo de nuevo».
+    const porStatus: Record<number, string> = {
+      400: 'La API ha rechazado el documento',
+      401: 'La clave de la API no es válida o ha caducado',
+      403: 'La cuenta no tiene permiso para esta operación',
+      413: 'El archivo es demasiado grande',
+      429: 'Se ha alcanzado el límite de peticiones. Espera un minuto y repite',
+      529: 'El servicio está saturado ahora mismo. Repite en un momento',
+    };
+    const cabeza = porStatus[err?.status ?? 0]
+      || (err?.status && err.status >= 500 ? 'El servicio de lectura ha fallado' : 'No se ha podido leer la factura');
+
     return NextResponse.json(
-      { error: 'Error al procesar la factura. Inténtalo de nuevo o usa la calculadora guiada.' },
-      { status: 500 }
+      {
+        error: `${cabeza}: ${detalleApi}`,
+        detalle: { status: err?.status ?? null, tipo: tipo ?? null, request_id: err?.request_id ?? null },
+      },
+      { status: err?.status && err.status < 500 ? err.status : 502 }
     );
   }
 }

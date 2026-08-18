@@ -34,6 +34,7 @@ import {
   type Revision, type FacturaLeida,
 } from '@/lib/factura';
 import { TARIFA_INFO, type TarifaAcceso } from '@/lib/tarifas-base';
+import { prepararFactura } from '@/lib/factura-archivo';
 import { compararConComercializadoras } from '@/lib/tarifas';
 import {
   evaluarEscenarios, recomendar, alertasDeLaComparativa, resumenComparativa,
@@ -81,14 +82,6 @@ export const ESTADO_ESTUDIO_LABEL: Record<string, string> = {
 const PASOS = ['Factura', 'Datos', 'Comparativa', 'Propuesta'] as const;
 
 const hoyISO = () => new Date().toISOString().slice(0, 10);
-
-/** Lee un archivo a base64 sin la cabecera `data:`. */
-const aBase64 = (f: File) => new Promise<string>((res, rej) => {
-  const fr = new FileReader();
-  fr.onload = () => res(String(fr.result).split(',')[1] || '');
-  fr.onerror = () => rej(new Error('No se pudo leer el archivo'));
-  fr.readAsDataURL(f);
-});
 
 const listaNum = (s: string): number[] =>
   s.split(/[,;\s]+/).map((x) => Number(x.replace(',', '.'))).filter((n) => Number.isFinite(n));
@@ -173,14 +166,22 @@ export function FlujoEstudio({
     setLeyendo(true);
     setMsg('');
     try {
-      const data = await aBase64(file);
+      // Una foto de móvil son 4 MB y en base64 se convierte en 5,3: por
+      // encima del límite la petición se corta antes de llegar al servidor y
+      // el error que sale no lo escribimos nosotros. Se encoge antes.
+      const { data, mediaType } = await prepararFactura(file);
       const r = await fetch('/api/leer-factura', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ data, mediaType: file.type }),
+        body: JSON.stringify({ data, mediaType }),
       });
-      const j = await r.json();
-      if (!r.ok) { setMsg(j.error || 'No se pudo leer la factura.'); return; }
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        // El motivo real, tal como lo cuenta el servidor. Un «no se pudo» a
+        // secas obliga a repetir lo mismo esperando otro resultado.
+        setMsg(j.error || `No se pudo leer la factura (error ${r.status}).`);
+        return;
+      }
 
       const x = j.datos || {};
       if (x.tarifa) setTarifa(x.tarifa);

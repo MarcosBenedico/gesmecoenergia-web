@@ -8,6 +8,7 @@ import {
   ResponsableEquipo, normCups, fmtFecha,
 } from '@/lib/luz';
 import { tokenSesion } from '@/lib/usuario';
+import { prepararFactura } from '@/lib/factura-archivo';
 import { Card, inputCls, labelCls, btnPrimario, btnSecundario, useListaLuz } from '../ui';
 import { subirFotoSitio, FotoSitio } from '../foto-sitio';
 
@@ -90,17 +91,19 @@ export default function CapturaPage() {
     if (archivo.size > 15 * 1024 * 1024) { setError('El archivo supera los 15 MB.'); return; }
     setLeyendo(true); setError('');
     try {
-      const bytes = new Uint8Array(await archivo.arrayBuffer());
-      let binario = '';
-      for (let i = 0; i < bytes.length; i += 8192) binario += String.fromCharCode(...bytes.subarray(i, i + 8192));
+      // Las fotos se encogen antes de mandarlas: una de móvil son 4 MB y en
+      // base64 pasa de 5, por encima de lo que aguanta la petición.
+      const { data, mediaType } = await prepararFactura(archivo);
 
       const res = await fetch('/api/leer-factura', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ data: btoa(binario), mediaType: archivo.type }),
+        body: JSON.stringify({ data, mediaType }),
       });
-      const json = await res.json();
-      if (!res.ok) { setError(json.error || 'No se pudo leer la factura.'); return; }
+      const json = await res.json().catch(() => ({}));
+      // El motivo que dé el servidor, tal cual: es lo único que permite
+      // arreglarlo sin tener que entrar en los registros.
+      if (!res.ok) { setError(json.error || `No se pudo leer la factura (error ${res.status}).`); return; }
 
       const d = json.datos as FacturaLeida;
       setFactura(d);
