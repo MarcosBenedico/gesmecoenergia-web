@@ -235,6 +235,14 @@ export interface LecturaPlantilla {
   potencias: number[];
   /** Máximo del maxímetro por periodo en todo el año. */
   maximetros: number[];
+  /**
+   * Periodos donde el maxímetro se pasa de la potencia contratada (1..n).
+   *
+   * Ahí el consejo es SUBIR, no bajar: cada cuarto de hora en exceso se
+   * factura aparte, y es dinero que el cliente ya está pagando sin saberlo.
+   * Sale de la plantilla porque el maxímetro solo lo trae la plantilla.
+   */
+  periodosEnExceso: number[];
   preciosEnergia: number[];
   preciosPotencia: number[];
   /** El año NO cubre los días suficientes: está extrapolado. */
@@ -245,7 +253,7 @@ export interface LecturaPlantilla {
 }
 
 const vacio = (n: number) => new Array(n).fill(0);
-const norm = (s: string) => String(s ?? '').trim().toLowerCase()
+const norm = (s: unknown) => String(s ?? '').trim().toLowerCase()
   .normalize('NFD').replace(/[̀-ͯ]/g, '');
 
 /** De «2.0TD», «2.0 TD», «20TD» o «2.0» a la clave interna. */
@@ -263,10 +271,22 @@ export function leerTarifa(bruto: string | null | undefined): TarifaAcceso | nul
  * Recibe matrices de texto y no un archivo a propósito: así se prueba entero
  * sin abrir un Excel, que es donde de verdad se rompen estas cosas.
  */
+/**
+ * Una celda tal y como viene del archivo: número si era número.
+ *
+ * NO se convierte a texto por el camino. En el .xlsx un consumo de 473,21 kWh
+ * está guardado como el número 473.21; pasándolo a texto sale «473.210» —el
+ * formato de la plantilla pinta tres decimales— y al releerlo ese punto parece
+ * separador de miles: 473.210 kWh, mil veces más, dentro de una oferta y sin
+ * ningún error por ninguna parte. Las heurísticas de `leerNumero` existen para
+ * lo que de verdad viene escrito a mano, no para deshacer un formato nuestro.
+ */
+export type Celda = string | number;
+
 export function interpretarPlantilla(hojas: {
-  suministro: string[][];
-  consumos: string[][];
-  precios: string[][];
+  suministro: Celda[][];
+  consumos: Celda[][];
+  precios: Celda[][];
 }): LecturaPlantilla {
   const reparos: Reparo[] = [];
   const pega = (campo: string, gravedad: 'bloquea' | 'revisar', texto: string, arreglo: string) =>
@@ -373,6 +393,31 @@ export function interpretarPlantilla(hojas: {
 
   const consumoAnual = consumoAnualPorPeriodo.reduce((s, v) => s + v, 0);
 
+  /**
+   * COMPROBACIÓN FÍSICA: un suministro no puede consumir más de lo que da su
+   * potencia contratada.
+   *
+   * El tope real es kW × 24 h × días. No es una heurística ni un umbral
+   * elegido a ojo: por encima de eso el dato es imposible, no improbable.
+   *
+   * Está aquí porque es lo único que caza de verdad un punto de miles mal
+   * interpretado. Un consumo de 473.210 kWh en un mes parece un número normal
+   * en una hoja de cálculo; con 6,9 kW contratados, el máximo son 4.988 kWh y
+   * la cuenta no sale ni acercándose. Ningún truco de análisis de texto llega
+   * a esa conclusión, y un asesor la ve de un vistazo.
+   */
+  for (const m of meses) {
+    const kwMax = Math.max(...m.potenciaContratada, 0);
+    if (kwMax <= 0 || m.dias <= 0) continue;
+    const tope = kwMax * 24 * m.dias;
+    const gastado = m.energia.reduce((s, v) => s + v, 0);
+    if (gastado > tope) {
+      pega('consumos', 'revisar',
+        `${m.mes}: ${Math.round(gastado).toLocaleString('es-ES')} kWh no caben en ${kwMax} kW contratados (el máximo físico son ${Math.round(tope).toLocaleString('es-ES')} kWh en ${m.dias} días)`,
+        'Casi siempre es un punto de los miles de más: comprueba si son kWh o decimales');
+    }
+  }
+
   // La potencia contratada debería ser la misma todo el año; si cambió, manda
   // la mayor, que es la que marca lo que se está pagando de término fijo.
   const potencias = vacio(nP);
@@ -381,6 +426,17 @@ export function interpretarPlantilla(hojas: {
     m.potenciaContratada.forEach((v, i) => { potencias[i] = Math.max(potencias[i], v); });
     m.maximetro.forEach((v, i) => { maximetros[i] = Math.max(maximetros[i], v); });
   }
+  // Maxímetro por encima de lo contratado: exceso de potencia facturado.
+  const periodosEnExceso: number[] = [];
+  potencias.forEach((kw, i) => {
+    if (kw > 0 && maximetros[i] > kw) periodosEnExceso.push(i + 1);
+  });
+  if (periodosEnExceso.length) {
+    pega('potencias', 'revisar',
+      `Se pasa de la potencia contratada en ${periodosEnExceso.map((p) => `P${p}`).join(', ')}`,
+      'Ahí toca SUBIR potencia, no bajarla: los excesos se facturan aparte y ya los está pagando');
+  }
+
   if (meses.length && potencias.every((p) => p === 0)) {
     pega('potencias', 'bloquea',
       'No hay ninguna potencia contratada',
@@ -424,6 +480,7 @@ export function interpretarPlantilla(hojas: {
     consumosMes: consumoAnualPorPeriodo.map((v) => v / 12),
     potencias,
     maximetros,
+    periodosEnExceso,
     preciosEnergia,
     preciosPotencia,
     extrapolado,

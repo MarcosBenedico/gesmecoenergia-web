@@ -367,5 +367,93 @@ titulo('Tolerancia a que alguien toque la hoja');
   comprueba('una plantilla en blanco no revienta', !sinNada.utilizable && sinNada.meses.length === 0);
 }
 
+titulo('UN NÚMERO DEL ARCHIVO LLEGA COMO NÚMERO, NO COMO TEXTO');
+{
+  // En el .xlsx un consumo de 473,21 kWh está guardado como el número 473.21.
+  // Pasarlo a texto para releerlo daba «473.210» —el formato pinta tres
+  // decimales— y eso, bajo las reglas de cantidad, son 473.210 kWh: mil veces
+  // más, dentro de una oferta, sin ningún error por ninguna parte.
+  const filas = [['Mes', 'Días facturados', 'P1', 'P2', 'P3']];
+  filas.push(['Jul-25', 30, 473.21, 420.32, 672.71, 6.928, 6.928, 6.416, 5.828]);
+  const r = interpretarPlantilla({
+    suministro: suministro('2.0TD'),
+    consumos: filas,
+    precios: [['Periodo', '€/kWh', '€/kW·día'], ['P1', 0.15374, 0.117686], ['P2', 0.15374, 0.041554], ['P3', 0.15374, '']],
+  });
+
+  comprueba('un número se respeta tal cual', r.meses[0].energia[0] === 473.21,
+    String(r.meses[0].energia[0]));
+  comprueba('y NO se convierte en 473210', r.meses[0].energia[0] < 1000);
+  comprueba('las potencias decimales también', r.meses[0].potenciaContratada[0] === 6.928);
+  comprueba('y los precios', r.preciosEnergia[0] === 0.15374 && r.preciosPotencia[0] === 0.117686);
+  comprueba('el consumo anual sale de un suministro de verdad',
+    r.consumoAnual > 15000 && r.consumoAnual < 25000, String(Math.round(r.consumoAnual)));
+  comprueba('sin avisos de números dudosos', !avisos(r).some((x) => x.campo === 'numeros'),
+    JSON.stringify(r.reparos));
+}
+
+titulo('LO QUE NO CABE EN LA POTENCIA CONTRATADA ES IMPOSIBLE, NO IMPROBABLE');
+{
+  // El tope real es kW × 24 h × días. No es un umbral a ojo: por encima, el
+  // dato no puede ser. Es lo único que caza de verdad un punto de miles.
+  const filas = [['Mes', 'Días facturados', 'P1', 'P2', 'P3']];
+  filas.push(['Julio', 30, 473210, 0, 0, 6.928, 6.928, 6, 6]);
+  const r = interpretarPlantilla({
+    suministro: suministro('2.0TD'), consumos: filas,
+    precios: precios(['0,15', '0,15', '0,15'], ['0,11', '0,04']),
+  });
+
+  const a = avisos(r).find((x) => /no caben/.test(x.texto));
+  comprueba('un consumo imposible para su potencia se avisa', !!a, JSON.stringify(r.reparos));
+  comprueba('diciendo el mes', /Julio/.test(a.texto), a?.texto);
+  // 4.988 sin punto: en español no se agrupan los millares de cuatro cifras.
+  comprueba('y el máximo físico que sí cabría', /4\.?988/.test(a.texto), a?.texto);
+  comprueba('apuntando a la causa habitual',
+    /punto de los miles/.test(a.arreglo), a?.arreglo);
+  comprueba('no bloquea: se avisa y decide una persona', r.utilizable);
+
+  // Y no salta con datos normales.
+  const bien = interpretarPlantilla({
+    suministro: suministro('2.0TD'),
+    consumos: [['Mes', 'Días', 'P1', 'P2', 'P3'], ['Julio', 30, 473, 420, 672, 6.928, 6.928, 6, 6]],
+    precios: precios(['0,15', '0,15', '0,15'], ['0,11', '0,04']),
+  });
+  comprueba('con datos normales no salta', !avisos(bien).some((x) => /no caben/.test(x.texto)));
+
+  // Sin potencia contratada no hay tope contra el que comparar.
+  const sinPot = interpretarPlantilla({
+    suministro: suministro('2.0TD'),
+    consumos: [['Mes', 'Días', 'P1', 'P2', 'P3'], ['Julio', 30, 999999, 0, 0, '', '', '', '']],
+    precios: precios(['0,15', '0,15', '0,15'], ['0,11', '0,04']),
+  });
+  comprueba('sin potencia no se inventa un tope',
+    !avisos(sinPot).some((x) => /no caben/.test(x.texto)));
+}
+
+titulo('El maxímetro por encima de lo contratado: ahí toca SUBIR');
+{
+  const filas = [['Mes', 'Días', 'P1', 'P2', 'P3']];
+  filas.push(['Julio', 30, 400, 300, 500, 6.928, 6.928, 8.5, 5.0]);
+  const r = interpretarPlantilla({
+    suministro: suministro('2.0TD'), consumos: filas,
+    precios: precios(['0,15', '0,15', '0,15'], ['0,11', '0,04']),
+  });
+
+  comprueba('detecta el periodo en exceso', r.periodosEnExceso.join(',') === '1',
+    JSON.stringify(r.periodosEnExceso));
+  const a = avisos(r).find((x) => x.campo === 'potencias');
+  comprueba('y lo avisa nombrando el periodo', /P1/.test(a.texto), a?.texto);
+  comprueba('diciendo que ahí se sube, no se baja',
+    /SUBIR/.test(a.arreglo), a?.arreglo);
+  comprueba('no bloquea', r.utilizable);
+
+  const sinExceso = interpretarPlantilla({
+    suministro: suministro('2.0TD'),
+    consumos: [['Mes', 'Días', 'P1', 'P2', 'P3'], ['Julio', 30, 400, 300, 500, 6.928, 6.928, 5, 5]],
+    precios: precios(['0,15', '0,15', '0,15'], ['0,11', '0,04']),
+  });
+  comprueba('sin exceso no se avisa', sinExceso.periodosEnExceso.length === 0);
+}
+
 console.log(`\n${fallos === 0 ? '✅' : '❌'} ${ok} bien, ${fallos} mal\n`);
 process.exit(fallos === 0 ? 0 : 1);

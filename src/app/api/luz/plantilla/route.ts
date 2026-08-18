@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import ExcelJS from 'exceljs';
+import { leerLibro, hojaCon } from '@/lib/excel-hojas';
 import {
   CAMPOS_SUMINISTRO, MESES, columnasDeConsumo, interpretarPlantilla,
   DIAS_MINIMOS_FIABLES,
@@ -302,60 +303,28 @@ export async function GET(req: NextRequest) {
   });
 }
 
-/** Una hoja entera como matriz de texto, que es lo que come el intérprete. */
-function comoTexto(ws: ExcelJS.Worksheet | undefined): string[][] {
-  if (!ws) return [];
-  const salida: string[][] = [];
-  ws.eachRow({ includeEmpty: true }, (row) => {
-    const fila: string[] = [];
-    row.eachCell({ includeEmpty: true }, (cell, col) => {
-      const v = cell.value;
-      let texto = '';
-      if (v == null) texto = '';
-      else if (v instanceof Date) texto = v.toISOString().slice(0, 10);
-      else if (typeof v === 'object') {
-        // Celda con fórmula (los totales) o texto enriquecido.
-        const o = v as { result?: unknown; text?: string; richText?: { text: string }[] };
-        if (o.result != null) texto = String(o.result);
-        else if (o.text != null) texto = String(o.text);
-        else if (o.richText) texto = o.richText.map((r) => r.text).join('');
-      } else texto = String(v);
-      fila[col - 1] = texto.trim();
-    });
-    salida.push(fila);
-  });
-  return salida;
-}
-
-/** Busca una hoja por lo que lleve en el nombre, no por su posición. */
-const hojaCon = (wb: ExcelJS.Workbook, clave: string) =>
-  wb.worksheets.find((w) => w.name.toLowerCase().includes(clave));
-
 export async function POST(req: NextRequest) {
   try {
     const { archivo } = await req.json();
     if (!archivo) return NextResponse.json({ error: 'Falta el archivo.' }, { status: 400 });
 
-    const wb = new ExcelJS.Workbook();
-    await wb.xlsx.load(Buffer.from(String(archivo), 'base64') as unknown as ExcelJS.Buffer);
+    // Dos motores: Excel reordena el zip al guardar y ExcelJS no lo abre.
+    // Ver src/lib/excel-hojas.ts — la plantilla que rechazábamos era válida.
+    const libro = await leerLibro(String(archivo));
 
-    const suministro = hojaCon(wb, 'suministro');
-    const consumos = hojaCon(wb, 'consumo');
-    const precios = hojaCon(wb, 'precio');
+    const suministro = hojaCon(libro, 'suministro');
+    const consumos = hojaCon(libro, 'consumo');
+    const precios = hojaCon(libro, 'precio');
 
-    if (!suministro || !consumos) {
+    if (!suministro.length || !consumos.length) {
       return NextResponse.json({
-        error: 'Ese Excel no es la plantilla de Gesmeco: le faltan las hojas «1. Suministro» y «2. Consumos y potencias». Descárgala desde el botón de arriba y rellénala.',
+        error: `Ese Excel no es la plantilla de Gesmeco: le faltan las hojas «1. Suministro» y «2. Consumos y potencias». Trae ${libro.hojas.map((h) => h.nombre).join(', ') || 'ninguna hoja'}. Descárgala con el botón de arriba y rellénala.`,
       }, { status: 422 });
     }
 
-    const lectura = interpretarPlantilla({
-      suministro: comoTexto(suministro),
-      consumos: comoTexto(consumos),
-      precios: comoTexto(precios),
-    });
+    const lectura = interpretarPlantilla({ suministro, consumos, precios });
 
-    return NextResponse.json({ ok: true, lectura });
+    return NextResponse.json({ ok: true, lectura, motor: libro.motor });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     console.error('plantilla: no se ha podido leer el Excel:', msg);

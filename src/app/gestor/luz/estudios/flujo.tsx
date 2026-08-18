@@ -171,6 +171,9 @@ export function FlujoEstudio({
       // bajar potencia deja de ser riesgo alto: hay un pico medido detrás en
       // vez de un promedio que aplana los picos.
       tieneMaximetro: !!plantilla?.maximetros?.some((m) => m > 0),
+      // Donde el maxímetro se pasa de lo contratado, el consejo es subir y no
+      // bajar. Sin esto, la comparativa podría proponer justo lo contrario.
+      periodosEnExceso: plantilla?.periodosEnExceso?.length ? plantilla.periodosEnExceso : null,
       // Un año extrapolado desde tres meses ES un dato estimado, y el motor de
       // escenarios tiene que saberlo para subir el riesgo y decirlo.
       datosEstimados: plantilla
