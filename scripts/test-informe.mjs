@@ -228,6 +228,47 @@ titulo('El PDF se dibuja entero sin reventar');
     docMinimo.getNumberOfPages() >= 1);
 }
 
+titulo('SIN PLANTILLA TAMBIÉN HAY INFORME');
+{
+  // El botón del PDF exigía plantilla y se quedaba apagado sin más. Un informe
+  // con menos apartados sigue siendo un informe: negarlo entero por no tener
+  // los doce meses es quedarse sin nada por no tenerlo todo.
+  const suelta = lectura({ meses: [], sobre: { meses: [], diasTotales: 0, extrapolado: true } });
+  const e = construirEstudio(suelta);
+  comprueba('se monta el estudio sin desglose mensual', !!e);
+  comprueba('y la tabla de meses sale vacía, no rota', e.meses.length === 0);
+  comprueba('el coste actual se calcula igual', e.actual.total > 0);
+  comprueba('y el reparto por periodo también', e.reparto.length === 6);
+  comprueba('sin meses no hay mes pico ni valle', e.mesPico === null && e.mesValle === null);
+
+  const doc = await construirInformePdf({
+    lectura: suelta, estudio: e, escenarios: escenariosDe(suelta),
+    recomendacion: recomendar(escenariosDe(suelta)), alertas: [],
+    cliente: 'X', responsable: null, fecha: HOY,
+  });
+  comprueba('y el PDF se genera igual', doc.getNumberOfPages() >= 1);
+}
+
+titulo('El maxímetro a mano vale igual que el de la plantilla');
+{
+  // Quien tenga los maxímetros apuntados en un papel de la visita tiene que
+  // poder usarlos: exigir el Excel convierte la herramienta en un trámite.
+  const aMano = lectura({
+    meses: [],
+    sobre: { meses: [], diasTotales: 0, maximetros: [28, 28, 28, 28, 28, 28] },
+  });
+  const e = construirEstudio(aMano);
+  comprueba('hay análisis de potencia sin desglose mensual', !!e.potencia);
+  comprueba('y sale su ahorro', e.ahorroPotencia > 0, String(e.ahorroPotencia));
+  comprueba('con una lectura por periodo, no doce',
+    e.potencia.periodos[0].lecturas === 1, String(e.potencia.periodos[0].lecturas));
+  comprueba('el ahorro sale en €/año aunque no haya días declarados',
+    Number.isFinite(e.ahorroPotencia) && e.ahorroPotencia > 0);
+
+  const sinNada = construirEstudio(lectura({ meses: [], sobre: { meses: [], maximetros: [] } }));
+  comprueba('sin maxímetro por ningún lado, no hay análisis', sinNada.potencia === null);
+}
+
 titulo('El nombre del archivo se puede archivar');
 {
   comprueba('lleva cliente y fecha',

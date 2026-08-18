@@ -270,6 +270,44 @@ const vacio = (n: number) => new Array(n).fill(0);
 const norm = (s: unknown) => String(s ?? '').trim().toLowerCase()
   .normalize('NFD').replace(/[̀-ͯ]/g, '');
 
+/**
+ * Una fecha escrita a mano a formato ISO, que es lo que come la base.
+ *
+ * En la plantilla la gente escribe `30/04/2027`, pero si la casilla tiene
+ * formato de fecha, Excel devuelve `2027-04-30`. Las dos tienen que valer, y
+ * la que no se entienda devuelve null en vez de una fecha inventada: una fecha
+ * de fin de contrato equivocada mueve el preaviso, y un preaviso movido cuesta
+ * un año de bloqueo.
+ */
+export function aFechaISO(bruto: string | null | undefined): string | null {
+  const s = String(bruto ?? '').trim();
+  if (!s) return null;
+
+  const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
+
+  const es = s.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})$/);
+  if (es) {
+    const d = es[1].padStart(2, '0');
+    const m = es[2].padStart(2, '0');
+    // Un año a dos cifras es del siglo actual: «27» es 2027, no 1927 ni el
+    // año 27. Ya pasó con las fechas críticas (ver supabase_fecha_ano_26.sql).
+    const a = es[3].length === 2 ? `20${es[3]}` : es[3].padStart(4, '0');
+    if (Number(m) < 1 || Number(m) > 12 || Number(d) < 1 || Number(d) > 31) return null;
+    return `${a}-${m}-${d}`;
+  }
+  return null;
+}
+
+/** Días antes del fin de contrato en que se cierra la ventana de preaviso. */
+export function limitePreaviso(finContrato: string | null, diasPreaviso: number): string | null {
+  if (!finContrato || !diasPreaviso) return null;
+  const d = new Date(`${finContrato}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return null;
+  d.setDate(d.getDate() - diasPreaviso);
+  return d.toISOString().slice(0, 10);
+}
+
 /** De «2.0TD», «2.0 TD», «20TD» o «2.0» a la clave interna. */
 export function leerTarifa(bruto: string | null | undefined): TarifaAcceso | null {
   const s = norm(bruto || '').replace(/\s|td|\./g, '');

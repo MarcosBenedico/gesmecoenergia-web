@@ -150,6 +150,16 @@ export function construirEstudio(
     });
   }
 
+  // Sin desglose mensual, sirve el maxímetro anual: es una sola lectura por
+  // periodo en vez de doce, así que el optimizador le dará menos confianza —
+  // que es exactamente lo que corresponde. Peor sería no analizar la potencia
+  // porque los datos vinieron a mano en vez de en una plantilla.
+  if (!lecturas.length) {
+    lectura.maximetros.forEach((kw, i) => {
+      if (kw > 0) lecturas.push({ periodo: i + 1, potencia_kw: kw });
+    });
+  }
+
   const potencia = lecturas.length
     ? optimizarPotencias({
       tarifa,
@@ -161,7 +171,9 @@ export function construirEstudio(
         : precioPotenciaDia(tarifa, opciones.preciosPotenciaAnuales),
       lecturas,
       fuente: 'maximetro',
-      dias_analizados: lectura.diasTotales,
+      // Sin días declarados se supone un año: es lo que hace que el ahorro
+      // salga en €/año y no en € de un periodo indeterminado.
+      dias_analizados: lectura.diasTotales || 365,
     })
     : null;
 

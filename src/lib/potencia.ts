@@ -308,7 +308,13 @@ export function optimizarPotencias(entrada: EntradaOptimizacion): ResultadoOptim
   const enExceso = periodos.filter((p) => p.en_exceso);
   if (enExceso.length) {
     avisos.push(
-      `Consumo por encima de lo contratado en ${enExceso.map((p) => `P${p.periodo}`).join(', ')}: está pagando penalización por excesos. Aquí toca SUBIR potencia, y la cifra de penalización es una cota inferior.`
+      // El consejo es el mismo en las dos tarifas pero el motivo NO: en 2.0TD
+      // no existe término de exceso, lo que pasa es que salta el ICP y el
+      // cliente se queda sin luz. Soltar el motivo equivocado delante de él
+      // cuesta credibilidad justo en la frase que demuestra que sabemos.
+      entrada.tarifa === '2.0'
+        ? `Consumo por encima de lo contratado en ${enExceso.map((p) => `P${p.periodo}`).join(', ')}: en 2.0TD no se factura exceso, salta el interruptor y se queda sin suministro. Aquí toca SUBIR potencia.`
+        : `Consumo por encima de lo contratado en ${enExceso.map((p) => `P${p.periodo}`).join(', ')}: está pagando penalización por excesos. Aquí toca SUBIR potencia, y la cifra de penalización es una cota inferior.`
     );
   }
 

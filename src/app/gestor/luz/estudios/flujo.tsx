@@ -26,7 +26,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import {
   AlertTriangle, ArrowLeft, ArrowRight, Camera, Check, Download, FileUp, Loader,
-  FileDown, Lock, PenLine, Save, Table, X,
+  FileDown, Lock, PenLine, Plug, Save, Table, X,
 } from 'lucide-react';
 import { tokenSesion, useUsuario } from '@/lib/usuario';
 import { fmtEur, type LuzCliente, type LuzCups } from '@/lib/luz';
@@ -36,7 +36,7 @@ import {
 } from '@/lib/factura';
 import { TARIFA_INFO, type TarifaAcceso } from '@/lib/tarifas-base';
 import { prepararFactura } from '@/lib/factura-archivo';
-import { type LecturaPlantilla } from '@/lib/plantilla-consumos';
+import { aFechaISO, limitePreaviso, type LecturaPlantilla } from '@/lib/plantilla-consumos';
 import { construirEstudio } from '@/lib/estudio-completo';
 import { descargarInformePdf } from '@/lib/estudio-pdf';
 import { compararConComercializadoras } from '@/lib/tarifas';
@@ -136,6 +136,22 @@ export function FlujoEstudio({
   const [plantilla, setPlantilla] = useState<LecturaPlantilla | null>(null);
   const [subiendo, setSubiendo] = useState(false);
 
+  /**
+   * Datos técnicos a mano.
+   *
+   * Existen para que el informe NO dependa de haber subido la plantilla. Si
+   * alguien tiene los maxímetros apuntados en un papel de la visita, tiene que
+   * poder meterlos: exigir el Excel para poder hablar de potencia convierte
+   * una herramienta en un trámite, y entonces el estudio se hace fuera.
+   *
+   * Cuando hay plantilla se rellenan con lo que traiga, y siguen siendo
+   * editables: la plantilla es un punto de partida, no una jaula.
+   */
+  const [maximetroTxt, setMaximetroTxt] = useState('');
+  const [reactivaTxt, setReactivaTxt] = useState('');
+  const [excedentesTxt, setExcedentesTxt] = useState('');
+  const [creandoCups, setCreandoCups] = useState(false);
+
   const [comparado, setComparado] = useState<EscenarioEvaluado[] | null>(null);
   const [comparando, setComparando] = useState(false);
   const [frase, setFrase] = useState(estudio?.recomendacion || '');
@@ -176,17 +192,24 @@ export function FlujoEstudio({
       // ESTO ES LO QUE MÁS CAMBIA con la plantilla. Con maxímetro, proponer
       // bajar potencia deja de ser riesgo alto: hay un pico medido detrás en
       // vez de un promedio que aplana los picos.
-      tieneMaximetro: !!plantilla?.maximetros?.some((m) => m > 0),
+      tieneMaximetro: listaNum(maximetroTxt).some((m) => m > 0)
+        || !!plantilla?.maximetros?.some((m) => m > 0),
       // Donde el maxímetro se pasa de lo contratado, el consejo es subir y no
       // bajar. Sin esto, la comparativa podría proponer justo lo contrario.
-      periodosEnExceso: plantilla?.periodosEnExceso?.length ? plantilla.periodosEnExceso : null,
+      periodosEnExceso: (() => {
+        const max = listaNum(maximetroTxt);
+        const pot = listaNum(potencias);
+        const propios = max.map((m, i) => (pot[i] > 0 && m > pot[i] ? i + 1 : 0)).filter(Boolean);
+        if (propios.length) return propios;
+        return plantilla?.periodosEnExceso?.length ? plantilla.periodosEnExceso : null;
+      })(),
       // Un año extrapolado desde tres meses ES un dato estimado, y el motor de
       // escenarios tiene que saberlo para subir el riesgo y decirlo.
       datosEstimados: plantilla
         ? plantilla.extrapolado
         : Object.values(origenes).some((o) => o === 'introducido'),
     };
-  }, [tarifa, consumos, potencias, precioE, precioP, cupsId, cups.datos, origenes, plantilla]);
+  }, [tarifa, consumos, potencias, precioE, precioP, cupsId, cups.datos, origenes, plantilla, maximetroTxt]);
 
   // ── Leer la factura ──────────────────────────────────────────────────────
   const leerArchivo = useCallback(async (file: File) => {
@@ -269,6 +292,11 @@ export function FlujoEstudio({
         precios_energia: 'introducido', precios_potencia: 'introducido',
         titular: 'introducido', cups: 'introducido',
       });
+      // Los técnicos se prellenan pero siguen editables.
+      if (l.maximetros?.some((m) => m > 0)) setMaximetroTxt(l.maximetros.join(', '));
+      if (l.reactivaAnual > 0) setReactivaTxt(String(Math.round(l.reactivaAnual)));
+      if (l.excedentesAnual > 0) setExcedentesTxt(String(Math.round(l.excedentesAnual)));
+
       setPaso(1);
     } catch {
       setMsg('No se ha podido abrir el archivo.');
@@ -333,6 +361,65 @@ export function FlujoEstudio({
 
   const [bajandoPdf, setBajandoPdf] = useState(false);
 
+  /**
+   * La lectura con la que se monta el informe.
+   *
+   * Si hay plantilla, esa; si no, una sintética a partir de lo que hay en
+   * pantalla. En los dos casos, los datos técnicos escritos a mano mandan
+   * sobre lo que trajera la plantilla — quien los teclea los está mirando.
+   *
+   * ANTES EL PDF EXIGÍA PLANTILLA y el botón se quedaba apagado sin más. Un
+   * informe con menos apartados sigue siendo un informe: los bloques sin datos
+   * ya no se pintan y lo que falta se dice en la trazabilidad. Negar el PDF
+   * entero por no tener los doce meses es quedarse sin nada por no tenerlo
+   * todo.
+   */
+  const lecturaInforme: LecturaPlantilla = useMemo(() => {
+    const consumos12 = listaNum(consumos);
+    const base: LecturaPlantilla = plantilla ?? {
+      tarifa,
+      suministro: {
+        titular, cups: cupsTexto,
+        direccion: cups.datos.find((c) => c.id === cupsId)?.direccion_suministro || '',
+        comercializadora: cups.datos.find((c) => c.id === cupsId)?.comercializadora_actual || '',
+      },
+      meses: [],
+      diasTotales: 0,
+      consumoAnualPorPeriodo: consumos12.map((v) => v * 12),
+      consumoAnual: consumos12.reduce((s, v) => s + v, 0) * 12,
+      consumosMes: consumos12,
+      potencias: listaNum(potencias),
+      maximetros: [],
+      reactivaAnual: 0,
+      excedentesAnual: 0,
+      periodosEnExceso: [],
+      preciosEnergia: listaNum(precioE),
+      preciosPotencia: listaNum(precioP),
+      // Sin desglose mensual, el año sale de multiplicar por doce: eso ES una
+      // estimación y el informe tiene que decirlo.
+      extrapolado: true,
+      utilizable: true,
+      reparos: [],
+    };
+
+    const max = listaNum(maximetroTxt);
+    const reactiva = Number(reactivaTxt.replace(',', '.'));
+    const excedentes = Number(excedentesTxt.replace(',', '.'));
+    const potenciasHoy = listaNum(potencias);
+
+    const maximetros = max.length ? max : base.maximetros;
+    return {
+      ...base,
+      maximetros,
+      reactivaAnual: Number.isFinite(reactiva) && reactiva > 0 ? reactiva : base.reactivaAnual,
+      excedentesAnual: Number.isFinite(excedentes) && excedentes > 0 ? excedentes : base.excedentesAnual,
+      periodosEnExceso: maximetros
+        .map((m, i) => (potenciasHoy[i] > 0 && m > potenciasHoy[i] ? i + 1 : 0))
+        .filter((p) => p > 0),
+    };
+  }, [plantilla, tarifa, titular, cupsTexto, cupsId, cups.datos, consumos, potencias,
+    precioE, precioP, maximetroTxt, reactivaTxt, excedentesTxt]);
+
   const rec = useMemo(() => (comparado ? recomendar(comparado) : null), [comparado]);
   const alertas = useMemo(() => (comparado ? alertasDeLaComparativa(comparado) : []), [comparado]);
   const resumen = useMemo(() => (rec ? resumenComparativa(ctx, rec) : null), [ctx, rec]);
@@ -346,19 +433,19 @@ export function FlujoEstudio({
    * medio contenido en blanco es peor que no sacarlo.
    */
   const bajarPdf = useCallback(async () => {
-    if (!plantilla || !rec || !comparado) return;
+    if (!rec || !comparado) return;
     setBajandoPdf(true);
     setMsg('');
     try {
-      const estudioTecnico = construirEstudio(plantilla);
-      if (!estudioTecnico) { setMsg('Faltan datos para montar el informe.'); return; }
+      const estudioTecnico = construirEstudio(lecturaInforme);
+      if (!estudioTecnico) { setMsg('Falta la tarifa de acceso para montar el informe.'); return; }
       await descargarInformePdf({
-        lectura: plantilla,
+        lectura: lecturaInforme,
         estudio: estudioTecnico,
         escenarios: comparado,
         recomendacion: rec,
         alertas,
-        cliente: clientes.find((c) => c.id === clienteId)?.nombre || plantilla.suministro.titular,
+        cliente: clientes.find((c) => c.id === clienteId)?.nombre || lecturaInforme.suministro.titular,
         responsable: perfilNombre,
         fecha: hoyISO(),
       });
@@ -367,7 +454,66 @@ export function FlujoEstudio({
     } finally {
       setBajandoPdf(false);
     }
-  }, [plantilla, rec, comparado, alertas, clientes, clienteId, perfilNombre]);
+  }, [lecturaInforme, rec, comparado, alertas, clientes, clienteId, perfilNombre]);
+
+  /**
+   * Crear el suministro con lo que ya tenemos delante.
+   *
+   * Un estudio sin CUPS es un cálculo suelto: no se puede tramitar el cambio,
+   * no entra en la Agenda, no cuenta el preaviso y no aparece en la ficha del
+   * cliente. Y los datos para crearlo ya están todos en pantalla — obligar a
+   * ir a otra pantalla y teclearlos otra vez es la forma segura de que el
+   * suministro no se cree nunca.
+   */
+  const crearSuministro = useCallback(async () => {
+    if (!clienteId) { setMsg('Elige un cliente antes de crear el suministro.'); return; }
+    setCreandoCups(true);
+    setMsg('');
+
+    const sum = lecturaInforme.suministro;
+    const finContrato = aFechaISO(sum.fecha_fin);
+    const diasPreaviso = Number(sum.dias_preaviso) || 30;
+
+    const cuerpo: Record<string, unknown> = {
+      cliente_id: clienteId,
+      cups: (cupsTexto || sum.cups || '').trim().toUpperCase(),
+      alias_suministro: sum.direccion || titular || 'Suministro',
+      direccion_suministro: sum.direccion || null,
+      tarifa_acceso: tarifa,
+      comercializadora_actual: sum.comercializadora || null,
+      distribuidora: sum.distribuidora || null,
+      potencias_kw: listaNum(potencias),
+      consumo_anual_kwh: Math.round(lecturaInforme.consumoAnual),
+      tipo_contrato: 'fijo',
+      fecha_inicio_contrato: aFechaISO(sum.fecha_inicio),
+      fecha_fin_contrato: finContrato,
+      dias_preaviso: diasPreaviso,
+      // El preaviso se calcula aquí para que la Agenda y el Dashboard lo vean
+      // desde el primer día: es la fecha que bloquea al cliente un año si se
+      // pasa, y no puede depender de que alguien la rellene luego.
+      fecha_limite_preaviso: limitePreaviso(finContrato, diasPreaviso),
+      fecha_fin_permanencia: aFechaISO(sum.permanencia),
+      tiene_permanencia: !!aFechaISO(sum.permanencia),
+      penalizacion: sum.penalizacion || null,
+      // Ya tenemos su factura y sus precios: no está «sin factura».
+      estado_cups: 'factura_recibida',
+      observaciones: 'Creado desde el estudio con los datos de la plantilla de consumos.',
+    };
+
+    const token = await tokenSesion();
+    const r = await fetch('/api/luz/cups', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      body: JSON.stringify(cuerpo),
+    });
+    const j = await r.json().catch(() => ({}));
+    setCreandoCups(false);
+
+    if (!r.ok) { setMsg(j.error || 'No se ha podido crear el suministro.'); return; }
+    if (j.dato?.id) setCupsId(j.dato.id);
+    cups.recargar();
+    setMsg('✅ Suministro creado y enlazado al estudio.');
+  }, [clienteId, cupsTexto, titular, tarifa, potencias, lecturaInforme, cups]);
 
   // ── Guardar ──────────────────────────────────────────────────────────────
   const guardar = useCallback(async (opciones: { bloquear?: boolean; estado?: string } = {}) => {
@@ -591,6 +737,23 @@ export function FlujoEstudio({
                 </select>
               </div>
             </div>
+
+            {clienteId && !cupsId && (
+              <div className="mt-3 rounded-xl border border-accent/30 bg-accent/[0.05] p-3">
+                <p className="text-xs text-muted mb-2">
+                  Este cliente no tiene el suministro dado de alta. Se puede crear ahora con lo que
+                  ya hay en el estudio: sin CUPS no se puede tramitar el cambio ni cuenta el preaviso.
+                </p>
+                <button
+                  onClick={crearSuministro}
+                  disabled={creandoCups || !tarifa}
+                  className={`${btnSecundario} disabled:opacity-50`}
+                >
+                  {creandoCups ? <Loader className="w-4 h-4 animate-spin" /> : <Plug className="w-4 h-4" />}
+                  Crear el suministro con estos datos
+                </button>
+              </div>
+            )}
           </Card>
 
           <Card>
@@ -639,6 +802,28 @@ export function FlujoEstudio({
                 valor={precioP} alCambiar={(v) => { setPrecioP(v); marcaMano('precios_potencia'); }}
                 origen={origenes.precios_potencia} confianza={revision.confianza.precios_potencia}
               />
+
+              <CampoLista
+                id="est-max"
+                etiqueta={`Maxímetro: potencia máxima registrada (kW) · ${info.periodosPotencia.join(' · ')}`}
+                valor={maximetroTxt} alCambiar={setMaximetroTxt}
+                pie="Opcional, pero es lo que permite decir si sobra o falta potencia sin adivinar."
+              />
+
+              <div className="grid sm:grid-cols-2 gap-3">
+                <div>
+                  <label className={labelCls} htmlFor="est-reactiva">Energía reactiva al año (kVArh)</label>
+                  <input id="est-reactiva" type="text" inputMode="decimal" className={inputCls}
+                    value={reactivaTxt} onChange={(e) => setReactivaTxt(e.target.value)} />
+                  <p className="text-[10px] text-muted mt-0.5">Solo si aparece en la factura</p>
+                </div>
+                <div>
+                  <label className={labelCls} htmlFor="est-excedentes">Excedentes vertidos al año (kWh)</label>
+                  <input id="est-excedentes" type="text" inputMode="decimal" className={inputCls}
+                    value={excedentesTxt} onChange={(e) => setExcedentesTxt(e.target.value)} />
+                  <p className="text-[10px] text-muted mt-0.5">Solo si ya tiene autoconsumo</p>
+                </div>
+              </div>
 
               <div className="grid sm:grid-cols-2 gap-3">
                 <div>
@@ -782,9 +967,9 @@ export function FlujoEstudio({
           <div className="flex items-center gap-3 flex-wrap">
             <button
               onClick={bajarPdf}
-              disabled={!plantilla || bajandoPdf || !rec?.elegido}
+              disabled={bajandoPdf || !rec?.elegido}
               className={`${btnPrimario} disabled:opacity-50`}
-              title={plantilla ? 'Informe completo en PDF' : 'Hace falta la plantilla de consumos'}
+              title="Informe completo en PDF" 
             >
               {bajandoPdf ? <Loader className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />}
               Descargar informe en PDF
@@ -805,10 +990,10 @@ export function FlujoEstudio({
             diciendo lo mismo que el papel que tiene el cliente.
           </p>
           {!plantilla && (
-            <p className="text-[11px] text-amber-300">
-              El informe en PDF necesita la plantilla de consumos: el mes a mes, los maxímetros, la
-              reactiva y los excedentes solo salen de ahí. Con una factura suelta se puede comparar,
-              pero no hay informe técnico que escribir.
+            <p className="text-[11px] text-muted">
+              El informe sale igual sin la plantilla, pero sin el mes a mes: con doce meses lleva
+              además la tabla mensual y el año deja de ser una estimación. Los maxímetros, la
+              reactiva y los excedentes se pueden meter a mano en el paso de datos.
             </p>
           )}
         </>

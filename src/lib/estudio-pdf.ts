@@ -256,9 +256,14 @@ export async function construirInformePdf(d: DatosInforme) {
     escribir(val, cx, y + 20, { align: 'center' });
   });
   fuente('normal', 6.8, [170, 186, 206]);
+  // Con desglose mensual se dice de cuántas facturas sale; sin él, se dice que
+  // es una estimación y ya está. Escribir «0 meses analizados · 0 días
+  // facturados» es peor que no escribir nada: son ceros que parecen un error.
   escribir(
-    `${kwh(lectura.consumoAnual)} al año  ·  ${lectura.meses.length} meses analizados  ·  `
-    + `${lectura.diasTotales} días facturados${lectura.extrapolado ? '  ·  AÑO ESTIMADO' : ''}`,
+    lectura.meses.length
+      ? `${kwh(lectura.consumoAnual)} al año  ·  ${lectura.meses.length} meses analizados  ·  `
+        + `${lectura.diasTotales} días facturados${lectura.extrapolado ? '  ·  AÑO ESTIMADO' : ''}`
+      : `${kwh(lectura.consumoAnual)} al año  ·  estimado a partir de los datos aportados`,
     M + W / 2, y + 29, { align: 'center' }
   );
   y += altoCaja + 6;
@@ -482,9 +487,15 @@ export async function construirInformePdf(d: DatosInforme) {
 
   const hip = recomendacion.elegido?.escenario.hipotesis;
   const filasHip: string[][] = [
-    ['Periodo analizado', `${lectura.meses.length} meses · ${lectura.diasTotales} días facturados`],
-    ['Consumo anual', `${kwh(lectura.consumoAnual)}${lectura.extrapolado ? ' (estimado por días, no medido en año completo)' : ' (suma de las facturas aportadas)'}`],
-    ['Origen de los datos', 'Facturas del cliente, transcritas a la plantilla de consumos'],
+    ['Periodo analizado', lectura.meses.length
+      ? `${lectura.meses.length} meses · ${lectura.diasTotales} días facturados`
+      : 'Sin desglose mensual: no se ha aportado el detalle factura a factura'],
+    ['Consumo anual', lectura.meses.length
+      ? `${kwh(lectura.consumoAnual)}${lectura.extrapolado ? ' (estimado por días, no medido en año completo)' : ' (suma de las facturas aportadas)'}`
+      : `${kwh(lectura.consumoAnual)} (estimado a partir del consumo mensual facilitado)`],
+    ['Origen de los datos', lectura.meses.length
+      ? 'Facturas del cliente, transcritas a la plantilla de consumos'
+      : 'Datos facilitados por el cliente e introducidos manualmente'],
     ['Precios actuales', 'Los del desglose de sus facturas, sin impuestos'],
   ];
   if (hip) {

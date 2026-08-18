@@ -12,6 +12,7 @@
 import {
   leerNumero, leerTarifa, columnasDeConsumo, interpretarPlantilla,
   CAMPOS_SUMINISTRO, MESES, DIAS_ANIO, DIAS_MINIMOS_FIABLES, DIAS_MINIMOS, FILAS_NO_MES,
+  aFechaISO, limitePreaviso,
 } from '../src/lib/plantilla-consumos.ts';
 
 let ok = 0, fallos = 0;
@@ -470,6 +471,32 @@ titulo('El maxímetro por encima de lo contratado: ahí toca SUBIR');
     precios: precios(['0,15', '0,15', '0,15'], ['0,11', '0,04']),
   });
   comprueba('sin exceso no se avisa', sinExceso.periodosEnExceso.length === 0);
+}
+
+titulo('Las fechas se pasan a ISO sin inventarse ninguna');
+{
+  comprueba('formato español', aFechaISO('30/04/2027') === '2027-04-30');
+  comprueba('con un solo dígito', aFechaISO('5/4/2027') === '2027-04-05');
+  comprueba('con guiones', aFechaISO('30-04-2027') === '2027-04-30');
+  comprueba('ya en ISO se respeta', aFechaISO('2027-04-30') === '2027-04-30');
+  comprueba('ISO con hora detrás', aFechaISO('2027-04-30T00:00:00Z') === '2027-04-30');
+  // Ya pasó con las fechas críticas: «26» acabó siendo el año 26 d.C. y
+  // aquellas líneas salían con dos mil años de retraso en Mi Día.
+  comprueba('un año a dos cifras es de este siglo', aFechaISO('30/04/27') === '2027-04-30');
+
+  comprueba('un mes imposible NO se corrige, se descarta', aFechaISO('30/13/2027') === null);
+  comprueba('un día imposible tampoco', aFechaISO('32/01/2027') === null);
+  comprueba('lo ilegible devuelve null', aFechaISO('el mes que viene') === null);
+  comprueba('vacío devuelve null', aFechaISO('') === null && aFechaISO(null) === null);
+}
+
+titulo('El límite de preaviso sale del fin de contrato');
+{
+  comprueba('30 días antes', limitePreaviso('2027-04-30', 30) === '2027-03-31');
+  comprueba('cruzando el cambio de año', limitePreaviso('2027-01-15', 30) === '2026-12-16');
+  comprueba('sin fecha de fin no hay límite', limitePreaviso(null, 30) === null);
+  comprueba('sin días de preaviso tampoco', limitePreaviso('2027-04-30', 0) === null);
+  comprueba('una fecha ilegible no revienta', limitePreaviso('vete a saber', 30) === null);
 }
 
 console.log(`\n${fallos === 0 ? '✅' : '❌'} ${ok} bien, ${fallos} mal\n`);
