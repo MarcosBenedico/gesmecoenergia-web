@@ -55,6 +55,80 @@ No hay suite de tests formal; la verificación es `npm run build` + `scripts/smo
 - Mensajes de commit en español, descriptivos (ver `git log`).
 - Ser honesto: si un dato (precios, %, subvenciones) es orientativo y no verificado, decirlo explícitamente.
 - Los cambios de esquema de BD se entregan como archivos `supabase_*.sql` en la raíz para que Marcos los ejecute en el SQL editor de Supabase (no hay migraciones automáticas). `supabase_rls_v2.sql` ya está ejecutado.
+- **Si hay que ejecutar SQL, pegarlo TAMBIÉN en el chat**, listo para copiar. Un archivo en el repo no se puede pegar en el SQL editor desde el móvil.
+
+## Metodología: cómo se construye aquí
+
+Estas reglas no son estilo: cada una viene de algo que costó dinero o tiempo en
+este proyecto. Están escritas para que no dependan de que nadie se acuerde.
+
+### 1. Leer antes de escribir
+Antes de crear algo nuevo, mirar qué hay. El módulo energético reutiliza el
+CRUD de `/api/luz`, los clientes, las tareas, la papelera y la auditoría. **Una
+segunda copia de algo es otro sitio donde arreglar el mismo fallo, y la mitad
+de las veces solo se arregla en uno.**
+
+### 2. La lógica va en `src/lib`, separada de la pantalla
+La pantalla pinta; el `.ts` decide. Con extensión `.ts` en los imports para que
+Node ejecute los tests sin compilar nada. Y las pantallas **preguntan, no
+deciden**: si dos calculan lo mismo por su cuenta, acaban diciendo cosas
+distintas del mismo cliente.
+
+### 3. Un vocabulario, un sitio
+`etapas.ts` para el viaje comercial, `energia.ts` para lo técnico,
+`seguimiento.ts` para los plazos. Cuando algo necesita saber si va tarde, lo
+pregunta. **Ningún archivo tiene criterio propio de urgencia.**
+
+### 4. Los tests protegen decisiones, no líneas
+No se busca cobertura. Cada comprobación lleva nombre de fallo real: «53.558
+son 53.558 kWh, no 53», «tres periodos de seis hace que el ahorro salga al
+doble», «esperando al cliente no se pinta igual que vamos tarde». **Un test que
+no describe algo que puede costar dinero, sobra.**
+
+### 5. El comentario dice el PORQUÉ, no el qué
+El código ya dice lo que hace. Lo que se pierde en seis meses es por qué está
+así — y sin eso, el siguiente «arregla» la protección.
+
+### 6. Bloquear solo lo que hace mentir a un cálculo
+Un CUPS mal formado se marca y se deja. Tres periodos de seis en una 3.0TD
+bloquea, porque el coste sale a la mitad y **no lo delata nada**. Un dato que
+falta se ve; uno inventado, no. Lo dudoso se señala con el motivo escrito y se
+deja tal cual: nunca se corrige por nuestra cuenta.
+
+### 7. Nada cambia un dato solo
+Las reglas detectan y proponen; aplicar lo decide una persona. Un sistema que
+crea trabajo en silencio llena las listas de cosas que nadie pidió, y entonces
+se deja de mirar la lista — que es el único sitio donde vive el control.
+
+### 8. La verificación antes de cada commit
+En este orden: `npx tsc --noEmit` → **todas** las suites de test → `npm run
+lint` (**la línea base es 226 problemas y NO puede subir**) → `npm run build`.
+
+### 9. Después de cada SQL, comprobar contra la base de datos real
+No fiarse de que el script no diera error. Comprobar tablas, políticas,
+triggers **y a qué función apuntan**. Ver el punto de los fallos de abajo.
+
+### 10. Preguntarse «¿desde dónde se llega a esto?»
+Una pantalla no está hecha hasta que hay un camino hasta ella — **en escritorio
+y en móvil**. Compilar y generar la ruta no basta.
+
+## Los tres fallos silenciosos de septiembre de 2026
+
+Se apuntan porque son el patrón que más caro sale aquí, y porque se colaron
+tres en una semana pese a que todo el CRM está construido contra eso:
+
+- **Un guard que buscaba un nombre que no existía.** Dos scripts comprobaban
+  `app_auditar` y `fn_auditoria`; la función se llama **`fn_auditar`**. El `IF`
+  daba falso, el bloque no hacía nada y el script terminaba **sin un solo
+  error**: decía «ejecutado correctamente» y dos tablas se quedaban sin
+  auditar. → **Un guard que no encuentra lo que busca tiene que gritar
+  (`RAISE NOTICE`), nunca callar.**
+- **Un módulo entero sin enlazar.** `gestor/energia` existía y no había ni un
+  botón que llevara ahí; solo se llegaba tecleando la URL. → Punto 10.
+- **Un trigger que habría reventado cada inserción.** `fn_auditar` escribe
+  `NEW.id`, y las tablas puente tenían clave compuesta sin `id`. Se detectó
+  leyendo la función antes de proponer el parche, no porque nada lo impidiera.
+  → **Antes de poner un trigger, leer qué campos usa.**
 
 ## Arquitectura
 
