@@ -291,6 +291,7 @@ export default function GestorPage() {
           <div className="flex items-center gap-2 shrink-0">
             {/* Accesos rápidos a los módulos */}
             <a href="/gestor/luz" title="Gestión Luz" className="hidden sm:flex w-9 h-9 rounded-lg bg-amber-500/15 border border-amber-500/30 items-center justify-center text-sm hover:bg-amber-500/25 transition">⚡</a>
+            <a href="/gestor/energia" title="Gestión energética · expedientes e ISO" className="hidden sm:flex w-9 h-9 rounded-lg bg-lime-500/15 border border-lime-500/30 items-center justify-center text-sm hover:bg-lime-500/25 transition">🌱</a>
             <a href="/gestor/correbin" title="Vencimientos y Cartera" className="hidden sm:flex w-9 h-9 rounded-lg bg-cyan-500/15 border border-cyan-500/30 items-center justify-center text-sm hover:bg-cyan-500/25 transition">🛡️</a>
             <a href="/gestor/clientes-app" title="App Clientes" className="hidden sm:flex w-9 h-9 rounded-lg bg-emerald-500/15 border border-emerald-500/30 items-center justify-center text-sm hover:bg-emerald-500/25 transition">📱</a>
             <button

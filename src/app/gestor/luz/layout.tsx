@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard, Users, Plug, Target, FileSignature,
-  Euro, ArrowDownUp, Settings, ChevronLeft, ChevronDown, Zap, UserCog, ShieldCheck, Route, History, Sun, Radar, Inbox, BookOpen, Calculator, FileText, TrendingUp, Trash2, Activity, ClipboardList, Wand2, Sparkles, Menu, X,
+  Euro, ArrowDownUp, Settings, ChevronLeft, ChevronDown, Zap, UserCog, ShieldCheck, Route, History, Sun, Radar, Inbox, BookOpen, Calculator, FileText, TrendingUp, Trash2, Activity, ClipboardList, Wand2, Sparkles, Leaf, Menu, X,
 } from 'lucide-react';
 import { GuardiaModulo } from '@/components/guardia-modulo';
 import { useUsuario } from '@/lib/usuario';
@@ -187,7 +187,6 @@ export default function LuzLayout({ children }: { children: ReactNode }) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setPlegados(guardado ? JSON.parse(guardado) : PLEGADOS_POR_DEFECTO);
     } catch {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setPlegados(PLEGADOS_POR_DEFECTO);
     }
   }, []);
@@ -283,6 +282,15 @@ export default function LuzLayout({ children }: { children: ReactNode }) {
             desplaza, y esconder bloques es justo lo que dejaba media
             aplicación inalcanzable. Salen los cinco, enteros. */}
         <div className="flex-1 overflow-y-auto overscroll-contain px-4 py-4">
+          {/* El puente al otro módulo, también en el móvil. Cuando se montó
+              Gestión energética solo se llegaba tecleando la URL, y en el
+              teléfono eso es no llegar. */}
+          <Link
+            href="/gestor/energia"
+            className="mb-5 flex min-h-[44px] items-center gap-2 rounded-xl border border-lime-500/30 bg-lime-500/10 px-3 text-sm font-bold text-lime-300"
+          >
+            <Leaf className="w-4 h-4 shrink-0" /> Gestión energética
+          </Link>
           <div className="space-y-6">
             {BLOQUES.map((bloque) => {
               const secciones = bloque.secciones.filter((s) => !s.soloAdmin || veAdmin);
@@ -345,6 +353,19 @@ export default function LuzLayout({ children }: { children: ReactNode }) {
               </div>
             </div>
           </div>
+
+          {/* EL PUENTE AL OTRO MÓDULO.
+              Un cliente es uno solo: quien está mirando su contrato tiene que
+              poder saltar a su expediente energético sin volver por el panel.
+              Cuando se montó Gestión energética, esta pantalla no la enlazaba
+              desde ningún sitio y solo se llegaba tecleando la URL. */}
+          <Link
+            href="/gestor/energia"
+            title="Gestión energética · expedientes, medidas e ISO"
+            className="hidden lg:flex shrink-0 items-center gap-1.5 rounded-lg border border-lime-500/30 bg-lime-500/10 px-3 py-2 text-xs font-bold text-lime-300 transition hover:bg-lime-500/20"
+          >
+            <Leaf className="w-3.5 h-3.5" /> Gestión energética
+          </Link>
 
           {/* Solo en móvil. Dice en qué sección estás, no un «Menú» a secas:
               con veintidós pantallas, saber dónde estabas es la mitad del

@@ -27,6 +27,7 @@ import { ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Leaf, Zap, ArrowLeft } from 'lucide-react';
+import { GuardiaModulo } from '@/components/guardia-modulo';
 
 export default function EnergiaLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
@@ -62,7 +63,15 @@ export default function EnergiaLayout({ children }: { children: ReactNode }) {
             <ArrowLeft className="w-3 h-3" /> Todos los expedientes
           </Link>
         )}
-        {children}
+        {/*
+          SE GUARDA CON EL PERMISO «luz» Y NO CON UNO NUEVO.
+          Crear un módulo «energia» dejaría fuera a Nicola y a David hasta que
+          alguien les editara el perfil, y eso no se ve como una decisión: se
+          ve como que la pantalla está rota. Es la misma cartera de clientes
+          mirada por el otro lado; quien puede entrar en una puede entrar en la
+          otra. El día que haya que separar permisos, se separa a propósito.
+        */}
+        <GuardiaModulo modulo="luz" nombre="Gestión energética">{children}</GuardiaModulo>
       </main>
     </div>
   );
