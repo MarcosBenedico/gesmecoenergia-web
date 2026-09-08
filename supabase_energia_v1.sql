@@ -164,12 +164,20 @@ CREATE INDEX IF NOT EXISTS ix_ubi_padre   ON energia_ubicaciones(padre_id)   WHE
 -- Qué sedes entran en el alcance del expediente, y desde cuándo. Con fechas,
 -- porque una nave que se incorpora a mitad de año OBLIGA a ajustar la línea
 -- base — y ese es justo el ajuste no rutinario que hay que poder justificar.
+--
+-- LLEVA `id` PROPIO AUNQUE SEA UNA TABLA PUENTE, y no es capricho: la función
+-- de auditoría del sistema (`fn_auditar`) escribe `NEW.id`, así que sin esa
+-- columna el trigger revienta CADA INSERCIÓN con «record "new" has no field
+-- "id"». Y esta tabla ES el alcance del sistema de gestión: cambiar qué sedes
+-- entran es exactamente lo que un auditor pide ver documentado. La clave real
+-- sigue siendo el par, ahora como UNIQUE.
 CREATE TABLE IF NOT EXISTS energia_expediente_ubicaciones (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   expediente_id UUID NOT NULL REFERENCES energia_expedientes(id) ON DELETE CASCADE,
   ubicacion_id  UUID NOT NULL REFERENCES energia_ubicaciones(id) ON DELETE CASCADE,
   desde         DATE,
   hasta         DATE,
-  PRIMARY KEY (expediente_id, ubicacion_id)
+  UNIQUE (expediente_id, ubicacion_id)
 );
 
 -- ── El puente ubicación ↔ suministro ───────────────────────────────────────
@@ -178,14 +186,19 @@ CREATE TABLE IF NOT EXISTS energia_expediente_ubicaciones (
 -- CUPS y un CUPS puede alimentar tres naves. Con una columna habría que elegir
 -- uno y mentir sobre el resto, y luego el reparto de consumo por proceso no
 -- cuadra sin que se sepa por qué.
+-- `id` propio por lo mismo que la tabla de alcance: `fn_auditar` escribe
+-- `NEW.id`. Y aquí la traza importa igual, porque el `reparto_pct` decide qué
+-- consumo se le atribuye a cada proceso: cambiarlo mueve todos los
+-- indicadores por área sin que se vea de dónde salió el cambio.
 CREATE TABLE IF NOT EXISTS energia_ubicacion_cups (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   ubicacion_id UUID NOT NULL REFERENCES energia_ubicaciones(id) ON DELETE CASCADE,
   cups_id      UUID NOT NULL REFERENCES luz_cups(id) ON DELETE CASCADE,
   -- Qué parte se atribuye aquí, SI se ha llegado a repartir.
   -- NULL = todavía no se sabe, que no es lo mismo que 0.
   reparto_pct  NUMERIC CHECK (reparto_pct IS NULL OR (reparto_pct >= 0 AND reparto_pct <= 100)),
   nota         TEXT,
-  PRIMARY KEY (ubicacion_id, cups_id)
+  UNIQUE (ubicacion_id, cups_id)
 );
 
 
@@ -784,10 +797,20 @@ BEGIN
     RAISE NOTICE 'No existe fn_auditar(): ejecuta antes supabase_equipo_usuarios.sql. Sin auditoría, el trabajo energético no saldrá en el parte del día.';
     RETURN;
   END IF;
+  -- TODAS las tablas del módulo, incluidas las puente y los indicadores.
+  --
+  -- Se quedaron fuera en la primera versión y era un error: cambiar la
+  -- definición de un IDEn cambia el significado de todos sus valores
+  -- históricos, y cambiar qué sedes entran en el alcance es literalmente lo
+  -- primero que pregunta un auditor. Las dos cosas tienen que dejar rastro.
+  --
+  -- Solo entran tablas con columna `id`: `fn_auditar` escribe `NEW.id` y sin
+  -- ella el trigger revienta cada inserción.
   FOREACH t IN ARRAY ARRAY[
-    'energia_expedientes','energia_ubicaciones','energia_equipos','energia_medidas',
-    'energia_usos','energia_lineas_base','energia_ajustes','energia_actuaciones',
-    'energia_documentos','energia_iso_evidencias'
+    'energia_expedientes','energia_ubicaciones','energia_expediente_ubicaciones',
+    'energia_ubicacion_cups','energia_equipos','energia_medidas','energia_usos',
+    'energia_indicadores','energia_lineas_base','energia_ajustes',
+    'energia_actuaciones','energia_documentos','energia_iso_evidencias'
   ] LOOP
     EXECUTE format('DROP TRIGGER IF EXISTS trg_auditoria ON %I', t);
     EXECUTE format('CREATE TRIGGER trg_auditoria AFTER INSERT OR UPDATE OR DELETE ON %I
