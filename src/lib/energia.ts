@@ -48,6 +48,23 @@ export type FaseEnergia =
   | 'diagnostico' | 'en_estudio' | 'propuesta' | 'ejecucion'
   | 'verificacion' | 'seguimiento' | 'cerrado' | 'aparcado';
 
+/**
+ * Quién tiene que mover ficha. Es lo que separa «vamos tarde» de «estamos
+ * esperando»: sin esto, un expediente parado tres semanas porque el cliente no
+ * decide sale en la misma lista roja que uno parado porque nadie lo ha tocado,
+ * y entonces la lista roja deja de significar nada.
+ *
+ * Es el mismo concepto que la `Pelota` de `seguimiento.ts`, aplicado al otro
+ * eje. Se define aquí, una vez, para que el listado no se lo invente.
+ */
+export type Pelota = 'nuestra' | 'del_cliente' | 'de_un_tercero';
+
+export const PELOTA_LABEL: Record<Pelota, string> = {
+  nuestra: 'Nos toca a nosotros',
+  del_cliente: 'Le toca al cliente',
+  de_un_tercero: 'Depende de un tercero',
+};
+
 export interface DefFase {
   id: FaseEnergia;
   titulo: string;
@@ -55,33 +72,58 @@ export interface DefFase {
   condicion: string;
   /** Orden de avance. −1 = fuera del recorrido (cerrado, aparcado). */
   avance: number;
+  pelota: Pelota;
+  /**
+   * Días a partir de los cuales estar en esta fase ya es un problema.
+   *
+   * Son MUY distintos de los de la venta a propósito. Un expediente energético
+   * en diagnóstico dos meses es normal —hay que reunir un año de facturas—;
+   * una oportunidad comercial parada dos meses está muerta. Usar los plazos
+   * comerciales aquí llenaría la pantalla de rojo el primer día, y una alarma
+   * que salta siempre se deja de mirar.
+   */
+  limiteDias: number;
   tono: string;
 }
 
 export const FASES: DefFase[] = [
   { id: 'diagnostico', titulo: 'Diagnóstico', avance: 0,
     condicion: 'Reunir datos fiables y ver dónde se va la energía',
+    // Dos meses: hay que juntar un año de facturas y eso depende del cliente.
+    pelota: 'del_cliente', limiteDias: 60,
     tono: 'bg-slate-500/15 text-slate-300 border-slate-500/30' },
   { id: 'en_estudio', titulo: 'En estudio', avance: 1,
     condicion: 'Comparar alternativas con números que se sostengan',
+    // Tres semanas. Aquí no hay a quién echarle la culpa: los datos ya están.
+    pelota: 'nuestra', limiteDias: 21,
     tono: 'bg-sky-500/15 text-sky-300 border-sky-500/30' },
   { id: 'propuesta', titulo: 'Propuesta presentada', avance: 2,
     condicion: 'El cliente tiene la propuesta y falta su decisión',
+    // Una inversión no se decide en una semana, pero al mes hay que llamar.
+    pelota: 'del_cliente', limiteDias: 30,
     tono: 'bg-violet-500/15 text-violet-300 border-violet-500/30' },
   { id: 'ejecucion', titulo: 'En ejecución', avance: 3,
     condicion: 'Aceptada; se está implantando',
+    pelota: 'de_un_tercero', limiteDias: 90,
     tono: 'bg-amber-500/15 text-amber-300 border-amber-500/30' },
   { id: 'verificacion', titulo: 'Verificando', avance: 4,
     condicion: 'Ejecutada; falta comprobar el ahorro contra la línea base',
+    // Un año de datos posteriores es lo normal para verificar de verdad, pero
+    // a los cuatro meses ya debería haber una primera lectura.
+    pelota: 'nuestra', limiteDias: 120,
     tono: 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30' },
   { id: 'seguimiento', titulo: 'En seguimiento', avance: 5,
     condicion: 'Ahorro verificado; se vigila que se mantenga',
+    // Revisión trimestral: si pasa medio año sin mirarlo, no es seguimiento.
+    pelota: 'nuestra', limiteDias: 120,
     tono: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30' },
   { id: 'cerrado', titulo: 'Cerrado', avance: -1,
     condicion: 'Terminado; no requiere más trabajo',
+    pelota: 'nuestra', limiteDias: 0,
     tono: 'bg-card/60 text-muted border-border/40' },
   { id: 'aparcado', titulo: 'Aparcado', avance: -1,
     condicion: 'Parado a propósito, con fecha de reactivación',
+    pelota: 'nuestra', limiteDias: 0,
     tono: 'bg-card/60 text-muted/80 border-border/40' },
 ];
 

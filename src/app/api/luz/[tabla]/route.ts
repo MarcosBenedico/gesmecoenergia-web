@@ -170,6 +170,136 @@ const TABLAS: Record<string, DefTabla> = {
     filtros: ['rol', 'activo'],
     orden: { col: 'nombre', asc: true },
   },
+
+  /* ═══════════ GESTIÓN ENERGÉTICA ═══════════
+   *
+   * Van AQUÍ y no en una API paralela a propósito: así heredan la sesión, el
+   * reintento al caducar el token, el filtrado de columnas, la protección de
+   * vínculos y la papelera con cascada reversible. Una segunda API con su
+   * propia copia de todo eso sería otro sitio donde arreglar el mismo fallo
+   * dos veces — y la mitad de las veces solo se arregla en uno.
+   *
+   * Requieren `supabase_energia_v1.sql`. Sin él, la respuesta lo dice con el
+   * nombre del archivo en vez de salir vacía.
+   */
+  expedientes: {
+    tabla: 'energia_expedientes',
+    select: '*, luz_clientes(nombre, prioridad)',
+    columnas: ['cliente_id', 'objetivo', 'titulo_corto', 'fase', 'vectores',
+      'alcance_nota', 'responsable', 'prioridad', 'nota_situacion'],
+    filtros: ['cliente_id', 'fase', 'responsable', 'prioridad'],
+    buscarEn: 'objetivo',
+    orden: { col: 'actualizado_en', asc: false },
+  },
+  ubicaciones: {
+    tabla: 'energia_ubicaciones',
+    select: '*',
+    columnas: ['cliente_id', 'padre_id', 'nombre', 'tipo', 'descripcion', 'direccion'],
+    filtros: ['cliente_id', 'padre_id', 'tipo'],
+    buscarEn: 'nombre',
+    orden: { col: 'nombre', asc: true },
+  },
+  equipos: {
+    tabla: 'energia_equipos',
+    select: '*',
+    columnas: ['cliente_id', 'ubicacion_id', 'nombre', 'categoria', 'cantidad', 'vector',
+      'potencia_electrica_kw', 'potencia_mecanica_kw', 'potencia_termica_kw', 'rendimiento',
+      'fv_paneles_kwp', 'fv_inversor_kw', 'bateria_kwh', 'horas_uso_dia', 'dias_uso_ano',
+      'regulacion', 'es_carga_critica', 'critica_validada_por', 'estado_dato', 'fuente', 'notas'],
+    filtros: ['cliente_id', 'ubicacion_id', 'categoria', 'vector', 'estado_dato'],
+    buscarEn: 'nombre',
+    orden: { col: 'nombre', asc: true },
+  },
+  medidas: {
+    tabla: 'energia_medidas',
+    select: '*',
+    columnas: ['cliente_id', 'expediente_id', 'cups_id', 'ubicacion_id', 'equipo_id',
+      'vector', 'magnitud', 'unidad', 'concepto', 'valor', 'valor_kwh', 'factor_kwh_usado',
+      'periodo_inicio', 'periodo_fin', 'periodo_tarifa', 'origen', 'documento_id',
+      'revision', 'revisado_por', 'revisado_en', 'sustituida_por', 'motivo_revision',
+      'aviso', 'nota'],
+    filtros: ['cliente_id', 'expediente_id', 'cups_id', 'ubicacion_id', 'equipo_id',
+      'vector', 'magnitud', 'revision', 'origen'],
+    // La serie se lee de vieja a nueva: es como se mira un consumo.
+    orden: { col: 'periodo_inicio', asc: true },
+    colFecha: 'periodo_inicio',
+  },
+  usos: {
+    tabla: 'energia_usos',
+    select: '*',
+    columnas: ['expediente_id', 'ubicacion_id', 'equipo_id', 'nombre', 'vector', 'criterio',
+      'consumo_kwh_ano', 'pct_del_total', 'responsable', 'potencial_mejora',
+      'revisado_por', 'revisado_en'],
+    filtros: ['expediente_id', 'ubicacion_id', 'vector', 'responsable'],
+    buscarEn: 'nombre',
+    // Lo que más pesa primero: es una lista de prioridades, no un índice.
+    orden: { col: 'pct_del_total', asc: false },
+  },
+  indicadores: {
+    tabla: 'energia_indicadores',
+    select: '*',
+    columnas: ['expediente_id', 'nombre', 'magnitud', 'vector', 'variable',
+      'unidad_resultado', 'descripcion', 'activo'],
+    filtros: ['expediente_id', 'activo'],
+    orden: { col: 'nombre', asc: true },
+  },
+  lineas_base: {
+    tabla: 'energia_lineas_base',
+    select: '*',
+    columnas: ['expediente_id', 'indicador_id', 'nombre', 'vector', 'magnitud',
+      'periodo_inicio', 'periodo_fin', 'metodo', 'variables', 'coeficientes',
+      'r2', 'cv_rmse', 'n_observaciones', 'estado', 'aprobada_por', 'aprobada_en',
+      'sustituida_por', 'motivo'],
+    filtros: ['expediente_id', 'indicador_id', 'estado'],
+    orden: { col: 'creado_en', asc: false },
+  },
+  actuaciones: {
+    tabla: 'energia_actuaciones',
+    select: '*, luz_clientes(nombre)',
+    columnas: ['cliente_id', 'expediente_id', 'ubicacion_id', 'cups_id', 'uso_id',
+      'titulo', 'tipo', 'problema', 'alternativas', 'estado', 'estudio_id',
+      'presupuesto_ref', 'inversion_eur', 'ahorro_previsto_eur', 'ahorro_previsto_kwh',
+      'ahorro_comprobado_eur', 'ahorro_comprobado_kwh', 'linea_base_id',
+      'metodo_verificacion', 'verificado_por', 'verificado_en', 'cae_metodo', 'cae_estado',
+      'fecha_ejecucion', 'responsable', 'decision_pendiente'],
+    filtros: ['cliente_id', 'expediente_id', 'cups_id', 'estado', 'tipo', 'responsable'],
+    buscarEn: 'titulo',
+    orden: { col: 'creado_en', asc: false },
+  },
+  documentos: {
+    tabla: 'energia_documentos',
+    select: '*, luz_clientes(nombre)',
+    columnas: ['cliente_id', 'expediente_id', 'cups_id', 'ubicacion_id', 'equipo_id',
+      'actuacion_id', 'titulo', 'tipo', 'archivo_path', 'texto_nota', 'mime_type',
+      'tamano_bytes', 'estado', 'visible_cliente', 'subido_por'],
+    filtros: ['cliente_id', 'expediente_id', 'cups_id', 'tipo', 'estado'],
+    buscarEn: 'titulo',
+    orden: { col: 'creado_en', asc: false },
+  },
+  evidencias: {
+    tabla: 'energia_iso_evidencias',
+    select: '*',
+    columnas: ['expediente_id', 'requisito', 'documento_id', 'medida_id', 'actuacion_id',
+      'linea_base_id', 'uso_id', 'tarea_id', 'estado', 'revisado_por', 'revisado_en', 'nota'],
+    filtros: ['expediente_id', 'requisito', 'estado'],
+    orden: { col: 'creado_en', asc: false },
+  },
+};
+
+/**
+ * De qué archivo SQL sale cada recurso, para que el error diga QUÉ ejecutar.
+ * «Ejecuta supabase_luz.sql» cuando lo que falta es el módulo energético manda
+ * a la persona al archivo equivocado, y allí no encuentra nada raro.
+ */
+const SQL_DE: Record<string, string> = {
+  expedientes: 'supabase_energia_v1.sql', ubicaciones: 'supabase_energia_v1.sql',
+  equipos: 'supabase_energia_v1.sql', medidas: 'supabase_energia_v1.sql',
+  usos: 'supabase_energia_v1.sql', indicadores: 'supabase_energia_v1.sql',
+  lineas_base: 'supabase_energia_v1.sql', actuaciones: 'supabase_energia_v1.sql',
+  documentos: 'supabase_energia_v1.sql', evidencias: 'supabase_energia_v1.sql',
+  estudios: 'supabase_estudios.sql',
+  seguimientos: 'supabase_seguimientos.sql',
+  prospectos: 'supabase_prospectos.sql',
 };
 
 const PIPELINE_CERRADO_API = ['ganado', 'perdido', 'revisar_adelante'];
@@ -219,6 +349,11 @@ async function recalcularEstadoCliente(supabase: Supa, clienteId: string | null 
 const CON_PAPELERA = new Set([
   'clientes', 'cups', 'fechas', 'pipeline', 'contratos', 'comisiones', 'tareas', 'visitas', 'proyectos',
   'prospectos', 'estudios',
+  // Energía: todas las que tienen columna `borrado_en`. `ajustes` no está
+  // porque un ajuste de línea base no se borra — se corrige con otro ajuste,
+  // igual que en contabilidad no se borra un asiento.
+  'expedientes', 'ubicaciones', 'equipos', 'medidas', 'usos', 'indicadores',
+  'lineas_base', 'actuaciones', 'documentos', 'evidencias',
 ]);
 
 /**
@@ -248,6 +383,27 @@ const CASCADA: Record<string, { tabla: string; campo: string }[]> = {
     { tabla: 'luz_tareas', campo: 'cups_id' },
     { tabla: 'luz_estudios', campo: 'cups_id' },
   ],
+  /*
+   * Borrar un expediente NO se lleva por delante sus medidas.
+   *
+   * Puede sonar raro, pero es lo correcto: una medida es un HECHO —el consumo
+   * de un mes, con su factura detrás— y sigue siendo verdad aunque se cierre
+   * la carpeta de trabajo que la miraba. Si se borraran, cerrar un expediente
+   * destruiría el histórico que hace falta para la línea base del siguiente.
+   * Lo que sí se va son las cosas que solo existen dentro del expediente: sus
+   * usos significativos, sus indicadores y sus evidencias.
+   */
+  expedientes: [
+    { tabla: 'energia_usos', campo: 'expediente_id' },
+    { tabla: 'energia_indicadores', campo: 'expediente_id' },
+    { tabla: 'energia_iso_evidencias', campo: 'expediente_id' },
+  ],
+  ubicaciones: [
+    { tabla: 'energia_equipos', campo: 'ubicacion_id' },
+  ],
+  actuaciones: [
+    { tabla: 'energia_iso_evidencias', campo: 'actuacion_id' },
+  ],
 };
 
 /** ¿La tabla todavía no tiene las columnas de papelera? (falta ejecutar el SQL) */
@@ -266,13 +422,23 @@ async function usuarioDe(supabase: Supa): Promise<string | null> {
 
 const errorTabla = () => NextResponse.json({ error: 'Recurso no válido.' }, { status: 404 });
 const esFaltaTabla = (msg: string) => /relation .* does not exist|Could not find the table/i.test(msg);
-const respuestaError = (msg: string) =>
-  NextResponse.json({
+/**
+ * El error dice QUÉ archivo hay que ejecutar, no siempre el mismo.
+ *
+ * Mandar a `supabase_luz.sql` cuando lo que falta es el módulo energético
+ * envía a la persona al archivo equivocado, donde no encuentra nada raro y
+ * acaba pensando que el fallo es otro.
+ */
+const respuestaError = (msg: string, recurso?: string) => {
+  const archivo = (recurso && SQL_DE[recurso]) || 'supabase_luz.sql';
+  return NextResponse.json({
     error: esFaltaTabla(msg)
-      ? 'Las tablas del módulo Luz no existen todavía. Ejecuta supabase_luz.sql en el SQL Editor de Supabase.'
+      ? `Falta la tabla. Ejecuta ${archivo} en el SQL Editor de Supabase.`
       : msg,
     falta_migracion: esFaltaTabla(msg),
+    sql_file: esFaltaTabla(msg) ? archivo : undefined,
   }, { status: 500 });
+};
 
 function filtrarCampos(def: DefTabla, body: Record<string, unknown>) {
   const out: Record<string, unknown> = {};
@@ -301,6 +467,21 @@ const VINCULOS_PROTEGIDOS: Record<string, string[]> = {
   // Un estudio sin cliente no es un estudio de nadie, y `origen_id` es lo que
   // encadena las versiones: perderlo rompe el historial de la propuesta.
   estudios: ['cliente_id', 'cups_id', 'origen_id'],
+
+  // Energía. Una MEDIDA sin cliente es un número suelto que ya no se puede
+  // atribuir a nadie, y sin `documento_id` se queda sin la factura que la
+  // respalda — que es justo lo que un auditor pide ver. Un desplegable en
+  // blanco no puede provocar ninguna de las dos cosas.
+  expedientes: ['cliente_id'],
+  medidas: ['cliente_id', 'documento_id', 'cups_id'],
+  equipos: ['cliente_id'],
+  ubicaciones: ['cliente_id'],
+  usos: ['expediente_id'],
+  indicadores: ['expediente_id'],
+  lineas_base: ['expediente_id'],
+  actuaciones: ['cliente_id', 'expediente_id', 'linea_base_id'],
+  documentos: ['cliente_id'],
+  evidencias: ['expediente_id'],
 };
 
 /** Quita del update los vínculos que llegan vacíos y ya tienen valor guardado. */
@@ -360,7 +541,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ tabla: stri
         .limit(Math.min(parseInt(params.get('limite') || '2000'), 5000));
       if (!e2) return NextResponse.json({ ok: true, datos: d2 || [], falta_papelera: true });
     }
-    return respuestaError(error.message);
+    return respuestaError(error.message, tabla);
   }
   return NextResponse.json({ ok: true, datos: data || [] });
 }
@@ -385,7 +566,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ tabla: str
       if (error.code === '23505') {
         return NextResponse.json({ error: tabla === 'cups' ? 'Ese CUPS ya está registrado.' : 'Registro duplicado.' }, { status: 409 });
       }
-      return respuestaError(error.message);
+      return respuestaError(error.message, tabla);
     }
     // Nueva visita → el "último contacto" del cliente avanza si la visita es más reciente
     if (tabla === 'visitas' && campos.cliente_id) {
@@ -431,7 +612,7 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ tabla: stri
         { clave: body.clave, valor: String(body.valor ?? ''), actualizado_en: new Date().toISOString() },
         { onConflict: 'clave' }
       );
-      if (error) return respuestaError(error.message);
+      if (error) return respuestaError(error.message, tabla);
       return NextResponse.json({ ok: true });
     }
 
@@ -475,7 +656,7 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ tabla: stri
     const { error } = await supabase.from(def.tabla).update(campos).eq('id', id);
     if (error) {
       if (error.code === '23505') return NextResponse.json({ error: 'Ese CUPS ya está registrado.' }, { status: 409 });
-      return respuestaError(error.message);
+      return respuestaError(error.message, tabla);
     }
 
     // ── Sincronización "próxima acción": un solo dato, visible en cliente y pipeline ──
@@ -566,7 +747,7 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ tabla: s
 
     const borradoFisico = async () => {
       const { error } = await supabase.from(def.tabla).delete().eq('id', id);
-      if (error) return respuestaError(error.message);
+      if (error) return respuestaError(error.message, tabla);
       return NextResponse.json({ ok: true, definitivo: true });
     };
 
@@ -589,7 +770,7 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ tabla: s
           falta_papelera: true,
         }, { status: 409 });
       }
-      return respuestaError(error.message);
+      return respuestaError(error.message, tabla);
     }
 
     // Los hijos se van con el padre, marcados para poder devolverlos juntos
@@ -626,7 +807,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ tabla: st
 
     const limpiar = { borrado_en: null, borrado_por: null, motivo_borrado: null, borrado_con: null };
     const { error } = await supabase.from(def.tabla).update(limpiar).eq('id', id);
-    if (error) return respuestaError(error.message);
+    if (error) return respuestaError(error.message, tabla);
 
     // Solo vuelven los hijos que se fueron POR ESTE borrado (borrado_con = id),
     // no los que ya estaban en la papelera por su cuenta.
