@@ -161,7 +161,14 @@ function CupsContenido() {
                     <Link href={`/gestor/luz/clientes/${c.cliente_id}`} className="hover:text-accent transition">{c.luz_clientes?.nombre || '—'}</Link>
                     {c.alias_suministro && <span className="block text-[10px] text-muted">{c.alias_suministro}</span>}
                   </td>
-                  <td className="px-3 py-2 font-mono text-[10px] text-muted">{c.cups}</td>
+                  {/* El CUPS abre SU ficha; el nombre abre la del cliente. Son
+                      dos sitios distintos y hasta ahora los dos llevaban al
+                      mismo, así que no había forma de llegar al suministro. */}
+                  <td className="px-3 py-2">
+                    <Link href={`/gestor/luz/cups/${c.id}`} className="font-mono text-[10px] text-muted hover:text-accent transition">
+                      {c.cups}
+                    </Link>
+                  </td>
                   <td className="px-3 py-2"><Badge>{c.tarifa_acceso}</Badge></td>
                   <td className="px-3 py-2 text-xs">{c.comercializadora_actual || '—'}</td>
                   <td className="px-3 py-2 text-right tabular-nums text-xs">{fmtKwh(Number(c.consumo_anual_kwh))}</td>

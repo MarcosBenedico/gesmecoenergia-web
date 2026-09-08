@@ -416,8 +416,18 @@ export function ListaSuministros({
                         {s.direccion && s.alias && (
                           <span className="block text-[11px] text-muted truncate">{s.direccion}</span>
                         )}
-                        <span onClick={(ev) => ev.stopPropagation()}>
+                        <span onClick={(ev) => ev.stopPropagation()} className="flex items-center gap-2">
                           <CupsCorto cups={s.cups} />
+                          {/* Pulsar la fila abre la edición rápida aquí mismo,
+                              que es lo que se hace el 90 % de las veces. Este
+                              enlace lleva a la ficha entera del suministro,
+                              que es donde está lo que no cabe en una fila. */}
+                          <Link
+                            href={`/gestor/luz/cups/${s.id}`}
+                            className="text-[10px] font-bold text-muted hover:text-accent whitespace-nowrap"
+                          >
+                            ficha ↗
+                          </Link>
                         </span>
                       </span>
                     </div>

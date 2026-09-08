@@ -63,6 +63,25 @@ export const VIA_ENTRADA_CORTA: Record<string, string> = {
 // ── Tarifas de acceso ──
 export const TARIFAS_ACCESO = ['2.0TD', '3.0TD', '6.1TD', '6.2TD', 'otra'] as const;
 
+/**
+ * Cómo tiene atado el precio el suministro.
+ *
+ * Los valores estaban SOLO en un comentario de `supabase_luz.sql` («fijo |
+ * indexado | mixto | desconocido»), así que cada formulario se los inventaba
+ * o los escribía a mano. Aquí, una vez, para que digan todos lo mismo.
+ *
+ * `desconocido` es un valor de primera clase y no un hueco: no saber cómo
+ * está atado el precio es información —significa que hay que preguntarlo— y
+ * dejarlo vacío haría creer que nadie ha llegado a ese campo todavía.
+ */
+export const TIPOS_CONTRATO = ['desconocido', 'fijo', 'indexado', 'mixto'] as const;
+export const TIPO_CONTRATO_LABEL: Record<string, string> = {
+  desconocido: 'No se sabe todavía',
+  fijo: 'Precio fijo',
+  indexado: 'Indexado al mercado',
+  mixto: 'Mixto',
+};
+
 // ── Estados del CUPS ──
 export const ESTADOS_CUPS = [
   'sin_factura', 'factura_recibida', 'datos_incompletos', 'pendiente_permanencia', 'pendiente_ofertar',
