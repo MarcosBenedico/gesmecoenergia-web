@@ -118,13 +118,21 @@ create trigger trg_luz_estudios_touch
 -- ── Auditoría ──────────────────────────────────────────────────────────────
 -- Sin esto, el parte del día no vería el trabajo de preparar estudios, que es
 -- justo la parte que el plan quiere hacer visible.
+--
+-- LA FUNCIÓN SE LLAMA `fn_auditar` Y NO OTRA COSA. Esto estuvo escrito como
+-- `app_auditar`, que no existe: el `if` daba falso y el bloque no hacía nada,
+-- sin error ninguno. El script decía «ejecutado correctamente» y la tabla se
+-- quedaba sin auditar. Un guard que se equivoca de nombre no protege, esconde.
 do $$
 begin
-  if exists (select 1 from pg_proc where proname = 'app_auditar') then
-    execute 'drop trigger if exists trg_auditoria_luz_estudios on luz_estudios';
-    execute 'create trigger trg_auditoria_luz_estudios
+  if to_regprocedure('fn_auditar()') is null then
+    raise notice 'No existe fn_auditar(): ejecuta antes supabase_equipo_usuarios.sql. Sin auditoría, los estudios no saldrán en el parte del día.';
+  else
+    execute 'drop trigger if exists trg_auditoria on luz_estudios';
+    execute 'create trigger trg_auditoria
                after insert or update or delete on luz_estudios
-               for each row execute function app_auditar()';
+               for each row execute function fn_auditar()';
+    raise notice 'Auditoría activada en luz_estudios';
   end if;
 end $$;
 

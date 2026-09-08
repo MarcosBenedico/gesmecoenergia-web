@@ -73,13 +73,19 @@ CREATE POLICY p_eliminar ON luz_seguimientos FOR DELETE USING (tiene_permiso('el
 -- El parte del día lee de app_auditoria, que se llena con triggers. Sin esto
 -- los apuntes de seguimiento no saldrían en el parte y justo son la parte que
 -- cuenta el trabajo comercial de verdad.
+-- LA FUNCIÓN SE LLAMA `fn_auditar`, NO `fn_auditoria`. Con el nombre mal, el
+-- IF daba falso y el bloque no hacía nada: el script terminaba sin un solo
+-- error y la tabla se quedaba sin auditar. Comprobado contra la base real.
 DO $$
 BEGIN
-  IF to_regprocedure('fn_auditoria()') IS NOT NULL THEN
-    DROP TRIGGER IF EXISTS tg_auditoria ON luz_seguimientos;
-    CREATE TRIGGER tg_auditoria
+  IF to_regprocedure('fn_auditar()') IS NULL THEN
+    RAISE NOTICE 'No existe fn_auditar(): ejecuta antes supabase_equipo_usuarios.sql. Sin auditoría, los seguimientos no saldrán en el parte del día.';
+  ELSE
+    DROP TRIGGER IF EXISTS trg_auditoria ON luz_seguimientos;
+    CREATE TRIGGER trg_auditoria
       AFTER INSERT OR UPDATE OR DELETE ON luz_seguimientos
-      FOR EACH ROW EXECUTE FUNCTION fn_auditoria();
+      FOR EACH ROW EXECUTE FUNCTION fn_auditar();
+    RAISE NOTICE 'Auditoría activada en luz_seguimientos';
   END IF;
 END $$;
 
