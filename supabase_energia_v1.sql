@@ -1,92 +1,120 @@
 -- ═══════════════════════════════════════════════════════════════════════════
 -- GESTIÓN ENERGÉTICA v1 — el esquema
 --
--- ⚠️  NO EJECUTAR TODAVÍA. Esto es el MAPA DE DATOS para revisar antes de
---     construir nada encima. Cuando Marcos lo dé por bueno, se ejecuta entero.
+-- ⚠️  REVISAR ANTES DE EJECUTAR. Cuando esté dado por bueno, se lanza entero.
+--     Es idempotente: se puede repetir sin romper nada.
 --
--- De qué va: el módulo que describe `Gesmeco_Diseno_Visual_Logica_Gestion_
--- Energetica.pdf`, la mesa de trabajo para llevar a un cliente desde «tiene un
--- problema de potencia» hasta «esto es lo que hemos hecho y esto es lo que ha
--- ahorrado», con las evidencias colocadas para poder trabajar las ISO 50001,
--- 50006 y 50015.
+-- Qué monta: el módulo que describe `Gesmeco_Diseno_Visual_Logica_Gestion_
+-- Energetica.pdf` — llevar a un cliente desde «tiene un problema» hasta «esto
+-- hemos hecho y esto ha ahorrado», con las evidencias colocadas para poder
+-- trabajar las ISO 50002, 50006, 50015 y 50001.
 --
--- ───────────────────────────────────────────────────────────────────────────
--- LAS SEIS DECISIONES QUE MANDAN SOBRE TODO LO DEMÁS
+-- ═══════════════════════════════════════════════════════════════════════════
+-- LAS NUEVE DECISIONES QUE MANDAN SOBRE TODO LO DEMÁS
+-- ═══════════════════════════════════════════════════════════════════════════
 --
--- 1. NO SUSTITUYE AL CRM. El documento lo dice en la última línea. El cliente
---    sigue siendo `luz_clientes`, las tareas siguen siendo `luz_tareas` y los
---    archivos de venta siguen donde están. Aquí NO hay una tabla de clientes.
+-- 1. NO SUSTITUYE AL CRM. El cliente sigue siendo `luz_clientes`, el suministro
+--    `luz_cups` y las tareas `luz_tareas`. Aquí no hay tabla de clientes ni de
+--    tareas: hay una columna nueva en las que ya existen.
 --
--- 2. LA FASE ENERGÉTICA NO ES LA ETAPA COMERCIAL. Son dos ejes distintos y el
---    PDF lo pide explícitamente: «no duplicar el estado del contrato en la
---    fase energética». Un cliente puede tener la luz ya activada (etapa
---    comercial: activo) y una actuación técnica en estudio. Si los mezcláramos,
---    activar un contrato cerraría un expediente que sigue abierto. Conviven
---    igual que `clasificacion` y `estado_comercial`.
+-- 2. SE LLAMA `energia_`, NO `luz_`. No es luz: la 50001 cubre TODA la energía.
+--    Una granja de La Litera tiene electricidad, gasóleo y a menudo propano.
+--    Un módulo que solo sepa de electricidad produce una línea base coja y una
+--    verificación que no se sostiene delante de nadie.
 --
--- 3. UN DATO, UNA FILA, CON SU UNIDAD Y SU PERIODO. `luz_medidas` es el
---    corazón. Nada de columnas «consumo_enero, consumo_febrero»: eso hace
---    imposible un periodo personalizado, que es lo primero que pide la página
---    6. Y sin unidad explícita no se puede distinguir kWp de kW ni kWh de
---    kVArh, que es el error que el PDF señala en la página 5.
+-- 3. LA FASE ENERGÉTICA NO ES LA ETAPA COMERCIAL. El PDF lo pide con esas
+--    palabras. Un cliente puede tener la luz activada (etapa comercial:
+--    activo) y una actuación técnica en estudio. Si compartieran vocabulario,
+--    activar un contrato cerraría un expediente que sigue abierto.
 --
--- 4. UN HUECO ES UN HUECO. Un mes que falta es una fila que no existe, jamás
---    un cero. La cobertura se calcula contando lo que hay contra lo que
---    debería haber, y con cobertura parcial NO se enseña un consumo anual.
---    Es la misma regla que ya aplica `plantilla-consumos.ts` al anualizar por
---    días facturados, y por el mismo motivo: un número estimado que no se
---    anuncia es peor que no tenerlo.
+-- 4. UN DATO = UNA FILA, CON SU VECTOR, SU UNIDAD, SU PERIODO, SU ORIGEN Y SU
+--    ESTADO DE REVISIÓN. Nada de columnas «consumo_enero, consumo_febrero»:
+--    eso impide el periodo personalizado que pide la página 6, y sin unidad
+--    explícita no se distingue kWp de kW ni kWh de kVArh.
 --
--- 5. DOS VALORES EN CONFLICTO CONVIVEN. Si la factura dice 49.111 kWh y la
---    curva del contador dice otra cosa, se guardan LOS DOS y se abre la
---    comparación. Elegir uno exige motivo y deja rastro. Sobrescribir el
---    perdedor es perder la única prueba de que hubo una discrepancia — y en
---    una verificación de ahorros (50015) eso es justo lo que te preguntan.
+-- 5. LA CONVERSIÓN A kWh SE CONGELA CON SU FACTOR. Un litro de gasóleo son
+--    ~9,98 kWh, pero ese factor es una referencia que puede afinarse. Si la
+--    medida guardara solo litros y el kWh se calculara al vuelo, el día que
+--    alguien corrija el factor cambiarían TODAS las líneas base históricas
+--    hacia atrás. Se guarda el valor original, el convertido y el factor usado.
+--    Misma lección que congelar los precios de un estudio.
 --
--- 6. NADA SE APRUEBA SOLO. `revision` nace en 'pendiente'. Cargar un archivo
---    no convierte su contenido en dato válido (página 6). Aprobar es un acto
---    de una persona, con nombre y fecha.
+-- 6. UN HUECO ES UN HUECO, NUNCA UN CERO. Un mes que falta es una fila que no
+--    existe. La cobertura se calcula, y con cobertura parcial NO se enseña un
+--    consumo anual. Es lo que ya hace `plantilla-consumos.ts`.
+--
+-- 7. DOS VALORES EN CONFLICTO CONVIVEN. Si la factura dice 49.111 kWh y la
+--    curva dice otra cosa, se guardan los dos. El que pierde apunta al que gana
+--    y guarda POR QUÉ perdió. Sobrescribirlo borra la única prueba de que hubo
+--    discrepancia — que es justo lo que pregunta una verificación de ahorros.
+--
+-- 8. LA LÍNEA BASE ES UN MODELO, NO UN NÚMERO. Ahorro = (lo que el modelo
+--    predice para las condiciones de ESTE año) − (lo realmente consumido). Con
+--    «antes menos después», todo cliente que baje producción parece un éxito y
+--    todo el que crezca parece un fracaso.
+--
+-- 9. NADA SE APRUEBA SOLO. `revision` nace en 'pendiente'. Cargar un archivo no
+--    convierte su contenido en dato válido (página 6). Aprobar es un acto de
+--    una persona, con nombre y fecha.
+--
+-- ═══════════════════════════════════════════════════════════════════════════
+-- LO QUE NO ESTÁ EN LA v1, A PROPÓSITO
+-- ═══════════════════════════════════════════════════════════════════════════
+--
+-- · CAMPOS PERSONALIZABLES (página 11 del PDF). Es la pieza de más riesgo y
+--   menos retorno: así se acaba con una base que nadie puede consultar y unos
+--   indicadores que se rompen al retirar un campo. Primero plantillas por
+--   sector EN CÓDIGO; cuando se sepa qué campos se usan de verdad, se ascienden
+--   a columnas. Los campos libres son para 500 clientes y 12 sectores.
+--
+-- · ALCANCE «GESMECO» COMO ORGANIZACIÓN CERTIFICABLE. El consumo propio es una
+--   oficina. El valor está en Gesmeco como CONSULTOR de sus clientes.
+--
+-- · ACCESO DEL CLIENTE. Primero que funcione para los tres de dentro.
+--
+-- El modelo está pensado para 30+ clientes y años de histórico. La interfaz se
+-- construirá para los primeros: las tablas no cuestan, las pantallas sí.
 -- ═══════════════════════════════════════════════════════════════════════════
 
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- 1. EL EXPEDIENTE ENERGÉTICO
+-- 1. EXPEDIENTE ENERGÉTICO
 -- ═══════════════════════════════════════════════════════════════════════════
 --
--- La carpeta de trabajo de un cliente para un objetivo concreto. «Valquercus /
--- potencia» es un expediente; si mañana se abre un tema de reactiva en la otra
--- granja, es otro. Por eso no es una columna en `luz_clientes`.
+-- La carpeta de trabajo de un cliente para un objetivo. «Valquercus / potencia»
+-- es un expediente; si mañana se abre reactiva en la otra granja, es otro.
 
-CREATE TABLE IF NOT EXISTS luz_expedientes (
+CREATE TABLE IF NOT EXISTS energia_expedientes (
   id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   cliente_id   UUID NOT NULL REFERENCES luz_clientes(id) ON DELETE CASCADE,
 
-  -- «Resolver la necesidad de potencia y comparar alternativas al refuerzo de
-  -- red.» En cristiano y escrito por una persona: es lo primero que se lee en
-  -- el resumen y lo que evita que nadie sepa para qué se abrió esto.
+  -- Escrito por una persona y en cristiano. Es lo primero que se lee y lo que
+  -- evita que dentro de seis meses nadie sepa para qué se abrió esto.
   objetivo     TEXT NOT NULL,
   titulo_corto TEXT,
 
-  -- LA FASE ENERGÉTICA. Vocabulario propio y separado del comercial (ver la
-  -- decisión 2 de la cabecera). El catálogo vivirá también en TypeScript
-  -- (`src/lib/energia.ts`) para poder testearlo, igual que `etapas.ts`.
   fase         TEXT NOT NULL DEFAULT 'diagnostico'
                CHECK (fase IN ('diagnostico','en_estudio','propuesta',
                                'ejecucion','verificacion','seguimiento',
                                'cerrado','aparcado')),
 
-  -- El alcance de la ISO: de quién es el sistema de gestión que se documenta.
-  -- La página 10 lo pide como elección explícita — Valquercus o Gesmeco — y no
-  -- como algo que se deduzca.
-  alcance      TEXT NOT NULL DEFAULT 'cliente'
-               CHECK (alcance IN ('cliente','gesmeco')),
+  -- ── EL ALCANCE (el «límite» de la 50001) ──
+  -- Sin frontera declarada no hay verificación posible: es la primera pregunta
+  -- de cualquier auditor y la primera que se olvida.
+  --
+  -- Los VECTORES van aquí como array porque son pocos y fijos. Las SEDES van en
+  -- tabla aparte (`energia_expediente_ubicaciones`), porque son muchas y hay
+  -- que poder entrar y salir del alcance dejando rastro.
+  vectores     TEXT[] NOT NULL DEFAULT ARRAY['electricidad'],
+  alcance_nota TEXT,
 
   responsable  TEXT,
   prioridad    TEXT DEFAULT 'B',
 
-  -- Se conserva, pero manda la tarea real de `luz_tareas` — es la lección de
-  -- `reglas-cartera.ts`: dos sitios para «lo siguiente» acaban contradiciéndose
-  -- y quien abre la ficha se queda tranquilo mientras el cliente se cae.
+  -- Se conserva como nota, pero MANDA la tarea real de `luz_tareas`. Es la
+  -- lección de `reglas-cartera.ts`: dos sitios para «lo siguiente» acaban
+  -- contradiciéndose, y quien abre la ficha se queda tranquilo mientras el
+  -- cliente se cae.
   nota_situacion TEXT,
 
   creado_en      TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -96,8 +124,8 @@ CREATE TABLE IF NOT EXISTS luz_expedientes (
   motivo_borrado TEXT
 );
 
-CREATE INDEX IF NOT EXISTS ix_exp_cliente ON luz_expedientes(cliente_id) WHERE borrado_en IS NULL;
-CREATE INDEX IF NOT EXISTS ix_exp_fase    ON luz_expedientes(fase)       WHERE borrado_en IS NULL;
+CREATE INDEX IF NOT EXISTS ix_exp_cliente ON energia_expedientes(cliente_id) WHERE borrado_en IS NULL;
+CREATE INDEX IF NOT EXISTS ix_exp_fase    ON energia_expedientes(fase)       WHERE borrado_en IS NULL;
 
 
 -- ═══════════════════════════════════════════════════════════════════════════
@@ -107,23 +135,21 @@ CREATE INDEX IF NOT EXISTS ix_exp_fase    ON luz_expedientes(fase)       WHERE b
 -- «Centro, nave, proceso y equipo describen el lugar. El CUPS describe el
 -- suministro. Se relacionan, pero no son lo mismo.» (página 5)
 --
--- Es un ÁRBOL de profundidad libre y no tres tablas fijas (centro/nave/proceso)
--- porque las explotaciones reales no se parecen entre sí: una granja tiene
--- naves, una industria tiene líneas, y un hotel tiene plantas. Con tres tablas
--- fijas, el primer cliente que no encaje obliga a meter datos donde no van.
+-- La tabla es un ÁRBOL de profundidad libre porque es barato y no encierra:
+-- una granja tiene naves, una industria líneas y un hotel plantas. Pero LA
+-- PANTALLA DE LA v1 PINTARÁ SOLO DOS NIVELES (emplazamiento → área), que cubre
+-- el 100 % de la comarca. Un árbol libre en pantalla significa widget de árbol,
+-- arrastrar y soltar y nodos huérfanos: mucha interfaz para un caso que no hay.
 
-CREATE TABLE IF NOT EXISTS luz_ubicaciones (
+CREATE TABLE IF NOT EXISTS energia_ubicaciones (
   id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   cliente_id  UUID NOT NULL REFERENCES luz_clientes(id) ON DELETE CASCADE,
-  padre_id    UUID REFERENCES luz_ubicaciones(id) ON DELETE CASCADE,
+  padre_id    UUID REFERENCES energia_ubicaciones(id) ON DELETE CASCADE,
 
   nombre      TEXT NOT NULL,
-  tipo        TEXT NOT NULL DEFAULT 'zona'
-              CHECK (tipo IN ('centro','nave','zona','proceso','sin_asignar')),
+  tipo        TEXT NOT NULL DEFAULT 'area'
+              CHECK (tipo IN ('emplazamiento','area','proceso','sin_asignar')),
 
-  -- «Una foto puede guardarse en Sin asignar. Después se vincula sin subirla
-  -- otra vez.» Ese cajón es un nodo de verdad y no un NULL: un NULL no se
-  -- puede listar, y lo que no se lista no se termina de clasificar nunca.
   descripcion TEXT,
   direccion   TEXT,
 
@@ -132,20 +158,31 @@ CREATE TABLE IF NOT EXISTS luz_ubicaciones (
   borrado_en     TIMESTAMPTZ
 );
 
-CREATE INDEX IF NOT EXISTS ix_ubi_cliente ON luz_ubicaciones(cliente_id) WHERE borrado_en IS NULL;
-CREATE INDEX IF NOT EXISTS ix_ubi_padre   ON luz_ubicaciones(padre_id)   WHERE borrado_en IS NULL;
+CREATE INDEX IF NOT EXISTS ix_ubi_cliente ON energia_ubicaciones(cliente_id) WHERE borrado_en IS NULL;
+CREATE INDEX IF NOT EXISTS ix_ubi_padre   ON energia_ubicaciones(padre_id)   WHERE borrado_en IS NULL;
+
+-- Qué sedes entran en el alcance del expediente, y desde cuándo. Con fechas,
+-- porque una nave que se incorpora a mitad de año OBLIGA a ajustar la línea
+-- base — y ese es justo el ajuste no rutinario que hay que poder justificar.
+CREATE TABLE IF NOT EXISTS energia_expediente_ubicaciones (
+  expediente_id UUID NOT NULL REFERENCES energia_expedientes(id) ON DELETE CASCADE,
+  ubicacion_id  UUID NOT NULL REFERENCES energia_ubicaciones(id) ON DELETE CASCADE,
+  desde         DATE,
+  hasta         DATE,
+  PRIMARY KEY (expediente_id, ubicacion_id)
+);
 
 -- ── El puente ubicación ↔ suministro ───────────────────────────────────────
 --
--- TABLA APARTE Y NO UNA COLUMNA `cups_id` EN LA UBICACIÓN. Motivo: una nave
--- puede estar alimentada por dos CUPS y un CUPS puede alimentar tres naves.
--- Con una columna habría que elegir uno y mentir sobre el resto, que es justo
--- lo que hace que luego no cuadre el reparto de consumo por proceso.
-CREATE TABLE IF NOT EXISTS luz_ubicacion_cups (
-  ubicacion_id UUID NOT NULL REFERENCES luz_ubicaciones(id) ON DELETE CASCADE,
+-- TABLA APARTE Y NO UNA COLUMNA `cups_id`: una nave puede alimentarse de dos
+-- CUPS y un CUPS puede alimentar tres naves. Con una columna habría que elegir
+-- uno y mentir sobre el resto, y luego el reparto de consumo por proceso no
+-- cuadra sin que se sepa por qué.
+CREATE TABLE IF NOT EXISTS energia_ubicacion_cups (
+  ubicacion_id UUID NOT NULL REFERENCES energia_ubicaciones(id) ON DELETE CASCADE,
   cups_id      UUID NOT NULL REFERENCES luz_cups(id) ON DELETE CASCADE,
-  -- Qué parte del suministro se atribuye aquí, si se ha llegado a repartir.
-  -- NULL = todavía no se sabe, que es distinto de 0.
+  -- Qué parte se atribuye aquí, SI se ha llegado a repartir.
+  -- NULL = todavía no se sabe, que no es lo mismo que 0.
   reparto_pct  NUMERIC CHECK (reparto_pct IS NULL OR (reparto_pct >= 0 AND reparto_pct <= 100)),
   nota         TEXT,
   PRIMARY KEY (ubicacion_id, cups_id)
@@ -157,44 +194,44 @@ CREATE TABLE IF NOT EXISTS luz_ubicacion_cups (
 -- ═══════════════════════════════════════════════════════════════════════════
 --
 -- «Una potencia desconocida queda vacía» y «guardar no equivale a validar el
--- dato» (página 4). Por eso casi todo es NULL-able y hay un estado de dato
--- separado del propio dato.
+-- dato» (página 4): casi todo es NULL-able y el estado del DATO va aparte del
+-- dato.
 
-CREATE TABLE IF NOT EXISTS luz_equipos (
+CREATE TABLE IF NOT EXISTS energia_equipos (
   id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   cliente_id   UUID NOT NULL REFERENCES luz_clientes(id) ON DELETE CASCADE,
-  ubicacion_id UUID REFERENCES luz_ubicaciones(id) ON DELETE SET NULL,
+  ubicacion_id UUID REFERENCES energia_ubicaciones(id) ON DELETE SET NULL,
 
   nombre       TEXT NOT NULL,
   categoria    TEXT,           -- alimentación, ventilación, bombeo, frío, FV…
   cantidad     INTEGER DEFAULT 1,
+  vector       TEXT NOT NULL DEFAULT 'electricidad',
 
-  -- TRES POTENCIAS DISTINTAS Y NO UNA. La página 5 lo exige: «distinguir
-  -- potencia eléctrica, mecánica y térmica». Un motor de 15 kW mecánicos no
-  -- consume 15 kW eléctricos, y meterlos en la misma casilla es un error que
-  -- se propaga hasta la propuesta sin que nadie lo vea.
+  -- TRES POTENCIAS DISTINTAS Y NO UNA (página 5). Un motor de 15 kW mecánicos
+  -- NO consume 15 kW eléctricos. En la misma casilla, ese error viaja hasta la
+  -- propuesta sin que nadie lo vea.
   potencia_electrica_kw NUMERIC,
   potencia_mecanica_kw  NUMERIC,
   potencia_termica_kw   NUMERIC,
+  rendimiento           NUMERIC,   -- para poder pasar de mecánica a eléctrica
 
-  -- FV con sus unidades separadas, que es el ejemplo que da el propio PDF.
+  -- FV con sus unidades separadas, que es el ejemplo del propio PDF.
   fv_paneles_kwp   NUMERIC,
   fv_inversor_kw   NUMERIC,
   bateria_kwh      NUMERIC,
 
   horas_uso_dia    NUMERIC,
-  meses_uso_ano    NUMERIC,
+  dias_uso_ano     NUMERIC,
   regulacion       TEXT,       -- variador, arranque directo, termostato…
 
-  -- «Marcar ventilación y otros servicios según validación del cliente.» Una
-  -- carga crítica no se apaga para ahorrar aunque el cálculo lo sugiera: en una
-  -- granja, parar la ventilación mata animales. Esto es una salvaguarda, no una
-  -- etiqueta informativa.
-  es_carga_critica BOOLEAN NOT NULL DEFAULT false,
+  -- «Marcar ventilación y otros servicios según validación del cliente.»
+  -- En una granja, parar la ventilación mata animales. Es una salvaguarda
+  -- contra una recomendación automática, no una etiqueta informativa.
+  es_carga_critica     BOOLEAN NOT NULL DEFAULT false,
   critica_validada_por TEXT,
 
-  -- El estado del DATO, no del equipo. Un equipo puede existir y estar bien
-  -- mientras su ficha está a medias.
+  -- El estado del DATO, no del equipo: un equipo puede estar perfecto mientras
+  -- su ficha está a medias.
   estado_dato  TEXT NOT NULL DEFAULT 'pendiente'
                CHECK (estado_dato IN ('pendiente','declarado','medido','aprobado')),
   fuente       TEXT,           -- «declaración del cliente», «placa», «medida»…
@@ -205,60 +242,67 @@ CREATE TABLE IF NOT EXISTS luz_equipos (
   borrado_en     TIMESTAMPTZ
 );
 
-CREATE INDEX IF NOT EXISTS ix_equipo_cliente   ON luz_equipos(cliente_id)   WHERE borrado_en IS NULL;
-CREATE INDEX IF NOT EXISTS ix_equipo_ubicacion ON luz_equipos(ubicacion_id) WHERE borrado_en IS NULL;
+CREATE INDEX IF NOT EXISTS ix_equipo_cliente   ON energia_equipos(cliente_id)   WHERE borrado_en IS NULL;
+CREATE INDEX IF NOT EXISTS ix_equipo_ubicacion ON energia_equipos(ubicacion_id) WHERE borrado_en IS NULL;
 
 
 -- ═══════════════════════════════════════════════════════════════════════════
 -- 4. MEDIDAS — EL CORAZÓN
 -- ═══════════════════════════════════════════════════════════════════════════
 --
--- Una fila = una magnitud, un periodo, una unidad, un origen y un estado de
--- revisión. Es lo que hace posibles la 50006 (indicadores y línea base) y la
--- 50015 (verificación), porque las dos preguntan lo mismo: ¿de dónde salió
--- este número y quién dijo que era bueno?
+-- Una fila = un vector, una magnitud, un periodo, una unidad, un origen y un
+-- estado de revisión. Es lo que hace posibles la 50006 y la 50015, porque las
+-- dos preguntan lo mismo: ¿de dónde salió este número y quién dijo que valía?
 --
 -- POR QUÉ NO REUTILIZO `luz_cups.consumo_anual_kwh`: ese campo es UN número
--- para la venta —sirve para ofertar— y aquí hace falta la serie con su
--- trazabilidad. Conviven: el de `luz_cups` sigue siendo el de la comparativa
--- comercial, y este es el del expediente técnico. Lo que NO va a pasar es que
--- se copien el uno al otro en silencio; si difieren, se enseña la diferencia.
+-- para poder ofertar. Aquí hace falta la serie con su trazabilidad. Conviven, y
+-- lo que NO va a pasar es que se copien en silencio: si difieren, la ficha del
+-- suministro enseña la diferencia. Una diferencia visible es información; una
+-- sincronización callada es una mentira futura.
 
-CREATE TABLE IF NOT EXISTS luz_medidas (
+CREATE TABLE IF NOT EXISTS energia_medidas (
   id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   cliente_id    UUID NOT NULL REFERENCES luz_clientes(id) ON DELETE CASCADE,
-  expediente_id UUID REFERENCES luz_expedientes(id) ON DELETE SET NULL,
+  expediente_id UUID REFERENCES energia_expedientes(id) ON DELETE SET NULL,
 
-  -- A QUÉ se refiere la medida. Al menos uno debería estar puesto, pero no se
-  -- obliga: una lectura suelta traída de una visita se guarda igual y se
-  -- vincula después. Perder el dato por no saber aún dónde va es peor.
+  -- A qué se refiere. Ninguno es obligatorio: una lectura traída de una visita
+  -- se guarda igual y se vincula después. Perder el dato por no saber todavía
+  -- dónde va es mucho peor que tenerlo sin colocar.
   cups_id       UUID REFERENCES luz_cups(id) ON DELETE SET NULL,
-  ubicacion_id  UUID REFERENCES luz_ubicaciones(id) ON DELETE SET NULL,
-  equipo_id     UUID REFERENCES luz_equipos(id) ON DELETE SET NULL,
+  ubicacion_id  UUID REFERENCES energia_ubicaciones(id) ON DELETE SET NULL,
+  equipo_id     UUID REFERENCES energia_equipos(id) ON DELETE SET NULL,
 
-  -- MAGNITUDES SEPARADAS. «Compra de red, consumo de instalación, producción
-  -- FV, reactiva, potencia y euros tienen selectores distintos. Sin datos FV no
-  -- inferir consumo total.» (página 6). Sumar compra de red y autoconsumo sin
-  -- tener la producción medida es inventarse el denominador de todos los
-  -- indicadores que vengan después.
+  -- EL VECTOR. Sin esto no hay 50001: el indicador total de una granja incluye
+  -- el gasóleo de la calefacción, no solo la factura de la luz.
+  vector        TEXT NOT NULL DEFAULT 'electricidad'
+                CHECK (vector IN ('electricidad','gas_natural','gasoleo',
+                                  'propano','biomasa','solar_termica','otro')),
+
+  -- MAGNITUDES SEPARADAS (página 6): «sin datos FV no inferir consumo total».
+  -- Sumar compra de red y autoconsumo sin tener la producción medida es
+  -- inventarse el denominador de todos los indicadores que vengan después.
   magnitud      TEXT NOT NULL
                 CHECK (magnitud IN (
-                  'compra_red_kwh','consumo_instalacion_kwh','produccion_fv_kwh',
-                  'excedentes_kwh','reactiva_kvarh','potencia_max_kw',
-                  'coste_eur','variable_actividad')),
+                  'consumo','autoconsumo','produccion','excedentes',
+                  'reactiva','potencia_max','coste','variable_actividad')),
 
-  -- La unidad va escrita SIEMPRE, aunque parezca deducible de la magnitud:
-  -- `variable_actividad` puede ser plazas, toneladas, m² o cabezas, y sin la
-  -- unidad un indicador de la 50006 no significa nada.
+  -- La unidad SIEMPRE escrita, aunque parezca deducible: `variable_actividad`
+  -- puede ser plazas, toneladas, m² o cabezas, y sin unidad un indicador de la
+  -- 50006 no significa nada.
   unidad        TEXT NOT NULL,
-  -- Para `variable_actividad`: qué se está midiendo («plazas ocupadas»).
-  concepto      TEXT,
-
+  concepto      TEXT,          -- para variable_actividad: «plazas ocupadas»
   valor         NUMERIC NOT NULL,
 
-  -- PERIODO CON FECHAS, NO CON MES. La página 6 pide periodo personalizado, y
-  -- las facturas reales no empiezan el día 1. Con fechas se puede anualizar por
-  -- días reales, que es lo que ya hace `plantilla-consumos.ts`.
+  -- ── LA CONVERSIÓN, CONGELADA (decisión 5) ──
+  -- Se guarda el valor en kWh y EL FACTOR CON EL QUE SE OBTUVO. Si el factor
+  -- se recalculara al vuelo, afinarlo un día cambiaría todas las líneas base
+  -- históricas hacia atrás sin que nadie lo pidiera.
+  valor_kwh        NUMERIC,
+  factor_kwh_usado NUMERIC,
+
+  -- PERIODO CON FECHAS, NO CON MES (página 6: periodo personalizado). Las
+  -- facturas reales no empiezan el día 1, y con fechas se puede anualizar por
+  -- días reales — que es lo que ya hace `plantilla-consumos.ts`.
   periodo_inicio DATE NOT NULL,
   periodo_fin    DATE NOT NULL,
   CONSTRAINT periodo_coherente CHECK (periodo_fin >= periodo_inicio),
@@ -268,8 +312,8 @@ CREATE TABLE IF NOT EXISTS luz_medidas (
 
   origen        TEXT NOT NULL DEFAULT 'manual'
                 CHECK (origen IN ('factura','lectura_contador','curva_datadis',
-                                  'plantilla_excel','estimado','manual')),
-  documento_id  UUID,   -- FK añadida más abajo, cuando exista la tabla
+                                  'plantilla_excel','telemedida','estimado','manual')),
+  documento_id  UUID,   -- FK más abajo, cuando exista la tabla
 
   -- NACE EN PENDIENTE. Cargar un archivo no aprueba su contenido.
   revision      TEXT NOT NULL DEFAULT 'pendiente'
@@ -277,122 +321,304 @@ CREATE TABLE IF NOT EXISTS luz_medidas (
   revisado_por  TEXT,
   revisado_en   TIMESTAMPTZ,
 
-  -- CONFLICTOS SIN PERDER NADA (decisión 5 de la cabecera). Si dos fuentes
-  -- dicen cosas distintas del mismo periodo, las dos filas siguen ahí; la que
-  -- pierde apunta a la que gana y guarda POR QUÉ perdió.
-  sustituida_por UUID REFERENCES luz_medidas(id) ON DELETE SET NULL,
+  -- CONFLICTOS SIN PERDER NADA (decisión 7). El que pierde apunta al que gana
+  -- y guarda por qué perdió.
+  sustituida_por  UUID REFERENCES energia_medidas(id) ON DELETE SET NULL,
   motivo_revision TEXT,
 
-  -- Lo que marca `leerNumero` como dudoso llega hasta aquí escrito, nunca
-  -- corregido a la brava. Misma regla que en la plantilla de consumos.
+  -- Lo que `leerNumero` marque como dudoso llega hasta aquí ESCRITO, nunca
+  -- corregido a la brava. Misma regla que la plantilla de consumos.
   aviso         TEXT,
-
   nota          TEXT,
+
   creado_en      TIMESTAMPTZ NOT NULL DEFAULT now(),
   actualizado_en TIMESTAMPTZ NOT NULL DEFAULT now(),
   borrado_en     TIMESTAMPTZ
 );
 
-CREATE INDEX IF NOT EXISTS ix_med_cliente ON luz_medidas(cliente_id, magnitud, periodo_inicio) WHERE borrado_en IS NULL;
-CREATE INDEX IF NOT EXISTS ix_med_cups    ON luz_medidas(cups_id, periodo_inicio) WHERE borrado_en IS NULL;
-CREATE INDEX IF NOT EXISTS ix_med_exp     ON luz_medidas(expediente_id) WHERE borrado_en IS NULL;
+-- Índices pensados para volumen: con 30 clientes, 5 suministros, 4 vectores y
+-- años de histórico esto son cientos de miles de filas, y las tres consultas
+-- que hace la pantalla son siempre las mismas.
+CREATE INDEX IF NOT EXISTS ix_med_serie ON energia_medidas
+  (cliente_id, vector, magnitud, periodo_inicio) WHERE borrado_en IS NULL;
+CREATE INDEX IF NOT EXISTS ix_med_cups  ON energia_medidas
+  (cups_id, periodo_inicio) WHERE borrado_en IS NULL;
+CREATE INDEX IF NOT EXISTS ix_med_exp   ON energia_medidas
+  (expediente_id, periodo_inicio) WHERE borrado_en IS NULL;
+CREATE INDEX IF NOT EXISTS ix_med_pendientes ON energia_medidas
+  (revision) WHERE borrado_en IS NULL AND revision = 'pendiente';
 
 -- NO hay índice único sobre (cups, magnitud, periodo) A PROPÓSITO. Dos medias
--- facturas de un mes pueden ser las dos válidas, y dos fuentes distintas del
--- mismo mes es exactamente el conflicto que hay que poder guardar. La detección
--- de duplicados se hace al importar y se le enseña a una persona (página 7),
--- que es donde tiene arreglo. Una restricción aquí solo lograría que el
--- importador reventara con datos legítimos.
+-- facturas de un mes pueden ser las dos válidas, y dos fuentes del mismo mes es
+-- el conflicto que hay que PODER guardar (decisión 7). Los duplicados se
+-- detectan al importar y se le enseñan a una persona, que es donde tienen
+-- arreglo. Una restricción aquí solo lograría que el importador reventara con
+-- datos legítimos.
 
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- 5. ACTUACIONES
+-- 5. USOS SIGNIFICATIVOS DE LA ENERGÍA (los «USE» de la 50001)
 -- ═══════════════════════════════════════════════════════════════════════════
 --
--- «Potencia, reactiva, FV o ahorro son actuaciones vinculadas al cliente. Cada
--- una tiene su objetivo, responsable y siguiente paso.» (página 8)
---
--- Estados INDEPENDIENTES del comercial: «una venta de luz activada puede tener
--- una actuación técnica pendiente». Es la misma razón que separa la fase
--- energética de la etapa comercial.
+-- No basta con decir «la ventilación es significativa»: hay que decir POR QUÉ
+-- lo es. La norma lo exige y, más importante, evita que el criterio cambie
+-- según quién mire. Es la base del diagnóstico (50002).
 
-CREATE TABLE IF NOT EXISTS luz_actuaciones (
+CREATE TABLE IF NOT EXISTS energia_usos (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  expediente_id UUID NOT NULL REFERENCES energia_expedientes(id) ON DELETE CASCADE,
+  ubicacion_id  UUID REFERENCES energia_ubicaciones(id) ON DELETE SET NULL,
+  equipo_id     UUID REFERENCES energia_equipos(id) ON DELETE SET NULL,
+
+  nombre        TEXT NOT NULL,
+  vector        TEXT NOT NULL DEFAULT 'electricidad',
+
+  -- POR QUÉ es significativo. Sin esto es una opinión.
+  criterio      TEXT NOT NULL,
+  consumo_kwh_ano NUMERIC,
+  pct_del_total   NUMERIC,
+
+  -- Quién puede influir en él: sin responsable, un uso significativo es una
+  -- observación y no una palanca.
+  responsable   TEXT,
+  potencial_mejora TEXT,
+
+  revisado_por  TEXT,
+  revisado_en   TIMESTAMPTZ,
+  creado_en     TIMESTAMPTZ NOT NULL DEFAULT now(),
+  actualizado_en TIMESTAMPTZ NOT NULL DEFAULT now(),
+  borrado_en    TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS ix_uso_exp ON energia_usos(expediente_id) WHERE borrado_en IS NULL;
+
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 6. INDICADORES (IDEn / EnPI — ISO 50006)
+-- ═══════════════════════════════════════════════════════════════════════════
+--
+-- Un indicador es una DEFINICIÓN: qué se divide entre qué, en qué alcance.
+-- «kWh por plaza ocupada y mes», «kWh por tonelada producida».
+--
+-- SUS VALORES NO SE GUARDAN: se calculan desde `energia_medidas`. Guardarlos
+-- sería tener dos verdades y que la de la tabla se quedara vieja en cuanto
+-- alguien corrigiera una medida. Es la misma regla que ya rige los vencimientos
+-- («se calculan en vivo desde el CUPS»).
+
+CREATE TABLE IF NOT EXISTS energia_indicadores (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  expediente_id UUID NOT NULL REFERENCES energia_expedientes(id) ON DELETE CASCADE,
+
+  nombre        TEXT NOT NULL,          -- «Consumo por plaza»
+  -- El numerador: qué energía.
+  magnitud      TEXT NOT NULL DEFAULT 'consumo',
+  vector        TEXT,                   -- NULL = todos los del alcance
+  -- El denominador: contra qué se normaliza. NULL = indicador absoluto.
+  variable      TEXT,                   -- «plazas ocupadas»
+  unidad_resultado TEXT NOT NULL,       -- «kWh/plaza·mes»
+
+  descripcion   TEXT,
+  activo        BOOLEAN NOT NULL DEFAULT true,
+  creado_en     TIMESTAMPTZ NOT NULL DEFAULT now(),
+  borrado_en    TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS ix_ind_exp ON energia_indicadores(expediente_id) WHERE borrado_en IS NULL;
+
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 7. LÍNEA BASE (EnB — ISO 50006 / 50015)
+-- ═══════════════════════════════════════════════════════════════════════════
+--
+-- LA PIEZA MÁS DELICADA DEL MÓDULO. Una línea base NO es un número: es un
+-- modelo del consumo en función de sus variables, ajustado sobre un periodo
+-- concreto. El ahorro es lo que el modelo predice para las condiciones de este
+-- año menos lo que de verdad se ha consumido.
+--
+-- SE CONGELA, como los precios de un estudio. Una línea base aprobada no se
+-- recalcula sola: si cambia, es una versión NUEVA con su motivo, y la anterior
+-- se conserva. Todo informe de ahorro dice contra qué versión se calculó.
+--
+-- La calidad del ajuste se guarda (R², CV-RMSE) porque un modelo malo produce
+-- ahorros inventados con toda la apariencia de ser ciertos, y el que lo lee
+-- tiene derecho a saberlo.
+
+CREATE TABLE IF NOT EXISTS energia_lineas_base (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  expediente_id UUID NOT NULL REFERENCES energia_expedientes(id) ON DELETE CASCADE,
+  indicador_id  UUID REFERENCES energia_indicadores(id) ON DELETE SET NULL,
+
+  nombre        TEXT NOT NULL,
+  vector        TEXT,
+  magnitud      TEXT NOT NULL DEFAULT 'consumo',
+
+  -- EL PERIODO BASE. Congelado y explícito: es contra lo que se compara todo.
+  periodo_inicio DATE NOT NULL,
+  periodo_fin    DATE NOT NULL,
+  CONSTRAINT base_coherente CHECK (periodo_fin > periodo_inicio),
+
+  metodo        TEXT NOT NULL DEFAULT 'media'
+                CHECK (metodo IN ('media','regresion_simple','regresion_multiple')),
+
+  -- Qué variables entran y con qué coeficientes. JSON porque el número de
+  -- variables cambia por cliente y una tabla de 20 columnas vacías no ayuda.
+  variables     JSONB NOT NULL DEFAULT '[]'::jsonb,
+  coeficientes  JSONB,
+
+  -- CALIDAD DEL AJUSTE. Un R² bajo no invalida el modelo, pero obliga a
+  -- decirlo: sin esto, un ahorro «verificado» sobre un modelo que no explica
+  -- nada es indistinguible de uno bueno.
+  r2            NUMERIC,
+  cv_rmse       NUMERIC,
+  n_observaciones INTEGER,
+
+  estado        TEXT NOT NULL DEFAULT 'borrador'
+                CHECK (estado IN ('borrador','aprobada','sustituida','descartada')),
+  aprobada_por  TEXT,
+  aprobada_en   TIMESTAMPTZ,
+  sustituida_por UUID REFERENCES energia_lineas_base(id) ON DELETE SET NULL,
+  motivo        TEXT,
+
+  creado_en      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  actualizado_en TIMESTAMPTZ NOT NULL DEFAULT now(),
+  borrado_en     TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS ix_lb_exp ON energia_lineas_base(expediente_id) WHERE borrado_en IS NULL;
+
+-- Solo UNA línea base aprobada por indicador a la vez. Dos aprobadas es dos
+-- ahorros distintos para el mismo cliente, y no habría forma de saber cuál se
+-- usó en el informe que ya está impreso.
+CREATE UNIQUE INDEX IF NOT EXISTS ix_lb_una_aprobada
+  ON energia_lineas_base(expediente_id, coalesce(indicador_id, id))
+  WHERE estado = 'aprobada' AND borrado_en IS NULL;
+
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 8. AJUSTES DE LA LÍNEA BASE
+-- ═══════════════════════════════════════════════════════════════════════════
+--
+-- El cliente monta una nave nueva, cambia un turno o amplía la cabaña. La línea
+-- base hay que ajustarla, y si el ajuste no queda escrito CON SU MOTIVO, el
+-- ahorro se va deformando solo y nadie sabe cuándo empezó a mentir.
+--
+--   · RUTINARIO: la variable ya está en el modelo (más plazas → más consumo).
+--     Lo absorbe la fórmula, no hace falta tocar nada.
+--   · NO RUTINARIO: algo que el modelo no contempla (una nave nueva). Exige
+--     una decisión de una persona y queda aquí.
+
+CREATE TABLE IF NOT EXISTS energia_ajustes (
+  id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  linea_base_id  UUID NOT NULL REFERENCES energia_lineas_base(id) ON DELETE CASCADE,
+
+  tipo           TEXT NOT NULL CHECK (tipo IN ('rutinario','no_rutinario')),
+  fecha_efecto   DATE NOT NULL,
+  -- OBLIGATORIO. Un ajuste sin motivo es un número cambiado a mano.
+  motivo         TEXT NOT NULL,
+  impacto_kwh    NUMERIC,
+  documento_id   UUID,
+
+  aplicado_por   TEXT,
+  creado_en      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS ix_aj_lb ON energia_ajustes(linea_base_id);
+
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 9. ACTUACIONES
+-- ═══════════════════════════════════════════════════════════════════════════
+--
+-- «Cada una tiene su objetivo, responsable y siguiente paso» (página 8), y
+-- estados INDEPENDIENTES del comercial: «una venta de luz activada puede tener
+-- una actuación técnica pendiente».
+
+CREATE TABLE IF NOT EXISTS energia_actuaciones (
   id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   cliente_id    UUID NOT NULL REFERENCES luz_clientes(id) ON DELETE CASCADE,
-  expediente_id UUID REFERENCES luz_expedientes(id) ON DELETE SET NULL,
-  ubicacion_id  UUID REFERENCES luz_ubicaciones(id) ON DELETE SET NULL,
+  expediente_id UUID REFERENCES energia_expedientes(id) ON DELETE SET NULL,
+  ubicacion_id  UUID REFERENCES energia_ubicaciones(id) ON DELETE SET NULL,
   cups_id       UUID REFERENCES luz_cups(id) ON DELETE SET NULL,
+  uso_id        UUID REFERENCES energia_usos(id) ON DELETE SET NULL,
 
   titulo        TEXT NOT NULL,
   tipo          TEXT NOT NULL DEFAULT 'otra'
                 CHECK (tipo IN ('potencia','reactiva','fotovoltaica','almacenamiento',
-                                'gestion_cargas','eficiencia','tarifa','refuerzo_red','otra')),
+                                'gestion_cargas','eficiencia','tarifa','refuerzo_red',
+                                'combustible','otra')),
 
-  -- El problema, escrito. Sin esto, dentro de seis meses nadie recuerda por qué
-  -- se abrió y la actuación se cierra «porque ya no hace falta».
+  -- El problema, escrito. Sin esto, en seis meses nadie recuerda por qué se
+  -- abrió y la actuación se cierra «porque ya no hacía falta».
   problema      TEXT,
-
-  -- Las alternativas que se comparan, con su estado. JSON porque su forma
-  -- cambia según el tipo y no tiene sentido una tabla de 20 columnas vacías.
   alternativas  JSONB NOT NULL DEFAULT '[]'::jsonb,
 
   estado        TEXT NOT NULL DEFAULT 'en_estudio'
                 CHECK (estado IN ('en_estudio','presentada','aceptada',
                                   'ejecucion','verificacion','cerrada','descartada')),
 
-  -- ECONOMÍA SIN DUPLICAR (página 8): se ENLAZA el presupuesto que ya existe
-  -- en el CRM, no se copia. Copiar el importe aquí garantiza que dentro de un
-  -- mes la actuación diga un número y el estudio otro.
-  estudio_id    UUID REFERENCES luz_estudios(id) ON DELETE SET NULL,
+  -- ECONOMÍA SIN DUPLICAR (página 8): se ENLAZA el presupuesto que ya existe en
+  -- el CRM. Copiar el importe garantiza que en un mes la actuación diga un
+  -- número y el estudio otro.
+  estudio_id      UUID REFERENCES luz_estudios(id) ON DELETE SET NULL,
   presupuesto_ref TEXT,
+  inversion_eur   NUMERIC,
 
-  -- AHORRO PREVISTO Y COMPROBADO SEPARADOS. Es la línea que separa una promesa
-  -- de un hecho, y es literalmente lo que verifica la ISO 50015. Meterlos en
-  -- el mismo campo convierte una estimación en un resultado sin que nadie lo
-  -- haya decidido.
+  -- PREVISTO Y COMPROBADO SEPARADOS. Es la línea entre una promesa y un hecho,
+  -- y es literalmente lo que verifica la 50015. En el mismo campo, una
+  -- estimación se convierte en resultado sin que nadie lo decida.
   ahorro_previsto_eur   NUMERIC,
   ahorro_previsto_kwh   NUMERIC,
   ahorro_comprobado_eur NUMERIC,
   ahorro_comprobado_kwh NUMERIC,
+  linea_base_id         UUID REFERENCES energia_lineas_base(id) ON DELETE SET NULL,
   metodo_verificacion   TEXT,
+  verificado_por        TEXT,
+  verificado_en         TIMESTAMPTZ,
 
+  -- Para los CAE hace falta saber qué actuación se acogió a qué método y con
+  -- qué documentación. Se guarda la referencia; el catálogo y sus requisitos
+  -- se comprueban fuera, contra el BOE y el IDAE vigentes.
+  cae_metodo    TEXT,
+  cae_estado    TEXT,
+
+  fecha_ejecucion DATE,
   responsable   TEXT,
-  decision_pendiente TEXT,   -- «confirmar duración de puntas antes de elegir batería»
+  decision_pendiente TEXT,
 
   creado_en      TIMESTAMPTZ NOT NULL DEFAULT now(),
   actualizado_en TIMESTAMPTZ NOT NULL DEFAULT now(),
   borrado_en     TIMESTAMPTZ
 );
 
-CREATE INDEX IF NOT EXISTS ix_act_cliente ON luz_actuaciones(cliente_id) WHERE borrado_en IS NULL;
-CREATE INDEX IF NOT EXISTS ix_act_estado  ON luz_actuaciones(estado)     WHERE borrado_en IS NULL;
+CREATE INDEX IF NOT EXISTS ix_act_cliente ON energia_actuaciones(cliente_id) WHERE borrado_en IS NULL;
+CREATE INDEX IF NOT EXISTS ix_act_estado  ON energia_actuaciones(estado)     WHERE borrado_en IS NULL;
+CREATE INDEX IF NOT EXISTS ix_act_exp     ON energia_actuaciones(expediente_id) WHERE borrado_en IS NULL;
 
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- 6. DOCUMENTOS DE LA CARTERA DE LUZ
+-- 10. DOCUMENTOS
 -- ═══════════════════════════════════════════════════════════════════════════
 --
 -- OJO: `documentos_cliente` YA EXISTE pero cuelga de `clientes_app` (el área de
--- cliente), no de `luz_clientes`. Para la cartera de luz no hay gestión
--- documental de ningún tipo. Esta tabla es nueva de verdad.
+-- cliente), no de `luz_clientes`. Para la cartera no hay gestión documental de
+-- ningún tipo: esta tabla es nueva de verdad.
 --
 -- «Guardar una vez, encontrar desde cualquier vista» (página 9): un archivo
--- puede respaldar a la vez un suministro, un equipo y una actuación, así que
--- los vínculos son varios y todos opcionales.
+-- puede respaldar a la vez un suministro, un equipo y una actuación.
 
-CREATE TABLE IF NOT EXISTS luz_documentos (
+CREATE TABLE IF NOT EXISTS energia_documentos (
   id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   cliente_id    UUID NOT NULL REFERENCES luz_clientes(id) ON DELETE CASCADE,
-  expediente_id UUID REFERENCES luz_expedientes(id) ON DELETE SET NULL,
+  expediente_id UUID REFERENCES energia_expedientes(id) ON DELETE SET NULL,
   cups_id       UUID REFERENCES luz_cups(id) ON DELETE SET NULL,
-  ubicacion_id  UUID REFERENCES luz_ubicaciones(id) ON DELETE SET NULL,
-  equipo_id     UUID REFERENCES luz_equipos(id) ON DELETE SET NULL,
-  actuacion_id  UUID REFERENCES luz_actuaciones(id) ON DELETE SET NULL,
+  ubicacion_id  UUID REFERENCES energia_ubicaciones(id) ON DELETE SET NULL,
+  equipo_id     UUID REFERENCES energia_equipos(id) ON DELETE SET NULL,
+  actuacion_id  UUID REFERENCES energia_actuaciones(id) ON DELETE SET NULL,
 
   titulo        TEXT NOT NULL,
   tipo          TEXT NOT NULL DEFAULT 'otro'
                 CHECK (tipo IN ('factura','curva','foto','plano','inventario',
-                                'oferta','informe','nota','contrato','otro')),
+                                'oferta','informe','nota','contrato','acta','otro')),
 
   -- Una NOTA no tiene archivo, y es la mitad de la bandeja: «pegar nota o
   -- adjuntar foto» desde el móvil, con el cliente ya precargado.
@@ -401,9 +627,8 @@ CREATE TABLE IF NOT EXISTS luz_documentos (
   mime_type     TEXT,
   tamano_bytes  INTEGER,
 
-  -- LOS TRES ESTADOS DE LA BANDEJA (página 9). «Pendiente de recibir» es una
-  -- fila sin archivo todavía: es lo que convierte «le pedí la curva» en algo
-  -- que se puede reclamar, en vez de en algo que se olvida.
+  -- «Pendiente de recibir» es una fila SIN archivo todavía: es lo que convierte
+  -- «le pedí la curva» en algo reclamable en vez de en algo que se olvida.
   estado        TEXT NOT NULL DEFAULT 'por_clasificar'
                 CHECK (estado IN ('por_clasificar','pendiente_recibir','guardado','descartado')),
 
@@ -416,51 +641,56 @@ CREATE TABLE IF NOT EXISTS luz_documentos (
   borrado_en     TIMESTAMPTZ
 );
 
-CREATE INDEX IF NOT EXISTS ix_doc_cliente ON luz_documentos(cliente_id) WHERE borrado_en IS NULL;
-CREATE INDEX IF NOT EXISTS ix_doc_estado  ON luz_documentos(estado)     WHERE borrado_en IS NULL;
+CREATE INDEX IF NOT EXISTS ix_doc_cliente ON energia_documentos(cliente_id) WHERE borrado_en IS NULL;
+CREATE INDEX IF NOT EXISTS ix_doc_bandeja ON energia_documentos(estado)
+  WHERE borrado_en IS NULL AND estado IN ('por_clasificar','pendiente_recibir');
 
--- Ahora sí: la medida puede apuntar a su documento de origen.
-ALTER TABLE luz_medidas
-  DROP CONSTRAINT IF EXISTS fk_medida_documento;
-ALTER TABLE luz_medidas
-  ADD CONSTRAINT fk_medida_documento
-  FOREIGN KEY (documento_id) REFERENCES luz_documentos(id) ON DELETE SET NULL;
+ALTER TABLE energia_medidas DROP CONSTRAINT IF EXISTS fk_medida_documento;
+ALTER TABLE energia_medidas ADD CONSTRAINT fk_medida_documento
+  FOREIGN KEY (documento_id) REFERENCES energia_documentos(id) ON DELETE SET NULL;
+
+ALTER TABLE energia_ajustes DROP CONSTRAINT IF EXISTS fk_ajuste_documento;
+ALTER TABLE energia_ajustes ADD CONSTRAINT fk_ajuste_documento
+  FOREIGN KEY (documento_id) REFERENCES energia_documentos(id) ON DELETE SET NULL;
 
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- 7. EVIDENCIAS ISO
+-- 11. EVIDENCIAS ISO
 -- ═══════════════════════════════════════════════════════════════════════════
 --
 -- LO QUE ESTA TABLA ES: un puente entre un requisito de la norma y un registro
--- que YA EXISTE en el sistema (un documento, una medida, una actuación, una
--- tarea). «Cada pendiente lleva al dato»: pulsar «Línea base» abre su
+-- que YA EXISTE. «Cada pendiente lleva al dato»: pulsar «Línea base» abre su
 -- formulario, no un apartado ISO donde volver a teclear lo mismo.
 --
--- LO QUE NO ES: un certificado. Que estén todas las casillas en verde
--- significa que el expediente está ordenado, no que el cliente cumpla la norma
--- ni que esté certificado. La pantalla lo dirá con estas palabras.
+-- LO QUE NO ES: un certificado. Que estén todas las casillas llenas significa
+-- que el expediente está ordenado — no que el cliente cumpla la norma ni que
+-- esté certificado. La pantalla lo dirá con estas palabras y NO habrá ningún
+-- porcentaje de cumplimiento: un porcentaje invita a jugar con él y además
+-- miente.
 --
--- EL CATÁLOGO DE REQUISITOS VIVE EN CÓDIGO (`src/lib/iso.ts`), NO AQUÍ. Igual
--- que `etapas.ts`: así se puede versionar, testear y corregir sin migraciones,
--- y no acaba habiendo dos catálogos distintos en dos entornos.
+-- EL CATÁLOGO DE REQUISITOS VIVE EN CÓDIGO (`src/lib/energia.ts`), no aquí.
+-- Igual que `etapas.ts`: así se versiona, se testea y no acaban existiendo dos
+-- catálogos distintos en dos entornos.
 
-CREATE TABLE IF NOT EXISTS luz_iso_evidencias (
+CREATE TABLE IF NOT EXISTS energia_iso_evidencias (
   id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  expediente_id UUID NOT NULL REFERENCES luz_expedientes(id) ON DELETE CASCADE,
+  expediente_id UUID NOT NULL REFERENCES energia_expedientes(id) ON DELETE CASCADE,
 
-  -- La clave del requisito en el catálogo de código: '50006.linea_base',
-  -- '50015.plan_verificacion', '50001.roles', '50002.inventario'…
+  -- Clave del catálogo: '50006.linea_base', '50015.plan_verificacion',
+  -- '50001.roles', '50002.inventario'…
   requisito     TEXT NOT NULL,
 
-  -- A qué registro real apunta. Solo uno de estos va relleno.
-  documento_id  UUID REFERENCES luz_documentos(id)  ON DELETE CASCADE,
-  medida_id     UUID REFERENCES luz_medidas(id)     ON DELETE CASCADE,
-  actuacion_id  UUID REFERENCES luz_actuaciones(id) ON DELETE CASCADE,
-  tarea_id      UUID REFERENCES luz_tareas(id)      ON DELETE CASCADE,
+  -- A qué registro real apunta. Exactamente uno.
+  documento_id  UUID REFERENCES energia_documentos(id)  ON DELETE CASCADE,
+  medida_id     UUID REFERENCES energia_medidas(id)     ON DELETE CASCADE,
+  actuacion_id  UUID REFERENCES energia_actuaciones(id) ON DELETE CASCADE,
+  linea_base_id UUID REFERENCES energia_lineas_base(id) ON DELETE CASCADE,
+  uso_id        UUID REFERENCES energia_usos(id)        ON DELETE CASCADE,
+  tarea_id      UUID REFERENCES luz_tareas(id)          ON DELETE CASCADE,
 
-  -- «Mostrar quién revisó, fecha y documento usado. Sustituir una evidencia
-  -- deja pendiente su nueva revisión.» Por eso la revisión es de la evidencia
-  -- y no del requisito: cambiar el papel invalida la revisión anterior.
+  -- «Sustituir una evidencia deja pendiente su nueva revisión»: la revisión es
+  -- de la EVIDENCIA y no del requisito, porque cambiar el papel invalida la
+  -- revisión anterior.
   estado        TEXT NOT NULL DEFAULT 'propuesta'
                 CHECK (estado IN ('propuesta','revisada','rechazada','caducada')),
   revisado_por  TEXT,
@@ -472,92 +702,48 @@ CREATE TABLE IF NOT EXISTS luz_iso_evidencias (
 
   CONSTRAINT una_sola_referencia CHECK (
     (documento_id IS NOT NULL)::int + (medida_id IS NOT NULL)::int +
-    (actuacion_id IS NOT NULL)::int + (tarea_id IS NOT NULL)::int = 1
+    (actuacion_id IS NOT NULL)::int + (linea_base_id IS NOT NULL)::int +
+    (uso_id IS NOT NULL)::int + (tarea_id IS NOT NULL)::int = 1
   )
 );
 
-CREATE INDEX IF NOT EXISTS ix_iso_exp ON luz_iso_evidencias(expediente_id, requisito) WHERE borrado_en IS NULL;
+CREATE INDEX IF NOT EXISTS ix_iso_exp ON energia_iso_evidencias(expediente_id, requisito)
+  WHERE borrado_en IS NULL;
 
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- 8. CAMPOS PERSONALIZABLES
+-- 12. UNA SOLA LISTA DE TAREAS
 -- ═══════════════════════════════════════════════════════════════════════════
 --
--- La pieza más delicada del documento (página 11), porque es la única que deja
--- a un usuario cambiar la forma de los datos. Las tres reglas del PDF son las
--- que hacen que esto no se convierta en un problema:
---
---   · Ocultar o retirar un campo NO borra sus valores.
---   · Cambiar el tipo exige un campo nuevo, no una conversión al vuelo.
---   · CUPS, unidades base, fórmulas aprobadas y estados esenciales NO se tocan.
---
--- Por eso los valores van en su propia tabla y NO en un JSONB dentro del
--- registro: un JSONB se reescribe entero al guardar, y el día que alguien
--- retire un campo se lleva por delante los valores históricos sin dejar rastro.
+-- `luz_tareas` gana dos vínculos. NO se crea una tabla de tareas del módulo
+-- energético: David no puede tener dos bandejas — el día que las tenga, deja de
+-- mirar las dos.
 
-CREATE TABLE IF NOT EXISTS luz_campos_extra (
-  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  clave       TEXT NOT NULL UNIQUE,      -- 'plazas_ocupadas'
-  etiqueta    TEXT NOT NULL,             -- 'Plazas ocupadas'
-  tipo        TEXT NOT NULL CHECK (tipo IN ('texto','numero','fecha','lista','booleano')),
-  unidad      TEXT,                      -- 'plazas'
-  opciones    JSONB,                     -- para tipo 'lista'
-  ayuda       TEXT,
+ALTER TABLE luz_tareas ADD COLUMN IF NOT EXISTS expediente_id UUID
+  REFERENCES energia_expedientes(id) ON DELETE SET NULL;
+ALTER TABLE luz_tareas ADD COLUMN IF NOT EXISTS actuacion_id UUID
+  REFERENCES energia_actuaciones(id) ON DELETE SET NULL;
 
-  -- A qué se le puede poner: 'cliente','expediente','ubicacion','equipo','actuacion'
-  aplica_a    TEXT NOT NULL,
-  -- Filtro opcional por sector/plantilla, para no enseñarle a una industria los
-  -- campos de una granja.
-  plantilla   TEXT,
-
-  -- «Obligatorio: al calcular este indicador». No obligatorio siempre — eso
-  -- bloquearía altas en la calle —, sino obligatorio para poder calcular algo.
-  obligatorio_para TEXT,
-
-  activo      BOOLEAN NOT NULL DEFAULT true,
-  orden       INTEGER NOT NULL DEFAULT 0,
-  creado_en   TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-CREATE TABLE IF NOT EXISTS luz_campos_valores (
-  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  campo_id    UUID NOT NULL REFERENCES luz_campos_extra(id) ON DELETE RESTRICT,
-  -- RESTRICT y no CASCADE: borrar una definición de campo NO puede llevarse
-  -- por delante los valores. Retirar un campo es `activo = false`.
-
-  entidad     TEXT NOT NULL,   -- 'equipo', 'ubicacion'…
-  entidad_id  UUID NOT NULL,
-
-  valor_texto TEXT,
-  valor_num   NUMERIC,
-  valor_fecha DATE,
-  valor_bool  BOOLEAN,
-
-  creado_en      TIMESTAMPTZ NOT NULL DEFAULT now(),
-  actualizado_en TIMESTAMPTZ NOT NULL DEFAULT now(),
-
-  UNIQUE (campo_id, entidad, entidad_id)
-);
-
-CREATE INDEX IF NOT EXISTS ix_cval_entidad ON luz_campos_valores(entidad, entidad_id);
+CREATE INDEX IF NOT EXISTS ix_tareas_expediente ON luz_tareas(expediente_id);
+CREATE INDEX IF NOT EXISTS ix_tareas_actuacion  ON luz_tareas(actuacion_id);
 
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- 9. RLS, TOQUES Y AUDITORÍA
+-- 13. RLS, TOQUES Y AUDITORÍA
 -- ═══════════════════════════════════════════════════════════════════════════
 --
--- Mismo patrón que el resto del módulo (`supabase_rls_v2.sql`) y auditoría con
--- `fn_auditar`, que es como se llama de verdad la función — comprobado contra
--- la base, después de que dos scripts buscaran nombres que no existían y se
--- quedaran callados.
+-- Mismo patrón que el resto (`supabase_rls_v2.sql`). La función de auditoría se
+-- llama `fn_auditar` — comprobado contra la base, después de que dos scripts
+-- buscaran nombres que no existían y se quedaran callados sin dar error.
 
 DO $$
 DECLARE t TEXT;
 BEGIN
   FOREACH t IN ARRAY ARRAY[
-    'luz_expedientes','luz_ubicaciones','luz_ubicacion_cups','luz_equipos',
-    'luz_medidas','luz_actuaciones','luz_documentos','luz_iso_evidencias',
-    'luz_campos_extra','luz_campos_valores'
+    'energia_expedientes','energia_ubicaciones','energia_expediente_ubicaciones',
+    'energia_ubicacion_cups','energia_equipos','energia_medidas','energia_usos',
+    'energia_indicadores','energia_lineas_base','energia_ajustes',
+    'energia_actuaciones','energia_documentos','energia_iso_evidencias'
   ] LOOP
     EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', t);
     EXECUTE format('DROP POLICY IF EXISTS p_ver ON %I', t);
@@ -571,8 +757,7 @@ BEGIN
   END LOOP;
 END $$;
 
--- actualizado_en automático
-CREATE OR REPLACE FUNCTION luz_energia_touch() RETURNS trigger AS $$
+CREATE OR REPLACE FUNCTION energia_touch() RETURNS trigger AS $$
 BEGIN
   NEW.actualizado_en := now();
   RETURN NEW;
@@ -583,26 +768,26 @@ DO $$
 DECLARE t TEXT;
 BEGIN
   FOREACH t IN ARRAY ARRAY[
-    'luz_expedientes','luz_ubicaciones','luz_equipos','luz_medidas',
-    'luz_actuaciones','luz_documentos','luz_campos_valores'
+    'energia_expedientes','energia_ubicaciones','energia_equipos','energia_medidas',
+    'energia_usos','energia_lineas_base','energia_actuaciones','energia_documentos'
   ] LOOP
     EXECUTE format('DROP TRIGGER IF EXISTS trg_touch ON %I', t);
     EXECUTE format('CREATE TRIGGER trg_touch BEFORE UPDATE ON %I
-                    FOR EACH ROW EXECUTE FUNCTION luz_energia_touch()', t);
+                    FOR EACH ROW EXECUTE FUNCTION energia_touch()', t);
   END LOOP;
 END $$;
 
--- Auditoría: sin esto, el parte del día no vería el trabajo energético.
 DO $$
 DECLARE t TEXT;
 BEGIN
   IF to_regprocedure('fn_auditar()') IS NULL THEN
-    RAISE NOTICE 'No existe fn_auditar(): ejecuta antes supabase_equipo_usuarios.sql.';
+    RAISE NOTICE 'No existe fn_auditar(): ejecuta antes supabase_equipo_usuarios.sql. Sin auditoría, el trabajo energético no saldrá en el parte del día.';
     RETURN;
   END IF;
   FOREACH t IN ARRAY ARRAY[
-    'luz_expedientes','luz_ubicaciones','luz_equipos','luz_medidas',
-    'luz_actuaciones','luz_documentos','luz_iso_evidencias'
+    'energia_expedientes','energia_ubicaciones','energia_equipos','energia_medidas',
+    'energia_usos','energia_lineas_base','energia_ajustes','energia_actuaciones',
+    'energia_documentos','energia_iso_evidencias'
   ] LOOP
     EXECUTE format('DROP TRIGGER IF EXISTS trg_auditoria ON %I', t);
     EXECUTE format('CREATE TRIGGER trg_auditoria AFTER INSERT OR UPDATE OR DELETE ON %I
@@ -619,8 +804,9 @@ SELECT t AS tabla,
        to_regclass(t) IS NOT NULL AS creada,
        (SELECT count(*) FROM pg_policies WHERE tablename = t) AS politicas
   FROM unnest(ARRAY[
-    'luz_expedientes','luz_ubicaciones','luz_ubicacion_cups','luz_equipos',
-    'luz_medidas','luz_actuaciones','luz_documentos','luz_iso_evidencias',
-    'luz_campos_extra','luz_campos_valores'
+    'energia_expedientes','energia_ubicaciones','energia_expediente_ubicaciones',
+    'energia_ubicacion_cups','energia_equipos','energia_medidas','energia_usos',
+    'energia_indicadores','energia_lineas_base','energia_ajustes',
+    'energia_actuaciones','energia_documentos','energia_iso_evidencias'
   ]) AS t
  ORDER BY 1;

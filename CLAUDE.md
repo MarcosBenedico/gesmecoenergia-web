@@ -35,6 +35,7 @@ npm run test:etapas                        # tests del vocabulario único de est
 npm run test:automatismos                  # tests de las automatizaciones de fase (que no hagan de más)
 npm run test:vistas                        # tests de las vistas guardadas y las columnas del listado
 npm run test:suministro                    # tests de la ficha del suministro (pestañas y formulario por bloques)
+npm run test:energia                       # tests del vocabulario de gestión energética (vectores, cobertura, ISO)
 npm run test:seguimiento                   # tests del reloj de seguimiento (cuánto lleva parado y cuándo es problema)
 npm run test:dashboard                     # tests del dashboard de dirección (qué se decide hoy y en qué orden)
 npm run test:factura                       # tests de la revisión de la factura leída (qué bloquea y qué solo avisa)
@@ -277,6 +278,22 @@ Todo el movimiento del escaparate vive en `globals.css`, en la sección «ESCAPA
 **El bloque `prefers-reduced-motion` va al final del archivo y sin capa, para ganar a todo.** El sitio tenía quince animaciones en bucle y ni una línea que atendiera a quien pide no ver movimiento. Al añadir cualquier animación nueva, comprobar que ahí queda apagada **y que lo que dependa de ella siga visible**.
 
 El fondo de puntos (`Background3D`) es un lienzo **transparente**: el degradado de marca lo pone el `body`, en un solo sitio. No volver a pintar el fondo dentro del canvas.
+
+## Gestión Energética (módulo aparte, en construcción)
+
+**Gesmeco tiene dos negocios y el CRM solo sabe del primero.** La **correduría** vende un precio mejor: ciclo de semanas, ingreso por comisión, ritmo diario, se cae si se pasa un preaviso. La **asesoría energética** vende consumir menos: ciclo de meses, ingreso por honorarios y margen de proyecto, ritmo mensual, se cae si los datos no son fiables. Meterlas en la misma pantalla es pedirle que conteste dos preguntas que se hacen en momentos distintos. Además la comisión es frágil —depende de que la comercializadora mantenga condiciones— y un ahorro verificado es lo único que justifica la palabra *asesor* frente a *comparador*.
+
+- **Dos módulos, no tres.** Cartera de luz (`gestor/luz`) contesta «¿a quién vendo o renuevo?». Gestión energética contestará «¿cómo usa la energía este cliente y qué le mejoramos?». **La ISO NO es un módulo: es una lente.** Si fuera un sitio al que ir, alguien tendría que «hacer la ISO», y ese es exactamente el trabajo que nadie hace nunca; como vista sobre el trabajo real, se mantiene sola. **La separación es de las listas de trabajo, no de la vista del cliente**: la ficha del cliente sigue siendo una y enseña las dos cosas.
+- **Las cuatro normas son cuatro capas de lo mismo** y todas piden el mismo dato: 50002 el diagnóstico (dónde se va la energía), 50006 los indicadores y la línea base (contra qué comparo), 50015 la verificación (cómo demuestro el ahorro), 50001 el sistema (cómo consigo que no se pare). Una pantalla por norma duplicaría el dato cuatro veces.
+- **La 50001 se implanta la ÚLTIMA.** Es el envoltorio de una práctica que ya funciona; montarla antes es cómo se acaba con una carpeta que nadie abre. El orden es: datos fiables → diagnóstico → actuaciones → indicadores → verificación → sistema. Los tres primeros ya dan dinero sin ninguna norma de por medio.
+- **`src/lib/energia.ts` es el vocabulario único** (fases, vectores, magnitudes, factores, catálogo ISO), a la gestión energética lo que `etapas.ts` al viaje comercial. **La fase energética NO es la etapa comercial**: un cliente puede tener la luz activada y una actuación técnica en estudio; con vocabulario compartido, activarle el contrato le cerraría un expediente abierto.
+- **La energía no es solo la luz.** Una granja consume electricidad, gasóleo y a menudo propano; un indicador que solo mire la factura eléctrica describe una parte y la presenta como el todo. Por eso cada medida lleva su **vector**, y **la conversión a kWh se congela con su factor**: si se recalculara al vuelo, afinar el factor un martes cambiaría todas las líneas base históricas hacia atrás. `aKwh` **no adivina** — con la unidad equivocada devuelve null y lo dice, porque un total de energía inflado no lo detecta nadie.
+- **La línea base es un MODELO, no un número.** Ahorro = lo que el modelo predice para las condiciones de este año − lo realmente consumido. Con «antes menos después», todo cliente que baje producción parece un éxito y el que crezca, un fracaso. Se congela como los precios de un estudio, guarda su calidad de ajuste (R², CV-RMSE) y solo puede haber **una aprobada por indicador**.
+- **No hay porcentaje de cumplimiento ISO, y es a propósito.** Un porcentaje invita a jugar con él y además miente: no existe el 68 % de una norma. `loQueFaltaISO` devuelve frases accionables («falta la línea base aprobada»). Y `AVISO_NO_CERTIFICA` va siempre en pantalla: **esto ordena y traza, no acredita cumplimiento** — certificar lo hace un organismo acreditado con un auditor delante.
+- **Fuera de la v1 a propósito**: los campos personalizables del PDF (es como se acaba con una base que nadie puede consultar; primero plantillas por sector en código) y el alcance «Gesmeco» como organización certificable (el consumo propio es una oficina; el valor está en Gesmeco como consultor).
+- **Las costuras con la cartera, cada una con su regla**: el consumo anual del CUPS es para ofertar y la serie de medidas es para el expediente — **nunca se copian, y si difieren se enseña la diferencia**; `luz_estudios` contesta «¿con quién contrato?» y el expediente «¿cómo consumo mejor?»; **una sola lista de tareas** (`luz_tareas` gana `expediente_id`), un solo almacén de documentos, y comisiones y honorarios jamás en el mismo embudo.
+- **El rigor de M&V no es burocracia: es lo que convierte un kWh ahorrado en un ingreso** por la vía de los CAE. El marco está en el RD 36/2023 y **el catálogo vigente hay que verificarlo contra el BOE y el IDAE** antes de prometer nada.
+- Esquema en `supabase_energia_v1.sql` (13 tablas `energia_*`, pendiente de ejecutar). Cubierto por `npm run test:energia`.
 
 ## Usuarios y permisos
 
