@@ -39,7 +39,8 @@
     "test:vistas": "node scripts/test-vistas.mjs",
     "test:suministro": "node scripts/test-suministro.mjs",
     "test:energia": "node scripts/test-energia.mjs",
-    "test:expediente": "node scripts/test-expediente.mjs"
+    "test:expediente": "node scripts/test-expediente.mjs",
+    "mapa:crm": "node scripts/mapa-crm.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.110.0",
