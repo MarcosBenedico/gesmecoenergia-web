@@ -178,7 +178,7 @@ export default function TareasPage() {
         )}
       </div>
 
-      <EstadoCarga cargando={cargando} error={error} faltaMigracion={faltaMigracion}
+      <EstadoCarga onReintentar={recargar} cargando={cargando} error={error} faltaMigracion={faltaMigracion}
         vacio={!cargando && !error && filtradas.length === 0} textoVacio="Sin tareas con este filtro. 👌" />
 
       {filtradas.length > 0 && (

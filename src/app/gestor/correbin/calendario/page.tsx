@@ -431,7 +431,7 @@ export default function CalendarioVct() {
         </div>
       </Card>
 
-      <EstadoCarga cargando={cargando} error={error} faltaMigracion={faltaMigracion} vacio={false} textoVacio="" />
+      <EstadoCarga onReintentar={recargar} cargando={cargando} error={error} faltaMigracion={faltaMigracion} vacio={false} textoVacio="" />
 
       {/* Panel de edición rápida del evento */}
       {abierto && infoAbierto && (

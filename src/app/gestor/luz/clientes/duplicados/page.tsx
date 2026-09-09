@@ -150,7 +150,7 @@ export default function DuplicadosPage() {
         <Link href="/gestor/luz/clientes" className={btnSecundario}><ChevronLeft className="w-4 h-4" /> Clientes</Link>
       </div>
 
-      <EstadoCarga cargando={clientes.cargando} error={clientes.error} faltaMigracion={clientes.faltaMigracion} vacio={false} textoVacio="" sqlFile="supabase_luz.sql" />
+      <EstadoCarga onReintentar={clientes.recargar} cargando={clientes.cargando} error={clientes.error} faltaMigracion={clientes.faltaMigracion} vacio={false} textoVacio="" sqlFile="supabase_luz.sql" />
       {msg && <p className={`text-xs rounded-lg p-2.5 border ${msg.startsWith('✅') ? 'text-emerald-300 bg-emerald-500/10 border-emerald-500/20' : 'text-red-400 bg-red-500/10 border-red-500/30'}`}>{msg}</p>}
 
       {!clientes.cargando && grupos.length === 0 && (

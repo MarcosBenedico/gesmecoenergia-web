@@ -428,7 +428,7 @@ ${resumen}
         {!editando && <button onClick={nuevoProyecto} className={btnPrimario}><Plus className="w-4 h-4" /> Nuevo proyecto</button>}
       </div>
 
-      <EstadoCarga cargando={cargando} error={proyectos.error} faltaMigracion={proyectos.faltaMigracion} vacio={false} textoVacio="" sqlFile="supabase_proyectos_luz.sql" />
+      <EstadoCarga onReintentar={proyectos.recargar} cargando={cargando} error={proyectos.error} faltaMigracion={proyectos.faltaMigracion} vacio={false} textoVacio="" sqlFile="supabase_proyectos_luz.sql" />
       {proyectos.faltaMigracion && (
         <p className="text-xs text-amber-300 bg-amber-500/10 border border-amber-500/20 rounded-lg p-2.5">
           ⚠️ Falta crear la tabla de proyectos: ejecuta <b>supabase_proyectos_luz.sql</b> en el SQL Editor de Supabase. Mientras tanto puedes calcular y generar documentos, pero no guardar.

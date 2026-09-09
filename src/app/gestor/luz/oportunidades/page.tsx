@@ -283,6 +283,7 @@ export default function OportunidadesPage() {
       </div>
 
       <EstadoCarga
+        onReintentar={prospectos.recargar}
         cargando={prospectos.cargando}
         error={prospectos.error}
         faltaMigracion={prospectos.faltaMigracion}

@@ -366,7 +366,7 @@ export default function FichaClienteLuz() {
 
   if (clientes.cargando) return <EstadoCarga cargando error="" vacio={false} textoVacio="" />;
   if (clientes.faltaMigracion || clientes.error) {
-    return <EstadoCarga cargando={false} error={clientes.error} faltaMigracion={clientes.faltaMigracion} vacio={false} textoVacio="" sqlFile="supabase_luz.sql" />;
+    return <EstadoCarga onReintentar={clientes.recargar} cargando={false} error={clientes.error} faltaMigracion={clientes.faltaMigracion} vacio={false} textoVacio="" sqlFile="supabase_luz.sql" />;
   }
   if (!cliente) {
     return (

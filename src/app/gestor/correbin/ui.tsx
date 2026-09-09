@@ -90,13 +90,29 @@ export function Badge({ children, tono = 'muted' }: { children: React.ReactNode;
   );
 }
 
-export function EstadoCarga({ cargando, error, faltaMigracion, vacio, textoVacio, sqlFile = 'supabase_correbin_v2.sql' }: {
+/**
+ * LOS CINCO ESTADOS DE UNA LISTA, Y NUNCA DOS CONFUNDIDOS.
+ *
+ * Cargando · sin permiso · falta la migración · error · vacío de verdad. Son
+ * cinco situaciones distintas y la que más caro sale es confundir ERROR con
+ * VACÍO: una lista en blanco porque se cayó la red se lee como «hoy no hay
+ * trabajo», se cierra la pantalla y el trabajo sigue ahí. Por eso el error
+ * manda sobre el vacío, y por eso lleva salida — decir «ha fallado» sin un
+ * botón obliga a recargar la aplicación entera y perder lo que hubiera puesto.
+ *
+ * El vacío de verdad también tiene que decir de qué vacío se trata: «no falta
+ * ningún dato» (buena noticia) y «no ha cargado la cartera» (problema) se
+ * parecen en pantalla y significan lo contrario.
+ */
+export function EstadoCarga({ cargando, error, faltaMigracion, vacio, textoVacio, sqlFile = 'supabase_correbin_v2.sql', onReintentar }: {
   cargando: boolean;
   error: string;
   faltaMigracion?: boolean;
   vacio: boolean;
   textoVacio: string;
   sqlFile?: string;
+  /** Volver a pedir los datos sin recargar la página ni perder lo escrito. */
+  onReintentar?: () => void;
 }) {
   if (cargando) {
     return (
@@ -142,10 +158,38 @@ export function EstadoCarga({ cargando, error, faltaMigracion, vacio, textoVacio
         </div>
       );
     }
+    // SIN PERMISO NO ES UN FALLO. Pintarlo en rojo junto a los errores de red
+    // hace que alguien avise de que «la aplicación está rota» cuando lo que
+    // pasa es que ese módulo no es suyo.
+    if (/permis|no autorizado|forbidden|denied|row-level security|RLS/i.test(error)) {
+      return (
+        <div className="flex items-start gap-2.5 p-3.5 rounded-xl bg-secondary/30 border border-border/40 text-muted text-sm">
+          <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+          <div>
+            <p className="font-bold text-foreground">Esto no está en tu área de trabajo.</p>
+            <p className="mt-1">No es un fallo: tu usuario no tiene acceso a estos datos. Pídeselo a quien lleve la administración.</p>
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="flex items-start gap-2.5 p-3.5 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
         <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-        <p>{error}</p>
+        <div>
+          <p className="font-bold">No se han podido cargar los datos.</p>
+          <p className="mt-0.5 text-red-400/80">{error}</p>
+          <p className="mt-1 text-red-400/80">
+            La lista está vacía porque ha fallado la carga, no porque no haya nada.
+          </p>
+          {onReintentar && (
+            <button
+              onClick={onReintentar}
+              className="inline-flex items-center mt-2.5 px-3.5 py-2 rounded-lg bg-red-500/20 border border-red-500/40 text-red-200 text-xs font-bold hover:bg-red-500/30 transition"
+            >
+              Volver a intentarlo
+            </button>
+          )}
+        </div>
       </div>
     );
   }

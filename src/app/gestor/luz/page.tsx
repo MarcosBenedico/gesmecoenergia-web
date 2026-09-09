@@ -124,7 +124,7 @@ export default function DashboardLuz() {
 
   return (
     <div className="space-y-5">
-      <EstadoCarga cargando={cargando} error={clientes.error} faltaMigracion={clientes.faltaMigracion} vacio={false} textoVacio="" sqlFile="supabase_luz.sql" />
+      <EstadoCarga onReintentar={clientes.recargar} cargando={cargando} error={clientes.error} faltaMigracion={clientes.faltaMigracion} vacio={false} textoVacio="" sqlFile="supabase_luz.sql" />
 
       {!cargando && !clientes.faltaMigracion && !clientes.error && (
         <>

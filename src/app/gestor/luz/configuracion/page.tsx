@@ -69,7 +69,7 @@ function ConfiguracionLuz() {
         <p className="text-xs text-muted mt-0.5">Objetivos, umbrales de alerta y responsables (compartidos con el módulo Correbin).</p>
       </div>
 
-      <EstadoCarga cargando={config.cargando} error={config.error} faltaMigracion={config.faltaMigracion} vacio={false} textoVacio="" sqlFile="supabase_luz.sql" />
+      <EstadoCarga onReintentar={config.recargar} cargando={config.cargando} error={config.error} faltaMigracion={config.faltaMigracion} vacio={false} textoVacio="" sqlFile="supabase_luz.sql" />
 
       {!config.cargando && !config.faltaMigracion && (
         <>

@@ -104,7 +104,7 @@ export default function CambiosMediadorPage() {
         ))}
       </div>
 
-      <EstadoCarga cargando={cargando} error={error} faltaMigracion={faltaMigracion}
+      <EstadoCarga onReintentar={recargar} cargando={cargando} error={error} faltaMigracion={faltaMigracion}
         vacio={!cargando && !error && filtrados.length === 0} textoVacio="Sin cambios de mediador registrados." />
 
       {filtrados.length > 0 && (

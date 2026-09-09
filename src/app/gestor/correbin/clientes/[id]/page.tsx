@@ -143,7 +143,7 @@ export default function FichaCliente() {
 
   if (clientes.cargando) return <EstadoCarga cargando error="" vacio={false} textoVacio="" />;
   if (clientes.faltaMigracion || clientes.error) {
-    return <EstadoCarga cargando={false} error={clientes.error} faltaMigracion={clientes.faltaMigracion} vacio={false} textoVacio="" />;
+    return <EstadoCarga onReintentar={clientes.recargar} cargando={false} error={clientes.error} faltaMigracion={clientes.faltaMigracion} vacio={false} textoVacio="" />;
   }
   if (!cliente) {
     return (

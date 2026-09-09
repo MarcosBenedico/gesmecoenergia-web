@@ -169,6 +169,7 @@ function CarteraContenido() {
       )}
 
       <EstadoCarga
+        onReintentar={recargar}
         cargando={cargando}
         error={error}
         faltaMigracion={faltaMigracion}

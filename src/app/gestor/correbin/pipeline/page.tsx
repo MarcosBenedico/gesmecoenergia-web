@@ -133,7 +133,7 @@ export default function PipelinePage() {
         </Card>
       )}
 
-      <EstadoCarga cargando={cargando} error={error} faltaMigracion={faltaMigracion}
+      <EstadoCarga onReintentar={recargar} cargando={cargando} error={error} faltaMigracion={faltaMigracion}
         vacio={!cargando && !error && datos.length === 0}
         textoVacio="Sin oportunidades. Cada vencimiento de la competencia es una." />
 

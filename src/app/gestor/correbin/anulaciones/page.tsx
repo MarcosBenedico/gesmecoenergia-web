@@ -109,7 +109,7 @@ export default function AnulacionesPage() {
         ))}
       </div>
 
-      <EstadoCarga cargando={cargando} error={error} faltaMigracion={faltaMigracion}
+      <EstadoCarga onReintentar={recargar} cargando={cargando} error={error} faltaMigracion={faltaMigracion}
         vacio={!cargando && !error && filtradas.length === 0} textoVacio="Sin anulaciones registradas." />
 
       {filtradas.length > 0 && (

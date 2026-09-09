@@ -155,7 +155,7 @@ export default function FichaExpediente({ params }: { params: Promise<{ id: stri
 
   return (
     <div className="space-y-4">
-      <EstadoCarga cargando={cargando} error={expedientes.error}
+      <EstadoCarga onReintentar={expedientes.recargar} cargando={cargando} error={expedientes.error}
         faltaMigracion={expedientes.faltaMigracion} vacio={false} textoVacio=""
         sqlFile="supabase_energia_v1.sql" />
 

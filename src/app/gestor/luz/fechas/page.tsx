@@ -298,7 +298,7 @@ function FechasContenido() {
         </div>
       </Card>
 
-      <EstadoCarga cargando={cargando} error={error} faltaMigracion={faltaMigracion} vacio={false} textoVacio="" sqlFile="supabase_luz.sql" />
+      <EstadoCarga onReintentar={recargar} cargando={cargando} error={error} faltaMigracion={faltaMigracion} vacio={false} textoVacio="" sqlFile="supabase_luz.sql" />
 
       {!cargando && vista === 'calendario' && (
         <Card className="!p-3">

@@ -114,7 +114,7 @@ export default function ProduccionPage() {
         ))}
       </div>
 
-      <EstadoCarga cargando={cargando} error={error} faltaMigracion={faltaMigracion}
+      <EstadoCarga onReintentar={recargar} cargando={cargando} error={error} faltaMigracion={faltaMigracion}
         vacio={!cargando && !error && filtrados.length === 0} textoVacio="Sin producción registrada." />
 
       {filtrados.length > 0 && (

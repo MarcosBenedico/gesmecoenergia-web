@@ -1,12 +1,13 @@
 'use client';
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Camera, Check, Loader, X } from 'lucide-react';
 import {
   RESULTADOS_VISITA, ResultadoVisita, DEF_RESULTADOS,
   consumoAnualDesdeFactura, fechaEnDias, notaDeVisita, resumenConsecuencia,
 } from '@/lib/visitas';
 import { useEquipo, responsableDe } from '@/lib/equipo';
+import { enviarPorPasos, leerBorrador } from '@/lib/borrador';
 import { guardarLuz } from './ui';
 
 /**
@@ -64,6 +65,30 @@ export function ResolverVisita({
   const { equipo } = useEquipo();
   const responsableVisita = responsableDe(equipo, 'calle', responsable);
 
+  /*
+   * EL BORRADOR: una visita por cliente y día.
+   *
+   * La clave lleva el cliente y la fecha, así que dos visitas al mismo sitio
+   * en días distintos no se pisan, y un reintento del mismo día encuentra lo
+   * que ya entró. Ver `borrador.ts`.
+   */
+  const clave = `visita_${clienteId}_${new Date().toISOString().slice(0, 10)}`;
+  const [hechos, setHechos] = useState<string[]>([]);
+
+  // Si quedó algo a medias —se cayó la red, se cerró el móvil—, se recupera al
+  // abrir en vez de empezar de cero y duplicar lo que ya estaba dentro.
+  useEffect(() => {
+    const b = leerBorrador<{ resultado: ResultadoVisita; nota: string; fechaVolver: string }>(clave);
+    if (!b) return;
+    setHechos(b.hechos);
+    if (b.datos?.resultado) {
+      setResultado(b.datos.resultado);
+      setNota(b.datos.nota || '');
+      if (b.datos.fechaVolver) setFechaVolver(b.datos.fechaVolver);
+      setError('Quedó una visita a medias de este cliente. Está recuperada: dale a confirmar y seguirá donde se quedó.');
+    }
+  }, [clave]);
+
   // ── Factura ──
   const camara = useRef<HTMLInputElement>(null);
   const [leyendo, setLeyendo] = useState(false);
@@ -94,7 +119,18 @@ export function ResolverVisita({
     }
   }, []);
 
-  /** Guarda la visita y todo lo que arrastra. */
+  /**
+   * Guarda la visita y todo lo que arrastra, EN PASOS CON NOMBRE.
+   *
+   * Son seis escrituras seguidas y esto se hace en la puerta de una granja con
+   * una raya de cobertura. Si se cae la red en la tercera, antes se perdía lo
+   * escrito y al reintentar se creaban una visita y una tarea duplicadas.
+   *
+   * Ahora cada paso tiene nombre, se apunta cuál entró y el reintento se salta
+   * los hechos. Lo escrito se conserva en el navegador hasta que todo entra.
+   * NO es funcionamiento sin conexión: sin red esto falla y lo dice; lo que no
+   * hace es perder el trabajo ni duplicarlo.
+   */
   async function confirmar() {
     if (!resultado) return;
     const def = DEF_RESULTADOS[resultado];
@@ -106,89 +142,111 @@ export function ResolverVisita({
       : def.diasParaVolver ? fechaEnDias(def.diasParaVolver)
       : null;
 
-    // ── 1. La visita, que es lo que nunca puede perderse ──
-    const errVisita = await guardarLuz('visitas', 'POST', {
-      cliente_id: clienteId,
-      fecha: hoy,
-      notas: notaDeVisita(resultado, nota),
-      responsable: responsableVisita,
-      resultado,
-      proxima_visita: cuandoVolver,
-    });
-    if (errVisita) {
-      // Sin las columnas nuevas se guarda igual, pero sin el resultado: mejor
-      // perder el detalle que perder la visita entera.
-      const faltaSql = /resultado|proxima_visita|column/i.test(errVisita);
-      const err2 = faltaSql
-        ? await guardarLuz('visitas', 'POST', {
+    const pasos: { nombre: string; hacer: () => Promise<string | null> }[] = [
+      {
+        // La visita es lo único que NO puede perderse: si falla, se para aquí.
+        nombre: 'visita',
+        hacer: async () => {
+          const err = await guardarLuz('visitas', 'POST', {
+            cliente_id: clienteId,
+            fecha: hoy,
+            notas: notaDeVisita(resultado, nota),
+            responsable: responsableVisita,
+            resultado,
+            proxima_visita: cuandoVolver,
+          });
+          if (!err) return null;
+          // Sin las columnas nuevas se guarda igual, pero sin el resultado:
+          // mejor perder el detalle que perder la visita entera.
+          if (!/resultado|proxima_visita|column/i.test(err)) return err;
+          const err2 = await guardarLuz('visitas', 'POST', {
             cliente_id: clienteId, fecha: hoy,
             notas: `[${def.etiqueta}] ${notaDeVisita(resultado, nota)}`,
             responsable: responsableVisita,
+          });
+          if (err2) return err2;
+          setError('Visita guardada, pero falta ejecutar supabase_visita_resultado.sql para que cuente en las estadísticas.');
+          return null;
+        },
+      },
+      {
+        // La siguiente pasada, para que no se olvide.
+        nombre: 'siguiente-pasada',
+        hacer: async () => (cuandoVolver
+          ? guardarLuz('tareas', 'POST', {
+            cliente_id: clienteId,
+            tipo_tarea: resultado === 'no_estaba' ? 'llamar_cliente' : 'seguimiento',
+            descripcion: resultado === 'no_estaba'
+              ? `Volver a pasar por ${clienteNombre} (no estaba)`
+              : `Volver a ${clienteNombre}`,
+            notas: notaDeVisita(resultado, nota),
+            responsable: responsableVisita,
+            fecha_limite: cuandoVolver,
+            estado: 'pendiente',
+            prioridad: 'B',
           })
-        : errVisita;
-      if (err2) { setError(err2); setGuardando(false); return; }
-      if (faltaSql) setError('Visita guardada, pero falta ejecutar supabase_visita_resultado.sql para que cuente en las estadísticas.');
-    }
+          : null),
+      },
+      {
+        // El pipeline, para que el embudo diga la verdad.
+        nombre: 'pipeline',
+        hacer: async () => (pipelineId && def.estadoPipeline
+          ? guardarLuz('pipeline', 'PUT', { id: pipelineId, estado: def.estadoPipeline })
+          : null),
+      },
+      {
+        // Que no vuelva a proponerse lo que ya se ha descartado.
+        nombre: 'prospecto',
+        hacer: async () => (prospectoId && def.descartarProspecto
+          ? guardarLuz('prospectos', 'PUT', {
+            id: prospectoId, estado: 'descartado',
+            motivo_descarte: notaDeVisita(resultado, nota),
+          })
+          : null),
+      },
+      {
+        // La factura: de prospecto a ofertable sin pasar por la oficina.
+        nombre: 'cups-factura',
+        hacer: async () => {
+          if (!factura?.encontrada) return null;
+          const consumo = consumoAnualDesdeFactura(factura.consumos_kwh_mes);
+          return guardarLuz('cups', 'POST', {
+            cliente_id: clienteId,
+            // El CUPS no se ve en todas las facturas: lo completa la oficina
+            cups: `PENDIENTE-${Date.now().toString().slice(-8)}`,
+            alias_suministro: clienteNombre,
+            tarifa_acceso: factura.tarifa || null,
+            consumo_anual_kwh: consumo,
+            potencias_kw: factura.potencias_kw || null,
+            estado_cups: 'estudio',
+            responsable: responsableVisita,
+            observaciones: [
+              'Factura leída en la puerta desde el móvil.',
+              consumo ? `Consumo anual estimado desde una sola factura: ${consumo.toLocaleString('es-ES')} kWh.` : '',
+              'Falta el CUPS y confirmar el consumo con más facturas.',
+              factura.observaciones || '',
+            ].filter(Boolean).join('\n· '),
+          });
+        },
+      },
+      {
+        // El cliente avanza.
+        nombre: 'cliente',
+        hacer: async () => guardarLuz('clientes', 'PUT', {
+          id: clienteId,
+          fecha_ultimo_contacto: hoy,
+          ...(cuandoVolver ? { fecha_proxima_accion: cuandoVolver, proxima_accion: `Volver a ${clienteNombre}` } : {}),
+        }),
+      },
+    ];
 
-    // ── 2. La siguiente pasada, para que no se olvide ──
-    if (cuandoVolver) {
-      await guardarLuz('tareas', 'POST', {
-        cliente_id: clienteId,
-        tipo_tarea: resultado === 'no_estaba' ? 'llamar_cliente' : 'seguimiento',
-        descripcion: resultado === 'no_estaba'
-          ? `Volver a pasar por ${clienteNombre} (no estaba)`
-          : `Volver a ${clienteNombre}`,
-        notas: notaDeVisita(resultado, nota),
-        responsable: responsableVisita,
-        fecha_limite: cuandoVolver,
-        estado: 'pendiente',
-        prioridad: 'B',
-      });
-    }
-
-    // ── 3. El pipeline, para que el embudo diga la verdad ──
-    if (pipelineId && def.estadoPipeline) {
-      await guardarLuz('pipeline', 'PUT', { id: pipelineId, estado: def.estadoPipeline });
-    }
-
-    // ── 4. Que no vuelva a proponerse lo que ya se ha descartado ──
-    if (prospectoId && def.descartarProspecto) {
-      await guardarLuz('prospectos', 'PUT', {
-        id: prospectoId, estado: 'descartado',
-        motivo_descarte: notaDeVisita(resultado, nota),
-      });
-    }
-
-    // ── 5. La factura: de prospecto a ofertable sin pasar por la oficina ──
-    if (factura?.encontrada) {
-      const consumo = consumoAnualDesdeFactura(factura.consumos_kwh_mes);
-      await guardarLuz('cups', 'POST', {
-        cliente_id: clienteId,
-        // El CUPS no se ve en todas las facturas: lo completa la oficina
-        cups: `PENDIENTE-${Date.now().toString().slice(-8)}`,
-        alias_suministro: clienteNombre,
-        tarifa_acceso: factura.tarifa || null,
-        consumo_anual_kwh: consumo,
-        potencias_kw: factura.potencias_kw || null,
-        estado_cups: 'estudio',
-        responsable: responsableVisita,
-        observaciones: [
-          'Factura leída en la puerta desde el móvil.',
-          consumo ? `Consumo anual estimado desde una sola factura: ${consumo.toLocaleString('es-ES')} kWh.` : '',
-          'Falta el CUPS y confirmar el consumo con más facturas.',
-          factura.observaciones || '',
-        ].filter(Boolean).join('\n· '),
-      });
-    }
-
-    // ── 6. El cliente avanza ──
-    await guardarLuz('clientes', 'PUT', {
-      id: clienteId,
-      fecha_ultimo_contacto: hoy,
-      ...(cuandoVolver ? { fecha_proxima_accion: cuandoVolver, proxima_accion: `Volver a ${clienteNombre}` } : {}),
-    });
-
+    const r = await enviarPorPasos(clave, { resultado, nota, fechaVolver }, hechos, pasos);
+    setHechos(r.hechos);
     setGuardando(false);
+    if (r.error) {
+      setError(`${r.error} · Lo que has puesto se ha guardado aquí: vuelve a darle cuando tengas cobertura y seguirá donde se quedó, sin duplicar nada.`);
+      return;
+    }
     onHecho();
   }
 

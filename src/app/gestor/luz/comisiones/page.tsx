@@ -169,7 +169,7 @@ function ComisionesContenido() {
         </div>
       </Card>
 
-      <EstadoCarga cargando={cargando} error={error} faltaMigracion={faltaMigracion}
+      <EstadoCarga onReintentar={recargar} cargando={cargando} error={error} faltaMigracion={faltaMigracion}
         vacio={!cargando && !error && filtradas.length === 0}
         textoVacio="Sin comisiones con este filtro." sqlFile="supabase_luz.sql" />
 

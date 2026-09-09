@@ -97,6 +97,10 @@ export default function Automatismos() {
       .map((m) => ({
         id: m.id, cliente_id: m.cliente_id, estado_comision: m.estado_comision,
         fecha_prevista_cobro: m.fecha_prevista_cobro, responsable: null,
+        // Los importes hacen falta para NO reclamar un apunte vacío: sin
+        // ellos, `sePuedeReclamar` manda a revisar todas las comisiones y la
+        // regla se queda muda sin que se note. Ver `cobros.ts`.
+        importe_previsto: m.importe_previsto, importe_cobrado: m.importe_cobrado,
       })),
     tareas: tareas.datos,
   }, hoy, PLAZOS), [clientes.datos, cups.datos, pipeline.datos, contratos.datos, comisiones.datos, tareas.datos, hoy]);
@@ -169,6 +173,7 @@ export default function Automatismos() {
       </div>
 
       <EstadoCarga
+        onReintentar={clientes.recargar}
         cargando={cargando}
         error={clientes.error}
         faltaMigracion={clientes.faltaMigracion}

@@ -120,7 +120,7 @@ export default function DashboardCorrebin() {
 
   return (
     <div className="space-y-5">
-      <EstadoCarga cargando={cargando} error={polizas.error} faltaMigracion={faltaMigracion} vacio={false} textoVacio="" />
+      <EstadoCarga onReintentar={polizas.recargar} cargando={cargando} error={polizas.error} faltaMigracion={faltaMigracion} vacio={false} textoVacio="" />
 
       {!cargando && !faltaMigracion && !polizas.error && (
         <>

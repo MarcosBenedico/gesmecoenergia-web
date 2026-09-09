@@ -176,6 +176,7 @@ export function SeccionMovimientos({
       )}
 
       <EstadoCarga
+        onReintentar={movimientos.recargar}
         cargando={movimientos.cargando}
         error={movimientos.error}
         faltaMigracion={movimientos.faltaMigracion}

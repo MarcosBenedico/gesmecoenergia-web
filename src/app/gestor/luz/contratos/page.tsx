@@ -323,7 +323,7 @@ function ContratosContenido() {
         </div>
       </Card>
 
-      <EstadoCarga cargando={cargando} error={error} faltaMigracion={faltaMigracion}
+      <EstadoCarga onReintentar={recargar} cargando={cargando} error={error} faltaMigracion={faltaMigracion}
         vacio={!cargando && !error && filtrados.length === 0 && !buscar}
         textoVacio="Sin contratos con este filtro. Créalos con el botón «Nuevo contrato» o desde el Pipeline (ganado → contrato)." sqlFile="supabase_luz.sql" />
 

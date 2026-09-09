@@ -141,6 +141,7 @@ export default function SolicitudesCorrebin() {
       </div>
 
       <EstadoCarga
+        onReintentar={recargar}
         cargando={cargando} error={error} faltaMigracion={faltaMigracion}
         vacio={!cargando && !error && filtradas.length === 0}
         textoVacio="No hay solicitudes con este filtro."

@@ -253,6 +253,7 @@ export default function RellenarPage() {
       </div>
 
       <EstadoCarga
+        onReintentar={() => { clientes.recargar(); cups.recargar(); }}
         cargando={cargando}
         error={clientes.error || cups.error}
         faltaMigracion={clientes.faltaMigracion || cups.faltaMigracion}

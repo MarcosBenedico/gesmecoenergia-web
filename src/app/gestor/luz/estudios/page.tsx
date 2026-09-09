@@ -96,6 +96,7 @@ function Estudios() {
       </div>
 
       <EstadoCarga
+        onReintentar={estudios.recargar}
         cargando={estudios.cargando}
         error={estudios.error}
         faltaMigracion={estudios.faltaMigracion}

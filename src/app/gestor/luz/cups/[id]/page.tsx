@@ -146,7 +146,7 @@ export default function FichaSuministro({ params }: { params: Promise<{ id: stri
 
   return (
     <div className="space-y-4">
-      <EstadoCarga cargando={cargando} error={cups.error} faltaMigracion={cups.faltaMigracion}
+      <EstadoCarga onReintentar={cups.recargar} cargando={cargando} error={cups.error} faltaMigracion={cups.faltaMigracion}
         vacio={false} textoVacio="" sqlFile="supabase_luz.sql" />
 
       {s && (

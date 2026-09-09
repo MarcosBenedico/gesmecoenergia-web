@@ -113,6 +113,7 @@ function ClientesContenido() {
       </Card>
 
       <EstadoCarga
+        onReintentar={recargar}
         cargando={cargando} error={error} faltaMigracion={faltaMigracion}
         vacio={!cargando && !error && filtrados.length === 0}
         textoVacio="Sin clientes con este filtro. Crea uno o usa la Importación Excel."

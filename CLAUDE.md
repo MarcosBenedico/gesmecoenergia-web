@@ -44,6 +44,8 @@ npm run test:plantilla                     # tests de la plantilla de consumos (
 npm run test:informe                       # tests del estudio técnico y del informe en PDF
 npm run test:ficha                         # tests del estado de cada suministro en la ficha de cliente
 npm run test:reglas                        # tests de la regla madre (ningún expediente abierto sin acción)
+npm run test:cobros                        # tests de la situación de cobro (qué se reclama y qué se revisa antes)
+npm run test:borrador                      # tests del borrador y del envío por pasos (un fallo de red no duplica)
 npm run verify:supabase                    # comprueba conexión Supabase
 ```
 
@@ -197,6 +199,7 @@ tres en una semana pese a que todo el CRM está construido contra eso:
       - **Cinco pestañas, y la primera no es «Datos» sino «Qué pasa»**: qué pasa · el punto · consumo y coste · contrato · historial. Van en orden de cuántas veces se abren. En una sola columna, quien entra a mirar el preaviso se traga antes la dirección y la distribuidora, y el dato que se busca a diario queda al mismo nivel que la referencia catastral. La pestaña elegida se recuerda en localStorage.
       - **NO hay catálogo de estados nuevo**: la fase, la alerta, el bloqueo y la próxima acción salen de `ficha-suministro.ts`, que ya es quien lo decide en la ficha del cliente. Dos pantallas calculando lo mismo acaban diciendo cosas distintas del mismo suministro.
       - **El formulario va por BLOQUES, no en una rejilla de veinte campos.** Una rejilla se rellena de arriba abajo sin pensar, y sale una ficha con todo puesto y la mitad mal — la tarifa a ojo, el consumo de memoria y el fin de contrato inventado, que es el que mueve el preaviso y cuesta un año. Cada bloque lleva **su porqué escrito** y **su contador de relleno**, así el hueco se ve sin repasar la ficha entera. Los cuatro van en el orden en que se consiguen los datos **en la calle**, no por afinidad temática: agrupar todas las fechas juntas obligaría a saltar de bloque con el papel en la mano.
+      - **Cuando el preaviso no se puede calcular, se dice** (`estadoDePreaviso`, situación `no_calculable`). Eran **89 de 162 suministros sin fin de contrato**: más de media cartera sin vigilancia de preaviso y sin una sola señal en pantalla. Un hueco callado parece que no aplica; dicho, es una cosa concreta que pedir. **No va en rojo**: con 89 en rojo, el rojo pasa a ser el color normal de la pantalla. Y **no se inventa la fecha** — no todos los contratos duran un año.
       - **Lo único obligatorio es el CUPS.** Un suministro apuntado en la puerta de una granja tiene tres datos, y negarse a guardarlo hasta tenerlos todos es perder la visita entera. Lo demás avisa. Se **bloquea solo lo que hace mentir a un cálculo**, igual que en `factura.ts`: rellenar tres periodos de los seis de una 3.0TD (el coste actual sale a la mitad y el ahorro al doble sin que nada lo delate) y un contrato que acaba antes de empezar. Un CUPS con mala forma o unas potencias que decrecen **se marcan y se dejan**.
       - **Las casillas de potencia son EXACTAMENTE las de la tarifa** (`periodosDePotencia`). Es lo mismo que resolvió tener una plantilla de Excel por tarifa: si el formulario pinta las que hay, el error no se puede cometer. Al cambiar de tarifa **no se borra lo escrito**, se conserva y se añaden huecos — vaciarlo haría que nadie corrigiera nunca el desplegable.
       - El consumo pasa por **`leerConsumo`** y enseña siempre cómo se ha entendido («Se guardará 53.558 kWh al año»). Un campo vacío se manda como **null y nunca como cadena vacía**. Y el último día para preavisar **se propone con un botón**, no se escribe solo encima de lo que puso alguien leyendo el contrato de verdad.
@@ -263,7 +266,8 @@ tres en una semana pese a que todo el CRM está construido contra eso:
       - **«Vencimientos próximos» NO está, y es a propósito.** Los vencimientos no se guardan, se calculan en vivo desde el CUPS, y viven en Mi Día. Repetirlos aquí sería el mismo vencimiento en dos listas que se pueden contradecir — el fallo que costó 86 fechas críticas duplicadas.
       - Cubierto por `npm run test:bandeja`.
     - **Automatizaciones de fase** (`gestor/luz/automatismos`, solo admin; reglas en `src/lib/automatismos.ts`) — el trabajo que **debería existir por la fase de cada expediente y todavía no existe**: factura pedida sin nadie detrás, factura en casa y estudio sin empezar, oferta enviada sin seguimiento, contrato sin firmar, firmado sin enviar, en tramitación sin vigilancia, activado sin revisar la primera factura, preaviso acercándose y comisión con el cobro vencido.
-      - **La idempotencia manda sobre todo lo demás, y se consigue sin tocar la base de datos**: el par (VÍNCULO, TIPO DE TAREA) ya es una llave natural. Si hay una tarea abierta de ese tipo colgando de ese expediente, la regla calla. Ejecutarlo doscientas veces da lo mismo que una — y de paso resuelve gratis lo de **no crear una tarea por cada día de retraso**.
+      - **La idempotencia manda sobre todo lo demás, y se consigue sin tocar la base de datos** — pero la llave NO puede ser solo (vínculo, tipo de tarea), y eso costó un repaso entero. **Una llave permanente silencia la renovación del año siguiente**: la tarea del preaviso de 2027 se queda abierta —que es lo normal aquí, hay 89 tareas vencidas sin cerrar—, llega el ciclo de 2028, la regla ve «ya hay una de ese tipo» y calla; el contrato se prorroga solo y nadie se entera. Así que hay **dos clases de regla**: las **de estado** (reclamar una firma, seguir una oferta) valen mientras el expediente esté en esa fase y llevan la llave de siempre —lo que resuelve gratis **no crear una tarea por cada día de retraso**—; y las **de ciclo** (preaviso, primera factura, cobro previsto) vuelven a ocurrir sobre el mismo expediente y llevan el **CICLO en la llave**: la fecha del hecho que las origina. Qué es «el mismo ciclo» se decide por cercanía (`VENTANA_CICLO` = 120 días: muy por encima de los 60 del aviso y muy por debajo de los 365 de la renovación siguiente). Y **un ciclo ya cerrado por una persona no se reabre**: cerrar una tarea fue una decisión, y pisarla es justo lo que no puede hacer un automatismo.
+      - **No se reclama un cobro que no se puede justificar** (`sePuedeReclamar` en `cobros.ts`). Medido: 29 comisiones en estado «prevista» suman **217,34 € entre todas** y llevan de enero a junio vencidas. Pedirle 7 € a una comercializadora por un apunte que nadie ha confirmado quema la relación por nada y llena la lista de cobros de ruido hasta que se deja de mirar.
       - **El preaviso no abre seis tareas** (120/90/60/45/30). Hay **una viva por suministro**, y si la fecha se quedó desfasada porque alguien corrigió el fin de contrato, se propone `actualizar` en vez de crear una segunda.
       - **Ninguna regla escribe nada.** Devuelven propuestas y las aplica una persona desde la pantalla. No es una limitación técnica: un sistema que crea trabajo en silencio llena las listas de tareas que nadie pidió, y entonces **se deja de mirar la lista**, que es el único sitio donde vive el control. La reversión es que lo aplicado es **una tarea normal**: se borra desde Tareas y va a la papelera.
       - Ninguna toca etapas, precios, ofertas, contratos, titularidad ni comercializadora, y **ninguna manda nada al cliente**. Los plazos (`PLAZOS`) se pueden pasar desde fuera para no clavarlos en el código.
@@ -369,9 +373,66 @@ El fondo de puntos (`Background3D`) es un lienzo **transparente**: el degradado 
 - **El rigor de M&V no es burocracia: es lo que convierte un kWh ahorrado en un ingreso** por la vía de los CAE. El marco está en el RD 36/2023 y **el catálogo vigente hay que verificarlo contra el BOE y el IDAE** antes de prometer nada.
 - Esquema en `supabase_energia_v1.sql` (13 tablas `energia_*`, pendiente de ejecutar). Cubierto por `npm run test:energia`.
 
+## Lo que corrigió la especificación funcional de septiembre de 2026
+
+Un documento externo (`Especificacion_CRM_Gesmeco_Claude_Code.pdf`, v1.0) revisó
+el CRM entero. Se aplicó lo que corregía algo real y se descartó lo que
+reorganizaba por reorganizar. Lo aplicado, y por qué:
+
+- **La llave de idempotencia por ciclo.** El fallo vivo que encontró: una llave
+  permanente «expediente + tipo de tarea» impide generar el seguimiento de una
+  renovación futura. Ver la sección de automatismos.
+- **«No calculable: falta verificar»** en vez de callar cuando falta el fin de
+  contrato. Y dejar de prometer que un preaviso perdido bloquea **un año
+  exacto**: hay contratos a dos años y prórrogas mensuales, y una alarma que se
+  puede desmentir una vez deja de creerse para siempre.
+- **Situación de cobro** (`cobros.ts`): el estado cruzado con la fecha y con
+  quién tiene la pelota. Un montón de «pendientes» no se puede accionar.
+- **Recargo sobre coste ≠ margen sobre venta** en FV, y el descuento como campo
+  propio (`fv.ts`).
+- **Conflicto de versión** en el PUT de `/api/luz` (`version_leida`), solo en el
+  formulario largo del suministro.
+- **Nombres propios fuera de la lógica** (`equipo.ts`), separando la FUNCIÓN
+  (calle/oficina/dirección: qué trabajo le toca) del ROL (qué puede tocar).
+- **Cargando ≠ sin permiso ≠ error ≠ vacío**, con botón de reintentar en
+  `EstadoCarga`.
+- **Borrador que sobrevive al fallo de red** (`borrador.ts`), con envío por
+  pasos con nombre para que el reintento no duplique. **Esto NO es
+  funcionamiento sin conexión y no se puede presentar como tal**: sin red falla
+  y lo dice; lo que no hace es perder el trabajo.
+- **«Sin contacto utilizable»** en lugar de «223 sin teléfono».
+
+Lo que NO se aplicó, y por qué:
+
+- **La navegación de seis entradas.** Agrupa por tipo de dato, que es el error
+  que la auditoría de uso ya desmintió; el menú actual agrupa por forma de
+  trabajar. Sí se cogió de ahí el buscador global y que «Añadir» herede el
+  contexto.
+- **La entidad genérica «interacción».** Sería un cuarto sitio donde vive «qué
+  pasó con este cliente», junto a visitas, tareas y auditoría — la enfermedad,
+  no la cura. El objetivo (registrar en menos de 30 segundos desde donde estés)
+  se cumple sobre las tablas que ya hay.
+- **Fundir «Hoy» con la Bandeja.** Ordenan por criterios que no se comparan, y
+  fundirlas obliga a inventar una puntuación opaca — cosa que el propio
+  documento desaconseja.
+- **La entidad «Centro».** Con la cartera actual, un nivel intermedio que casi
+  siempre repite la dirección del CUPS. `energia_ubicaciones` ya cubre el caso
+  técnico cuando aparezca el segundo cliente real con dos centros.
+- **Documentos con seis dimensiones de clasificación.** Con este volumen, seis
+  campos por documento es la forma más segura de que no se suba ninguno.
+
+Y la discrepancia de fondo, que conviene no perder: el documento propone seis
+entregas de reestructuración sobre un CRM cuyo problema medido **no es la
+estructura sino que no entra información**. Reestructurar sin resolver eso deja
+una arquitectura mejor con los mismos datos de agosto.
+
 ## Usuarios y permisos
 
-Login por Supabase Auth. Roles: `admin` / `estándar` / `lectura`, con módulos asignados por usuario y RLS activado en BD. Equipo real: Marcos (admin), Nicola (administración), David (comercial de calle). Hay reparto automático de tareas por rol. El antiguo "acceso maestro" se eliminó — no reintroducirlo.
+Login por Supabase Auth. Roles: `admin` / `estándar` / `lectura`, con módulos asignados por usuario y RLS activado en BD. El antiguo "acceso maestro" se eliminó — no reintroducirlo.
+
+**El ROL no es la FUNCIÓN, y no se pueden mezclar** (`src/lib/equipo.ts`, columna `app_usuarios.funcion`). El rol dice **qué puede tocar**; la función —calle / oficina / dirección— dice **qué trabajo le toca**. Si fueran lo mismo, dar permisos de administrador cambiaría el reparto del trabajo.
+
+**Ningún nombre propio se escribe en la lógica.** Había `'David'` a mano como responsable por defecto en cinco sitios y `['Nicola','David','Marcos']` como lista fija en dos. Eso tiene dos filos: si una persona deja el puesto, el código le sigue asignando tareas que no hace nadie —la lista *parece* repartida sin estarlo, y una lista así se deja de mirar— y quien entra nuevo no aparece en ningún desplegable. Ahora el equipo se lee de `app_usuarios` y, **si no hay a quién asignar, se queda SIN responsable** y sale en Control de cartera para que alguien lo reparta. El histórico no se toca nunca: quien firmó una visita en marzo sigue figurando.
 
 ## Variables de entorno
 

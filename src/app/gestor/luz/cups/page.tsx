@@ -130,7 +130,7 @@ function CupsContenido() {
         </Card>
       )}
 
-      <EstadoCarga cargando={cargando} error={error} faltaMigracion={faltaMigracion}
+      <EstadoCarga onReintentar={recargar} cargando={cargando} error={error} faltaMigracion={faltaMigracion}
         vacio={!cargando && !error && filtrados.length === 0}
         textoVacio="Sin CUPS con este filtro." sqlFile="supabase_luz.sql" />
 

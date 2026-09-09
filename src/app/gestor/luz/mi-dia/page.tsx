@@ -492,7 +492,7 @@ export default function MiDiaPage() {
 
       {msg && <p className="fv-fade-in text-xs text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-2.5">{msg}</p>}
 
-      <EstadoCarga cargando={cargando} error={tareas.error} faltaMigracion={tareas.faltaMigracion} vacio={false} textoVacio="" sqlFile="supabase_luz.sql" />
+      <EstadoCarga onReintentar={tareas.recargar} cargando={cargando} error={tareas.error} faltaMigracion={tareas.faltaMigracion} vacio={false} textoVacio="" sqlFile="supabase_luz.sql" />
 
       {!cargando && !persona && (
         <Card className="text-center py-10 space-y-2">

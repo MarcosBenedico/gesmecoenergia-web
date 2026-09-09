@@ -148,6 +148,7 @@ export default function ListaExpedientes() {
       </div>
 
       <EstadoCarga
+        onReintentar={expedientes.recargar}
         cargando={cargando}
         error={expedientes.error}
         faltaMigracion={expedientes.faltaMigracion}

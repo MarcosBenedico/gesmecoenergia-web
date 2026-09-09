@@ -333,7 +333,7 @@ export default function RutasPage() {
         </div>
       </div>
 
-      <EstadoCarga cargando={cargando} error={clientes.error} faltaMigracion={clientes.faltaMigracion} vacio={false} textoVacio="" sqlFile="supabase_luz.sql" />
+      <EstadoCarga onReintentar={clientes.recargar} cargando={cargando} error={clientes.error} faltaMigracion={clientes.faltaMigracion} vacio={false} textoVacio="" sqlFile="supabase_luz.sql" />
 
       {/* ── Mapa interactivo: complemento visual del planificador ── */}
       {!cargando && (

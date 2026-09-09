@@ -602,7 +602,7 @@ function ClientesLuzContenido() {
         </div>
       </Card>
 
-      <EstadoCarga cargando={clientes.cargando} error={clientes.error} faltaMigracion={clientes.faltaMigracion}
+      <EstadoCarga onReintentar={clientes.recargar} cargando={clientes.cargando} error={clientes.error} faltaMigracion={clientes.faltaMigracion}
         vacio={!clientes.cargando && !clientes.error && filtrados.length === 0}
         textoVacio="Sin clientes con este filtro. Crea uno o usa la Importación." sqlFile="supabase_luz.sql" />
 
