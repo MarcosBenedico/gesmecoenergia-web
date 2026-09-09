@@ -246,7 +246,18 @@ export default function Automatismos() {
                                 </span>
                                 {p.accion === 'actualizar' && (
                                   <span className="block text-[10px] text-amber-300 mt-0.5">
-                                    Mueve la tarea que ya existe. No crea una segunda.
+                                    Mueve la fecha de la tarea que ya existe. No crea una segunda
+                                    ni toca lo que se haya escrito a mano.
+                                  </span>
+                                )}
+                                {/*
+                                  El ciclo, cuando lo hay, es lo que distingue esta vuelta de
+                                  la del año que viene. Enseñarlo evita que una renovación
+                                  nueva parezca un duplicado de la anterior y se descarte.
+                                */}
+                                {p.ciclo && (
+                                  <span className="block text-[10px] text-muted mt-0.5">
+                                    Vuelta de {fechaCorta(p.ciclo)}
                                   </span>
                                 )}
                                 {aplicadas[p.clave] === 'error' && (

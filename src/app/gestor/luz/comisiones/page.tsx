@@ -6,8 +6,9 @@ import { useSearchParams } from 'next/navigation';
 import { Download, Plus, X } from 'lucide-react';
 import {
   LuzComision, LuzCliente, ESTADOS_COMISION, ESTADO_COMISION_LABEL, TIPOS_COMISION,
-  TIPO_COMISION_LABEL, COMISION_PENDIENTE, diasHasta, fmtEur, fmtFecha,
+  TIPO_COMISION_LABEL, COMISION_PENDIENTE, fmtEur, fmtFecha,
 } from '@/lib/luz';
+import { situacionDeCobro, resumenDeCobros, SITUACION_COBRO_LABEL, type SituacionCobro } from '@/lib/cobros';
 import { BotonDescarga, Card, Kpi, Badge, EstadoCarga, useListaLuz, guardarLuz, inputCls, labelCls, btnPrimario, btnSecundario } from '../ui';
 
 const FORM_VACIO = {
@@ -26,18 +27,33 @@ function ComisionesContenido() {
   const [form, setForm] = useState(FORM_VACIO);
   const [errorForm, setErrorForm] = useState('');
 
+  /*
+   * LA SITUACIÓN LA DECIDE `cobros.ts`, NO ESTA PANTALLA.
+   *
+   * Antes, «pendiente de cobro» era la suma de todo lo que no estaba cobrado:
+   * las previsiones de dentro de dos meses junto a lo vencido y junto a 29
+   * apuntes de la importación que suman 217 € entre todos. Con esa cifra no se
+   * puede reclamar ni prever caja, así que no se usaba para nada.
+   */
+  const hoy = new Date().toISOString().slice(0, 10);
+  const situacion = useMemo(() => {
+    const m = new Map<string, ReturnType<typeof situacionDeCobro>>();
+    for (const c of datos) m.set(c.id, situacionDeCobro(c, hoy));
+    return m;
+  }, [datos, hoy]);
+  const resumen = useMemo(() => resumenDeCobros(datos, hoy), [datos, hoy]);
+
   const filtradas = useMemo(() => datos.filter((c) => {
+    const s = situacion.get(c.id);
+    if (fEspecial === 'exigible' && !(s && ['exigible', 'vencido', 'parcial'].includes(s.situacion))) return false;
+    if (fEspecial === 'terceros' && !(s && s.pelota === 'de_la_comercializadora' && ['exigible', 'vencido', 'parcial'].includes(s.situacion))) return false;
+    if (fEspecial === 'revisar' && s?.situacion !== 'por_revisar') return false;
     if (fEstado && c.estado_comision !== fEstado) return false;
     if (fCia && !c.comercializadora?.toLowerCase().includes(fCia.toLowerCase())) return false;
     if (fEspecial === 'pendientes' && !COMISION_PENDIENTE.includes(c.estado_comision)) return false;
-    if (fEspecial === 'vencidas' && !(COMISION_PENDIENTE.includes(c.estado_comision) && (diasHasta(c.fecha_prevista_cobro) ?? 1) < 0)) return false;
     if (fEspecial === 'diferencias' && !((Number(c.importe_previsto) || 0) > (Number(c.importe_cobrado) || 0) && (Number(c.importe_cobrado) || 0) > 0)) return false;
     return true;
-  }), [datos, fEstado, fCia, fEspecial]);
-
-  const previsto = datos.filter((c) => COMISION_PENDIENTE.includes(c.estado_comision)).reduce((s, c) => s + (Number(c.importe_previsto) || 0) - (Number(c.importe_cobrado) || 0), 0);
-  const cobrado = datos.reduce((s, c) => s + (Number(c.importe_cobrado) || 0), 0);
-  const vencidas = datos.filter((c) => COMISION_PENDIENTE.includes(c.estado_comision) && (diasHasta(c.fecha_prevista_cobro) ?? 1) < 0);
+  }), [datos, fEstado, fCia, fEspecial, situacion]);
 
   async function crear(e: React.FormEvent) {
     e.preventDefault();
@@ -71,11 +87,37 @@ function ComisionesContenido() {
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-3">
-        <Kpi valor={fmtEur(cobrado)} etiqueta="Cobrado total" color="text-emerald-400" />
-        <Kpi valor={fmtEur(previsto)} etiqueta="Pendiente de cobro" color="text-amber-400" />
-        <Kpi valor={vencidas.length} etiqueta="⏰ Cobros vencidos" color={vencidas.length ? 'text-red-400' : 'text-emerald-400'} />
+      {/*
+        Cuatro cifras que contestan preguntas distintas, en vez de un
+        «pendiente» que las mezclaba todas. Se pulsan y filtran la lista: un
+        número sin lista detrás no se puede accionar.
+      */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <button onClick={() => setFEspecial(fEspecial === 'exigible' ? '' : 'exigible')} className="text-left">
+          <Kpi valor={fmtEur(resumen.exigible)} etiqueta="Se puede reclamar ya" color="text-amber-400" />
+        </button>
+        <button onClick={() => setFEspecial(fEspecial === 'terceros' ? '' : 'terceros')} className="text-left">
+          <Kpi valor={fmtEur(resumen.enTerceros)} etiqueta="Esperando a la comercializadora" color="text-sky-400" />
+        </button>
+        <Kpi valor={fmtEur(resumen.previsto)} etiqueta="Previsto, aún no toca" color="text-muted" />
+        <button onClick={() => setFEspecial(fEspecial === 'revisar' ? '' : 'revisar')} className="text-left">
+          <Kpi
+            valor={resumen.cuantasPorRevisar}
+            etiqueta="Sin datos para reclamar"
+            color={resumen.cuantasPorRevisar ? 'text-red-400' : 'text-emerald-400'}
+          />
+        </button>
       </div>
+      <div className="grid grid-cols-2 gap-3">
+        <Kpi valor={fmtEur(resumen.cobradoEnPlazo)} etiqueta="Cobrado total" color="text-emerald-400" />
+        <Kpi valor={fmtEur(resumen.vencido)} etiqueta="De lo reclamable, ya vencido" color={resumen.vencido ? 'text-red-400' : 'text-emerald-400'} />
+      </div>
+      {resumen.cuantasPorRevisar > 0 && (
+        <p className="text-[11px] text-amber-300">
+          Antes de reclamar hay que reclasificar: {resumen.cuantasPorRevisar} comisiones no tienen
+          importe, fecha o confirmación, y por eso no cuentan como reclamables ni generan aviso.
+        </p>
+      )}
 
       {mostrarForm && (
         <Card>
@@ -113,7 +155,15 @@ function ComisionesContenido() {
           <input className={`${inputCls} !w-44`} value={fCia} onChange={(e) => setFCia(e.target.value)} placeholder="Comercializadora..." />
         </div>
         <div className="flex gap-1.5 flex-wrap text-xs">
-          {[['', 'Todas'], ['pendientes', '💶 Pendientes'], ['vencidas', '🔴 Vencidas'], ['diferencias', '⚠️ Con diferencia']].map(([v, n]) => (
+          {/*
+            «Pendientes» se ha partido en tres porque como una sola tanda no
+            servía: mezclaba lo reclamable, lo que espera a un tercero y los
+            apuntes sin datos. Se conserva porque es la que enlaza la
+            exportación de pendientes, pero ya no es la primera que se ofrece.
+          */}
+          {[['', 'Todas'], ['exigible', '💶 Reclamables'], ['terceros', '⏳ Esperando a la comercializadora'],
+            ['revisar', '⚠️ Sin datos para reclamar'], ['pendientes', 'Todo lo no cobrado'],
+            ['diferencias', 'Con diferencia']].map(([v, n]) => (
             <button key={v} onClick={() => setFEspecial(v)} className={`px-2.5 py-1.5 rounded-lg font-semibold ${fEspecial === v ? 'bg-accent text-white' : 'bg-card/80 text-muted border border-border/50'}`}>{n}</button>
           ))}
         </div>
@@ -139,9 +189,13 @@ function ComisionesContenido() {
                 const prev = Number(c.importe_previsto) || 0;
                 const cob = Number(c.importe_cobrado) || 0;
                 const dif = prev - cob;
-                const vencida = COMISION_PENDIENTE.includes(c.estado_comision) && (diasHasta(c.fecha_prevista_cobro) ?? 1) < 0;
+                const s = situacion.get(c.id);
+                const TONO: Record<SituacionCobro, string> = {
+                  vencido: 'bg-red-500/5', por_revisar: 'bg-amber-500/5', parcial: 'bg-amber-500/5',
+                  exigible: '', no_exigible: '', cobrado: '', cerrado: '',
+                };
                 return (
-                  <tr key={c.id} className={`border-b border-border/20 hover:bg-card/50 transition ${vencida ? 'bg-red-500/5' : ''}`}>
+                  <tr key={c.id} className={`border-b border-border/20 hover:bg-card/50 transition ${s ? TONO[s.situacion] : ''}`}>
                     <td className="px-3 py-2 font-semibold text-xs">
                       {c.cliente_id
                         ? <Link href={`/gestor/luz/clientes/${c.cliente_id}`} className="hover:text-accent">{c.luz_clientes?.nombre || '—'}</Link>
@@ -175,7 +229,21 @@ function ComisionesContenido() {
                         className="rounded-md border border-border/40 bg-background/60 px-1.5 py-0.5 text-[11px] font-semibold">
                         {ESTADOS_COMISION.map((es) => <option key={es} value={es}>{ESTADO_COMISION_LABEL[es]}</option>)}
                       </select>
-                      {vencida && <span className="block text-[10px] text-red-400 font-bold mt-0.5">⏰ vencida</span>}
+                      {/*
+                        La situación va DEBAJO del estado, no en su lugar: el
+                        estado es lo que alguien marcó y la situación es lo que
+                        se deduce de la fecha y del importe. Y el motivo de
+                        revisión se escribe entero, porque «revisar» a secas
+                        obliga a investigar qué le pasa a esta fila.
+                      */}
+                      {s && !['cobrado', 'cerrado'].includes(s.situacion) && (
+                        <span className={`block text-[10px] font-bold mt-0.5 ${s.situacion === 'vencido' ? 'text-red-400' : s.situacion === 'por_revisar' ? 'text-amber-300' : 'text-muted'}`}>
+                          {SITUACION_COBRO_LABEL[s.situacion]}
+                        </span>
+                      )}
+                      {s?.motivoRevision && (
+                        <span className="block text-[10px] text-amber-300/80 mt-0.5 max-w-[16rem]">{s.motivoRevision}</span>
+                      )}
                     </td>
                     <td className="px-3 py-2 text-xs text-muted">{fmtFecha(c.fecha_prevista_cobro)}</td>
                     <td className="px-3 py-2 text-xs text-muted">{fmtFecha(c.fecha_cobro)}</td>

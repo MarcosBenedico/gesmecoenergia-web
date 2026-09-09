@@ -37,6 +37,7 @@ export type TipoAlerta =
   | 'accion_vencida'
   | 'preaviso_cerrandose'
   | 'preaviso_perdido'
+  | 'preaviso_no_calculable'
   | 'sin_firma'
   | 'sin_activar'
   | 'falta_dato'
@@ -95,11 +96,47 @@ export interface ProximaAccionSuministro {
   cuando: string;
 }
 
+/**
+ * En qué situación está la ventana de preaviso de un suministro.
+ *
+ * `no_calculable` NO ES UN ESTADO MÁS: es el que faltaba y el que más caro
+ * sale. Medido en la cartera real, 89 de 162 suministros no tienen fecha de
+ * fin de contrato, así que en más de la mitad de los CUPS el preaviso no se
+ * vigilaba — y en ningún sitio se decía. Un hueco callado parece que no aplica;
+ * dicho, es una cosa concreta que pedir: mirar el contrato.
+ *
+ * Por eso la frase nunca es «pendiente» sino «no se puede calcular: falta
+ * verificar el fin de contrato».
+ */
+export type SituacionPreaviso =
+  /** El suministro no tiene contrato que renovar (perdido, aparcado, aún sin contratar). */
+  | 'no_aplica'
+  /** Falta el dato del que depende. No se sabe, y eso hay que decirlo. */
+  | 'no_calculable'
+  /** Hay fecha y queda tiempo de sobra. */
+  | 'lejano'
+  /** Hay fecha y se acaba el plazo. */
+  | 'cerrandose'
+  /** La ventana se pasó. */
+  | 'perdido';
+
+export interface EstadoPreaviso {
+  situacion: SituacionPreaviso;
+  /** Días hasta el límite. Null si no se puede calcular. */
+  dias: number | null;
+  /** La frase que va en pantalla. Nunca vacía y nunca la palabra «pendiente». */
+  texto: string;
+  /** Qué hay que hacer para poder calcularlo. Null si ya se calcula. */
+  queFalta: string | null;
+}
+
 export interface EstadoSuministro {
   etapa: Etapa;
   /** Cómo se llama esa etapa en pantalla. Sale de `etapas.ts`. */
   fase: string;
   alerta: AlertaSuministro | null;
+  /** La ventana de preaviso, siempre resuelta. Nunca se calla. */
+  preaviso: EstadoPreaviso;
   /** Qué falta EXACTAMENTE para poder avanzar. Null si no hay bloqueo. */
   bloqueo: string | null;
   proximaAccion: ProximaAccionSuministro | null;
@@ -139,6 +176,63 @@ export const DIAS_SIN_ACTIVAR = 20;
 
 const TAREAS_ABIERTAS = ['pendiente', 'en_curso'];
 
+/** Etapas en las que todavía no hay contrato del que preavisar. */
+const SIN_CONTRATO_TODAVIA: Etapa[] = ['detectado', 'factura_solicitada'];
+
+/**
+ * LA VENTANA DE PREAVISO, DECIDIDA EN UN SOLO SITIO.
+ *
+ * Devuelve SIEMPRE algo. Es la diferencia entera con lo que había: antes, si
+ * faltaba el fin de contrato, la función no decía nada y el suministro salía
+ * igual que uno con la renovación bajo control.
+ *
+ * Y NO SE INVENTA LA FECHA. El plazo de preaviso no es siempre el mismo ni
+ * todos los contratos duran un año, así que sin `fechaLimitePreaviso`
+ * verificado se contesta «no calculable» y se dice qué hace falta. Una fecha
+ * supuesta mueve el aviso y eso es justo lo que cuesta la renovación.
+ */
+export function estadoDePreaviso(s: EntradaSuministro, hoy: string): EstadoPreaviso {
+  const etapa = etapaDe('cups', s.estadoCups);
+  const sin = (texto: string): EstadoPreaviso =>
+    ({ situacion: 'no_aplica', dias: null, texto, queFalta: null });
+
+  if (etapa === 'perdido' || etapa === 'aparcado') return sin('Sin renovación que preparar');
+  if (SIN_CONTRATO_TODAVIA.includes(etapa)) return sin('Todavía no hay contrato que renovar');
+
+  const dias = diasHasta(s.fechaLimitePreaviso, hoy);
+  if (dias == null) {
+    return {
+      situacion: 'no_calculable',
+      dias: null,
+      texto: 'No se puede calcular el preaviso: falta verificar el fin de contrato',
+      queFalta: s.fechaFinContrato
+        ? 'Hay fin de contrato pero no el plazo de preaviso: mirarlo en el contrato'
+        : 'Mirar en el contrato la fecha de fin y el plazo de preaviso',
+    };
+  }
+  if (dias < 0) {
+    return {
+      situacion: 'perdido',
+      dias,
+      // OJO CON EXAGERAR. No todos los contratos se prorrogan doce meses: unos
+      // pasan a prórroga mensual y otros son a dos años. Decir siempre «queda
+      // bloqueado un año» es fácil de desmentir, y una alarma que se desmiente
+      // una vez deja de creerse para siempre.
+      texto: `La ventana de preaviso se cerró hace ${Math.abs(dias)} días: el contrato se prorroga solo`,
+      queFalta: null,
+    };
+  }
+  if (dias <= DIAS_PREAVISO_URGENTE) {
+    return {
+      situacion: 'cerrandose',
+      dias,
+      texto: `Quedan ${dias} ${dias === 1 ? 'día' : 'días'} para poder preavisar`,
+      queFalta: null,
+    };
+  }
+  return { situacion: 'lejano', dias, texto: `Se podrá preavisar dentro de ${dias} días`, queFalta: null };
+}
+
 /**
  * El estado completo de un suministro: fase, alerta, bloqueo, acción y
  * prioridad. Es la única función que decide esto en toda la aplicación.
@@ -172,7 +266,7 @@ export function estadoDeSuministro(s: EntradaSuministro, hoy: string): EstadoSum
     } else if (!s.tarifa && etapa !== 'detectado') {
       bloqueo = 'Falta la tarifa de acceso: sin ella no se puede comparar';
     } else if (!s.fechaFinContrato && etapa !== 'detectado' && etapa !== 'factura_solicitada') {
-      bloqueo = 'Falta el fin de contrato: sin él no se puede calcular el preaviso';
+      bloqueo = 'Falta verificar el fin de contrato: sin él no se puede calcular el preaviso';
     }
   }
 
@@ -189,23 +283,20 @@ export function estadoDeSuministro(s: EntradaSuministro, hoy: string): EstadoSum
    *
    * Al principio lo silenciaba con el resto de lo «cerrado», y es justo al
    * revés: un cliente ACTIVO al que se le acaba el contrato es exactamente
-   * quien tiene ventana de preaviso. Si se pasa, se renueva solo y queda
-   * bloqueado un año — el cliente que ya es nuestro es el que más fácil se
-   * pierde por no mirar una fecha.
+   * quien tiene ventana de preaviso. Si se pasa, se prorroga solo y el cliente
+   * puede quedar atado hasta un año más — el que ya es nuestro es el que más
+   * fácil se pierde por no mirar una fecha.
+   *
+   * «HASTA un año», no «un año». Hay contratos a dos años y hay prórrogas
+   * mensuales, así que la frase exacta depende del papel. Prometer siempre
+   * doce meses es fácil de desmentir, y una alarma desmentida una vez deja de
+   * creerse para siempre.
    *
    * Solo se calla en lo perdido y lo aparcado, donde no hay nada que renovar.
    */
-  const abandonado = etapa === 'perdido' || etapa === 'aparcado';
-  const diasPreaviso = diasHasta(s.fechaLimitePreaviso, hoy);
-  if (!abandonado && diasPreaviso != null) {
-    if (diasPreaviso < 0) {
-      poner('preaviso_perdido',
-        `La ventana de preaviso se cerró hace ${Math.abs(diasPreaviso)} días: el contrato se renueva solo`, true);
-    } else if (diasPreaviso <= DIAS_PREAVISO_URGENTE) {
-      poner('preaviso_cerrandose',
-        `Quedan ${diasPreaviso} ${diasPreaviso === 1 ? 'día' : 'días'} para poder preavisar`, true);
-    }
-  }
+  const preaviso = estadoDePreaviso(s, hoy);
+  if (preaviso.situacion === 'perdido') poner('preaviso_perdido', preaviso.texto, true);
+  else if (preaviso.situacion === 'cerrandose') poner('preaviso_cerrandose', preaviso.texto, true);
 
   if (proximaAccion?.dias != null && proximaAccion.dias < 0) {
     poner('accion_vencida', `${proximaAccion.texto} · ${proximaAccion.cuando}`, true);
@@ -223,6 +314,19 @@ export function estadoDeSuministro(s: EntradaSuministro, hoy: string): EstadoSum
   }
 
   if (bloqueo) poner('falta_dato', bloqueo, false);
+
+  /*
+   * EL PREAVISO QUE NO SE PUEDE CALCULAR TAMBIÉN SE DICE — Y SOBRE TODO EN LOS
+   * SUMINISTROS ACTIVOS, que es donde no salía nada.
+   *
+   * Va después del bloqueo (que ya lo nombra en las etapas de gestión) y NO ES
+   * CRÍTICO a propósito: son 89 de 162 suministros, y ponerlos todos en rojo
+   * convertiría el rojo en el color normal de la pantalla. Es un dato que
+   * conseguir, no una urgencia de hoy.
+   */
+  if (preaviso.situacion === 'no_calculable') {
+    poner('preaviso_no_calculable', preaviso.texto, false);
+  }
 
   if (!cerrado && !proximaAccion && !alerta) {
     poner('sin_accion', 'No hay ninguna acción programada', false);
@@ -243,6 +347,7 @@ export function estadoDeSuministro(s: EntradaSuministro, hoy: string): EstadoSum
     etapa,
     fase: ETAPA[etapa].titulo,
     alerta,
+    preaviso,
     bloqueo,
     proximaAccion,
     prioridad,

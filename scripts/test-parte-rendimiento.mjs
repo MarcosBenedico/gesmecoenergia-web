@@ -151,7 +151,17 @@ cierto('...y le baja la probabilidad', parada.probabilidad_estimada < base.proba
 
 const incontactable = probabilidadesDeCierre([opo()], cli({ telefono: null, email: null }), HOY)[0];
 cierto('sin forma de contactar baja y lo dice',
-  /no hay por dónde contactar/i.test(incontactable.frena.join(' ')));
+  /no hay por dónde llegar/i.test(incontactable.frena.join(' ')));
+
+// «223 sin teléfono» incluía a los que tienen «-» en la casilla. Un campo
+// relleno con basura cuenta como relleno en el recuento y como nada cuando hay
+// que llamar, que es la mentira que no se ve.
+const basura = probabilidadesDeCierre([opo()], cli({ telefono: '-', email: null }), HOY)[0];
+cierto('un teléfono que no se puede marcar cuenta como no tenerlo',
+  /no hay por dónde llegar/i.test(basura.frena.join(' ')), basura.frena.join(' '));
+const soloCorreo = probabilidadesDeCierre([opo()], cli({ telefono: null, email: 'juan@granja.es' }), HOY)[0];
+cierto('con un correo válido sí hay por dónde llegar',
+  !/no hay por dónde llegar/i.test(soloCorreo.frena.join(' ')), soloCorreo.frena.join(' '));
 
 const conVisita = probabilidadesDeCierre([opo()], cli({ dias_desde_visita_util: 3 }), HOY)[0];
 cierto('una visita útil reciente sube la probabilidad',

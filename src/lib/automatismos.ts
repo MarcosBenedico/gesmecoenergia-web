@@ -14,13 +14,35 @@
  *
  * CÓMO SE CONSIGUE LA IDEMPOTENCIA SIN TOCAR LA BASE DE DATOS
  *
- * No hace falta una columna nueva ni un registro de ejecuciones. El par
- * (VÍNCULO, TIPO DE TAREA) ya es una llave natural: «la tarea de reclamar la
- * firma del contrato 47». Si existe una abierta con ese par, la regla no
- * propone nada. Ejecutarla mil veces da el mismo resultado que ejecutarla una.
+ * No hace falta una columna nueva ni un registro de ejecuciones: los vínculos
+ * que la tarea ya lleva bastan. Pero la llave NO puede ser solo el par
+ * (vínculo, tipo de tarea), y esto costó un repaso entero:
  *
- * Eso además resuelve gratis lo de «no crear una tarea cada día de retraso»:
- * mientras la tarea siga abierta, no se propone otra por muy vencida que esté.
+ *   UNA LLAVE PERMANENTE «CUPS + revisar_preaviso» SILENCIA LA RENOVACIÓN
+ *   DEL AÑO SIGUIENTE. La tarea del preaviso de 2027 se queda abierta —que
+ *   es lo normal aquí, hay 89 tareas vencidas sin cerrar—, llega el ciclo de
+ *   2028 y la regla ve «ya hay una de ese tipo» y calla. El contrato se
+ *   renueva solo y NADIE SE ENTERA: el fallo silencioso de siempre.
+ *
+ * Así que hay dos clases de regla y cada una tiene su llave:
+ *
+ *   · REGLAS DE ESTADO (reclamar una firma, seguir una oferta). Valen
+ *     mientras el expediente esté en esa fase y no se repiten: la llave es
+ *     (vínculo, tipo). Mientras haya una abierta, silencio — que resuelve
+ *     gratis lo de «no crear una tarea cada día de retraso».
+ *
+ *   · REGLAS DE CICLO (el preaviso, la primera factura, un cobro previsto).
+ *     Vuelven a ocurrir sobre el MISMO expediente cada vez que se repite el
+ *     hecho que las origina. La llave es (vínculo, tipo, CICLO), donde el
+ *     ciclo es la fecha del hecho: el límite de preaviso, la activación, el
+ *     cobro previsto. Dos tareas del mismo ciclo son la misma; una del ciclo
+ *     que viene es otra distinta y tiene que poder crearse.
+ *
+ * Qué es «el mismo ciclo» se decide por cercanía (`VENTANA_CICLO`): una
+ * corrección de la fecha mueve el preaviso unos días, una renovación lo mueve
+ * un año. Y dentro de un ciclo ya atendido —la tarea existe y está cerrada—
+ * no se vuelve a proponer nada: cerrarla fue una decisión de una persona y
+ * pisarla es exactamente lo que no puede hacer un automatismo.
  *
  * ESTAS REGLAS NO ESCRIBEN NADA. Devuelven PROPUESTAS. Quien las aplica es una
  * persona desde la pantalla, y eso no es una limitación técnica: es que un
@@ -30,6 +52,7 @@
  */
 
 import { TAREAS_ABIERTAS } from './luz.ts';
+import { sePuedeReclamar } from './cobros.ts';
 
 /** Qué se propone hacer con la tarea. */
 export type AccionPropuesta = 'crear' | 'actualizar';
@@ -48,8 +71,18 @@ export interface TareaPropuesta {
 }
 
 export interface Propuesta {
-  /** Llave natural: vínculo + tipo. Dos propuestas con la misma clave son la misma. */
+  /**
+   * Llave natural: vínculo + tipo (+ ciclo, cuando la regla se repite).
+   * Dos propuestas con la misma clave son la misma cosa.
+   */
   clave: string;
+  /**
+   * El hecho que origina esta vuelta de la regla, cuando se repite: la fecha
+   * del preaviso, la de la activación, la del cobro previsto. Null en las
+   * reglas de estado, que no vuelven. Va en pantalla para que se vea que la
+   * del año que viene es otra tarea y no un duplicado.
+   */
+  ciclo?: string | null;
   /** Qué regla la genera, para poder desactivarla o discutirla. */
   regla: string;
   /** El porqué, en cristiano. Sin esto, nadie sabe si aplicar o no. */
@@ -106,6 +139,16 @@ export const PLAZOS: PlazosAutomatismos = {
 /** Suministros que ya no van a ninguna parte: no hay renovación que preparar. */
 export const CUPS_SIN_RENOVACION: string[] = ['perdido', 'no_viable'];
 
+/**
+ * Cuántos días alrededor de la fecha propuesta se consideran EL MISMO CICLO.
+ *
+ * Es lo que separa «alguien corrigió el fin de contrato» de «ha pasado un año
+ * y toca otra vez». Ciento veinte días: muy por encima de `avisoPreaviso` (60),
+ * así que cualquier tarea de esta misma vuelta cae dentro; y muy por debajo de
+ * los ~365 de la siguiente renovación, que queda fuera y puede crearse.
+ */
+export const VENTANA_CICLO = 120;
+
 // ── Entradas ────────────────────────────────────────────────────────────────
 
 export interface TareaExistente {
@@ -138,6 +181,9 @@ export interface EntradaAutomatismos {
   comisiones: {
     id: string; cliente_id: string; estado_comision: string;
     fecha_prevista_cobro?: string | null; responsable?: string | null;
+    // Los importes hacen falta para no reclamar un apunte vacío. Ver `cobros.ts`.
+    importe_previsto?: number | string | null;
+    importe_cobrado?: number | string | null;
   }[];
   tareas: TareaExistente[];
 }
@@ -181,8 +227,32 @@ export function proponerTareas(
   const yaHay = (campo: keyof TareaExistente, id: string, tipo: string) =>
     abiertas.some((t) => t[campo] === id && t.tipo_tarea === tipo);
 
-  const buscar = (campo: keyof TareaExistente, id: string, tipo: string) =>
-    abiertas.find((t) => t[campo] === id && t.tipo_tarea === tipo) || null;
+  /**
+   * LA COMPROBACIÓN DE LAS REGLAS QUE SE REPITEN.
+   *
+   * Mira TODAS las tareas —abiertas y cerradas— de ese tipo y ese vínculo, y
+   * se queda con las que caen dentro de la ventana del ciclo que se está
+   * evaluando. Devuelve qué hacer:
+   *
+   *   · `atendido`  — hay una del ciclo ya cerrada: alguien lo resolvió. Callar.
+   *   · `viva`      — hay una abierta de este ciclo. Solo se le puede mover la fecha.
+   *   · null        — no hay ninguna de ESTE ciclo. Se puede crear, aunque
+   *                   existan las de ciclos anteriores. Aquí está el arreglo.
+   */
+  const enElCiclo = (
+    campo: keyof TareaExistente, id: string, tipo: string, fecha: string
+  ): { estado: 'atendido' | 'viva'; tarea: TareaExistente } | null => {
+    const delCiclo = e.tareas.filter((t) => {
+      if (t[campo] !== id || t.tipo_tarea !== tipo) return false;
+      const d = diasEntre(t.fecha_limite, fecha);
+      // Una tarea sin fecha no se puede situar en ningún ciclo. Se cuenta como
+      // de este: es lo prudente — antes callar de más que duplicar.
+      return d == null || Math.abs(d) <= VENTANA_CICLO;
+    });
+    if (!delCiclo.length) return null;
+    const viva = delCiclo.find((t) => !t.estado || TAREAS_ABIERTAS.includes(t.estado));
+    return viva ? { estado: 'viva', tarea: viva } : { estado: 'atendido', tarea: delCiclo[0] };
+  };
 
   // ══ Oportunidades ══════════════════════════════════════════════════════
   for (const o of e.pipeline) {
@@ -270,23 +340,30 @@ export function proponerTareas(
     // Activado → revisar la primera factura. El documento lo pide como paso
     // obligatorio antes de dar una venta por cerrada: es donde se descubre
     // que lo aplicado no es lo pactado.
-    if (k.estado_contrato === 'activado' && k.fecha_activacion_real
-      && !yaHay('contrato_id', k.id, 'revisar_futuro')) {
+    // Es una REGLA DE CICLO: el ciclo es la activación. Si el mismo contrato
+    // se reactiva —cambio de comercializadora sobre el mismo expediente—, hay
+    // una primera factura nueva que revisar, y la tarea vieja no puede
+    // silenciarla.
+    if (k.estado_contrato === 'activado' && k.fecha_activacion_real) {
       const desde = diasEntre(k.fecha_activacion_real, hoy);
       // Solo si aún tiene sentido: no se propone revisar la primera factura de
       // un contrato activado hace dos años.
       if (desde != null && -desde <= plazos.revisarPrimeraFactura + 60) {
-        propuestas.push({
-          clave: `contrato:${k.id}:revisar_futuro`,
-          regla: 'Activado sin verificar la primera factura',
-          porque: 'Una venta no está cerrada hasta comprobar que lo que factura la comercializadora es lo que se pactó.',
-          accion: 'crear', contexto: ctx,
-          tarea: {
-            ...comun, tipo_tarea: 'revisar_futuro', prioridad: 'media',
-            descripcion: 'Revisar la primera factura del nuevo contrato',
-            fecha_limite: sumarDias(k.fecha_activacion_real.slice(0, 10), plazos.revisarPrimeraFactura),
-          },
-        });
+        const ciclo = k.fecha_activacion_real.slice(0, 10);
+        const fecha = sumarDias(ciclo, plazos.revisarPrimeraFactura);
+        if (!enElCiclo('contrato_id', k.id, 'revisar_futuro', fecha)) {
+          propuestas.push({
+            clave: `contrato:${k.id}:revisar_futuro:${ciclo}`, ciclo,
+            regla: 'Activado sin verificar la primera factura',
+            porque: 'Una venta no está cerrada hasta comprobar que lo que factura la comercializadora es lo que se pactó.',
+            accion: 'crear', contexto: ctx,
+            tarea: {
+              ...comun, tipo_tarea: 'revisar_futuro', prioridad: 'media',
+              descripcion: 'Revisar la primera factura del nuevo contrato',
+              fecha_limite: fecha,
+            },
+          });
+        }
       }
     }
   }
@@ -312,45 +389,62 @@ export function proponerTareas(
     // La tarea se pone unos días antes del límite, nunca el mismo día: el
     // último día no da margen a que el cliente coja el teléfono.
     const fecha = sumarDias(c.fecha_limite_preaviso.slice(0, 10), -5);
-    const existente = buscar('cups_id', c.id, 'revisar_preaviso');
+    // EL CICLO ES LA FECHA DEL PREAVISO. La renovación del año que viene es
+    // otro ciclo y tiene derecho a su propia tarea aunque la de este año se
+    // haya quedado abierta sin cerrar.
+    const ciclo = c.fecha_limite_preaviso.slice(0, 10);
+    const clave = `cups:${c.id}:revisar_preaviso:${ciclo}`;
+    const tarea = {
+      cliente_id: c.cliente_id, cups_id: c.id, responsable: resp, prioridad: 'alta',
+      tipo_tarea: 'revisar_preaviso',
+      descripcion: 'Preparar la renovación antes de que se cierre el preaviso',
+      fecha_limite: fecha,
+    };
+    const previa = enElCiclo('cups_id', c.id, 'revisar_preaviso', fecha);
 
-    if (!existente) {
+    // Ya cerrada para ESTE ciclo: alguien la resolvió. No se reabre.
+    if (previa?.estado === 'atendido') continue;
+
+    if (!previa) {
       propuestas.push({
-        clave: `cups:${c.id}:revisar_preaviso`,
+        clave, ciclo,
         regla: 'Preaviso acercándose',
-        porque: `Quedan ${dias} días para poder preavisar. Si se pasa, el contrato se renueva solo y el cliente queda bloqueado un año.`,
-        accion: 'crear', contexto: ctx,
-        tarea: {
-          cliente_id: c.cliente_id, cups_id: c.id, responsable: resp, prioridad: 'alta',
-          tipo_tarea: 'revisar_preaviso', descripcion: 'Preparar la renovación antes de que se cierre el preaviso',
-          fecha_limite: fecha,
-        },
+        porque: `Quedan ${dias} días para poder preavisar. Si se pasa, el contrato se prorroga solo y el cliente puede quedar atado hasta un año más.`,
+        accion: 'crear', contexto: ctx, tarea,
       });
-    } else if ((existente.fecha_limite || '').slice(0, 10) !== fecha) {
-      // Ya hay una: se le mueve la fecha, no se crea otra.
+    } else if ((previa.tarea.fecha_limite || '').slice(0, 10) !== fecha) {
+      // Misma vuelta con otra fecha: alguien corrigió el fin de contrato. Se le
+      // mueve la fecha a la que hay, no se crea una segunda. La pantalla aplica
+      // SOLO `fecha_limite`, para no pisar una descripción escrita a mano.
       propuestas.push({
-        clave: `cups:${c.id}:revisar_preaviso`,
+        clave, ciclo,
         regla: 'La renovación tiene la fecha desfasada',
-        porque: 'Ya hay una tarea de renovación para este suministro, pero con otra fecha. Se actualiza esa en vez de crear una segunda.',
-        accion: 'actualizar', tareaId: existente.id, contexto: ctx,
-        tarea: {
-          cliente_id: c.cliente_id, cups_id: c.id, responsable: resp, prioridad: 'alta',
-          tipo_tarea: 'revisar_preaviso', descripcion: 'Preparar la renovación antes de que se cierre el preaviso',
-          fecha_limite: fecha,
-        },
+        porque: 'Ya hay una tarea de renovación para este mismo preaviso, pero con otra fecha. Se actualiza esa en vez de crear una segunda.',
+        accion: 'actualizar', tareaId: previa.tarea.id, contexto: ctx, tarea,
       });
     }
   }
 
   // ══ Comisiones vencidas ════════════════════════════════════════════════
   for (const m of e.comisiones) {
-    if (!['pendiente_cobro', 'cobrada_parcial'].includes(m.estado_comision)) continue;
+    /*
+     * ANTES DE RECLAMAR, RECLASIFICAR. `sePuedeReclamar` deja fuera lo que no
+     * tiene importe, lo que no tiene fecha y lo que sigue como «prevista» con
+     * la fecha pasada hace meses — que en la cartera real son 29 apuntes que
+     * suman 217 €. Pedirle 7 € a una comercializadora por un apunte que nadie
+     * ha confirmado quema la relación por nada, y llena la lista de cobros de
+     * ruido hasta que se deja de mirar.
+     */
+    if (!sePuedeReclamar(m, hoy)) continue;
     const d = diasEntre(m.fecha_prevista_cobro, hoy);
     if (d == null || d >= 0) continue;
-    if (yaHay('comision_id', m.id, 'reclamar_comision')) continue;
+    // También de ciclo: si un cobro parcial mueve la fecha prevista al mes que
+    // viene, eso es otra reclamación. Y una ya cerrada no se reabre sola.
+    const ciclo = String(m.fecha_prevista_cobro).slice(0, 10);
+    if (enElCiclo('comision_id', m.id, 'reclamar_comision', ciclo)) continue;
 
     propuestas.push({
-      clave: `comision:${m.id}:reclamar_comision`,
+      clave: `comision:${m.id}:reclamar_comision:${ciclo}`, ciclo,
       regla: 'Comisión con el cobro vencido',
       porque: `La fecha prevista de cobro pasó hace ${Math.abs(d)} días. Es trabajo ya hecho que está sin cobrar.`,
       accion: 'crear', contexto: nombre(m.cliente_id),

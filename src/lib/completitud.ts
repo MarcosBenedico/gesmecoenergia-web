@@ -9,7 +9,33 @@
  * No mide "calidad del cliente": mide si tenemos lo necesario para trabajarlo.
  */
 
-import { LuzCliente, LuzCups } from './luz';
+import type { LuzCliente, LuzCups } from './luz.ts';
+
+/**
+ * ¿HAY FORMA DE CONTACTAR CON ESTE CLIENTE?
+ *
+ * Existe porque «223 clientes sin teléfono» es un número que paraliza y no se
+ * puede accionar: la mitad son objetivos de una importación a los que nadie
+ * iba a llamar, y entre ellos se pierden los pocos que sí tienen algo pendiente
+ * y no hay por dónde cogerlos. La pregunta útil no es si el campo `telefono`
+ * está relleno, es si HAY FORMA DE LLEGAR AL CLIENTE.
+ *
+ * Por eso mira teléfono Y correo, y por eso valida el contenido: en la cartera
+ * real hay teléfonos que son «-», «no tiene» y «000». Un campo relleno con
+ * basura cuenta como relleno en cualquier recuento y como nada cuando hay que
+ * llamar — que es la peor de las dos mentiras, porque no se ve.
+ *
+ * Se decide aquí y en ningún otro sitio: si el dashboard, la bandeja y el parte
+ * lo calcularan cada uno por su cuenta, dirían tres cifras distintas.
+ */
+export function contactoUtilizable(c: { telefono?: string | null; email?: string | null }): boolean {
+  // Nueve dígitos es el largo de un número español. Con menos no se marca:
+  // ni un fijo ni un móvil ni una extensión sirven para llamar desde la calle.
+  const digitos = (c.telefono || '').replace(/\D/g, '');
+  if (digitos.length >= 9) return true;
+  const email = (c.email || '').trim();
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
 
 export interface RequisitoCliente {
   clave: string;
@@ -46,9 +72,9 @@ export function evaluarCliente(cliente: LuzCliente, cupsDelCliente: LuzCups[]): 
   const requisitos: RequisitoCliente[] = [
     {
       clave: 'telefono',
-      etiqueta: 'Teléfono',
-      motivo: 'Sin teléfono no se le puede llamar ni escribir.',
-      cumplido: !!cliente.telefono?.trim(),
+      etiqueta: 'Contacto',
+      motivo: 'Sin un teléfono marcable o un correo válido no hay por dónde llegar al cliente.',
+      cumplido: contactoUtilizable(cliente),
       bloqueante: true,
     },
     {

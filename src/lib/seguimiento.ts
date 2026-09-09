@@ -8,7 +8,9 @@
  *      no hay oferta. Medido sobre la cartera real: de 22 preclientes que
  *      trajo David en un mes, 16 estaban parados justo ahí.
  *   2. LA VENTANA DE PREAVISO QUE SE CIERRA. Si se pasa, el contrato se
- *      renueva solo y el cliente queda bloqueado un año entero.
+ *      prorroga solo y el cliente puede quedar atado hasta un año más — no
+ *      siempre doce meses exactos: hay contratos a dos años y prórrogas
+ *      mensuales, y exagerarlo hace que la alarma deje de creerse.
  *   3. LA ACTIVACIÓN QUE NO SE COMPLETA. Firmó y la comercializadora no lo
  *      activó. Es dinero ya ganado que se cae sin que nadie se entere.
  *

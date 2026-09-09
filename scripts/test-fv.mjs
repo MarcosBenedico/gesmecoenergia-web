@@ -1,16 +1,11 @@
 // Pruebas de la Calculadora FV — ejecutar con: node scripts/test-fv.mjs
-// Replica exacta de las fórmulas de src/lib/fv.ts (sin IVA como base, margen sobre coste base).
-const LIMITE_KW = 10;
-const r2 = (n) => Math.round((n + Number.EPSILON) * 100) / 100;
-function calcularFV(e) {
-  const aplica = e.potencia_kw > LIMITE_KW;
-  const ingenieria = aplica ? e.coste_ingenieria : 0;
-  const costeBase = e.presupuesto_instalador + ingenieria + (e.otros_costes || 0);
-  const margenImporte = costeBase * (e.margen_pct / 100);
-  const precioSinIva = costeBase + margenImporte;
-  const ivaImporte = precioSinIva * (e.iva_pct / 100);
-  return { coste_base: r2(costeBase), precio_sin_iva: r2(precioSinIva), iva_importe: r2(ivaImporte), precio_con_iva: r2(precioSinIva + ivaImporte) };
-}
+//
+// SE IMPORTA `calcularFV`, NO SE REPLICA. Aquí había una copia de la fórmula
+// «para no compilar nada», y una copia es otro sitio donde arreglar el mismo
+// fallo: el día que se añadió el descuento, el test seguía dando verde
+// probando una fórmula que ya no era la que se usa. Node ejecuta el .ts
+// directamente, así que la copia no hacía falta para nada.
+const { calcularFV, r2 } = await import('../src/lib/fv.ts');
 
 const casos = [
   { nombre: 'Caso 1 · 8 kW, 10.000 €, margen 25 %', e: { potencia_kw: 8, presupuesto_instalador: 10000, coste_ingenieria: 1800, margen_pct: 25, iva_pct: 21 }, esperado: { precio_sin_iva: 12500 } },
@@ -18,6 +13,28 @@ const casos = [
   { nombre: 'Caso 3 · 10,01 kW (con ingeniería, 20 %)', e: { potencia_kw: 10.01, presupuesto_instalador: 10000, coste_ingenieria: 1800, margen_pct: 20, iva_pct: 21 }, esperado: { precio_sin_iva: 14160 } },
   { nombre: 'Caso 4 · 15 kW, margen manual 15 %', e: { potencia_kw: 15, presupuesto_instalador: 10000, coste_ingenieria: 1800, margen_pct: 15, iva_pct: 21 }, esperado: { precio_sin_iva: 13570 } },
   { nombre: 'Caso 5 · 15 kW, 20 %, IVA 21 %', e: { potencia_kw: 15, presupuesto_instalador: 10000, coste_ingenieria: 1800, margen_pct: 20, iva_pct: 21 }, esperado: { precio_sin_iva: 14160, iva_importe: 2973.6, precio_con_iva: 17133.6 } },
+
+  // RECARGO SOBRE COSTE ≠ MARGEN SOBRE VENTA. Los dos describen el mismo
+  // trato y no son intercambiables: aplicar el 20 como recargo daría 12.000 €
+  // y se perderían 500 € por instalación sin que nadie lo notara.
+  {
+    nombre: 'Recargo 25 % sobre 10.000 € → 12.500 € netos y 20 % sobre venta',
+    e: { potencia_kw: 8, presupuesto_instalador: 10000, coste_ingenieria: 0, margen_pct: 25, iva_pct: 21 },
+    esperado: { coste_base: 10000, precio_tarifa: 12500, precio_sin_iva: 12500, margen_sobre_venta_pct: 20, descuento: 0 },
+  },
+  // El descuento va aparte del recargo: rebajar el recargo para «hacer un
+  // precio» esconde cuánto se ha regalado y descuadra el margen de todo.
+  {
+    nombre: 'Un descuento de 500 € no toca el recargo, baja la venta y el margen',
+    e: { potencia_kw: 8, presupuesto_instalador: 10000, coste_ingenieria: 0, margen_pct: 25, iva_pct: 21, descuento: 500 },
+    esperado: { precio_tarifa: 12500, descuento: 500, precio_sin_iva: 12000, margen_sobre_venta_pct: 16.67 },
+  },
+  // El IVA tampoco entra en la base: se añade al final, sobre lo ya descontado.
+  {
+    nombre: 'El IVA se calcula sobre la venta ya descontada, nunca sobre el coste',
+    e: { potencia_kw: 8, presupuesto_instalador: 10000, coste_ingenieria: 0, margen_pct: 25, iva_pct: 21, descuento: 500 },
+    esperado: { iva_importe: 2520, precio_con_iva: 14520 },
+  },
 ];
 
 let fallos = 0;

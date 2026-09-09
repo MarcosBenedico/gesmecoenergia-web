@@ -4,9 +4,24 @@
  * y el backend (validación al guardar). Importes SIN IVA como base.
  *
  * Reglas:
- *  - Potencia ≤ 10 kW  → sin ingeniería, margen 25 %.
- *  - Potencia > 10 kW  → + ingeniería (1.800 € por defecto), margen 20 %.
- *  - El IVA se añade AL FINAL: nunca forma parte de la base del margen.
+ *  - Potencia ≤ 10 kW  → sin ingeniería, recargo 25 %.
+ *  - Potencia > 10 kW  → + ingeniería (1.800 € por defecto), recargo 20 %.
+ *  - El IVA se añade AL FINAL: nunca forma parte de la base del recargo.
+ *
+ * RECARGO SOBRE COSTE Y MARGEN SOBRE VENTA NO SON LO MISMO, y confundirlos es
+ * el error que se cuela en cualquier conversación de presupuestos:
+ *
+ *     coste 10.000 € + recargo 25 %  →  venta 12.500 €
+ *     margen: 2.500 € sobre 12.500 € = 20 % SOBRE LA VENTA
+ *
+ * Los dos números son correctos y describen la misma operación, pero el 25 y
+ * el 20 no son intercambiables: aplicar «margen 20 %» como recargo daría
+ * 12.000 € y se perderían 500 € en cada instalación sin que nadie lo notara.
+ * Por eso el cálculo devuelve LOS DOS, con el nombre correcto cada uno, y la
+ * pantalla los enseña juntos.
+ *
+ * Y por eso el DESCUENTO es un campo aparte: rebajar el recargo para «hacer
+ * un precio» mezcla las dos cosas y borra el rastro de cuánto se regaló.
  */
 
 export const INGENIERIA_DEFECTO = 1800;
@@ -47,9 +62,20 @@ export interface EntradaCalculoFV {
   potencia_kw: number;
   presupuesto_instalador: number;   // "X" — presupuesto de Óscar, sin IVA
   coste_ingenieria: number;         // sin IVA (solo aplica si potencia > 10 kW)
-  margen_pct: number;               // % de margen comercial realmente usado
+  /**
+   * % de RECARGO SOBRE EL COSTE. El nombre del campo se conserva porque así se
+   * llama la columna en la base de datos, pero es un recargo, no el margen
+   * sobre venta: ver la cabecera del archivo.
+   */
+  margen_pct: number;
   iva_pct: number;                  // % de IVA (se añade al final)
   otros_costes?: number;            // suma de conceptos extra incluidos en el coste base
+  /**
+   * Descuento comercial en € sobre el precio de venta, antes de IVA. VA APARTE
+   * del recargo a propósito: bajar el recargo para hacer un precio esconde
+   * cuánto se ha regalado y descuadra el margen de todos los informes.
+   */
+  descuento?: number;
 }
 
 export interface ResultadoCalculoFV {
@@ -57,8 +83,18 @@ export interface ResultadoCalculoFV {
   coste_ingenieria_aplicado: number;
   otros_costes: number;
   coste_base: number;
+  /** El % que se aplica SOBRE EL COSTE. Es el que se teclea. */
   margen_pct: number;
   margen_importe: number;
+  /** Venta antes de descuento: coste × (1 + recargo). */
+  precio_tarifa: number;
+  descuento: number;
+  /**
+   * El % que queda SOBRE LA VENTA una vez aplicado el descuento. Es el número
+   * que hay que mirar para saber si el trabajo sale a cuenta, y el que no
+   * coincide con el recargo. Null si no hay venta de la que sacar un %.
+   */
+  margen_sobre_venta_pct: number | null;
   precio_sin_iva: number;
   iva_pct: number;
   iva_importe: number;
@@ -77,9 +113,17 @@ export function calcularFV(e: EntradaCalculoFV): ResultadoCalculoFV {
   const ingenieria = aplica ? e.coste_ingenieria : 0;   // nunca se aplica dos veces ni en ≤10 kW
   const otros = e.otros_costes || 0;
   const costeBase = e.presupuesto_instalador + ingenieria + otros;
+  // El recargo SIEMPRE sobre la base sin IVA. 10.000 € + 25 % = 12.500 €.
   const margenImporte = costeBase * (e.margen_pct / 100);
-  const precioSinIva = costeBase + margenImporte;       // el margen SIEMPRE sobre la base sin IVA
+  const precioTarifa = costeBase + margenImporte;
+  // El descuento se resta DESPUÉS del recargo y ANTES del IVA: son tres cosas
+  // distintas y mezclarlas es lo que hace que nadie sepa cuánto se regaló.
+  const descuento = Math.max(0, e.descuento || 0);
+  const precioSinIva = precioTarifa - descuento;
   const ivaImporte = precioSinIva * (e.iva_pct / 100);
+  // Lo que de verdad queda, sobre lo que se cobra. Sin descuento y con un
+  // recargo del 25 %, esto sale 20 %: los dos números del mismo trato.
+  const margenReal = precioSinIva - costeBase;
   return {
     aplica_ingenieria: aplica,
     coste_ingenieria_aplicado: r2(ingenieria),
@@ -87,6 +131,9 @@ export function calcularFV(e: EntradaCalculoFV): ResultadoCalculoFV {
     coste_base: r2(costeBase),
     margen_pct: e.margen_pct,
     margen_importe: r2(margenImporte),
+    precio_tarifa: r2(precioTarifa),
+    descuento: r2(descuento),
+    margen_sobre_venta_pct: precioSinIva > 0 ? r2((margenReal / precioSinIva) * 100) : null,
     precio_sin_iva: r2(precioSinIva),
     iva_pct: e.iva_pct,
     iva_importe: r2(ivaImporte),
@@ -100,8 +147,9 @@ export function validarEntradaFV(e: EntradaCalculoFV): string[] {
   if (!(e.potencia_kw > 0)) errores.push('La potencia debe ser mayor que cero.');
   if (!(e.presupuesto_instalador > 0)) errores.push('El presupuesto del instalador debe ser mayor que cero.');
   if (e.coste_ingenieria < 0) errores.push('El coste de ingeniería no puede ser negativo.');
-  if (e.margen_pct < 0) errores.push('El margen no puede ser negativo.');
+  if (e.margen_pct < 0) errores.push('El recargo no puede ser negativo.');
   if ((e.otros_costes || 0) < 0) errores.push('Los otros costes no pueden ser negativos.');
+  if ((e.descuento || 0) < 0) errores.push('El descuento no puede ser negativo.');
   if (e.iva_pct < 0 || e.iva_pct > 30) errores.push('El IVA debe estar entre 0 % y 30 %.');
   return errores;
 }
@@ -110,8 +158,16 @@ export function validarEntradaFV(e: EntradaCalculoFV): string[] {
 export function advertenciasFV(e: EntradaCalculoFV): string[] {
   const avisos: string[] = [];
   const defecto = margenPorDefecto(e.potencia_kw);
-  if (e.margen_pct < defecto) avisos.push(`Margen por debajo del predeterminado (${defecto} %).`);
-  if (e.margen_pct > MARGEN_MAXIMO_RAZONABLE) avisos.push(`Margen superior al ${MARGEN_MAXIMO_RAZONABLE} %: revísalo.`);
+  if (e.margen_pct < defecto) avisos.push(`Recargo por debajo del predeterminado (${defecto} %).`);
+  if (e.margen_pct > MARGEN_MAXIMO_RAZONABLE) avisos.push(`Recargo superior al ${MARGEN_MAXIMO_RAZONABLE} %: revísalo.`);
+  // Un descuento que se come el recargo entero significa trabajar por el coste.
+  // No se bloquea —a veces se decide— pero no puede pasar en silencio.
+  const r = calcularFV(e);
+  if (r.margen_sobre_venta_pct != null && r.margen_sobre_venta_pct <= 0) {
+    avisos.push('Con este descuento la instalación se vende al coste o por debajo.');
+  } else if (r.descuento > 0) {
+    avisos.push(`Descuento de ${fmtEur2(r.descuento)}: el margen sobre venta baja al ${r.margen_sobre_venta_pct} %.`);
+  }
   if (e.potencia_kw > LIMITE_KW && e.coste_ingenieria !== INGENIERIA_DEFECTO) {
     avisos.push(`Ingeniería modificada respecto al valor por defecto (${INGENIERIA_DEFECTO} €).`);
   }

@@ -38,6 +38,7 @@
  */
 
 import type { Accion } from './parte-diario.ts';
+import { contactoUtilizable } from './completitud.ts';
 
 // ── Qué aporta cada cosa ────────────────────────────────────────────────────
 
@@ -350,9 +351,11 @@ export function probabilidadesDeCierre(
       }
     }
 
-    if (!c.telefono && !c.email) {
+    // Mismo criterio que en el dashboard y en la ficha: un teléfono que pone
+    // «-» cuenta como relleno en un recuento y como nada cuando hay que llamar.
+    if (!contactoUtilizable(c)) {
       p -= 10;
-      frena.push('Sin teléfono ni correo: no hay por dónde contactar');
+      frena.push('Sin contacto utilizable: no hay por dónde llegar al cliente');
     } else if (!c.email && ['oferta_enviada', 'seguimiento', 'pendiente_firma'].includes(estado)) {
       p -= 5;
       frena.push('Sin correo: la oferta no se le puede enviar');

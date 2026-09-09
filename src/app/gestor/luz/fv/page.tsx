@@ -40,6 +40,7 @@ interface PresupuestoFV {
   id: string; cliente_id: string | null; cliente_nombre: string | null; nombre_proyecto: string;
   potencia_kw: number; presupuesto_instalador: number; coste_ingenieria: number; otros_costes: number;
   coste_base: number; margen_pct: number; motivo_margen: string | null; margen_importe: number;
+  descuento?: number | null;
   precio_sin_iva: number; iva_pct: number; iva_importe: number; precio_con_iva: number;
   estado: string; responsable: string | null; observaciones: string | null;
   documentos: DocFV[]; creado_por: string | null; modificado_por: string | null;
@@ -56,7 +57,7 @@ interface RefCat { id: string; codigo: string; categoria: string; descripcion: s
 
 const FORM_VACIO = {
   cliente_id: '', nombre_proyecto: '', perfil: 'residencial', potencia_kw: '', presupuesto_instalador: '',
-  coste_ingenieria: String(INGENIERIA_DEFECTO), margen_pct: '', motivo_margen: '',
+  coste_ingenieria: String(INGENIERIA_DEFECTO), margen_pct: '', motivo_margen: '', descuento: '',
   iva_pct: '21', iva_otro: '', responsable: '', observaciones: '',
 };
 
@@ -180,10 +181,11 @@ function CalculadoraFV() {
     presupuesto_instalador: modo === 'partidas' ? 0 : parseFloat(form.presupuesto_instalador) || 0,
     coste_ingenieria: ingenieriaEnPartidas ? 0 : parseFloat(form.coste_ingenieria) || 0,
     margen_pct: margenUsado,
+    descuento: parseFloat(form.descuento) || 0,
     iva_pct: ivaUsado,
     otros_costes: otros,
   };
-  const resultado = useMemo(() => calcularFV(entrada), [entrada.potencia_kw, entrada.presupuesto_instalador, entrada.coste_ingenieria, entrada.margen_pct, entrada.iva_pct, entrada.otros_costes]); // eslint-disable-line react-hooks/exhaustive-deps
+  const resultado = useMemo(() => calcularFV(entrada), [entrada.potencia_kw, entrada.presupuesto_instalador, entrada.coste_ingenieria, entrada.margen_pct, entrada.descuento, entrada.iva_pct, entrada.otros_costes]); // eslint-disable-line react-hooks/exhaustive-deps
   const erroresEntrada = validarEntradaFV(entrada).filter((e) => !(modo === 'partidas' && e.includes('presupuesto del instalador')))
     .concat(modo === 'partidas' && otros <= 0 ? ['Añade al menos una partida incluida en el coste base.'] : []);
   const avisos = advertenciasFV(entrada);
@@ -244,6 +246,7 @@ function CalculadoraFV() {
       potencia_kw: String(d.potencia_kw), presupuesto_instalador: String(d.presupuesto_instalador),
       coste_ingenieria: String(d.coste_ingenieria),
       margen_pct: String(d.margen_pct), motivo_margen: d.motivo_margen || '',
+      descuento: d.descuento ? String(d.descuento) : '',
       iva_pct: [21, 10].includes(Number(d.iva_pct)) ? String(Number(d.iva_pct)) : 'otro',
       iva_otro: [21, 10].includes(Number(d.iva_pct)) ? '' : String(d.iva_pct),
       responsable: d.responsable || '', observaciones: d.observaciones || '',
@@ -922,10 +925,37 @@ ${form.observaciones ? `<p class="muted">Observaciones: ${form.observaciones}</p
                 {parseFloat(form.coste_ingenieria) !== INGENIERIA_DEFECTO && <p className="text-[10px] text-amber-300 mt-0.5">Modificado (por defecto {INGENIERIA_DEFECTO} €) — quedará registrado.</p>}
               </div>
               <div>
-                <label className={labelCls}>Margen Gesmeco (%) — predeterminado: {margenDefecto} %</label>
+                {/*
+                  SE LLAMA RECARGO, NO MARGEN. Es el % que se suma AL COSTE:
+                  10.000 € + 25 % = 12.500 €. El margen que queda sobre lo que
+                  se cobra es otro número (el 20 %), y se enseña calculado
+                  debajo para que no haya que hacer la cuenta de cabeza ni
+                  confundir uno con otro al hablar con Óscar.
+                */}
+                <label className={labelCls}>Recargo sobre coste (%) — predeterminado: {margenDefecto} %</label>
                 <input className={inputCls} type="number" min="0" step="0.01" value={form.margen_pct}
                   placeholder={String(margenDefecto)}
                   onChange={(e) => { setMargenTocado(true); setForm({ ...form, margen_pct: e.target.value }); }} />
+                {resultado.margen_sobre_venta_pct != null && (
+                  <p className="text-[10px] text-muted mt-0.5">
+                    Margen sobre venta: <strong>{resultado.margen_sobre_venta_pct} %</strong>. No es lo
+                    mismo que el recargo y no son intercambiables.
+                  </p>
+                )}
+              </div>
+              <div>
+                {/*
+                  EL DESCUENTO VA APARTE DEL RECARGO. Antes, para «hacer un
+                  precio» había que bajar el recargo, y eso borra el rastro:
+                  ya no se sabe cuánto se regaló ni cuál era la tarifa.
+                */}
+                <label className={labelCls}>Descuento comercial (€, sin IVA)</label>
+                <input className={inputCls} type="number" min="0" step="0.01" value={form.descuento}
+                  placeholder="0"
+                  onChange={(e) => setForm({ ...form, descuento: e.target.value })} />
+                <p className="text-[10px] text-muted mt-0.5">
+                  Se resta del precio de venta, nunca del recargo ni del IVA.
+                </p>
               </div>
               {margenModificado && (
                 <div className="md:col-span-2">
@@ -1122,7 +1152,19 @@ ${form.observaciones ? `<p class="muted">Observaciones: ${form.observaciones}</p
                 ['Ingeniería' + (resultado.aplica_ingenieria ? '' : ' (no aplica ≤10 kW)'), fmtEur2(resultado.coste_ingenieria_aplicado)],
                 ...(otros > 0 ? [['Otros costes incluidos', fmtEur2(otros)] as [string, string]] : []),
                 ['Coste base', fmtEur2(resultado.coste_base)],
-                [`Margen Gesmeco (${margenUsado.toLocaleString('es-ES')} %)`, fmtEur2(resultado.margen_importe)],
+                [`Recargo sobre coste (${margenUsado.toLocaleString('es-ES')} %)`, fmtEur2(resultado.margen_importe)],
+                // Las tres líneas del descuento solo salen si lo hay: un
+                // «Descuento — 0,00 €» en cada presupuesto es ruido, y el
+                // «Precio de tarifa» sin descuento repite el total de abajo.
+                ...(resultado.descuento > 0
+                  ? ([
+                    ['Precio de tarifa', fmtEur2(resultado.precio_tarifa)],
+                    ['Descuento comercial', `− ${fmtEur2(resultado.descuento)}`],
+                  ] as [string, string][])
+                  : []),
+                ...(resultado.margen_sobre_venta_pct != null
+                  ? ([['Margen sobre venta', `${resultado.margen_sobre_venta_pct.toLocaleString('es-ES')} %`]] as [string, string][])
+                  : []),
               ] as [string, string][]).map(([n, v]) => (
                 <div key={n} className="flex justify-between gap-2"><span className="text-muted text-xs">{n}</span><span className="tabular-nums font-semibold">{v}</span></div>
               ))}

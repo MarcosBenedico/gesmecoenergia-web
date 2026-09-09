@@ -40,7 +40,8 @@
     "test:suministro": "node scripts/test-suministro.mjs",
     "test:energia": "node scripts/test-energia.mjs",
     "test:expediente": "node scripts/test-expediente.mjs",
-    "mapa:crm": "node scripts/mapa-crm.mjs"
+    "mapa:crm": "node scripts/mapa-crm.mjs",
+    "test:cobros": "node scripts/test-cobros.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.110.0",

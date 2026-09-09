@@ -14,8 +14,8 @@
  * vuelve a ser una lista.
  */
 import {
-  estadoDeSuministro, siguienteAccion, resumenOperativo, modoDePresentacion,
-  ordenarSuministros, diasHasta, comoSeLee, PRIORIDAD,
+  estadoDeSuministro, estadoDePreaviso, siguienteAccion, resumenOperativo,
+  modoDePresentacion, ordenarSuministros, diasHasta, comoSeLee, PRIORIDAD,
   DIAS_PREAVISO_URGENTE, DIAS_SIN_ACTIVAR,
 } from '../src/lib/ficha-suministro.ts';
 
@@ -138,7 +138,7 @@ titulo('ROJO SOLO PARA BLOQUEO, VENCIMIENTO O RIESGO REAL');
   comprueba('un dato que falta es «falta completar», no crítico',
     soloFaltaDato.prioridad === 'incompleta', soloFaltaDato.prioridad);
 
-  const bien = estadoDeSuministro(sum({ estadoCups: 'activado' }), HOY);
+  const bien = estadoDeSuministro(sum({ estadoCups: 'activado', preaviso: desplazar(150) }), HOY);
   comprueba('un suministro activo y sin nada pendiente está correcto',
     bien.prioridad === 'correcta', bien.prioridad);
 
@@ -158,8 +158,12 @@ titulo('El preaviso es lo único que bloquea un año');
   const perdido = estadoDeSuministro(sum({ preaviso: desplazar(-5) }), HOY);
   comprueba('un preaviso ya pasado se dice claramente',
     perdido.alerta?.tipo === 'preaviso_perdido');
-  comprueba('y explica la consecuencia: se renueva solo',
-    /renueva solo/.test(perdido.alerta.texto), perdido.alerta?.texto);
+  // NO dice «un año»: hay contratos a dos años y prórrogas mensuales, y una
+  // alarma que se puede desmentir una vez deja de creerse para siempre.
+  comprueba('y explica la consecuencia: se prorroga solo',
+    /prorroga solo/.test(perdido.alerta.texto), perdido.alerta?.texto);
+  comprueba('sin prometer que el bloqueo sea de un año exacto',
+    !/un año/.test(perdido.alerta.texto), perdido.alerta?.texto);
 
   comprueba('a un suministro perdido no se le persigue el preaviso',
     estadoDeSuministro(sum({ estadoCups: 'perdido', preaviso: desplazar(5) }), HOY).alerta?.tipo !== 'preaviso_cerrandose');
@@ -190,6 +194,7 @@ titulo('Firmado y sin activar: dinero ya vendido cayéndose');
 
   const activado = estadoDeSuministro(sum({
     estadoCups: 'activado',
+    preaviso: desplazar(150),
     contratos: [{ estado_contrato: 'activado', fecha_firma: desplazar(-100), fecha_activacion_real: desplazar(-60) }],
   }), HOY);
   comprueba('si ya está activado, no se reclama nada', activado.alerta === null);
@@ -275,6 +280,50 @@ titulo('Primero lo que reclama atención');
   comprueba('lo crítico va primero', orden[0] === 'urgente', orden.join(','));
   comprueba('y lo que está bien, al final', orden[orden.length - 1] === 'tranquilo', orden.join(','));
   comprueba('no se pierde ninguno', orden.length === 3);
+}
+
+// ── EL PREAVISO QUE NO SE PUEDE CALCULAR ────────────────────────────────────
+//
+// El agujero medido: 89 de los 162 suministros de la cartera no tienen fin de
+// contrato, así que en más de la mitad el preaviso no se vigilaba — y en
+// ninguna pantalla se decía. Un hueco callado parece que no aplica.
+titulo('Sin fin de contrato verificado se dice, no se calla ni se inventa');
+{
+  const e = estadoDePreaviso(sum({ estadoCups: 'activado', fechaFinContrato: null, preaviso: null }), HOY);
+  comprueba('la situación es «no calculable»', e.situacion === 'no_calculable', e.situacion);
+  comprueba('no se inventa ninguna fecha', e.dias === null);
+  comprueba('nunca dice la palabra «pendiente»', !/pendiente/i.test(e.texto), e.texto);
+  comprueba('dice que falta VERIFICAR', /verificar/i.test(e.texto), e.texto);
+  comprueba('y qué hay que hacer para saberlo', /contrato/i.test(e.queFalta || ''), String(e.queFalta));
+
+  // Aquí estaba el silencio: un suministro ACTIVO no daba ninguna señal.
+  const activo = estadoDeSuministro(sum({ estadoCups: 'activado', fechaFinContrato: null, preaviso: null }), HOY);
+  comprueba('un suministro activo sin fin de contrato deja de salir como correcto',
+    activo.prioridad !== 'correcta', activo.prioridad);
+  comprueba('y lo dice con una alerta propia',
+    activo.alerta?.tipo === 'preaviso_no_calculable', JSON.stringify(activo.alerta));
+  // 89 de 162 en rojo convertirían el rojo en el color normal de la pantalla.
+  comprueba('pero NO en rojo: es un dato que conseguir, no una urgencia de hoy',
+    activo.alerta.critica === false);
+}
+
+titulo('El preaviso no aplica donde no hay contrato que renovar');
+{
+  for (const [estado, etiqueta] of [['perdido', 'perdido'], ['detectado', 'todavía sin contrato']]) {
+    const e = estadoDePreaviso(sum({ estadoCups: estado, fechaFinContrato: null, preaviso: null }), HOY);
+    comprueba(`${etiqueta}: no aplica`, e.situacion === 'no_aplica', e.situacion);
+    comprueba(`${etiqueta}: aun así lleva frase`, e.texto.length > 10);
+  }
+  // Un suministro que YA es nuestro es justo el que tiene ventana de preaviso.
+  const activo = estadoDePreaviso(sum({ estadoCups: 'activado', preaviso: desplazar(10) }), HOY);
+  comprueba('un activo con preaviso cerca sí grita', activo.situacion === 'cerrandose', activo.situacion);
+}
+
+titulo('El estado del preaviso viaja pegado al suministro');
+{
+  const e = estadoDeSuministro(sum({ preaviso: desplazar(200) }), HOY);
+  comprueba('siempre viene resuelto', !!e.preaviso && e.preaviso.situacion === 'lejano', e.preaviso?.situacion);
+  comprueba('con su frase lista para pintar', e.preaviso.texto.length > 10, e.preaviso?.texto);
 }
 
 console.log(`\n${fallos === 0 ? '✅' : '❌'} ${ok} bien, ${fallos} mal\n`);

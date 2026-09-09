@@ -55,7 +55,7 @@ titulo('Las reglas detectan cada atasco de fase');
       { id: 'k4', cliente_id: 'c1', estado_contrato: 'activado', fecha_activacion_real: dia(-10) },
     ],
     cups: [{ id: 's1', cliente_id: 'c1', cups: 'ES001', estado_cups: 'activado', fecha_limite_preaviso: dia(30) }],
-    comisiones: [{ id: 'm1', cliente_id: 'c1', estado_comision: 'pendiente_cobro', fecha_prevista_cobro: dia(-20) }],
+    comisiones: [{ id: 'm1', cliente_id: 'c1', estado_comision: 'pendiente_cobro', importe_previsto: 450, fecha_prevista_cobro: dia(-20) }],
   });
   const ps = proponerTareas(e, HOY);
   const tipos = ps.map((p) => p.tarea.tipo_tarea);
@@ -76,7 +76,7 @@ titulo('Ejecutar dos veces no crea dos tareas iguales');
     pipeline: [{ id: 'p1', cliente_id: 'c1', estado: 'oferta_enviada' }],
     contratos: [{ id: 'k1', cliente_id: 'c1', estado_contrato: 'firmado' }],
     cups: [{ id: 's1', cliente_id: 'c1', cups: 'ES001', estado_cups: 'activado', fecha_limite_preaviso: dia(30) }],
-    comisiones: [{ id: 'm1', cliente_id: 'c1', estado_comision: 'pendiente_cobro', fecha_prevista_cobro: dia(-20) }],
+    comisiones: [{ id: 'm1', cliente_id: 'c1', estado_comision: 'pendiente_cobro', importe_previsto: 450, fecha_prevista_cobro: dia(-20) }],
   });
   const primera = proponerTareas(e, HOY);
   comprueba('la primera pasada propone trabajo', primera.length === 4, `${primera.length}`);
@@ -254,6 +254,124 @@ titulo('El contexto dice de quién es cada propuesta');
   const p = proponerTareas(e, HOY)[0];
   comprueba('el contexto lleva cliente y comercializadora',
     p.contexto.includes('GRANJA LA LITERA') && p.contexto.includes('Iberdrola'), p.contexto);
+}
+
+// ── LA LLAVE POR CICLO ──────────────────────────────────────────────────────
+//
+// El fallo que esto protege: con una llave permanente (CUPS + tipo de tarea),
+// la tarea del preaviso de este año —que se queda abierta, como las 89 tareas
+// vencidas de la cartera real— silenciaba la renovación del año siguiente. El
+// contrato se prorrogaba solo y nadie se enteraba.
+titulo('Una renovación nueva puede crear su tarea aunque quede la del año pasado');
+{
+  // La del ciclo anterior sigue ABIERTA y vencida hace once meses.
+  const vieja = {
+    id: 't-vieja', estado: 'pendiente', tipo_tarea: 'revisar_preaviso',
+    cups_id: 's1', cliente_id: 'c1', fecha_limite: dia(-330),
+  };
+  const e = base({
+    cups: [{ id: 's1', cliente_id: 'c1', cups: 'ES001', estado_cups: 'activado', fecha_limite_preaviso: dia(30) }],
+    tareas: [vieja],
+  });
+  const ps = proponerTareas(e, HOY);
+  const p = ps.find((x) => x.tarea.tipo_tarea === 'revisar_preaviso');
+  comprueba('la renovación de este año se propone igual', !!p);
+  comprueba('y se propone CREAR, no mover la vieja', p?.accion === 'crear', p?.accion);
+  comprueba('la clave lleva el ciclo, para que no choque con la anterior',
+    p?.clave.includes(dia(30)), p?.clave);
+  comprueba('el ciclo va aparte para poder enseñarlo', p?.ciclo === dia(30), String(p?.ciclo));
+}
+
+titulo('Dentro del mismo ciclo se sigue sin duplicar');
+{
+  const cups = { id: 's1', cliente_id: 'c1', cups: 'ES001', estado_cups: 'activado', fecha_limite_preaviso: dia(30) };
+  const e = base({ cups: [cups] });
+  const primera = aplicar(proponerTareas(e, HOY).find((p) => p.tarea.tipo_tarea === 'revisar_preaviso'), 1);
+  const dos = proponerTareas(base({ cups: [cups], tareas: [primera] }), HOY);
+  comprueba('con la tarea ya creada no se propone nada',
+    !dos.some((p) => p.tarea.tipo_tarea === 'revisar_preaviso'), JSON.stringify(dos.map((p) => p.clave)));
+
+  // Alguien corrige el fin de contrato y el preaviso se mueve seis días.
+  const corregido = { ...cups, fecha_limite_preaviso: dia(36) };
+  const tres = proponerTareas(base({ cups: [corregido], tareas: [primera] }), HOY);
+  const p = tres.find((x) => x.tarea.tipo_tarea === 'revisar_preaviso');
+  comprueba('una corrección de fecha ACTUALIZA la misma tarea', p?.accion === 'actualizar', p?.accion);
+  comprueba('y apunta a la tarea que ya existe', p?.tareaId === 't1', String(p?.tareaId));
+}
+
+titulo('Un ciclo ya resuelto no se reabre solo');
+{
+  const e = base({
+    cups: [{ id: 's1', cliente_id: 'c1', cups: 'ES001', estado_cups: 'activado', fecha_limite_preaviso: dia(30) }],
+    // Cerrarla fue una decisión de una persona: el automatismo no la pisa.
+    tareas: [{
+      id: 't-hecha', estado: 'completada', tipo_tarea: 'revisar_preaviso',
+      cups_id: 's1', cliente_id: 'c1', fecha_limite: dia(25),
+    }],
+  });
+  comprueba('la tarea cerrada de este ciclo silencia la regla',
+    !proponerTareas(e, HOY).some((p) => p.tarea.tipo_tarea === 'revisar_preaviso'));
+}
+
+titulo('La primera factura y el cobro también van por ciclo');
+{
+  // Reactivación del mismo contrato: hay una primera factura NUEVA que revisar.
+  const e = base({
+    contratos: [{ id: 'k1', cliente_id: 'c1', estado_contrato: 'activado', fecha_activacion_real: dia(-5) }],
+    tareas: [{
+      id: 't-vieja', estado: 'completada', tipo_tarea: 'revisar_futuro',
+      contrato_id: 'k1', cliente_id: 'c1', fecha_limite: dia(-400),
+    }],
+  });
+  comprueba('una activación nueva propone revisar su factura',
+    proponerTareas(e, HOY).some((p) => p.tarea.tipo_tarea === 'revisar_futuro'));
+
+  const f = base({
+    comisiones: [{ id: 'm1', cliente_id: 'c1', estado_comision: 'pendiente_cobro', importe_previsto: 450, fecha_prevista_cobro: dia(-20) }],
+    tareas: [{
+      id: 't-rec', estado: 'completada', tipo_tarea: 'reclamar_comision',
+      comision_id: 'm1', cliente_id: 'c1', fecha_limite: dia(-15),
+    }],
+  });
+  comprueba('una reclamación ya cerrada no se repite',
+    !proponerTareas(f, HOY).some((p) => p.tarea.tipo_tarea === 'reclamar_comision'));
+}
+
+titulo('El preaviso no promete más de lo que se puede saber');
+{
+  const e = base({
+    cups: [{ id: 's1', cliente_id: 'c1', cups: 'ES001', estado_cups: 'activado', fecha_limite_preaviso: dia(30) }],
+  });
+  const p = proponerTareas(e, HOY).find((x) => x.tarea.tipo_tarea === 'revisar_preaviso');
+  // No todos los contratos duran un año ni todos se prorrogan doce meses:
+  // exagerar la urgencia acaba con que no se crea ninguna.
+  comprueba('no afirma que el bloqueo sea de un año exacto',
+    !/bloqueado un año|queda bloqueado un año/.test(p.porque), p.porque);
+  comprueba('sí dice que puede quedar atado', /puede quedar atado/.test(p.porque), p.porque);
+}
+
+titulo('No se reclama un cobro que no se puede justificar');
+{
+  // Los 29 apuntes «prevista» de la cartera real suman 217 € entre todos y
+  // llevan meses vencidos. Pedirle 7 € a una comercializadora por algo que
+  // nadie ha confirmado quema la relación por nada.
+  const sinImporte = base({
+    comisiones: [{ id: 'm1', cliente_id: 'c1', estado_comision: 'pendiente_cobro', fecha_prevista_cobro: dia(-20) }],
+  });
+  comprueba('sin importe previsto no se reclama',
+    !proponerTareas(sinImporte, HOY).some((p) => p.tarea.tipo_tarea === 'reclamar_comision'));
+
+  const previstaVieja = base({
+    comisiones: [{ id: 'm1', cliente_id: 'c1', estado_comision: 'prevista', importe_previsto: 7, fecha_prevista_cobro: dia(-200) }],
+  });
+  comprueba('una «prevista» sin confirmar desde hace meses tampoco',
+    !proponerTareas(previstaVieja, HOY).some((p) => p.tarea.tipo_tarea === 'reclamar_comision'));
+
+  const buena = base({
+    comisiones: [{ id: 'm1', cliente_id: 'c1', estado_comision: 'pendiente_cobro', importe_previsto: 450, fecha_prevista_cobro: dia(-20) }],
+  });
+  comprueba('una confirmada y vencida con importe SÍ se reclama',
+    proponerTareas(buena, HOY).some((p) => p.tarea.tipo_tarea === 'reclamar_comision'));
 }
 
 console.log(`\n${fallos === 0 ? '✅' : '❌'} ${ok} correctos, ${fallos} fallos\n`);

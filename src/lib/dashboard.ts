@@ -32,6 +32,7 @@
 
 import { etapaDeCliente, ETAPA, ETAPAS_EN_JUEGO, type Etapa } from './etapas.ts';
 import { estaEnRojo, diasEntre, ultimoMovimiento } from './seguimiento.ts';
+import { contactoUtilizable } from './completitud.ts';
 
 /** Los cinco tipos de decisión, de lo irrecuperable a lo que puede esperar. */
 export type TipoPrioridad =
@@ -325,9 +326,13 @@ export function alertasCalidad(clientes: EntradaCliente[], tope = TOPE_ALERTAS):
       estadoComercial: c.estadoComercial,
       pipeline: c.pipeline, cups: c.cups, contratos: c.contratos,
     });
-    // Sin teléfono no se puede reclamar nada: es el bloqueo más tonto y el más
-    // caro, porque el trabajo de llegar hasta ahí ya está hecho.
-    if (!c.telefono && (etapa === 'factura_solicitada' || etapa === 'detectado')) sinTelefono++;
+    // Sin FORMA DE CONTACTO no se puede reclamar nada: es el bloqueo más tonto
+    // y el más caro, porque el trabajo de llegar hasta ahí ya está hecho.
+    //
+    // La pregunta no es «¿tiene el campo teléfono relleno?» sino «¿hay por
+    // dónde llegar?» — un correo válido sirve, y un teléfono que pone «-» no.
+    // Lo decide `contactoUtilizable`, que es quien lo sabe.
+    if (!contactoUtilizable(c) && (etapa === 'factura_solicitada' || etapa === 'detectado')) sinTelefono++;
     // Sin consumo no hay oferta posible. Solo cuenta en clientes vivos: un
     // suministro sin consumo de alguien perdido no bloquea nada.
     if (ETAPAS_EN_JUEGO.includes(etapa)) {
@@ -342,7 +347,7 @@ export function alertasCalidad(clientes: EntradaCliente[], tope = TOPE_ALERTAS):
   }
 
   return [
-    { texto: 'clientes sin teléfono a los que hay que reclamar algo', cuantos: sinTelefono, href: '/gestor/luz/rellenar' },
+    { texto: 'clientes con algo que reclamar y sin contacto utilizable', cuantos: sinTelefono, href: '/gestor/luz/rellenar' },
     { texto: 'suministros dados de alta sin datos de consumo', cuantos: sinConsumo, href: '/gestor/luz/cups' },
     { texto: 'contratos con la fecha puesta y el estado sin actualizar', cuantos: contratosDescuadrados, href: '/gestor/luz/contratos' },
   ]
