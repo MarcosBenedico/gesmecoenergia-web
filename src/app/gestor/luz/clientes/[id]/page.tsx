@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { ChevronLeft, Plus, Pencil, X, Trash2 } from 'lucide-react';
@@ -22,15 +22,30 @@ import {
   ES_CLASIFICACION, type Clasificacion,
 } from '@/lib/clasificacion';
 import { ProximaAccion, TareasCliente, HistorialCliente, VisitasYFV, SeguimientoCliente, ZonaCliente, SepararCliente } from './componentes';
-import {
-  CabeceraCliente, BandaSiguienteAccion, ResumenOperativo, ListaSuministros,
-  ActividadReciente, haceCuanto, type LineaActividad,
-} from './resumen';
 import type { EntradaSuministro } from '@/lib/ficha-suministro';
+import { siguienteAccion } from '@/lib/ficha-suministro';
+import {
+  PESTANAS_CLIENTE, pestanaValidaCliente, agruparEnCentros, trabajosAbiertos,
+  cabeceraDeFicha, historialDeCliente, agruparHistorialPorDia,
+  type CentroDerivado, type TrabajoAbierto,
+} from '@/lib/ficha-cliente';
+import {
+  BarraPestanas, CabeceraFicha, BandaProximaAccion, TablaTrabajos,
+  TablaCentrosResumen, PanelCentros, PanelDocumentos, PanelHistorial,
+  type FilaDocumento,
+} from './pestanas';
 import { PedirMotivo } from '../../motivo';
 import { AccionesContacto } from '../../acciones-contacto';
 import { FotoSitio } from '../../foto-sitio';
 import { BotonRuta } from '../../boton-ruta';
+
+/** Dónde se recuerda la última pestaña abierta de la ficha de cliente. */
+const CLAVE_PESTANA_CLIENTE = 'luz_cliente_pestana';
+
+const hoyISOFicha = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
 
 const CUPS_VACIO = {
   cups: '', alias_suministro: '', direccion_suministro: '', tarifa_acceso: '2.0TD',
@@ -51,6 +66,12 @@ export default function FichaClienteLuz() {
   const comisiones = useListaLuz<LuzComision>('comisiones', { cliente_id: clienteId });
   const tareas = useListaLuz<LuzTarea>('tareas', { cliente_id: clienteId });
   const fechas = useListaLuz<LuzFechaCritica>('fechas', { cliente_id: clienteId, estado: 'pendiente' });
+  // Para el Historial y los Documentos. Van aparte y no bloquean la ficha: si
+  // el módulo energético todavía no está en la base, la pestaña lo dice y el
+  // resto de la ficha funciona igual.
+  const visitas = useListaLuz<{ id: string; fecha?: string | null; creado_en?: string | null; resultado?: string | null; notas?: string | null; responsable?: string | null; proxima_visita?: string | null }>('visitas', { cliente_id: clienteId });
+  const documentos = useListaLuz<{ id: string; titulo?: string | null; tipo?: string | null; creado_en?: string | null; subido_por?: string | null; estado?: string | null; cups_id?: string | null }>('documentos', { cliente_id: clienteId });
+  const estudios = useListaLuz<{ id: string; titulo?: string | null; version?: number | null; estado?: string | null; creado_en?: string | null; responsable?: string | null }>('estudios', { cliente_id: clienteId });
 
   const [editando, setEditando] = useState(false);
   const [formC, setFormC] = useState<Record<string, string>>({});
@@ -66,6 +87,25 @@ export default function FichaClienteLuz() {
   const [formContrato, setFormContrato] = useState<{ cups_id: string; comercializadora_final: string; estado_contrato: string; fecha_activacion_prevista: string } | null>(null);
   const [formCom, setFormCom] = useState<{ comercializadora: string; tipo_comision: string; importe_previsto: string; fecha_prevista_cobro: string } | null>(null);
   const [msg, setMsg] = useState('');
+
+  /*
+   * LA PESTAÑA SE RECUERDA, igual que en la ficha del suministro: quien entra
+   * siempre a mirar el historial no tiene que elegirlo cada vez.
+   */
+  const [pestana, setPestana] = useState(PESTANAS_CLIENTE[0].id);
+  const [centroAbierto, setCentroAbierto] = useState<string | null>(null);
+  const [soloPendientes, setSoloPendientes] = useState(false);
+  const [verSistema, setVerSistema] = useState(false);
+  const [buscaHist, setBuscaHist] = useState('');
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setPestana(pestanaValidaCliente(localStorage.getItem(CLAVE_PESTANA_CLIENTE)));
+  }, []);
+  const irAPestana = (p: string) => {
+    setPestana(p);
+    try { localStorage.setItem(CLAVE_PESTANA_CLIENTE, p); } catch { /* modo privado */ }
+  };
 
   const consumoTotal = cups.datos.reduce((s, c) => s + (Number(c.consumo_anual_kwh) || 0), 0);
   const tareasAbiertas = tareas.datos.filter((t) => TAREAS_ABIERTAS.includes(t.estado));
@@ -100,32 +140,78 @@ export default function FichaClienteLuz() {
   // distinguirlas: «llamar al gestor» no es de ningún CUPS en concreto.
   const tareasGenerales = tareas.datos.filter((t) => !t.cups_id);
 
-  /** Lo último que ha pasado, de lo que ya se guarda. */
-  const actividad: LineaActividad[] = [
-    ...contratos.datos
-      .filter((k) => k.fecha_firma)
-      .map((k) => ({
-        icono: 'documento' as const,
-        titulo: 'Contrato firmado',
-        detalle: `${k.comercializadora_final || 'Comercializadora'}${k.luz_cups?.cups ? ` · ${k.luz_cups.cups}` : ''}`,
-        cuando: haceCuanto(k.fecha_firma),
-        autor: k.responsable,
-        orden: k.fecha_firma || '',
-      })),
-    ...tareas.datos
-      .filter((t) => t.estado === 'completada')
-      .map((t) => ({
-        icono: 'cambio' as const,
-        titulo: 'Tarea completada',
-        detalle: t.descripcion || 'Sin descripción',
-        cuando: haceCuanto(t.actualizado_en || t.fecha_limite),
-        autor: t.responsable,
-        orden: t.actualizado_en || t.fecha_limite || '',
-      })),
-  ]
-    .sort((a, b) => String(b.orden).localeCompare(String(a.orden)))
-    .slice(0, 5)
-    .map((l) => ({ icono: l.icono, titulo: l.titulo, detalle: l.detalle, cuando: l.cuando, autor: l.autor }));
+  const hoyF = hoyISOFicha();
+
+  /*
+   * CENTROS, TRABAJOS E HISTORIAL: todo sale de `ficha-cliente.ts`.
+   *
+   * Esta pantalla no decide qué es un centro ni cuál trabajo va primero. Si lo
+   * decidiera, diría del mismo cliente una cosa distinta que el Pipeline.
+   */
+  const centros = useMemo(() => agruparEnCentros(suministros, hoyF), [suministros, hoyF]);
+
+  const trabajos = useMemo(() => trabajosAbiertos({
+    pipeline: pipeline.datos.map((o) => ({
+      id: o.id, estado: o.estado, nombre_oportunidad: o.nombre_oportunidad,
+      tipo_oportunidad: o.tipo_oportunidad, cups_id: o.cups_id,
+      responsable: o.responsable, fecha_proxima_accion: o.fecha_proxima_accion,
+    })),
+    suministros,
+    centros,
+    tareas: tareas.datos,
+  }, hoyF), [pipeline.datos, suministros, centros, tareas.datos, hoyF]);
+
+  /*
+   * QUÉ HAY QUE HACER AHORA, EN UNA FRASE.
+   *
+   * Lo decide `siguienteAccion` en `ficha-suministro.ts`, que ya ordena por lo
+   * vencido, lo de hoy, los bloqueos críticos y lo próximo. Aquí solo se pinta.
+   */
+  const accionAhora = useMemo(
+    () => siguienteAccion({ suministros, tareasGenerales }, hoyF),
+    [suministros, tareasGenerales, hoyF]);
+
+  const cab = useMemo(
+    () => cabeceraDeFicha(cliente || {}, centros, trabajos),
+    [cliente, centros, trabajos]);
+
+  const historial = useMemo(() => historialDeCliente({
+    visitas: visitas.datos,
+    tareas: tareas.datos,
+    contratos: contratos.datos,
+    estudios: estudios.datos,
+    // El contexto de un documento es DÓNDE es, no de qué tipo: el tipo ya sale
+    // debajo del nombre y repetirlo no añade nada.
+    documentos: documentos.datos.map((d) => {
+      const sum = cups.datos.find((c) => c.id === d.cups_id);
+      return { ...d, contexto: sum ? (sum.alias_suministro || `CUPS …${String(sum.cups).slice(-6)}`) : null };
+    }),
+  }), [visitas.datos, tareas.datos, contratos.datos, estudios.datos, documentos.datos, cups.datos]);
+
+  const historialVisible = useMemo(() => {
+    const q = buscaHist.trim().toLowerCase();
+    return historial
+      .filter((a) => verSistema || !a.delSistema)
+      .filter((a) => !q || `${a.titulo} ${a.contexto} ${a.detalle || ''} ${a.autor || ''}`.toLowerCase().includes(q));
+  }, [historial, verSistema, buscaHist]);
+
+  const diasHistorial = useMemo(
+    () => agruparHistorialPorDia(historialVisible, hoyF), [historialVisible, hoyF]);
+
+  /** Los documentos en la forma que pinta la tabla. */
+  const filasDoc: FilaDocumento[] = useMemo(() => documentos.datos.map((d) => {
+    const sum = cups.datos.find((c) => c.id === d.cups_id);
+    return {
+      id: d.id,
+      titulo: d.titulo || 'Documento',
+      tipo: d.tipo || null,
+      subidoPor: d.subido_por || null,
+      contexto: sum ? (sum.alias_suministro || `CUPS …${String(sum.cups).slice(-6)}`) : null,
+      periodo: null,
+      estado: d.estado || 'por_revisar',
+    };
+  }), [documentos.datos, cups.datos]);
+
 
   // El consumo se interpreta antes de guardar para poder avisar en pantalla:
   // «53.558» escrito a la española valía 53 kWh y el error no se veía hasta la oferta.
@@ -377,82 +463,140 @@ export default function FichaClienteLuz() {
     );
   }
 
-  /** Baja a la sección de suministros sin salir de la ficha. */
-  const irASuministros = () => {
-    document.getElementById('suministros')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  };
-
   return (
     <div className="space-y-4">
       {msg && <p className="text-xs text-red-400 bg-red-500/10 border border-red-500/30 rounded-lg p-2.5">{msg}</p>}
 
-      {/* ═══ 1. CABECERA: solo quién es y cómo se le llama ═══
-          Nada de CUPS, tarifa, comercializadora ni consumo: son del
-          suministro, y repetirlos aquí obligaba a leerlo todo para saber de
-          qué se estaba hablando. */}
+      {/* ═══ CABECERA: quién es, quién lo lleva y qué se puede hacer ═══
+          Migas, nombre en grande, responsable y contacto. Nada de CUPS,
+          tarifa ni consumo: son del suministro, y repetirlos aquí obligaba a
+          leerlo todo para saber de qué se estaba hablando. */}
       {!editando && (
-        <CabeceraCliente
-          cliente={cliente}
-          onNuevaTarea={() => router.push(`/gestor/luz/tareas?cliente=${clienteId}`)}
-          onAnadirSuministro={() => { setFormCups({ ...CUPS_VACIO }); irASuministros(); }}
+        <CabeceraFicha
+          nombre={cliente.nombre}
+          responsable={cab.responsable}
+          contacto={cab.contacto}
           acciones={
             <>
-              <button onClick={empezarEdicion} className={btnSecundario}><Pencil className="w-4 h-4" /> Editar</button>
+              <button
+                onClick={() => router.push(`/gestor/luz/tareas?cliente=${clienteId}`)}
+                className={btnPrimario}
+              >
+                <Plus className="w-4 h-4" /> Registrar gestión
+              </button>
+              <button onClick={() => irAPestana('documentos')} className={btnSecundario}>
+                <Pencil className="w-4 h-4" /> Añadir documento
+              </button>
+              <button onClick={empezarEdicion} className={btnSecundario}>Editar</button>
               <button
                 onClick={() => setBorrandoCliente(true)}
                 className={`${btnSecundario} !text-red-400 hover:!border-red-500/50`}
                 title="Enviar el cliente a la papelera (se puede recuperar)"
               >
-                <Trash2 className="w-4 h-4" /> Eliminar
+                <Trash2 className="w-4 h-4" />
               </button>
             </>
           }
         />
       )}
 
-      {/* ═══ 2. LA ACCIÓN MANDA SOBRE EL DATO ═══ */}
+      {/* ═══ LAS CUATRO PESTAÑAS ═══
+          Cada una contesta UNA pregunta. Ver `ficha-cliente.ts`. */}
       {!editando && (
-        <BandaSiguienteAccion
-          suministros={suministros}
-          tareasGenerales={tareasGenerales}
-          responsable={cliente.responsable}
-          totalTareas={tareasAbiertas.length}
-          onCrearTarea={() => router.push(`/gestor/luz/tareas?cliente=${clienteId}`)}
-          onVerTodas={() => router.push(`/gestor/luz/tareas?cliente=${clienteId}`)}
+        <BarraPestanas
+          activa={pestana}
+          onCambiar={irAPestana}
+          contadores={{
+            centros: cab.suministros,
+            documentos: documentos.datos.length,
+            historial: historial.length,
+          }}
         />
       )}
 
-      {/* ═══ 3. CUATRO INDICADORES, NINGUNO DECORATIVO ═══ */}
-      {!editando && (
-        <ResumenOperativo
-          suministros={suministros}
-          docsPendientes={cups.datos.filter((c) => !c.consumo_anual_kwh).length}
-        />
-      )}
+      {/* ── RESUMEN: qué hay que hacer con este cliente ahora ── */}
+      {!editando && pestana === 'resumen' && (
+        <div className="space-y-6">
+          <BandaProximaAccion
+            texto={accionAhora?.texto || null}
+            contexto={accionAhora?.contexto || null}
+            cuando={[cliente.responsable, accionAhora?.cuando].filter(Boolean).join(' · ')}
+            critica={!!accionAhora?.critica}
+            onVer={() => router.push(`/gestor/luz/tareas?cliente=${clienteId}`)}
+            onCrear={() => router.push(`/gestor/luz/tareas?cliente=${clienteId}`)}
+          />
 
-      {/* ═══ 4. LOS SUMINISTROS: el centro real de la ficha ═══
-          Antes salían en quinto lugar, detrás de Próxima acción, Zona,
-          Visitas y Seguimiento: había que bajar para saber si el cliente
-          necesitaba algo. */}
-      {!editando && (
-        <div id="suministros" className="grid lg:grid-cols-3 gap-4 items-start">
-          <div className="lg:col-span-2">
-            <ListaSuministros
-              suministros={suministros}
-              cupsCrudos={cups.datos}
-              onAbrir={(id) => setEditCupsId(editCupsId === id ? null : id)}
-              onAnadir={() => setFormCups(formCups ? null : { ...CUPS_VACIO })}
-            />
-          </div>
-          <ActividadReciente lineas={actividad} />
+          <TablaTrabajos
+            trabajos={trabajos}
+            onAbrir={(t: TrabajoAbierto) =>
+              router.push(t.origen === 'expediente'
+                ? `/gestor/energia/${t.id}`
+                : `/gestor/luz/pipeline?cliente=${clienteId}`)}
+            onNuevo={() => setFormOp(formOp ? null : { tipo_oportunidad: 'cambio_comercializadora', comision_potencial: '', proxima_accion: '', fecha_proxima_accion: '' })}
+          />
+
+          <TablaCentrosResumen
+            centros={centros}
+            onVerTodos={() => irAPestana('centros')}
+            onAbrirCentro={(c: CentroDerivado) => { setCentroAbierto(c.clave); irAPestana('centros'); }}
+          />
         </div>
       )}
 
-      {/* ═══ 5. EL DETALLE, BAJO DEMANDA ═══
-          Nada de esto se ha borrado: se ha bajado. El documento lo pide así
-          —«el detalle se revela bajo demanda; no se borra»— y de paso deja la
-          primera pantalla contestando a la única pregunta que importa al
-          abrirla: qué hay que hacer con este cliente. */}
+      {/* ── CENTROS Y SUMINISTROS ── */}
+      {!editando && pestana === 'centros' && (
+        <div className="space-y-4">
+          <PanelCentros
+            centros={centros}
+            hoy={hoyF}
+            abierto={centroAbierto || centros[0]?.clave || null}
+            onAlternar={(clave) => setCentroAbierto(centroAbierto === clave ? '' : clave)}
+            onAbrirSuministro={(s) => router.push(`/gestor/luz/cups/${s.id}`)}
+            onAnadirSuministro={() => setFormCups(formCups ? null : { ...CUPS_VACIO })}
+          />
+        </div>
+      )}
+
+      {/* ── DOCUMENTOS ── */}
+      {!editando && pestana === 'documentos' && (
+        documentos.faltaMigracion ? (
+          <EstadoCarga
+            cargando={false} error="" faltaMigracion vacio={false} textoVacio=""
+            sqlFile="supabase_energia_v1.sql"
+          />
+        ) : (
+          <PanelDocumentos
+            documentos={filasDoc}
+            cargando={documentos.cargando}
+            soloPendientes={soloPendientes}
+            onAlternarPendientes={() => setSoloPendientes((v) => !v)}
+            onSubir={() => router.push(`/gestor/luz/captura?cliente=${clienteId}`)}
+            onVer={() => router.push(`/gestor/luz/captura?cliente=${clienteId}`)}
+          />
+        )
+      )}
+
+      {/* ── HISTORIAL ── */}
+      {!editando && pestana === 'historial' && (
+        <PanelHistorial
+          dias={diasHistorial}
+          verSistema={verSistema}
+          onAlternarSistema={() => setVerSistema((v) => !v)}
+          busca={buscaHist}
+          onBuscar={setBuscaHist}
+          total={historial.length}
+        />
+      )}
+
+      {/* ═══ EL DETALLE, BAJO DEMANDA ═══
+          NADA DE ESTO SE HA BORRADO: se ha bajado y se abre cuando se pide.
+          Los datos del cliente, las oportunidades, las fechas, los contratos,
+          las comisiones, las visitas y el seguimiento siguen enteros aquí —
+          reorganizar no puede significar perder una pantalla que alguien usa.
+
+          Va SOLO en el Resumen y en la edición: en Centros, Documentos e
+          Historial estorbaría, porque ahí ya se está mirando otra cosa. */}
+      {(editando || pestana === 'resumen') && (
       <details className="group" open={editando}>
         <summary className="cursor-pointer list-none flex items-center gap-2 text-xs font-bold text-muted hover:text-foreground transition py-2">
           <ChevronLeft className="w-4 h-4 -rotate-90 group-open:rotate-90 transition" />
@@ -964,6 +1108,7 @@ export default function FichaClienteLuz() {
       </div>
       </div>
       </details>
+      )}
 
       {borrandoCliente && (
         <PedirMotivo
