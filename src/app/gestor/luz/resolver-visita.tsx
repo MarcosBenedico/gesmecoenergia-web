@@ -6,6 +6,7 @@ import {
   RESULTADOS_VISITA, ResultadoVisita, DEF_RESULTADOS,
   consumoAnualDesdeFactura, fechaEnDias, notaDeVisita, resumenConsecuencia,
 } from '@/lib/visitas';
+import { useEquipo, responsableDe } from '@/lib/equipo';
 import { guardarLuz } from './ui';
 
 /**
@@ -52,6 +53,16 @@ export function ResolverVisita({
   const [fechaVolver, setFechaVolver] = useState(fechaEnDias(15));
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState('');
+
+  /*
+   * QUIÉN FIRMA LA VISITA. Aquí estaba escrito `'David'` como último recurso, y
+   * eso le crea trabajo a una persona concreta pase lo que pase con el equipo.
+   * Ahora manda quien la está registrando y, si no consta, el primero de calle
+   * que haya dado de alta; si no hay nadie, se queda SIN responsable y sale en
+   * Control de cartera para que alguien la reparta. Ver `equipo.ts`.
+   */
+  const { equipo } = useEquipo();
+  const responsableVisita = responsableDe(equipo, 'calle', responsable);
 
   // ── Factura ──
   const camara = useRef<HTMLInputElement>(null);
@@ -100,7 +111,7 @@ export function ResolverVisita({
       cliente_id: clienteId,
       fecha: hoy,
       notas: notaDeVisita(resultado, nota),
-      responsable: responsable || 'David',
+      responsable: responsableVisita,
       resultado,
       proxima_visita: cuandoVolver,
     });
@@ -112,7 +123,7 @@ export function ResolverVisita({
         ? await guardarLuz('visitas', 'POST', {
             cliente_id: clienteId, fecha: hoy,
             notas: `[${def.etiqueta}] ${notaDeVisita(resultado, nota)}`,
-            responsable: responsable || 'David',
+            responsable: responsableVisita,
           })
         : errVisita;
       if (err2) { setError(err2); setGuardando(false); return; }
@@ -128,7 +139,7 @@ export function ResolverVisita({
           ? `Volver a pasar por ${clienteNombre} (no estaba)`
           : `Volver a ${clienteNombre}`,
         notas: notaDeVisita(resultado, nota),
-        responsable: responsable || 'David',
+        responsable: responsableVisita,
         fecha_limite: cuandoVolver,
         estado: 'pendiente',
         prioridad: 'B',
@@ -153,14 +164,14 @@ export function ResolverVisita({
       const consumo = consumoAnualDesdeFactura(factura.consumos_kwh_mes);
       await guardarLuz('cups', 'POST', {
         cliente_id: clienteId,
-        // El CUPS no se ve en todas las facturas: lo completa Nicola
+        // El CUPS no se ve en todas las facturas: lo completa la oficina
         cups: `PENDIENTE-${Date.now().toString().slice(-8)}`,
         alias_suministro: clienteNombre,
         tarifa_acceso: factura.tarifa || null,
         consumo_anual_kwh: consumo,
         potencias_kw: factura.potencias_kw || null,
         estado_cups: 'estudio',
-        responsable: responsable || 'David',
+        responsable: responsableVisita,
         observaciones: [
           'Factura leída en la puerta desde el móvil.',
           consumo ? `Consumo anual estimado desde una sola factura: ${consumo.toLocaleString('es-ES')} kWh.` : '',

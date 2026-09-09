@@ -112,7 +112,16 @@ export default function FichaSuministro({ params }: { params: Promise<{ id: stri
     // El PUT de /api/luz lleva dentro la sincronización de estados entre CUPS,
     // pipeline y contrato. Saltárselo por ir más rápido dejaría los estados
     // descuadrados, que es lo que ya se aprendió en «Rellenar en tanda».
-    const err = await guardarLuz('cups', 'PUT', { id: s.id, ...prepararSuministro(valores) });
+    //
+    // `version_leida` va SOLO en este formulario, y por lo que tarda en
+    // rellenarse: es el de cuatro bloques que se abre y se deja abierto. Si
+    // David corrige el teléfono desde la calle mientras esta ficha está en
+    // pantalla, guardar aquí borraría su cambio sin decir nada. Con la versión,
+    // el servidor rechaza y avisa en vez de pisar. Los guardados de un campo
+    // suelto no la mandan: son instantáneos y no da tiempo a chocar.
+    const err = await guardarLuz('cups', 'PUT', {
+      id: s.id, version_leida: s.actualizado_en || null, ...prepararSuministro(valores),
+    });
     setGuardando(false);
     if (err) { setMsg(err); return; }
     setTocado(false);
@@ -166,7 +175,21 @@ export default function FichaSuministro({ params }: { params: Promise<{ id: stri
 
             {tocado && (
               <div className="flex items-center gap-2">
-                {msg && <span className="text-xs text-muted">{msg}</span>}
+                {/*
+                  El choque de versión se pinta distinto y con salida: decirle
+                  a alguien «recarga» sin darle el botón es pedirle que pierda
+                  lo que tiene escrito buscándolo en el menú.
+                */}
+                {msg && (
+                  <span className={`text-xs ${msg.includes('mientras lo tenías abierto') ? 'text-amber-300 max-w-xs' : 'text-muted'}`}>
+                    {msg}
+                    {msg.includes('mientras lo tenías abierto') && (
+                      <button onClick={() => cups.recargar()} className="ml-2 underline font-bold">
+                        Ver lo que hay ahora
+                      </button>
+                    )}
+                  </span>
+                )}
                 <button onClick={guardar} disabled={!puedeGuardar || guardando} className={btnPrimario}>
                   <Save className="w-4 h-4" /> {guardando ? 'Guardando…' : 'Guardar cambios'}
                 </button>

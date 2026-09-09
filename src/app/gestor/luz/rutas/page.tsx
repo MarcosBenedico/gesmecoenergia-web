@@ -1,5 +1,7 @@
 'use client';
 
+import { useEquipo, responsableDe } from '@/lib/equipo';
+import { useUsuario } from '@/lib/usuario';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
@@ -42,7 +44,13 @@ export default function RutasPage() {
   const pipeline = useListaLuz<LuzOportunidad>('pipeline');
   const visitas = useListaLuz<LuzVisita>('visitas');
   const [buscar, setBuscar] = useState('');
-  const [fResp, setFResp] = useState('David');
+  // El equipo se lee, no se escribe aquí: ver `equipo.ts`.
+  const { equipo } = useEquipo();
+  const { perfil } = useUsuario();
+  const perfilResponsable = perfil?.responsable || perfil?.nombre || null;
+  // El filtro nace en «todos» y no en una persona: con un nombre fijo, quien
+  // entra y no se llama así ve la pantalla vacía y cree que no hay trabajo.
+  const [fResp, setFResp] = useState('');
   const [fVista, setFVista] = useState<'todos' | 'fv' | 'prioridadA' | 'olvidados' | 'visitadosHoy' | 'captacion' | 'facturas'>('todos');
   const [fFechaVisita, setFFechaVisita] = useState('');
   const [fZona, setFZona] = useState('');   // '' = todas · id de zona · 'sin' = sin zona
@@ -116,7 +124,7 @@ export default function RutasPage() {
       via_entrada: 'captacion',
       estado_comercial: 'detectado',
       prioridad: p.puntuacion >= 65 ? 'B' : 'C',
-      responsable: 'David',
+      responsable: responsableDe(equipo, 'calle', fResp || perfilResponsable),
       potencial_comercial: p.consumo_estimado_kwh
         ? `Consumo estimado del orden de ${p.consumo_estimado_kwh.toLocaleString('es-ES')} kWh/año (por tipo y tamaño, sin factura).`
         : '',

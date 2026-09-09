@@ -1,5 +1,6 @@
 'use client';
 
+import { FUNCION_LABEL } from '@/lib/equipo';
 import { useCallback, useEffect, useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { Plus, RefreshCw, X, ShieldCheck, History } from 'lucide-react';
@@ -37,7 +38,7 @@ export default function UsuariosPage() {
   const [error, setError] = useState('');
   const [mostrarForm, setMostrarForm] = useState(false);
   const TODOS_MODULOS = ['luz', 'correbin', 'app_clientes', 'herramientas'];
-  const [nuevo, setNuevo] = useState({ nombre: '', email: '', password: '', rol: 'estandar' as PerfilUsuario['rol'], responsable: '', modulos: TODOS_MODULOS });
+  const [nuevo, setNuevo] = useState({ nombre: '', email: '', password: '', rol: 'estandar' as PerfilUsuario['rol'], responsable: '', funcion: '', modulos: TODOS_MODULOS });
 
   const toggleModuloNuevo = (m: string) =>
     setNuevo((f) => ({ ...f, modulos: f.modulos.includes(m) ? f.modulos.filter((x) => x !== m) : [...f.modulos, m] }));
@@ -90,6 +91,7 @@ export default function UsuariosPage() {
       rol: nuevo.rol,
       activo: true,
       responsable: nuevo.responsable || null,
+      funcion: nuevo.funcion || null,
       permisos: PERMISOS_POR_ROL[nuevo.rol],
       modulos: nuevo.rol === 'admin' ? [...TODOS_MODULOS, 'admin'] : nuevo.modulos,
     }], { onConflict: 'id' });
@@ -100,7 +102,7 @@ export default function UsuariosPage() {
       return;
     }
     setMsg(`✓ Usuario ${nuevo.nombre} creado. Ya puede entrar con ${nuevo.email} y su contraseña.`);
-    setNuevo({ nombre: '', email: '', password: '', rol: 'estandar', responsable: '', modulos: TODOS_MODULOS });
+    setNuevo({ nombre: '', email: '', password: '', rol: 'estandar', responsable: '', funcion: '', modulos: TODOS_MODULOS });
     setMostrarForm(false);
     cargar();
   }
@@ -171,6 +173,24 @@ export default function UsuariosPage() {
                 <label className={labelCls}>Responsable comercial vinculado</label>
                 <SelectorResponsable valor={nuevo.responsable} onCambio={(v) => setNuevo((f) => ({ ...f, responsable: v || '' }))} className={inputCls} />
               </div>
+              <div>
+                {/*
+                  LA FUNCIÓN NO ES EL ROL. El rol dice qué puede tocar; la
+                  función, qué trabajo le toca. Se separan porque si no, dar
+                  permisos de administrador cambiaría el reparto del trabajo,
+                  que es de los errores que solo se descubren tarde. De aquí
+                  sale a quién se le asigna una visita o un objetivo nuevo, en
+                  vez de un nombre escrito en el código.
+                */}
+                <label className={labelCls}>Función (a qué trabajo se le asigna)</label>
+                <select className={inputCls} value={nuevo.funcion}
+                  onChange={(e) => setNuevo({ ...nuevo, funcion: e.target.value })}>
+                  <option value="">— Sin definir (se supone por el rol) —</option>
+                  {(Object.keys(FUNCION_LABEL) as (keyof typeof FUNCION_LABEL)[]).map((f) => (
+                    <option key={f} value={f}>{FUNCION_LABEL[f]}</option>
+                  ))}
+                </select>
+              </div>
             </div>
             {/* Área de trabajo: qué módulos ve este usuario */}
             {nuevo.rol !== 'admin' && (
@@ -230,6 +250,17 @@ export default function UsuariosPage() {
                 {ROLES.map(([v]) => <option key={v} value={v}>{v === 'admin' ? 'Administrador' : v === 'estandar' ? 'Estándar' : 'Solo lectura'}</option>)}
               </select>
               <SelectorResponsable valor={u.responsable} onCambio={(v) => actualizar(u, { responsable: v })} />
+              <select
+                value={(u as PerfilUsuario & { funcion?: string | null }).funcion || ''}
+                onChange={(e) => actualizar(u, { funcion: e.target.value || null } as Partial<PerfilUsuario>)}
+                className="rounded-lg border border-border/40 bg-background/60 px-2 py-1.5 text-xs font-semibold"
+                title="A qué clase de trabajo se le asignan las cosas nuevas"
+              >
+                <option value="">Función sin definir</option>
+                {(Object.keys(FUNCION_LABEL) as (keyof typeof FUNCION_LABEL)[]).map((f) => (
+                  <option key={f} value={f}>{FUNCION_LABEL[f]}</option>
+                ))}
+              </select>
               <button
                 onClick={() => actualizar(u, { activo: !u.activo })}
                 className={`px-2.5 py-1 rounded-full border text-[11px] font-bold ${u.activo ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/25' : 'bg-card/80 text-muted border-border/50'}`}

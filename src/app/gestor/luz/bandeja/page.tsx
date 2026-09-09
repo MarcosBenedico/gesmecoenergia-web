@@ -1,5 +1,6 @@
 'use client';
 
+import { useEquipo, responsablesActivos } from '@/lib/equipo';
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Inbox, ArrowRight, CheckCircle2, Search, X } from 'lucide-react';
@@ -28,6 +29,7 @@ import { Card, EstadoCarga, useListaLuz } from '../ui';
  */
 
 export default function BandejaPage() {
+  const { equipo } = useEquipo();
   const { perfil } = useUsuario();
   const [verComo, setVerComo] = useState<string | null>(null);
 
@@ -255,7 +257,12 @@ export default function BandejaPage() {
               {perfil.rol === 'admin' && (
                 <>
                   {' '}Cambiar a{' '}
-                  {['Nicola', 'David', 'Marcos'].filter((n) => n !== persona).map((n) => (
+                  {/*
+                    La lista sale del equipo dado de alta, no de tres nombres
+                    escritos aquí: quien entre nuevo aparece solo, y quien se
+                    vaya deja de recibir trabajo. Ver `equipo.ts`.
+                  */}
+                  {responsablesActivos(equipo).filter((n) => n !== persona).map((n) => (
                     <button key={n} onClick={() => setVerComo(n)} className="text-accent hover:underline mx-1">{n}</button>
                   ))}
                 </>

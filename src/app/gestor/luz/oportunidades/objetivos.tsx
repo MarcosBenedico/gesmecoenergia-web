@@ -1,5 +1,6 @@
 'use client';
 
+import { useEquipo, responsableDe } from '@/lib/equipo';
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Target, Rocket, Loader, ChevronDown } from 'lucide-react';
@@ -29,6 +30,9 @@ interface Props {
 }
 
 export function Objetivos({ objetivos, onCambio }: Props) {
+  // Quién se hace cargo del objetivo sale del equipo dado de alta, no de un
+  // nombre escrito en el código. Ver `equipo.ts`.
+  const { equipo } = useEquipo();
   const [promoviendo, setPromoviendo] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [zonasCerradas, setZonasCerradas] = useState<Record<string, boolean>>({});
@@ -65,7 +69,7 @@ export function Objetivos({ objetivos, onCambio }: Props) {
 
   async function pasar(p: ProspectoGuardado) {
     setPromoviendo(p.id); setError('');
-    const r = await promoverACliente(p, { responsable: p.responsable || 'David' });
+    const r = await promoverACliente(p, { responsable: responsableDe(equipo, 'calle', p.responsable) || undefined });
     setPromoviendo(null);
     if (r.error) setError(r.error);
     if (r.cliente) onCambio();

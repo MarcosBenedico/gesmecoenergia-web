@@ -617,6 +617,41 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ tabla: stri
     }
 
     if (!id) return NextResponse.json({ error: 'Falta el id.' }, { status: 400 });
+
+    /*
+     * ═══════════════════════════════════════════════════════════════════════
+     * DOS PERSONAS EDITANDO LA MISMA FICHA
+     *
+     * Hasta ahora ganaba el último en guardar Y EL PRIMERO NO SE ENTERABA:
+     * David corrige el teléfono desde la calle, Marcos tiene la ficha abierta
+     * desde hace veinte minutos y guarda la comercializadora — y el teléfono
+     * vuelve al valor viejo sin un solo aviso. Con dos personas trabajando a
+     * la vez, una en la oficina y otra en el móvil, esto pasa.
+     *
+     * `version_leida` es el `actualizado_en` que traía la fila cuando se
+     * cargó en pantalla. Si la de la base de datos ya no es esa, alguien
+     * escribió en medio: se rechaza con 409 y se devuelve QUIÉN y CUÁNDO,
+     * para que la pantalla pueda recargar y volver a aplicar el cambio.
+     *
+     * NO ES OBLIGATORIO a propósito: quien no lo mande se comporta como
+     * siempre. Obligarlo de golpe rompería todos los formularios que ya
+     * existen y guardan un campo suelto, y un guardado que falla en la calle
+     * es peor que un choque poco probable.
+     */
+    if (body.version_leida) {
+      const { data: fila } = await supabase
+        .from(def.tabla).select('actualizado_en').eq('id', id).single();
+      const actual = fila?.actualizado_en ? String(fila.actualizado_en) : null;
+      if (actual && actual !== String(body.version_leida)) {
+        return NextResponse.json({
+          error: 'Alguien ha cambiado este registro mientras lo tenías abierto. Recarga y vuelve a aplicar tu cambio para no pisar el suyo.',
+          conflicto: true,
+          version_actual: actual,
+          version_leida: String(body.version_leida),
+        }, { status: 409 });
+      }
+    }
+
     const campos = filtrarCampos(def, body);
 
     // ── Reglas de negocio ──

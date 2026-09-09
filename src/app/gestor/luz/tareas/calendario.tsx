@@ -1,5 +1,6 @@
 'use client';
 
+import { useEquipo, responsablesActivos } from '@/lib/equipo';
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
@@ -29,6 +30,7 @@ interface CalendarioProps {
 }
 
 export function CalendarioTareas({ tareas, onMoverADia, onCompletar, onPosponer }: CalendarioProps) {
+  const { equipo } = useEquipo();
   const hoy = new Date();
   const [ancla, setAncla] = useState(new Date(hoy.getFullYear(), hoy.getMonth(), 1));
   const [seleccionada, setSeleccionada] = useState<string | null>(null);
@@ -110,9 +112,15 @@ export function CalendarioTareas({ tareas, onMoverADia, onCompletar, onPosponer 
           <button onClick={() => setAncla(new Date(hoy.getFullYear(), hoy.getMonth(), 1))} className="text-xs font-semibold text-accent hover:underline ml-1">Hoy</button>
         </div>
         <div className="flex gap-1.5 flex-wrap text-[10px]">
-          <span className={`px-2 py-0.5 rounded-full border font-semibold ${tonoResponsable('Marcos Benedico')}`}>Marcos</span>
-          <span className={`px-2 py-0.5 rounded-full border font-semibold ${tonoResponsable('David')}`}>David</span>
-          <span className={`px-2 py-0.5 rounded-full border font-semibold ${tonoResponsable('Fernando')}`}>Fernando</span>
+          {/*
+            La leyenda sale del equipo real. Estaba escrita a mano con tres
+            nombres, así que enseñaba a gente que ya no está y se dejaba fuera
+            a quien entra — y una leyenda que no coincide con los colores de la
+            rejilla es peor que no tener leyenda.
+          */}
+          {responsablesActivos(equipo).map((r) => (
+            <span key={r} className={`px-2 py-0.5 rounded-full border font-semibold ${tonoResponsable(r)}`}>{r}</span>
+          ))}
           <span className={`px-2 py-0.5 rounded-full border font-semibold ${tonoResponsable('a / b')}`}>Compartida</span>
           <span className={`px-2 py-0.5 rounded-full border font-semibold ${tonoResponsable(null)}`}>Sin asignar</span>
         </div>

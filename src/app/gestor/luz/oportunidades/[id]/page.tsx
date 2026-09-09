@@ -1,5 +1,6 @@
 'use client';
 
+import { useEquipo, responsableDe } from '@/lib/equipo';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
@@ -25,6 +26,9 @@ import { promoverACliente, nombreSugerido } from '../promover';
  */
 
 export default function FichaObjetivoPage() {
+  // Quién se hace cargo del objetivo sale del equipo dado de alta, no de un
+  // nombre escrito en el código. Ver `equipo.ts`.
+  const { equipo } = useEquipo();
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const lista = useListaLuz<ProspectoGuardado>('prospectos');
@@ -100,7 +104,7 @@ export default function FichaObjetivoPage() {
   async function pasarAlSistema() {
     if (!p) return;
     setPromoviendo(true); setError(''); setMensaje('');
-    const r = await promoverACliente(p, { responsable: p.responsable || 'David' });
+    const r = await promoverACliente(p, { responsable: responsableDe(equipo, 'calle', p.responsable) || undefined });
     setPromoviendo(false);
     if (r.error) { setError(r.error); if (!r.cliente) return; }
     setMensaje('Ficha de cliente creada, oportunidad en el pipeline y visita en la agenda de David.');

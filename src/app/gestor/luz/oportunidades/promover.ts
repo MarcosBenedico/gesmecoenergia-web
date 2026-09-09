@@ -62,7 +62,13 @@ export async function promoverACliente(
   const salida: ResultadoPromocion = { error: null, cliente: false, pipeline: false, tarea: false };
 
   const nombre = (opciones.nombre || nombreSugerido(p)).trim();
-  const responsable = opciones.responsable || 'David';
+  /*
+   * SIN RESPONSABLE SE QUEDA SIN RESPONSABLE, y no con un nombre escrito aquí.
+   * Un objetivo asignado por defecto a una persona concreta le crea trabajo
+   * pase lo que pase con el equipo; sin asignar sale como excepción en Control
+   * de cartera y alguien lo reparte, que es lo que tiene que ocurrir.
+   */
+  const responsable = opciones.responsable?.trim() || null;
 
   const observaciones = [
     'Objetivo del mapa de oportunidades. Visto desde el aire, sin verificar sobre el terreno.',
