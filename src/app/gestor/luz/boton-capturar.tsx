@@ -19,10 +19,31 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import Link from 'next/link';
-import { Plus, Zap, UserPlus, X } from 'lucide-react';
+import { Plus, Zap, UserPlus, MapPin, X } from 'lucide-react';
+import { useUsuario } from '@/lib/usuario';
+import { VisitaRapida } from './visita-rapida';
 
 const OPCIONES = [
+  /*
+   * «REGISTRAR VISITA» VA LA PRIMERA, y no es un capricho de orden.
+   *
+   * La auditoría midió CERO visitas registradas en 30 días. La hoja para
+   * hacerlo existía y estaba bien hecha, pero solo se llegaba desde Mi Día >
+   * Por zona y exigía que el cliente estuviera YA en la ruta del día — o sea,
+   * que era imposible apuntar la mitad de las visitas reales, las que salen
+   * de pasar por delante.
+   *
+   * Es además el dato que más cosas desbloquea: mueve el embudo, programa la
+   * siguiente pasada y, si el cliente da la factura, arranca el estudio.
+   */
+  {
+    accion: 'visita' as const,
+    icono: MapPin,
+    titulo: 'Registrar visita',
+    pista: 'Cuatro botones, sin escribir nada',
+  },
   {
     href: '/gestor/luz/captura',
     icono: Zap,
@@ -39,6 +60,8 @@ const OPCIONES = [
 
 export function BotonCapturar() {
   const [abierto, setAbierto] = useState(false);
+  const [visitando, setVisitando] = useState(false);
+  const { perfil } = useUsuario();
   const caja = useRef<HTMLDivElement>(null);
 
   // Cerrar al tocar fuera y con Escape: un menú flotante que se queda abierto
@@ -59,22 +82,59 @@ export function BotonCapturar() {
 
   return (
     <div ref={caja} className="fixed bottom-5 right-5 z-40 flex flex-col items-end gap-2">
+      {/*
+        LA HOJA SALE POR PORTAL A `body`, no aquí dentro.
+
+        Este contenedor es `fixed z-40`, y eso crea un contexto de apilado: todo
+        lo que se pinte dentro queda encajonado en el nivel 40 por muy alto que
+        sea su propio z-index. La hoja de la visita acabaría por debajo de la
+        cabecera pegajosa y del panel del móvil — y se vería como una hoja a
+        medio tapar, que es de los fallos que solo aparecen en el teléfono y
+        justo cuando hace falta. Es el mismo patrón que ya usa el menú móvil.
+      */}
+      {visitando && typeof document !== 'undefined'
+        ? createPortal(
+          <VisitaRapida
+            responsable={perfil?.responsable || perfil?.nombre || null}
+            onCerrar={() => setVisitando(false)}
+          />,
+          document.body,
+        )
+        : null}
+
       {abierto && (
-        <div className="rounded-2xl border border-border/60 bg-card shadow-2xl overflow-hidden w-[15.5rem]">
-          {OPCIONES.map(({ href, icono: Icono, titulo, pista }) => (
-            <Link
-              key={href}
-              href={href}
-              onClick={() => setAbierto(false)}
-              className="flex items-start gap-3 px-3.5 py-3 hover:bg-accent/10 transition border-b border-border/40 last:border-0"
-            >
-              <Icono className="w-4 h-4 text-accent shrink-0 mt-0.5" />
-              <span className="min-w-0">
-                <span className="block text-sm font-bold text-foreground leading-tight">{titulo}</span>
-                <span className="block text-[11px] text-muted leading-snug">{pista}</span>
-              </span>
-            </Link>
-          ))}
+        <div className="rounded-2xl border border-border/60 bg-card shadow-2xl overflow-hidden w-[16.5rem]">
+          {OPCIONES.map((o) => {
+            const Icono = o.icono;
+            const contenido = (
+              <>
+                <Icono className="w-4 h-4 text-accent shrink-0 mt-0.5" />
+                <span className="min-w-0">
+                  <span className="block text-sm font-bold text-foreground leading-tight">{o.titulo}</span>
+                  <span className="block text-[11px] text-muted leading-snug">{o.pista}</span>
+                </span>
+              </>
+            );
+            // 48 px de alto mínimo: esto se toca de pie y con una mano.
+            const clase = 'w-full min-h-12 flex items-start gap-3 px-3.5 py-3 text-left hover:bg-accent/10 transition border-b border-border/40 last:border-0';
+
+            // La visita abre una hoja aquí mismo; las otras dos navegan. Si la
+            // visita también navegara, se perdería la pantalla que se estaba
+            // mirando — y eso es la mitad del motivo de que no se registraran.
+            return o.accion === 'visita' ? (
+              <button
+                key={o.titulo}
+                onClick={() => { setAbierto(false); setVisitando(true); }}
+                className={clase}
+              >
+                {contenido}
+              </button>
+            ) : (
+              <Link key={o.href} href={o.href!} onClick={() => setAbierto(false)} className={clase}>
+                {contenido}
+              </Link>
+            );
+          })}
         </div>
       )}
 

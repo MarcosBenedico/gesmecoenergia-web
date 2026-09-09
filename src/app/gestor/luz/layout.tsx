@@ -6,40 +6,55 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard, Users, Plug, Target, FileSignature,
-  Euro, ArrowDownUp, Settings, ChevronLeft, ChevronDown, Zap, UserCog, ShieldCheck, Route, History, Sun, Radar, Inbox, BookOpen, Calculator, FileText, TrendingUp, Trash2, Activity, ClipboardList, Wand2, Sparkles, Leaf, Menu, X,
+  Euro, ArrowDownUp, Settings, ChevronLeft, ChevronDown, Zap, UserCog, ShieldCheck, Route, History, Sun, Radar, Inbox, BookOpen, Calculator, FileText, TrendingUp, Trash2, ClipboardList, Wand2, Sparkles, Leaf, Menu, X,
 } from 'lucide-react';
 import { GuardiaModulo } from '@/components/guardia-modulo';
 import { useUsuario } from '@/lib/usuario';
 import { BotonCapturar } from './boton-capturar';
 
 /**
- * Menú por RESPONSABILIDAD, según el plan de optimización (GL-02).
+ * EL MENÚ, ORGANIZADO POR MOMENTO DEL DÍA Y POR PERSONA.
  *
- *  · Inicio     — qué hay que decidir hoy.
- *  · Trabajo    — lo mío de hoy y lo que está bloqueado.
- *  · Cartera    — quién es cada uno y qué suministros tiene.
- *  · Comercial  — vender y hacer seguimiento.
- *  · Operación  — firma, envío, validación y activación.
- *  · Control    — cobro, rendimiento y trazabilidad. Nace plegado.
- *  · Herramientas y Ajustes — de usar cuando toca. Nacen plegados.
+ *  · Inicio       — qué decido hoy, y con qué lo desatasco.
+ *  · La calle     — a dónde voy (David).
+ *  · Oficina      — meter lo que falta y desatascar (Nicola).
+ *  · Comercial    — vender y seguir.
+ *  · Operación    — firma, envío y activación.
+ *  · Control · Herramientas · Ajustes — nacen plegados.
  *
- * OCHO DESTINOS VISIBLES, QUE ES EL TOPE QUE FIJA EL PLAN. Antes había 26 en
- * cinco bloques, y la auditoría enseñaba por qué sobraban: el 73 % del trabajo
- * real cae en clientes y tareas, y había pantallas con cero uso ocupando sitio
- * en el menú de quien más prisa tiene.
+ * ─────────────────────────────────────────────────────────────────────────
+ * LA LIMPIEZA DE SEPTIEMBRE DE 2026, Y POR QUÉ
  *
- * Nada desaparece: lo que no se abre a diario baja a un bloque plegado. Una
- * entrada de menú que nadie usa no cuesta servidor, cuesta atención, y la paga
- * cada día quien sí tiene trabajo.
+ * La auditoría del CRM midió el uso real contra la base de producción y
+ * encontró lo contrario de lo que se buscaba: no sobraban funciones, faltaba
+ * ALIMENTACIÓN. Tres semanas sin datos nuevos, 90 oportunidades abiertas y
+ * las 90 paradas, 223 de 306 clientes sin teléfono. De ahí salen los cambios:
  *
- * DOS DESVIACIONES DEL PLAN, Y SU MOTIVO. El documento está escrito para
- * Dirección, y aplicarlo al pie de la letra le arreglaría el menú a Marcos
- * rompiéndoselo a los otros dos:
- *  · «Rutas de visitas» se queda visible aunque sume un noveno destino para
- *    quien no es comercial: es la herramienta diaria de David.
- *  · «Captura rápida» y «Alta guiada» salen del menú pero NO se esconden en un
- *    plegable: pasan al botón global «+ Capturar», que es lo que pide el plan
- *    y además las deja a un toque para Nicola y para David.
+ *  · FUERA DEL MENÚ (las rutas siguen vivas): Proyectos de ahorro y Precio de
+ *    la luz, que no deciden nada; y Consumo real, que no puede funcionar hasta
+ *    que un titular autorice el NIF en datadis.es.
+ *  · BAJA a Control: Control de cartera, que contestaba una pregunta del mismo
+ *    momento y de la misma persona que el Dashboard.
+ *  · SUBEN a la vista: Rellenar en tanda —la herramienta que arregla justo el
+ *    problema del mes y estaba enterrada— y el Mapa de oportunidades, que es
+ *    la otra mitad de Rutas y vivía en otro bloque plegado.
+ *  · Automatizaciones pasa a Inicio: con 90 oportunidades paradas, es la
+ *    palanca de reactivación, no una herramienta de consultar.
+ *
+ * De 27 entradas a 24, y sobre todo con las diez visibles ordenadas por el
+ * momento en que se abren.
+ *
+ * ─────────────────────────────────────────────────────────────────────────
+ * LA REGLA AL AÑADIR ALGO
+ *
+ * Si no se abre casi todos los días, va a un bloque plegado. Y si no puede
+ * funcionar hasta que pase algo fuera del sistema, no va al menú hasta que
+ * pase. Una entrada que nadie usa no cuesta servidor: cuesta atención, y la
+ * paga cada día quien sí tiene trabajo.
+ *
+ * «Captura rápida», «Alta guiada» y «Registrar visita» NO están en el menú a
+ * propósito: viven en el botón global «+ Capturar», porque meter un dato es
+ * algo que se hace EN MEDIO de otra cosa.
  *
  * Cada uno pliega los bloques que no son suyos y su elección se recuerda.
  */
@@ -53,33 +68,60 @@ const BLOQUES: Bloque[] = [
     pista: 'Qué hay que decidir hoy',
     secciones: [
       { href: '/gestor/luz', icono: LayoutDashboard, nombre: 'Dashboard' },
-      // Va junto al Dashboard porque contestan preguntas distintas del mismo
-      // momento: aquel dice qué decidir hoy, este dónde se escapa el control.
-      { href: '/gestor/luz/control-cartera', icono: ShieldCheck, nombre: 'Control de cartera', soloAdmin: true },
+      /*
+       * CONTROL DE CARTERA SALE DEL MENÚ y se enlaza desde el Dashboard.
+       *
+       * Contestan preguntas distintas del MISMO momento y son de la MISMA
+       * persona: «qué decido hoy» y «dónde se escapa el control». Dos entradas
+       * de menú para eso obligan a elegir cuál abrir antes del café, y esa
+       * elección se resuelve siempre igual — no abriendo ninguna.
+       *
+       * En su hueco entran las Automatizaciones, que con 90 oportunidades
+       * paradas y 89 tareas vencidas son la palanca para reactivar la cartera.
+       * Estaban enterradas en Herramientas, que es donde no se miran.
+       */
+      { href: '/gestor/luz/automatismos', icono: Sparkles, nombre: 'Automatizaciones', soloAdmin: true },
     ],
   },
   {
     id: 'trabajo',
-    titulo: 'Trabajo',
-    pista: 'Lo mío de hoy y lo que está bloqueado',
+    titulo: 'La calle',
+    pista: 'A dónde voy y qué me llevo hecho',
     secciones: [
       // Mi Día se comió la Agenda: eran la misma lista con otro recorte, y
       // tener las dos en el menú era lo que hacía que se mezclaran.
       { href: '/gestor/luz/mi-dia', icono: Sun, nombre: 'Mi Día' },
-      { href: '/gestor/luz/bandeja', icono: Inbox, nombre: 'Bandeja' },
-      // Rutas se queda visible aunque el plan liste ocho destinos pensando en
-      // Dirección: es la herramienta diaria de David, y esconderla en un
-      // plegable le costaría a él lo que el plan quiere ahorrarle a Marcos.
       { href: '/gestor/luz/rutas', icono: Route, nombre: 'Rutas de visitas' },
+      /*
+       * EL MAPA SUBE AQUÍ, desde el bloque Control donde estaba plegado.
+       *
+       * Rutas y el Mapa son las dos mitades de la misma decisión —a dónde voy
+       * y a quién más aprovecho— y estaban en bloques distintos, uno visible y
+       * otro escondido. Con 719 prospectos sin trabajar y 259 ya marcados
+       * «para visitar», tenerlo detrás de un plegable era garantizar que no se
+       * usara.
+       */
+      { href: '/gestor/luz/oportunidades', icono: Radar, nombre: 'Mapa de oportunidades', soloAdmin: true },
     ],
   },
   {
     id: 'cartera',
-    titulo: 'Cartera',
-    pista: 'Quién es cada uno y qué suministros tiene',
+    titulo: 'Oficina',
+    pista: 'Meter lo que falta y desatascar',
     secciones: [
+      { href: '/gestor/luz/bandeja', icono: Inbox, nombre: 'Bandeja' },
       { href: '/gestor/luz/clientes', icono: Users, nombre: 'Clientes' },
       { href: '/gestor/luz/cups', icono: Plug, nombre: 'Suministros' },
+      /*
+       * RELLENAR EN TANDA SUBE A LA VISTA.
+       *
+       * Es la pantalla más infravalorada del sistema: con 223 clientes sin
+       * teléfono y 89 suministros sin fecha de fin de contrato, es exactamente
+       * la herramienta que hace falta, y estaba en un bloque plegado junto a
+       * la calculadora fotovoltaica. Una herramienta que resuelve el problema
+       * del mes no puede estar donde se guarda lo que se usa dos veces al año.
+       */
+      { href: '/gestor/luz/rellenar', icono: Wand2, nombre: 'Rellenar en tanda' },
     ],
   },
   {
@@ -113,11 +155,21 @@ const BLOQUES: Bloque[] = [
     plegadoPorDefecto: true,
     secciones: [
       { href: '/gestor/luz/comisiones', icono: Euro, nombre: 'Comisiones' },
+      { href: '/gestor/luz/control-cartera', icono: ShieldCheck, nombre: 'Control de cartera', soloAdmin: true },
       { href: '/gestor/luz/parte', icono: ClipboardList, nombre: 'Parte del día', soloAdmin: true },
-      { href: '/gestor/luz/consumo', icono: Activity, nombre: 'Consumo real', soloAdmin: true },
       { href: '/gestor/luz/equipo', icono: UserCog, nombre: 'Equipo y logros' },
-      { href: '/gestor/luz/oportunidades', icono: Radar, nombre: 'Mapa de oportunidades', soloAdmin: true },
       { href: '/gestor/luz/importar', icono: ArrowDownUp, nombre: 'Importación / Exportación' },
+      /*
+       * CONSUMO REAL (Datadis) SALE DEL MENÚ.
+       *
+       * Cero consultas y cero filas guardadas desde que existe, y no es un
+       * fallo de la pantalla: Datadis exige que CADA TITULAR autorice el NIF
+       * de Gesmeco en datadis.es, y esa autorización no se ha pedido nunca.
+       * Una entrada que no puede funcionar hasta que pase algo fuera del
+       * sistema no debe ocupar sitio: la ruta sigue viva en
+       * /gestor/luz/consumo y vuelve al menú el día que haya un cliente
+       * autorizado — que entonces vale mucho.
+       */
     ],
   },
   {
@@ -128,16 +180,19 @@ const BLOQUES: Bloque[] = [
     secciones: [
       { href: '/gestor/luz/fv', icono: Calculator, nombre: 'Calculadora FV', soloAdmin: true },
       { href: '/gestor/luz/tarifas', icono: TrendingUp, nombre: 'Tarifas y comparador', soloAdmin: true },
-      { href: '/gestor/luz/proyectos', icono: FileText, nombre: 'Proyectos de ahorro', soloAdmin: true },
-      // El plan la baja a herramienta secundaria: es para consultar, no un
-      // destino al que se va a trabajar.
-      { href: '/gestor/luz/mercado', icono: TrendingUp, nombre: 'Precio de la luz', soloAdmin: true },
-      // Pendiente de GL-10: el plan pide que sea una acción masiva dentro de
-      // Clientes, CUPS y Contratos, no una pantalla propia.
-      { href: '/gestor/luz/rellenar', icono: Wand2, nombre: 'Rellenar en tanda' },
-      // Se mira de vez en cuando, no cada día: por la regla del menú, aquí.
-      { href: '/gestor/luz/automatismos', icono: Sparkles, nombre: 'Automatizaciones', soloAdmin: true },
       { href: '/gestor/luz/guia', icono: BookOpen, nombre: 'Guía rápida' },
+      /*
+       * FUERA DEL MENÚ, y las dos por el mismo motivo: no deciden nada.
+       *
+       * · PROYECTOS DE AHORRO: cero registros desde que existe. Era una tabla
+       *   genérica (título + JSON libre) sin estados ni conexiones. Lo que
+       *   pretendía hacer lo hacen ahora Estudios (la comparativa) y
+       *   Actuaciones (las mejoras técnicas), las dos con estructura de verdad.
+       * · PRECIO DE LA LUZ: información pública que no lee ni escribe ningún
+       *   dato del CRM. Se consulta mejor en su fuente.
+       *
+       * Las rutas siguen vivas; lo que se retira es el sitio en el menú.
+       */
     ],
   },
   {
