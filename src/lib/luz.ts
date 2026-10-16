@@ -315,6 +315,15 @@ export interface LuzCliente {
   proxima_accion: string | null;
   /** Ruta de la foto del sitio en el bucket privado. Se firma al mostrarla. */
   foto_path?: string | null;
+  /**
+   * Foco del día (`supabase_foco_dia.sql`). Opcionales: sin el SQL ejecutado
+   * no existen, y `foco-dia.ts` trata «no existe» como seguimiento activo.
+   * La lógica entera vive ahí; aquí solo están declarados.
+   */
+  seguimiento_activo?: boolean | null;
+  pausado_hasta?: string | null;
+  motivo_pausa?: string | null;
+  fijado_para?: string | null;
   creado_en?: string;
   actualizado_en?: string;
 }

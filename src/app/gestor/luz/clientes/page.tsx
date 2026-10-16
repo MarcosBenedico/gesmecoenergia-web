@@ -16,6 +16,8 @@ import {
 } from '../ui';
 import { CLASIFICACIONES, defDe, ES_CLASIFICACION } from '@/lib/clasificacion';
 import { PedirMotivo } from '../motivo';
+import { BotonesFoco, EtiquetaPausa } from '../foco';
+import { estaPausado, estaFijadoPara, type ClienteFoco } from '@/lib/foco-dia';
 import { MOTIVOS_ELIMINACION } from '@/lib/luz';
 import { etapaDeCliente, ultimoMovimiento, diasEntre, ETAPA, type Etapa } from '@/lib/seguimiento';
 import { tokenSesion, useUsuario } from '@/lib/usuario';
@@ -240,6 +242,12 @@ function ClientesLuzContenido() {
     if (f.especial === 'a_sin_seguimiento' && !(c.prioridad === 'A' && !c.proxima_accion)) return false;
     // La cola de trabajo de Nicola: a quién hay que completarle datos antes de poder ofertar
     if (f.especial === 'incompletos' && !evaluarCliente(c, cupsPorCliente.get(c.id) || []).bloqueado) return false;
+    // El foco: quién está apartado del seguimiento y quién está fijado. Ojo
+    // al defecto — con '' salen TODOS, apartados incluidos y marcados. Que
+    // desaparecieran solos haría una cartera fantasma que nadie revisa.
+    if (f.foco === 'apartados' && !estaPausado(c as ClienteFoco)) return false;
+    if (f.foco === 'siguiendo' && estaPausado(c as ClienteFoco)) return false;
+    if (f.foco === 'fijados' && !(c as ClienteFoco).fijado_para) return false;
     if (f.via && (c.via_entrada || 'captacion') !== f.via) return false;
     if (f.zona) {
       const z = zonaDeParada(c.direccion_fiscal, null, c.zona);
@@ -288,6 +296,13 @@ function ClientesLuzContenido() {
         return (
           <>
             <Link href={`/gestor/luz/clientes/${c.id}`} className="font-semibold hover:text-accent transition">{c.nombre}</Link>
+            {/* Apartado y fijado se ven JUNTO AL NOMBRE y no solo en su
+                columna: quien mira la lista tiene que saber por qué ese
+                cliente no le sale en Mi Día sin encender nada. */}
+            {estaFijadoPara(c as ClienteFoco, perfil?.responsable ?? null) && (
+              <span className="ml-1.5 text-[10px] font-black text-accent uppercase">📌 fijado</span>
+            )}
+            <EtiquetaPausa cliente={c as ClienteFoco} />
             <span className="block text-[10px] text-muted">{VIA_ENTRADA_CORTA[c.via_entrada || 'captacion']}</span>
             {c.nif && <span className="block text-[10px] font-mono text-muted">{c.nif}</span>}
           </>
@@ -319,6 +334,17 @@ function ClientesLuzContenido() {
           </span>
         );
       }
+      case 'foco':
+        return (
+          <span className="flex items-center gap-1 whitespace-nowrap">
+            <BotonesFoco
+              cliente={c as ClienteFoco}
+              persona={perfil?.responsable ?? null}
+              onHecho={() => clientes.recargar()}
+              compacto
+            />
+          </span>
+        );
       case 'tipo':
         return <Badge>{TIPO_CLIENTE_LABEL[c.tipo_cliente] || c.tipo_cliente}</Badge>;
       case 'cups':
@@ -596,6 +622,10 @@ function ClientesLuzContenido() {
             <button key={v} onClick={() => setF('especial')(v)} className={`px-2.5 py-1.5 rounded-lg font-semibold ${filtros.especial === v ? 'bg-accent text-white' : 'bg-card/80 text-muted border border-border/50'}`}>{n}</button>
           ))}
           <span className="w-px h-5 bg-border/50 mx-1" />
+          {[['', 'Foco: todos'], ['siguiendo', '▶️ En seguimiento'], ['apartados', '⏸️ Apartados'], ['fijados', '📌 Fijados']].map(([v, n]) => (
+            <button key={`foco-${v}`} onClick={() => setF('foco')(v)} className={`px-2.5 py-1.5 rounded-lg font-semibold ${filtros.foco === v ? 'bg-accent text-white' : 'bg-card/80 text-muted border border-border/50'}`}>{n}</button>
+          ))}
+          <span className="w-px h-5 bg-border/50 mx-1" />
           {[['', 'Vía: todas'], ['facturas', '📄 Con facturas (estudio)'], ['captacion', '🧲 Captación (seguimiento)']].map(([v, n]) => (
             <button key={`via-${v}`} onClick={() => setF('via')(v)} className={`px-2.5 py-1.5 rounded-lg font-semibold ${filtros.via === v ? 'bg-accent text-white' : 'bg-card/80 text-muted border border-border/50'}`}>{n}</button>
           ))}
@@ -622,7 +652,9 @@ function ClientesLuzContenido() {
             </thead>
             <tbody>
               {filtrados.map((c) => (
-                <tr key={c.id} className="border-b border-border/20 hover:bg-card/50 transition">
+                <tr key={c.id} className={`border-b border-border/20 hover:bg-card/50 transition ${
+                  estaPausado(c as ClienteFoco) ? 'opacity-60' : ''
+                }`}>
                   {COLUMNAS_CLIENTE.filter((x) => ve(x.clave)).map((x) => (
                     <td key={x.clave}
                       className={`px-3 py-2 ${x.clave === 'cups' ? 'text-center' : ''}${x.clave === 'consumo' ? 'text-right' : ''}`}>

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { Sun, AlertTriangle, Check, Target, ArrowRight, Flame, MapPin, CalendarDays, ChevronDown } from 'lucide-react';
+import { Sun, AlertTriangle, Check, Target, ArrowRight, Flame, MapPin, CalendarDays, ChevronDown, Pin, PauseCircle } from 'lucide-react';
 import {
   LuzCliente, LuzCups, LuzFechaCritica, LuzOportunidad, LuzTarea, LuzVisita,
   PIPELINE_CERRADO, diasHasta, fmtFecha,
@@ -26,6 +26,8 @@ import { VistaCalle } from '../agenda/calle';
 import { CalendarioAgenda } from '../agenda/calendario';
 import { PanelAplazar } from '../agenda/aplazar';
 import { ProspectoGuardado } from '@/lib/prospeccion';
+import { partirAgendaPorPausa, fijadosDe, pausaDe, type ClienteFoco } from '@/lib/foco-dia';
+import { BotonesFoco, EtiquetaPausa } from '../foco';
 
 /**
  * MI DÍA — la única pantalla de trabajo de David.
@@ -154,9 +156,14 @@ export default function MiDiaPage() {
     if (!persona) return null;
 
     // Misma fuente que la Agenda: tareas + vencimientos calculados del CUPS + fechas manuales
-    const todo = construirAgenda({
+    const suyo = construirAgenda({
       tareas: tareas.datos, cups: cups.datos, fechas: fechas.datos, pipeline: pipeline.datos,
     }).filter((i) => esDe(i.responsable, persona));
+
+    // Fuera lo de los clientes apartados a propósito. No se borra: baja a su
+    // plegable con la cuenta. Un cliente que se salta todas las mañanas
+    // enseña a saltarse la lista, y entonces también se saltan los que sí.
+    const { activo: todo, pausado: enPausa } = partirAgendaPorPausa(suyo, clientes.datos);
 
     // Atrasado y de hoy van juntos: para quien está en la calle es lo mismo.
     // Pero lo que arrastra mucho retraso se aparta, o el número de arriba deja
@@ -180,7 +187,10 @@ export default function MiDiaPage() {
     const paradas = miPipe.filter((o) => !o.proxima_accion || (diasHasta(o.fecha_proxima_accion) ?? 1) < 0);
 
     return {
-      hoy, aparcado, manana, despues, sinFecha, hechasHoy,
+      hoy, aparcado, manana, despues, sinFecha, hechasHoy, enPausa,
+      // Los que esta persona ha decidido mirar hoy, tengan fecha o no. Es la
+      // decisión que antes acababa en un papel y se perdía.
+      fijados: fijadosDe(clientes.datos as ClienteFoco[], persona),
       atrasadas: hoy.filter((i) => (i.dias ?? 0) < 0).length,
       clientesA: hoy.filter((i) => i.prioridad === 'A').length,
       paradas,
@@ -223,10 +233,14 @@ export default function MiDiaPage() {
   // este mismo conjunto partido por días.
   const mios = useMemo(() => {
     if (!persona) return [] as ItemAgenda[];
-    return construirAgenda({
+    const suyo = construirAgenda({
       tareas: tareas.datos, cups: cups.datos, fechas: fechas.datos, pipeline: pipeline.datos,
     }).filter((i) => esDe(i.responsable, persona));
-  }, [persona, tareas.datos, cups.datos, fechas.datos, pipeline.datos]);
+    // Mismo recorte que en Hoy: si la zona y el calendario siguieran trayendo
+    // a los apartados, apartarlos no serviría de nada en cuanto se cambia de
+    // vista, que es donde se monta la ruta.
+    return partirAgendaPorPausa(suyo, clientes.datos).activo;
+  }, [persona, tareas.datos, cups.datos, fechas.datos, pipeline.datos, clientes.datos]);
 
   // Puertas de hoy: visitas registradas con fecha de hoy. Es el único número que
   // mide lo que de verdad depende de David, y por eso va arriba de la vista de zona.
@@ -413,6 +427,10 @@ export default function MiDiaPage() {
             >
               ✅ Ya he ido
             </button>
+            {/* Apartar y fijar se hacen DESDE LA LÍNEA que molesta, no en otra
+                pantalla: quien ve el nombre por quinta mañana es quien sabe
+                que ese no toca, y si hay que ir a buscar la ficha no se hace. */}
+            <BotonesFoco cliente={ficha as ClienteFoco} persona={persona} onHecho={() => clientes.recargar()} compacto />
           </div>
         )}
       </div>
@@ -572,6 +590,49 @@ export default function MiDiaPage() {
             );
           })()}
 
+          {/* ── FIJADOS ──────────────────────────────────────────────────
+              Lo que una persona ha decidido mirar hoy, tenga fecha o no.
+              Va ARRIBA del todo y por encima de la lista por fechas: es una
+              decisión tomada esta mañana, y el sistema no la puede deducir
+              de ningún campo. Antes acababa en un papel y se perdía. */}
+          {dia.fijados.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs font-black uppercase tracking-[0.15em] text-accent flex items-center gap-1.5">
+                <Pin className="w-3.5 h-3.5" /> Fijados por ti ({dia.fijados.length})
+              </p>
+              <div className="space-y-2">
+                {dia.fijados.map((c) => (
+                  <div key={c.id} className={`fv-fade-in rounded-xl bg-card/60 ${BANDA[c.prioridad] || BANDA.C} p-3`}>
+                    <div className="flex items-center gap-3">
+                      <FotoSitio path={c.foto_path} alt={c.nombre} className="h-14 w-14" />
+                      <Link href={`/gestor/luz/clientes/${c.id}`} className="min-w-0 flex-1">
+                        <p className="text-[17px] font-black text-foreground leading-tight truncate">{c.nombre}</p>
+                        <p className="text-[13px] font-semibold text-accent leading-snug">
+                          {c.proxima_accion || 'Lo pusiste tú para hoy'}
+                        </p>
+                      </Link>
+                    </div>
+                    <div className="mt-2 pt-2 border-t border-border/25 flex flex-wrap items-center gap-2">
+                      <AccionesContacto
+                        telefono={c.telefono}
+                        ubicacion={dondeEsta.get(c.id) || c.direccion_fiscal}
+                        nombre={c.nombre}
+                      />
+                      <BotonRuta cliente={c} />
+                      <button
+                        onClick={() => setVisitando({ id: c.id, nombre: c.nombre, responsable: c.responsable })}
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-accent/50 bg-accent/15 text-accent text-[11px] font-bold hover:bg-accent/25 transition"
+                      >
+                        ✅ Ya he ido
+                      </button>
+                      <BotonesFoco cliente={c} persona={persona} onHecho={() => clientes.recargar()} compacto />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* HOY */}
           {dia.hoy.length > 0 && (
             <div className="space-y-2">
@@ -670,6 +731,38 @@ export default function MiDiaPage() {
               onToggle={() => setPieAbierto(pieAbierto === 'marcha' ? null : 'marcha')}
             >
               <ClientesEnMarcha clientes={dia.misClientes} pipeline={pipeline.datos} />
+            </Plegable>
+
+            {/* ── APARTADOS ─────────────────────────────────────────────
+                Lo de los clientes que alguien ha sacado del seguimiento a
+                propósito. Se enseña la cuenta y se puede abrir: una lista
+                que esconde del todo lo apartado acaba siendo una cartera
+                fantasma que nadie revisa nunca. */}
+            <Plegable
+              titulo="De clientes apartados"
+              cuenta={dia.enPausa.length}
+              abierto={pieAbierto === 'pausa'}
+              onToggle={() => setPieAbierto(pieAbierto === 'pausa' ? null : 'pausa')}
+            >
+              <p className="text-[11px] text-muted pb-1">
+                No cuenta para hoy. Vuelve solo cuando se cumpla el plazo de cada uno.
+              </p>
+              {dia.enPausa.map((i) => {
+                const f = i.clienteId ? fichaCliente.get(i.clienteId) : null;
+                return (
+                  <div key={i.clave} className="rounded-xl bg-card/40 p-2.5 flex items-center gap-2 opacity-80">
+                    <PauseCircle className="w-4 h-4 text-amber-300 shrink-0" />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-bold text-foreground truncate">{i.clienteNombre || i.titulo}</p>
+                      <p className="text-[11px] text-muted truncate">
+                        {f ? (pausaDe(f as ClienteFoco).motivo || i.titulo) : i.titulo}
+                      </p>
+                    </div>
+                    {f && <EtiquetaPausa cliente={f as ClienteFoco} />}
+                    {f && <BotonesFoco cliente={f as ClienteFoco} persona={persona} onHecho={() => clientes.recargar()} compacto />}
+                  </div>
+                );
+              })}
             </Plegable>
 
             {/* Las paradas llevan al pipeline, así que no se pliegan: es un salto. */}

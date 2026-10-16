@@ -66,6 +66,9 @@ export const COLUMNAS_CLIENTE: Columna[] = [
   // duplicaba el dato en pantalla y lo dejaba oculto por defecto justo cuando
   // se busca a alguien por él.
   { clave: 'telefono', titulo: 'Teléfono', porDefecto: false, pista: 'Para llamar sin abrir la ficha' },
+  // El foco va al final y encendido: es desde donde se hace la limpieza de la
+  // cartera, y una columna de acciones escondida no la enciende nadie.
+  { clave: 'foco', titulo: 'Foco', porDefecto: true, pista: 'Apartar del seguimiento o fijar en tu día' },
   { clave: 'alta', titulo: 'Alta', porDefecto: true },
 ];
 
@@ -125,13 +128,21 @@ export interface FiltrosCliente {
   via: string;
   /** Los atajos de una línea: sin acción, A sin seguimiento, incompletos. */
   especial: string;
+  /**
+   * Foco del día: '' todos · 'siguiendo' · 'apartados' · 'fijados'.
+   *
+   * Por defecto NO esconde a los apartados. Esconderlos de serie haría que la
+   * cartera apartada se volviera invisible, y a los seis meses nadie sabría
+   * cuánta hay ni por qué: se marcan en la fila y se filtran a propósito.
+   */
+  foco: string;
   desde: string;
   hasta: string;
 }
 
 export const FILTROS_VACIOS: FiltrosCliente = {
   clasificacion: '', estado: '', prioridad: '', tipo: '', responsable: '',
-  zona: '', seguimiento: '', via: '', especial: '', desde: '', hasta: '',
+  zona: '', seguimiento: '', via: '', especial: '', foco: '', desde: '', hasta: '',
 };
 
 /** Cuántos filtros hay puestos. Se enseña para poder quitarlos de una vez. */
@@ -194,6 +205,10 @@ export const VISTAS_DE_FABRICA: Vista[] = [
     ['prioridad', 'completitud', 'cups', 'telefono', 'responsable']),
   vista('sin_responsable', 'Sin responsable', { responsable: '—sin—' },
     ['prioridad', 'clasificacion', 'estado', 'zona', 'accion']),
+  // La lista de la limpieza: a quién se apartó, por qué y hasta cuándo. Sin
+  // una vista que la saque de un clic, la cartera apartada no la revisa nadie.
+  vista('apartados', 'Apartados del seguimiento', { foco: 'apartados' },
+    ['prioridad', 'clasificacion', 'estado', 'responsable', 'foco']),
 ];
 
 /** Valor reservado del filtro de responsable para «no tiene ninguno». */

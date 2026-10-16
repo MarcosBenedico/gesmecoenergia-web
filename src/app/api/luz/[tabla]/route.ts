@@ -39,8 +39,8 @@ const TABLAS: Record<string, DefTabla> = {
   clientes: {
     tabla: 'luz_clientes',
     select: '*',
-    columnas: ['nombre', 'nif', 'tipo_cliente', 'persona_contacto', 'telefono', 'email', 'direccion_fiscal', 'responsable', 'prioridad', 'estado_comercial', 'clasificacion', 'potencial_comercial', 'origen_cliente', 'via_entrada', 'zona', 'observaciones', 'fecha_ultimo_contacto', 'fecha_proxima_accion', 'proxima_accion', 'foto_path'],
-    filtros: ['tipo_cliente', 'responsable', 'prioridad', 'estado_comercial', 'clasificacion', 'via_entrada', 'zona'],
+    columnas: ['nombre', 'nif', 'tipo_cliente', 'persona_contacto', 'telefono', 'email', 'direccion_fiscal', 'responsable', 'prioridad', 'estado_comercial', 'clasificacion', 'potencial_comercial', 'origen_cliente', 'via_entrada', 'zona', 'observaciones', 'fecha_ultimo_contacto', 'fecha_proxima_accion', 'proxima_accion', 'foto_path', 'seguimiento_activo', 'pausado_hasta', 'motivo_pausa', 'pausado_por', 'pausado_en', 'fijado_para', 'fijado_en'],
+    filtros: ['tipo_cliente', 'responsable', 'prioridad', 'estado_comercial', 'clasificacion', 'via_entrada', 'zona', 'seguimiento_activo', 'fijado_para'],
     buscarEn: 'nombre',
     orden: { col: 'nombre', asc: true },
   },
