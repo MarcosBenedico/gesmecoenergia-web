@@ -3,19 +3,15 @@
  * GET /api/migrate-database
  */
 
-import { createClient } from '@supabase/supabase-js';
+import { supabaseAnon } from '@/lib/supabase-servidor';
 import { NextResponse } from 'next/server';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
 
 export async function GET() {
   const resultados: { paso: string; ok: boolean; detalle?: string }[] = [];
 
   // 1. Verificar que proyectos_fotovoltaicos existe
-  const { error: errTabla } = await supabase
+  const { error: errTabla } = await supabaseAnon()
     .from('proyectos_fotovoltaicos')
     .select('id')
     .limit(1);
@@ -33,7 +29,7 @@ export async function GET() {
     datos_extras: { _test: true },
   };
 
-  const { data: testData, error: errExtras } = await supabase
+  const { data: testData, error: errExtras } = await supabaseAnon()
     .from('proyectos_fotovoltaicos')
     .insert([testPayload])
     .select('id');
@@ -48,11 +44,11 @@ export async function GET() {
 
   // Limpiar test si se insertó
   if (testData?.[0]) {
-    await supabase.from('proyectos_fotovoltaicos').delete().eq('id', testData[0].id);
+    await supabaseAnon().from('proyectos_fotovoltaicos').delete().eq('id', testData[0].id);
   }
 
   // 3. Verificar que campos_fotovoltaica existe
-  const { error: errCampos } = await supabase
+  const { error: errCampos } = await supabaseAnon()
     .from('campos_fotovoltaica')
     .select('id')
     .limit(1);

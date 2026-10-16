@@ -3,13 +3,9 @@
  * GET /api/setup-correbin — comprueba que las tablas vct_* existen.
  */
 
-import { createClient } from '@supabase/supabase-js';
+import { supabaseAnon } from '@/lib/supabase-servidor';
 import { NextResponse } from 'next/server';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
 
 const TABLAS = ['vct_clientes', 'vct_polizas', 'vct_movimientos', 'vct_oportunidades', 'vct_tareas'];
 
@@ -17,7 +13,7 @@ export async function GET() {
   const resultados: { paso: string; ok: boolean; detalle?: string }[] = [];
 
   for (const tabla of TABLAS) {
-    const { error } = await supabase.from(tabla).select('id').limit(1);
+    const { error } = await supabaseAnon().from(tabla).select('id').limit(1);
     resultados.push({
       paso: `Tabla ${tabla}`,
       ok: !error,

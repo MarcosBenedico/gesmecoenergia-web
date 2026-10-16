@@ -1,10 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { supabaseAnon } from '@/lib/supabase-servidor';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
 
 const CAMPOS = 'id, cliente_id, cups, alias, direccion, tarifa, precios_energia, precios_potencia, potencias_kw, activo, creado_en';
 
@@ -14,7 +10,7 @@ export async function GET(req: NextRequest) {
   if (!clienteId) {
     return NextResponse.json({ error: 'Falta cliente_id.' }, { status: 400 });
   }
-  const { data, error } = await supabase
+  const { data, error } = await supabaseAnon()
     .from('suministros')
     .select(CAMPOS)
     .eq('cliente_id', clienteId)
@@ -34,7 +30,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Faltan el cliente o el código CUPS.' }, { status: 400 });
     }
 
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAnon()
       .from('suministros')
       .insert([
         {
@@ -76,7 +72,7 @@ export async function PUT(req: NextRequest) {
       if (k in campos) update[k] = k === 'cups' ? String(campos[k]).trim().toUpperCase().replace(/\s+/g, '') : campos[k];
     }
 
-    const { error } = await supabase.from('suministros').update(update).eq('id', id);
+    const { error } = await supabaseAnon().from('suministros').update(update).eq('id', id);
     if (error) {
       if (error.code === '23505') {
         return NextResponse.json({ error: 'Ese CUPS ya está registrado en otro suministro.' }, { status: 409 });
@@ -93,7 +89,7 @@ export async function PUT(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   const { id } = await req.json();
   if (!id) return NextResponse.json({ error: 'Falta el id.' }, { status: 400 });
-  const { error } = await supabase.from('suministros').delete().eq('id', id);
+  const { error } = await supabaseAnon().from('suministros').delete().eq('id', id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true });
 }

@@ -1,10 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { supabaseAnon } from '@/lib/supabase-servidor';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
 
 /**
  * Consumos mensuales gestionados por el propio cliente (autenticado por token).
@@ -35,7 +31,7 @@ function calcularCosteMes(
 
 async function clientePorToken(token: string | null | undefined) {
   if (!token) return null;
-  const { data } = await supabase
+  const { data } = await supabaseAnon()
     .from('clientes_app')
     .select('id')
     .eq('token', token)
@@ -63,7 +59,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Verificar que el suministro es del cliente
-    const { data: sum } = await supabase
+    const { data: sum } = await supabaseAnon()
       .from('suministros')
       .select('id, cliente_id, precios_energia, precios_potencia, potencias_kw')
       .eq('id', suministro_id)
@@ -88,7 +84,7 @@ export async function POST(req: NextRequest) {
 
     const coste = calcularCosteMes(consumos, preciosEnergia, preciosPotencia, aNumeros(sum.potencias_kw), mes);
 
-    const { error } = await supabase.from('consumos_clientes').upsert(
+    const { error } = await supabaseAnon().from('consumos_clientes').upsert(
       {
         cliente_id: cliente.id,
         suministro_id: sum.id,
@@ -124,7 +120,7 @@ export async function DELETE(req: NextRequest) {
     if (!id) return NextResponse.json({ error: 'Falta el id.' }, { status: 400 });
 
     // Verificar propiedad
-    const { data: cons } = await supabase
+    const { data: cons } = await supabaseAnon()
       .from('consumos_clientes')
       .select('id, cliente_id')
       .eq('id', id)
@@ -133,7 +129,7 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: 'Consumo no encontrado.' }, { status: 404 });
     }
 
-    const { error } = await supabase.from('consumos_clientes').delete().eq('id', id);
+    const { error } = await supabaseAnon().from('consumos_clientes').delete().eq('id', id);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ ok: true });
   } catch (e) {

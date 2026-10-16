@@ -1,11 +1,7 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { supabaseAnon } from '@/lib/supabase-servidor';
 import { tituloVencimiento, SEGMENTO_COLOR } from '@/lib/correbin';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
 
 /**
  * Datos de prueba realistas del módulo Vencimientos y Cartera.
@@ -18,23 +14,23 @@ const dias = (n: number) => new Date(Date.now() + n * 86400000).toISOString().sl
 export async function POST() {
   try {
     // Evitar duplicar el seed
-    const { data: yaExiste } = await supabase.from('vct_clientes').select('id').like('nombre', '[DEMO]%').limit(1);
+    const { data: yaExiste } = await supabaseAnon().from('vct_clientes').select('id').like('nombre', '[DEMO]%').limit(1);
     if (yaExiste && yaExiste.length > 0) {
       return NextResponse.json({ ok: false, error: 'Los datos de prueba ya existen. Bórralos primero (botón "Eliminar datos de prueba").' }, { status: 409 });
     }
 
     const crearCliente = async (c: Record<string, unknown>) => {
-      const { data, error } = await supabase.from('vct_clientes').insert([c]).select('id, nombre, segmento').single();
+      const { data, error } = await supabaseAnon().from('vct_clientes').insert([c]).select('id, nombre, segmento').single();
       if (error || !data) throw new Error(`cliente: ${error?.message}`);
       return data;
     };
     const crearPoliza = async (p: Record<string, unknown>) => {
-      const { data, error } = await supabase.from('vct_polizas').insert([p]).select('id').single();
+      const { data, error } = await supabaseAnon().from('vct_polizas').insert([p]).select('id').single();
       if (error || !data) throw new Error(`póliza: ${error?.message}`);
       return data;
     };
     const crearVcto = async (cliente: { id: string; nombre: string; segmento: string }, polizaId: string | null, fecha: string, ramo: string, prima: number, cia: string, responsable: string | null, extra: Record<string, unknown> = {}) => {
-      const { error } = await supabase.from('vct_vencimientos').insert([{
+      const { error } = await supabaseAnon().from('vct_vencimientos').insert([{
         cliente_id: cliente.id, poliza_id: polizaId, fecha_vct: fecha,
         titulo_evento: tituloVencimiento(cliente.nombre.replace('[DEMO] ', ''), ramo, prima, cia),
         segmento: cliente.segmento, color: SEGMENTO_COLOR[cliente.segmento]?.nombre || 'gris',
@@ -110,7 +106,7 @@ export async function POST() {
     });
 
     // 7. Oportunidad de pipeline SIN PRÓXIMA ACCIÓN
-    await supabase.from('vct_oportunidades').insert([{
+    await supabaseAnon().from('vct_oportunidades').insert([{
       cliente_id: null, nombre_contacto: '[DEMO] Transportes Litera SL', telefono: '974420088',
       ramo: 'flota', compania_actual: 'Mapfre (competencia)', etapa: 'seguimiento',
       prima_estimada: 32000, probabilidad: 60, documentacion_recibida: true,
@@ -119,21 +115,21 @@ export async function POST() {
     }]);
 
     // 8. Anulación REAL
-    await supabase.from('vct_anulaciones').insert([{
+    await supabaseAnon().from('vct_anulaciones').insert([{
       cliente_id: laura.id, fecha_anulacion: dias(-20), prima: 310,
       motivo: 'Se lo llevó el banco con la hipoteca', tipo_anulacion: 'real', afecta_cartera: true,
       responsable: 'Auto / Particulares',
     }]);
 
     // 9. Sustitución técnica
-    await supabase.from('vct_anulaciones').insert([{
+    await supabaseAnon().from('vct_anulaciones').insert([{
       cliente_id: talleres.id, poliza_id: polTalleres.id, fecha_anulacion: dias(-10), prima: 3900,
       motivo: 'Reemplazada por MR-445566 con mejores garantías', tipo_anulacion: 'sustitucion_tecnica',
       poliza_sustituta_id: polTalleres.id, afecta_cartera: false, responsable: 'Renovaciones',
     }]);
 
     // 10. Cambio de mediador pendiente de aceptación
-    await supabase.from('vct_cambios_mediador').insert([{
+    await supabaseAnon().from('vct_cambios_mediador').insert([{
       cliente_id: ibs.id, prima: 8500, compania: 'Allianz', ramo: 'rc',
       carta_firmada: true, estado_compania: 'En trámite', fecha_solicitud: dias(-15),
       fecha_envio_compania: dias(-8), estado: 'enviado_compania', responsable: 'Administración',
@@ -141,21 +137,21 @@ export async function POST() {
     }]);
 
     // Extra: producción del año (real + técnica) y tareas
-    await supabase.from('vct_produccion').insert([
+    await supabaseAnon().from('vct_produccion').insert([
       { cliente_id: talleres.id, fecha_emision: dias(-30), ramo: 'multirriesgo', compania: 'Mapfre', prima: 4200, comision: 630, tipo_produccion: 'nueva', responsable: 'Renovaciones' },
       { cliente_id: talleres.id, fecha_emision: dias(-10), ramo: 'multirriesgo', compania: 'Mapfre', prima: 3900, comision: 585, tipo_produccion: 'sustitucion', responsable: 'Renovaciones' },
     ]);
-    await supabase.from('vct_tareas').insert([
+    await supabaseAnon().from('vct_tareas').insert([
       { cliente_id: ibs.id, poliza_id: polFlota.id, titulo: 'Pedir relación de flota actualizada', tipo_tarea: 'cargar_documentacion', fecha_limite: dias(7), prioridad: 'alta', responsable: 'Dirección' },
       { cliente_id: laura.id, titulo: 'Llamar antes del vencimiento del hogar', tipo_tarea: 'llamar_cliente', fecha_limite: dias(10), prioridad: 'media', responsable: 'Auto / Particulares' },
     ]);
 
     // Totales de clientes
     for (const c of [ibs, talleres, ayto, laura]) {
-      const { data: pols } = await supabase.from('vct_polizas')
+      const { data: pols } = await supabaseAnon().from('vct_polizas')
         .select('prima_anual, comision, estado').eq('cliente_id', c.id);
       const vivas = (pols || []).filter((p) => ['activa', 'viva', 'pendiente_revision', 'sin_datos'].includes(p.estado));
-      await supabase.from('vct_clientes').update({
+      await supabaseAnon().from('vct_clientes').update({
         prima_total: vivas.reduce((s, p) => s + (Number(p.prima_anual) || 0), 0),
         comision_total: vivas.reduce((s, p) => s + (Number(p.comision) || 0), 0),
       }).eq('id', c.id);
@@ -177,16 +173,16 @@ export async function POST() {
 
 export async function DELETE() {
   try {
-    const { data: demos } = await supabase.from('vct_clientes').select('id').like('nombre', '[DEMO]%');
+    const { data: demos } = await supabaseAnon().from('vct_clientes').select('id').like('nombre', '[DEMO]%');
     const ids = (demos || []).map((d) => d.id);
     if (ids.length > 0) {
       // Las FK con ON DELETE CASCADE/SET NULL limpian pólizas, vencimientos y tareas
-      await supabase.from('vct_produccion').delete().in('cliente_id', ids);
-      await supabase.from('vct_anulaciones').delete().in('cliente_id', ids);
-      await supabase.from('vct_cambios_mediador').delete().in('cliente_id', ids);
-      await supabase.from('vct_clientes').delete().in('id', ids);
+      await supabaseAnon().from('vct_produccion').delete().in('cliente_id', ids);
+      await supabaseAnon().from('vct_anulaciones').delete().in('cliente_id', ids);
+      await supabaseAnon().from('vct_cambios_mediador').delete().in('cliente_id', ids);
+      await supabaseAnon().from('vct_clientes').delete().in('id', ids);
     }
-    await supabase.from('vct_oportunidades').delete().like('nombre_contacto', '[DEMO]%');
+    await supabaseAnon().from('vct_oportunidades').delete().like('nombre_contacto', '[DEMO]%');
     return NextResponse.json({ ok: true, eliminados: ids.length });
   } catch (e) {
     return NextResponse.json({ error: 'Error eliminando datos de prueba.' }, { status: 500 });

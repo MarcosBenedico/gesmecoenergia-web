@@ -1,10 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { supabaseAnon } from '@/lib/supabase-servidor';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
 
 /**
  * Suministros gestionados por el propio cliente (autenticado por token).
@@ -15,7 +11,7 @@ const supabase = createClient(
 
 async function clientePorToken(token: string | null | undefined) {
   if (!token) return null;
-  const { data } = await supabase
+  const { data } = await supabaseAnon()
     .from('clientes_app')
     .select('id, nombre, usuario')
     .eq('token', token)
@@ -43,7 +39,7 @@ export async function POST(req: NextRequest) {
 
     const tarifa = ['2.0', '3.0', '6.1'].includes(body.tarifa) ? body.tarifa : '2.0';
 
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAnon()
       .from('suministros')
       .insert([
         {
@@ -83,7 +79,7 @@ export async function PUT(req: NextRequest) {
     if (!id) return NextResponse.json({ error: 'Falta el id del suministro.' }, { status: 400 });
 
     // Verificar propiedad
-    const { data: sum } = await supabase
+    const { data: sum } = await supabaseAnon()
       .from('suministros')
       .select('id, cliente_id')
       .eq('id', id)
@@ -111,7 +107,7 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: 'No hay cambios que guardar.' }, { status: 400 });
     }
 
-    const { error } = await supabase.from('suministros').update(update).eq('id', id);
+    const { error } = await supabaseAnon().from('suministros').update(update).eq('id', id);
     if (error) {
       if (error.code === '23505') {
         return NextResponse.json({ error: 'Ese CUPS ya está registrado en otro suministro.' }, { status: 409 });
@@ -135,7 +131,7 @@ export async function DELETE(req: NextRequest) {
     if (!id) return NextResponse.json({ error: 'Falta el id.' }, { status: 400 });
 
     // Verificar propiedad y desactivar (no borramos: los consumos históricos se conservan)
-    const { data: sum } = await supabase
+    const { data: sum } = await supabaseAnon()
       .from('suministros')
       .select('id, cliente_id')
       .eq('id', id)
@@ -144,7 +140,7 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: 'Suministro no encontrado.' }, { status: 404 });
     }
 
-    const { error } = await supabase.from('suministros').update({ activo: false }).eq('id', id);
+    const { error } = await supabaseAnon().from('suministros').update({ activo: false }).eq('id', id);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ ok: true });
   } catch (e) {

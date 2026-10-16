@@ -1,13 +1,9 @@
-import { createClient } from '@supabase/supabase-js';
+import { supabaseAnon } from '@/lib/supabase-servidor';
 import { NextResponse } from 'next/server';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
 
 export async function GET() {
-  const { data, error } = await supabase
+  const { data, error } = await supabaseAnon()
     .from('campos_fotovoltaica')
     .select('*')
     .eq('activo', true)

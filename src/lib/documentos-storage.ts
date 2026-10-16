@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { supabaseAdmin } from './supabase-servidor';
 
 /**
  * Almacenamiento de documentos de cliente con doble vía:
@@ -10,10 +10,6 @@ import { createClient } from '@supabase/supabase-js';
 
 export const BUCKET_DOCUMENTOS = 'documentos_clientes';
 
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
 
 export const esDocumentoEnBD = (archivo_path: string) => archivo_path.startsWith('db:');
 
@@ -30,7 +26,7 @@ export async function servirDocumento(archivo_path: string, mime_type: string, n
       },
     });
   }
-  const { data } = await supabaseAdmin.storage
+  const { data } = await supabaseAdmin().storage
     .from(BUCKET_DOCUMENTOS)
     .createSignedUrl(archivo_path, 3600);
   if (data?.signedUrl) {

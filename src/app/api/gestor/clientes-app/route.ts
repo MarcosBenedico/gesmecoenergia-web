@@ -1,16 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { supabaseAnon } from '@/lib/supabase-servidor';
 import bcrypt from 'bcryptjs';
 import { randomBytes } from 'crypto';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
 
 /** Lista todos los clientes de la app (sin hash de contraseña). */
 export async function GET() {
-  const { data, error } = await supabase
+  const { data, error } = await supabaseAnon()
     .from('clientes_app')
     .select('id, usuario, nombre, telefono, tarifa, precios_energia, precios_potencia, potencias_kw, activo, creado_en')
     .order('creado_en', { ascending: false });
@@ -40,7 +36,7 @@ export async function POST(req: NextRequest) {
     const password_hash = await bcrypt.hash(password, 10);
     const token = randomBytes(32).toString('hex');
 
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAnon()
       .from('clientes_app')
       .insert([
         {
@@ -66,7 +62,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Crear el primer suministro del cliente con su CUPS
-    const { error: errSum } = await supabase.from('suministros').insert([
+    const { error: errSum } = await supabaseAnon().from('suministros').insert([
       {
         cliente_id: data.id,
         cups: cups.trim().toUpperCase().replace(/\s+/g, ''),
@@ -80,7 +76,7 @@ export async function POST(req: NextRequest) {
     ]);
     if (errSum) {
       // Deshacer el cliente para no dejarlo sin suministro
-      await supabase.from('clientes_app').delete().eq('id', data.id);
+      await supabaseAnon().from('clientes_app').delete().eq('id', data.id);
       if (errSum.code === '23505') {
         return NextResponse.json({ error: 'Ese CUPS ya está registrado en otro suministro.' }, { status: 409 });
       }
@@ -115,7 +111,7 @@ export async function PUT(req: NextRequest) {
       update.password_hash = await bcrypt.hash(password, 10);
     }
 
-    const { error } = await supabase.from('clientes_app').update(update).eq('id', id);
+    const { error } = await supabaseAnon().from('clientes_app').update(update).eq('id', id);
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
@@ -132,7 +128,7 @@ export async function DELETE(req: NextRequest) {
   if (!id) {
     return NextResponse.json({ error: 'Falta el id del cliente.' }, { status: 400 });
   }
-  const { error } = await supabase.from('clientes_app').delete().eq('id', id);
+  const { error } = await supabaseAnon().from('clientes_app').delete().eq('id', id);
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

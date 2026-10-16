@@ -1,17 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { supabaseAnon, supabaseAdmin } from '@/lib/supabase-servidor';
 import { servirDocumento, esDocumentoEnBD, BUCKET_DOCUMENTOS } from '@/lib/documentos-storage';
 
-// Anon key para verificar sesión; service role (si existe) para Storage/BD sin RLS
-const supabaseAnon = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
-
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
 
 const BUCKET = BUCKET_DOCUMENTOS;
 // Vercel limita el body a ~4,5 MB, así que el límite real de subida es ese.
@@ -65,7 +55,7 @@ async function avisarNuevoDocumento(datos: {
 
 async function clientePorToken(token: string | null | undefined) {
   if (!token) return null;
-  const { data } = await supabaseAnon
+  const { data } = await supabaseAnon()
     .from('clientes_app')
     .select('id, nombre, usuario')
     .eq('token', token)
@@ -85,7 +75,7 @@ export async function GET(req: NextRequest) {
 
     // ── Modo descarga: devuelve el archivo en sí ──
     if (descargar) {
-      const { data: doc } = await supabaseAdmin
+      const { data: doc } = await supabaseAdmin()
         .from('documentos_cliente')
         .select('archivo_path, mime_type, nombre_original, cliente_id')
         .eq('id', descargar)
@@ -97,7 +87,7 @@ export async function GET(req: NextRequest) {
     }
 
     // ── Modo listado ──
-    const { data: docs, error: errDocs } = await supabaseAdmin
+    const { data: docs, error: errDocs } = await supabaseAdmin()
       .from('documentos_cliente')
       .select(CAMPOS_LISTA)
       .eq('cliente_id', cliente.id)
@@ -160,7 +150,7 @@ export async function POST(req: NextRequest) {
     // ── 1º intento: Supabase Storage ──
     let archivo_path = pathStorage;
     let guardadoEn: 'storage' | 'db' = 'storage';
-    const { error: errStorage } = await supabaseAdmin.storage
+    const { error: errStorage } = await supabaseAdmin().storage
       .from(BUCKET)
       .upload(pathStorage, buffer, { contentType: mime_type, upsert: false });
 
@@ -171,7 +161,7 @@ export async function POST(req: NextRequest) {
       guardadoEn = 'db';
     }
 
-    const { data: doc, error: errDoc } = await supabaseAdmin
+    const { data: doc, error: errDoc } = await supabaseAdmin()
       .from('documentos_cliente')
       .insert([
         {
@@ -189,7 +179,7 @@ export async function POST(req: NextRequest) {
 
     if (errDoc) {
       if (guardadoEn === 'storage') {
-        await supabaseAdmin.storage.from(BUCKET).remove([pathStorage]);
+        await supabaseAdmin().storage.from(BUCKET).remove([pathStorage]);
       }
       return NextResponse.json({ error: errDoc.message }, { status: 500 });
     }
@@ -224,7 +214,7 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: 'Sesión caducada.' }, { status: 401 });
     }
 
-    const { data: doc, error: errDoc } = await supabaseAdmin
+    const { data: doc, error: errDoc } = await supabaseAdmin()
       .from('documentos_cliente')
       .select('id, archivo_path, cliente_id')
       .eq('id', id)
@@ -236,10 +226,10 @@ export async function DELETE(req: NextRequest) {
 
     // Si está en Storage, borrar también el archivo
     if (!esDocumentoEnBD(doc.archivo_path)) {
-      await supabaseAdmin.storage.from(BUCKET).remove([doc.archivo_path]);
+      await supabaseAdmin().storage.from(BUCKET).remove([doc.archivo_path]);
     }
 
-    const { error: errDelete } = await supabaseAdmin
+    const { error: errDelete } = await supabaseAdmin()
       .from('documentos_cliente')
       .delete()
       .eq('id', id);

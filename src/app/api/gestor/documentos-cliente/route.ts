@@ -1,11 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { supabaseAdmin } from '@/lib/supabase-servidor';
 import { servirDocumento } from '@/lib/documentos-storage';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
 
 // Sin archivo_path en el listado: puede contener el archivo entero (respaldo en BD)
 const CAMPOS_LISTA =
@@ -24,7 +20,7 @@ export async function GET(req: NextRequest) {
 
     // ── Modo descarga ──
     if (descargar) {
-      const { data: doc } = await supabase
+      const { data: doc } = await supabaseAdmin()
         .from('documentos_cliente')
         .select('archivo_path, mime_type, nombre_original')
         .eq('id', descargar)
@@ -39,7 +35,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Falta cliente_id.' }, { status: 400 });
     }
 
-    const { data: docs, error: errDocs } = await supabase
+    const { data: docs, error: errDocs } = await supabaseAdmin()
       .from('documentos_cliente')
       .select(CAMPOS_LISTA)
       .eq('cliente_id', clienteId)
@@ -82,7 +78,7 @@ export async function PUT(req: NextRequest) {
     if (analizado !== undefined) update.analizado = analizado;
     if (notas_analisis !== undefined) update.notas_analisis = notas_analisis || null;
 
-    const { error } = await supabase
+    const { error } = await supabaseAdmin()
       .from('documentos_cliente')
       .update(update)
       .eq('id', id);

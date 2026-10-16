@@ -1,11 +1,7 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { supabaseAnon } from '@/lib/supabase-servidor';
 import { tituloFechaCritica } from '@/lib/luz';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
 
 /**
  * Datos de prueba del módulo Gestión Luz (marcados [DEMO]).
@@ -16,23 +12,23 @@ const dias = (n: number) => new Date(Date.now() + n * 86400000).toISOString().sl
 
 export async function POST() {
   try {
-    const { data: yaExiste } = await supabase.from('luz_clientes').select('id').like('nombre', '[DEMO]%').limit(1);
+    const { data: yaExiste } = await supabaseAnon().from('luz_clientes').select('id').like('nombre', '[DEMO]%').limit(1);
     if (yaExiste && yaExiste.length > 0) {
       return NextResponse.json({ error: 'Los datos de prueba ya existen. Elimínalos primero.' }, { status: 409 });
     }
 
     const crearCliente = async (c: Record<string, unknown>) => {
-      const { data, error } = await supabase.from('luz_clientes').insert([c]).select('id, nombre, prioridad').single();
+      const { data, error } = await supabaseAnon().from('luz_clientes').insert([c]).select('id, nombre, prioridad').single();
       if (error || !data) throw new Error(`cliente: ${error?.message}`);
       return data;
     };
     const crearCups = async (c: Record<string, unknown>) => {
-      const { data, error } = await supabase.from('luz_cups').insert([c]).select('id, cups').single();
+      const { data, error } = await supabaseAnon().from('luz_cups').insert([c]).select('id, cups').single();
       if (error || !data) throw new Error(`cups: ${error?.message}`);
       return data;
     };
     const crearFC = async (cliente: { id: string; nombre: string; prioridad: string }, cupsId: string | null, cups: string, tipo: string, fecha: string, cia: string | null, responsable: string | null) => {
-      await supabase.from('luz_fechas_criticas').insert([{
+      await supabaseAnon().from('luz_fechas_criticas').insert([{
         cliente_id: cliente.id, cups_id: cupsId, tipo_fecha: tipo, fecha,
         titulo: tituloFechaCritica(cliente.nombre.replace('[DEMO] ', ''), cups, tipo, cia),
         prioridad: cliente.prioridad, responsable,
@@ -64,7 +60,7 @@ export async function POST() {
       fecha_fin_contrato: null, estado_cups: 'datos_incompletos', responsable: 'Energía', prioridad: 'A',
     });
     await crearFC(carnes, cupsCarnes1.id, cupsCarnes1.cups, 'fin_contrato', dias(75), 'Endesa', 'Energía');
-    await supabase.from('luz_pipeline').insert([{
+    await supabaseAnon().from('luz_pipeline').insert([{
       cliente_id: carnes.id, cups_id: cupsCarnes1.id,
       nombre_oportunidad: '[DEMO] Carnes Binéfar · cambio comercializadora 3 CUPS',
       tipo_oportunidad: 'alto_consumo', consumo_anual_kwh: 1288000, comision_potencial: 6500,
@@ -86,7 +82,7 @@ export async function POST() {
     });
     await crearFC(talleres, cupsTalleres.id, cupsTalleres.cups, 'fin_permanencia', dias(40), 'Iberdrola', 'Energía');
     await crearFC(talleres, cupsTalleres.id, cupsTalleres.cups, 'limite_preaviso', dias(10), 'Iberdrola', 'Energía');
-    await supabase.from('luz_pipeline').insert([{
+    await supabaseAnon().from('luz_pipeline').insert([{
       cliente_id: talleres.id, cups_id: cupsTalleres.id,
       nombre_oportunidad: '[DEMO] Talleres Urgeles · renovación',
       tipo_oportunidad: 'renovacion', consumo_anual_kwh: 45000, comision_potencial: 900,
@@ -110,7 +106,7 @@ export async function POST() {
       tarifa_acceso: '2.0TD', comercializadora_actual: 'Naturgy', consumo_anual_kwh: 8000,
       fecha_fin_contrato: dias(20), estado_cups: 'pendiente_firma', responsable: 'Energía', prioridad: 'B',
     });
-    const { data: conCom } = await supabase.from('luz_contratos').insert([{
+    const { data: conCom } = await supabaseAnon().from('luz_contratos').insert([{
       cliente_id: comunidad.id, cups_id: cupsCom1.id, comercializadora_final: 'Nufri',
       tarifa_acceso: '2.0TD', fecha_envio_contrato: dias(-10), estado_contrato: 'pendiente_firma',
       responsable: 'Energía', observaciones: '[DEMO] Enviado hace 10 días, sin firma → alerta',
@@ -137,7 +133,7 @@ export async function POST() {
 
     // 5. Incidencias sueltas
     // Oportunidad SIN próxima acción
-    await supabase.from('luz_pipeline').insert([{
+    await supabaseAnon().from('luz_pipeline').insert([{
       cliente_id: ayto.id, nombre_oportunidad: '[DEMO] Ayuntamiento · licitación suministros',
       tipo_oportunidad: 'varios_cups', consumo_anual_kwh: 225000, comision_potencial: 2800,
       estado: 'seguimiento', probabilidad: 40, responsable: 'Energía',
@@ -145,27 +141,27 @@ export async function POST() {
       observaciones: '[DEMO] SIN PRÓXIMA ACCIÓN → debe generar alerta',
     }]);
     // Contrato firmado sin activar
-    await supabase.from('luz_contratos').insert([{
+    await supabaseAnon().from('luz_contratos').insert([{
       cliente_id: talleres.id, cups_id: cupsTalleres.id, comercializadora_final: 'Audax',
       fecha_envio_contrato: dias(-30), fecha_firma: dias(-20), fecha_activacion_prevista: dias(-5),
       estado_contrato: 'pendiente_activacion', responsable: 'Energía',
       observaciones: '[DEMO] Firmado hace 20 días, activación prevista vencida → alerta',
     }]);
     // Comisión pendiente vencida
-    await supabase.from('luz_comisiones').insert([{
+    await supabaseAnon().from('luz_comisiones').insert([{
       cliente_id: carnes.id, cups_id: cupsCarnes1.id, comercializadora: 'Endesa',
       tipo_comision: 'por_kwh', importe_previsto: 1200, importe_cobrado: 0,
       fecha_prevista_cobro: dias(-15), estado_comision: 'pendiente_cobro',
       observaciones: '[DEMO] Cobro vencido hace 15 días → alerta',
     }]);
     // Comisión cobrada parcial
-    await supabase.from('luz_comisiones').insert([{
+    await supabaseAnon().from('luz_comisiones').insert([{
       cliente_id: talleres.id, cups_id: cupsTalleres.id, contrato_id: conCom?.id || null,
       comercializadora: 'Nufri', tipo_comision: 'pago_unico', importe_previsto: 900, importe_cobrado: 600,
       fecha_prevista_cobro: dias(-5), fecha_cobro: dias(-5), estado_comision: 'cobrada_parcial',
     }]);
     // Tareas
-    await supabase.from('luz_tareas').insert([
+    await supabaseAnon().from('luz_tareas').insert([
       { cliente_id: carnes.id, cups_id: cupsCarnes1.id, tipo_tarea: 'preparar_oferta', descripcion: 'Preparar comparativa 3 CUPS Carnes Binéfar', responsable: 'Energía', fecha_limite: dias(5), prioridad: 'alta' },
       { cliente_id: comunidad.id, tipo_tarea: 'reclamar_firma', descripcion: 'Reclamar firma contrato comunidad', responsable: 'Energía', fecha_limite: dias(-2), prioridad: 'alta' },
     ]);
@@ -186,13 +182,13 @@ export async function POST() {
 
 export async function DELETE() {
   try {
-    const { data: demos } = await supabase.from('luz_clientes').select('id').like('nombre', '[DEMO]%');
+    const { data: demos } = await supabaseAnon().from('luz_clientes').select('id').like('nombre', '[DEMO]%');
     const ids = (demos || []).map((d) => d.id);
     if (ids.length > 0) {
-      await supabase.from('luz_pipeline').delete().in('cliente_id', ids);
-      await supabase.from('luz_contratos').delete().in('cliente_id', ids);
-      await supabase.from('luz_comisiones').delete().in('cliente_id', ids);
-      await supabase.from('luz_clientes').delete().in('id', ids); // cascade: cups, fechas, tareas
+      await supabaseAnon().from('luz_pipeline').delete().in('cliente_id', ids);
+      await supabaseAnon().from('luz_contratos').delete().in('cliente_id', ids);
+      await supabaseAnon().from('luz_comisiones').delete().in('cliente_id', ids);
+      await supabaseAnon().from('luz_clientes').delete().in('id', ids); // cascade: cups, fechas, tareas
     }
     return NextResponse.json({ ok: true, eliminados: ids.length });
   } catch {

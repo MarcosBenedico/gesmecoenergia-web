@@ -1,10 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { supabaseAnon } from '@/lib/supabase-servidor';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
 
 const DIAS_MES = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
 
@@ -39,7 +35,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'No hay filas que guardar.' }, { status: 400 });
     }
 
-    const { data: suministros, error: errSum } = await supabase
+    const { data: suministros, error: errSum } = await supabaseAnon()
       .from('suministros')
       .select('id, cliente_id, cups, tarifa, precios_energia, precios_potencia, potencias_kw, clientes_app(usuario)');
     if (errSum) {
@@ -98,7 +94,7 @@ export async function POST(req: NextRequest) {
 
       const coste = calcularCosteMes(consumos, preciosEnergiaMes, preciosPotenciaMes, aLista(sum.potencias_kw), mes);
 
-      const { error } = await supabase.from('consumos_clientes').upsert(
+      const { error } = await supabaseAnon().from('consumos_clientes').upsert(
         {
           cliente_id: sum.cliente_id,
           suministro_id: sum.id,
@@ -138,7 +134,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Falta suministro_id o cliente_id.' }, { status: 400 });
   }
 
-  let query = supabase
+  let query = supabaseAnon()
     .from('consumos_clientes')
     .select('id, suministro_id, anio, mes, consumos_kwh, precios_energia, precios_potencia, coste_energia, coste_potencia, coste_total, notas')
     .order('anio', { ascending: false })
@@ -155,7 +151,7 @@ export async function GET(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   const { id } = await req.json();
   if (!id) return NextResponse.json({ error: 'Falta el id.' }, { status: 400 });
-  const { error } = await supabase.from('consumos_clientes').delete().eq('id', id);
+  const { error } = await supabaseAnon().from('consumos_clientes').delete().eq('id', id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true });
 }

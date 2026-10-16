@@ -1,10 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { supabaseAnon } from '@/lib/supabase-servidor';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
 
 const aLista = (v: unknown): number[] => {
   if (Array.isArray(v)) return v.map((n) => Number(n) || 0);
@@ -20,7 +16,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Sesión no válida.' }, { status: 401 });
     }
 
-    const { data: cliente, error } = await supabase
+    const { data: cliente, error } = await supabaseAnon()
       .from('clientes_app')
       .select('id, usuario, nombre, telefono, activo')
       .eq('token', token)
@@ -30,14 +26,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Sesión caducada. Vuelve a entrar.' }, { status: 401 });
     }
 
-    const { data: suministros } = await supabase
+    const { data: suministros } = await supabaseAnon()
       .from('suministros')
       .select('id, cups, alias, direccion, tarifa, precios_energia, precios_potencia, potencias_kw, activo')
       .eq('cliente_id', cliente.id)
       .eq('activo', true)
       .order('creado_en', { ascending: true });
 
-    const { data: consumos } = await supabase
+    const { data: consumos } = await supabaseAnon()
       .from('consumos_clientes')
       .select('id, suministro_id, anio, mes, consumos_kwh, precios_energia, precios_potencia, coste_energia, coste_potencia, coste_total, notas')
       .eq('cliente_id', cliente.id)

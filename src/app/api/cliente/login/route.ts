@@ -1,11 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { supabaseAnon } from '@/lib/supabase-servidor';
 import bcrypt from 'bcryptjs';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
 
 export async function POST(req: NextRequest) {
   try {
@@ -14,7 +10,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Introduce usuario y contraseña.' }, { status: 400 });
     }
 
-    const { data: cliente, error } = await supabase
+    const { data: cliente, error } = await supabaseAnon()
       .from('clientes_app')
       .select('id, usuario, password_hash, token, nombre, tarifa, activo')
       .eq('usuario', usuario.trim().toLowerCase())
@@ -37,7 +33,7 @@ export async function POST(req: NextRequest) {
     let token = cliente.token;
     if (!token || token.length < 32) {
       token = (await import('crypto')).randomBytes(32).toString('hex');
-      await supabase.from('clientes_app').update({ token }).eq('id', cliente.id);
+      await supabaseAnon().from('clientes_app').update({ token }).eq('id', cliente.id);
     }
 
     return NextResponse.json({
