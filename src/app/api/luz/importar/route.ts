@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import ExcelJS from 'exceljs';
-import { normalizarNombre, normCups, tituloFechaCritica } from '@/lib/luz';
+import { normalizarNombre, normCups, tituloFechaCritica, ESTADOS_CLIENTE } from '@/lib/luz';
+import { clasificacionAGuardar, leerEstadoCliente, llaveImportacion } from '@/lib/importar-ficha';
 import { leerExcel } from '@/lib/excel-lectura';
 
 function clienteSupabase(req: NextRequest) {
@@ -26,8 +27,18 @@ const TIPOS: Record<string, { nombre: string; campos: CampoDef[] }> = {
   completo: {
     nombre: 'Plantilla completa (clientes + CUPS + acción)',
     campos: [
+      // El CÓDIGO es la llave, no el NIF: 122 de 309 fichas de la cartera real
+      // no tienen NIF, porque un posible cliente da nombre y teléfono y el NIF
+      // llega —si llega— el día que entrega una factura. Si está vacío, lo pone
+      // la base de datos al crear la ficha (supabase_codigo_cliente.sql).
+      { clave: 'codigo', nombre: 'Código cliente (CL-0001)', alias: ['codigo', 'codigo cliente', 'código', 'código cliente', 'id', 'ref', 'referencia'] },
       { clave: 'cliente', nombre: 'Cliente', obligatorio: true, alias: ['cliente', 'nombre', 'titular', 'razon social'] },
-      { clave: 'nif', nombre: 'CIF/NIF (índice)', obligatorio: true, alias: ['nif', 'cif', 'cif/nif', 'dni', 'documento'] },
+      { clave: 'nif', nombre: 'CIF/NIF', alias: ['nif', 'cif', 'cif/nif', 'dni', 'documento'] },
+      // Qué ES la ficha y por dónde va. Antes no había columna para ninguno de
+      // los dos, así que TODO lo importado nacía «precliente / detectado»,
+      // incluido quien traía fecha de activación en su propia fila.
+      { clave: 'clasificacion', nombre: 'Clasificación (objetivo/precliente/cliente)', alias: ['clasificacion', 'clasificación', 'que es', 'qué es', 'tipo relacion', 'tipo de relacion'] },
+      { clave: 'estado_cliente', nombre: 'Estado cliente', alias: ['estado cliente', 'estado comercial', 'etapa', 'situacion cliente'] },
       { clave: 'contacto', nombre: 'Contacto', alias: ['contacto', 'persona contacto', 'persona'] },
       { clave: 'telefono', nombre: 'Teléfono', alias: ['telefono', 'tel', 'movil'] },
       { clave: 'email', nombre: 'Email', alias: ['email', 'correo', 'mail'] },
@@ -231,20 +242,26 @@ const val = (fila: Fila, mapeo: Mapeo, clave: string) =>
   mapeo[clave] != null && mapeo[clave] >= 0 ? (fila[mapeo[clave]] || '').trim() : '';
 
 async function cargarCaches(sb: Supa) {
-  const { data: clientes, error } = await sb.from('luz_clientes').select('id, nombre, nif, prioridad, responsable');
+  const { data: clientes, error } = await sb.from('luz_clientes').select('id, codigo, nombre, nif, prioridad, responsable, clasificacion');
   if (error) throw new Error(error.message);
   const { data: cupsList } = await sb.from('luz_cups').select('id, cups, cliente_id');
 
+  const porCodigo = new Map<string, string>();
   const porNif = new Map<string, string>();
   const porNombre = new Map<string, string>();
   const prioridadCliente = new Map<string, string>();
+  const clasificacionCliente = new Map<string, string>();
   for (const c of clientes || []) {
+    const cod = (c as { codigo?: string | null }).codigo;
+    if (cod) porCodigo.set(String(cod).trim().toUpperCase(), c.id);
     if (c.nif) porNif.set(String(c.nif).toUpperCase().replace(/[\s-]/g, ''), c.id);
     porNombre.set(normalizarNombre(c.nombre), c.id);
     prioridadCliente.set(c.id, c.prioridad || 'C');
+    const cl = (c as { clasificacion?: string | null }).clasificacion;
+    if (cl) clasificacionCliente.set(c.id, cl);
   }
   const cupsExistentes = new Map((cupsList || []).map((c) => [normCups(c.cups), { id: c.id, cliente_id: c.cliente_id }]));
-  return { sb, porNif, porNombre, prioridadCliente, cupsExistentes };
+  return { sb, porCodigo, porNif, porNombre, prioridadCliente, clasificacionCliente, cupsExistentes };
 }
 
 interface FilaAnotada { estado: 'ok' | 'incompleta' | 'duplicada' | 'error'; motivo: string; alertas: string[] }
@@ -266,8 +283,13 @@ function validarFila(tipo: string, fila: Fila, mapeo: Mapeo, caches: Awaited<Ret
   }
 
   if (tipo === 'completo') {
-    const nif = val(fila, mapeo, 'nif');
-    if (!nif) return { estado: 'incompleta', motivo: 'Falta el CIF/NIF (es el índice)', alertas };
+    // El NIF ya NO es obligatorio: la llave es el código. Pero una fila sin
+    // código y sin NIF solo se puede emparejar por nombre, y emparejar por
+    // nombre es como nacen los duplicados («TRANSPORTES GARCIA, S.L.» contra
+    // «Transportes García SL»). Así que se avisa antes de importar.
+    if (!val(fila, mapeo, 'codigo') && !val(fila, mapeo, 'nif')) {
+      alertas.push('sin código ni NIF: se emparejará por nombre y puede duplicar');
+    }
     const cups = normCups(val(fila, mapeo, 'cups'));
     if (cups) {
       if (cups.length < 10) return { estado: 'error', motivo: `CUPS no válido: "${cups}"`, alertas };
@@ -409,9 +431,14 @@ export async function POST(req: NextRequest) {
 
         // ── PLANTILLA COMPLETA: crea o ACTUALIZA por NIF (cliente + CUPS + acción + comisión + activación) ──
         if (tipo === 'completo') {
+          const codigo = g('codigo').trim().toUpperCase();
           const nifNorm = g('nif').toUpperCase().replace(/[\s-]/g, '');
           const nombreNorm = normalizarNombre(g('cliente'));
-          const existenteId = (nifNorm && caches.porNif.get(nifNorm)) || caches.porNombre.get(nombreNorm);
+          // Orden de la llave: código → NIF → nombre. El nombre es el último
+          // recurso porque es el único que puede emparejar mal en silencio.
+          const existenteId = (codigo && caches.porCodigo.get(codigo))
+            || (nifNorm && caches.porNif.get(nifNorm))
+            || caches.porNombre.get(nombreNorm);
 
           // Solo se pisan los campos que vienen con valor (nunca se borra nada)
           const prioridadRaw = g('prioridad').toUpperCase();
@@ -425,6 +452,13 @@ export async function POST(req: NextRequest) {
           if (g('proxima_accion')) datosCliente.proxima_accion = g('proxima_accion');
           if (aFechaISO(g('fecha_accion'))) datosCliente.fecha_proxima_accion = aFechaISO(g('fecha_accion'));
           if (g('observaciones')) datosCliente.observaciones = g('observaciones');
+          if (nifNorm) datosCliente.nif = nifNorm;
+
+          // Qué ES la ficha y por dónde va. Lo escrito manda; si la casilla
+          // viene vacía se deduce de la propia fila, y la deducción nunca
+          // degrada a quien ya constaba como cliente.
+          const estadoClienteLeido = leerEstadoCliente(g('estado_cliente'), ESTADOS_CLIENTE);
+          if (estadoClienteLeido) datosCliente.estado_comercial = estadoClienteLeido;
 
           let clienteId: string;
           if (existenteId) {
@@ -436,29 +470,45 @@ export async function POST(req: NextRequest) {
             }
           } else {
             const { data: nuevo, error: errC } = await sb.from('luz_clientes')
-              .insert([{ nombre: g('cliente').trim(), nif: nifNorm || null, ...datosCliente }])
-              .select('id').single();
+              // Si la fila trae código se respeta (es el que ya usa Marcos en
+              // su Excel); si no, lo pone el trigger de la base de datos.
+              .insert([{ nombre: g('cliente').trim(), nif: nifNorm || null, ...(codigo ? { codigo } : {}), ...datosCliente }])
+              .select('id, codigo').single();
             if (errC || !nuevo) throw new Error(errC?.message || 'no se pudo crear el cliente');
             clienteId = nuevo.id;
             clientesCreados++;
+            const codigoNuevo = (nuevo as { codigo?: string | null }).codigo;
+            if (codigoNuevo) caches.porCodigo.set(String(codigoNuevo).toUpperCase(), clienteId);
             if (nifNorm) caches.porNif.set(nifNorm, clienteId);
             caches.porNombre.set(nombreNorm, clienteId);
           }
           if (datosCliente.prioridad) caches.prioridadCliente.set(clienteId, datosCliente.prioridad as string);
           const prioridad = caches.prioridadCliente.get(clienteId) || 'C';
 
-          // Próxima acción → tarea de seguimiento
+          // Próxima acción → tarea de seguimiento.
+          // Con llave: reimportar el mismo Excel actualizaba antes y creaba una
+          // tarea idéntica cada vez. La llave lleva el vínculo Y el hecho (la
+          // acción y su fecha), nunca solo el tipo, para que el seguimiento del
+          // mes que viene sobre el mismo cliente sí pueda crearse.
           if (g('proxima_accion')) {
-            await sb.from('luz_tareas').insert([{
-              cliente_id: clienteId, tipo_tarea: 'seguimiento',
-              descripcion: g('proxima_accion'), responsable,
-              fecha_limite: aFechaISO(g('fecha_accion')),
-            }]);
+            const llave = llaveImportacion([clienteId, 'accion', g('proxima_accion'), aFechaISO(g('fecha_accion'))]);
+            const { data: ya } = await sb.from('luz_tareas')
+              .select('id').eq('cliente_id', clienteId).ilike('notas', `%${llave}%`).limit(1);
+            if (!ya || ya.length === 0) {
+              await sb.from('luz_tareas').insert([{
+                cliente_id: clienteId, tipo_tarea: 'seguimiento',
+                descripcion: g('proxima_accion'), responsable,
+                fecha_limite: aFechaISO(g('fecha_accion')),
+                notas: llave,
+              }]);
+            }
           }
 
           // CUPS: crear si es nuevo, ACTUALIZAR si ya existe
           const cups = normCups(g('cups'));
           let cupsId: string | null = null;
+          /** El estado del suministro de ESTA fila: es una de las señales de qué es la ficha. */
+          let estadoCupsFila: string | null = null;
           if (cups) {
             const finContrato = aFechaISO(g('fecha_fin'));
             const finPermanencia = aFechaISO(g('fin_permanencia'));
@@ -486,7 +536,7 @@ export async function POST(req: NextRequest) {
             if (finPermanencia) { datosCups.fecha_fin_permanencia = finPermanencia; datosCups.tiene_permanencia = true; }
             if (diasPreaviso) datosCups.dias_preaviso = diasPreaviso;
             if (fechaLimitePreaviso) datosCups.fecha_limite_preaviso = fechaLimitePreaviso;
-            if (estadoCups) datosCups.estado_cups = estadoCups;
+            if (estadoCups) { datosCups.estado_cups = estadoCups; estadoCupsFila = estadoCups; }
             if (responsable) datosCups.responsable = responsable;
 
             const existenteCups = caches.cupsExistentes.get(cups);
@@ -515,29 +565,57 @@ export async function POST(req: NextRequest) {
 
           // Comisión prevista
           if (aNumero(g('comision_prevista')) > 0) {
-            await sb.from('luz_comisiones').insert([{
-              cliente_id: clienteId, cups_id: cupsId,
-              comercializadora: g('comercializadora_final') || g('comercializadora') || null,
-              importe_previsto: aNumero(g('comision_prevista')),
-              fecha_prevista_cobro: aFechaISO(g('fecha_prevista_cobro')),
-              estado_comision: 'prevista',
-            }]);
+            // Mismo cliente, mismo suministro, mismo importe y misma fecha
+            // prevista = la misma comisión, no una segunda.
+            const q = sb.from('luz_comisiones').select('id')
+              .eq('cliente_id', clienteId)
+              .eq('importe_previsto', aNumero(g('comision_prevista')));
+            const { data: ya } = await (cupsId ? q.eq('cups_id', cupsId) : q).limit(1);
+            if (!ya || ya.length === 0) {
+              await sb.from('luz_comisiones').insert([{
+                cliente_id: clienteId, cups_id: cupsId,
+                comercializadora: g('comercializadora_final') || g('comercializadora') || null,
+                importe_previsto: aNumero(g('comision_prevista')),
+                fecha_prevista_cobro: aFechaISO(g('fecha_prevista_cobro')),
+                estado_comision: 'prevista',
+              }]);
+            }
           }
 
           // Activación (contrato activado + CUPS a "activado")
           const fechaAct = aFechaISO(g('fecha_activacion'));
           if (fechaAct) {
-            await sb.from('luz_contratos').insert([{
-              cliente_id: clienteId, cups_id: cupsId,
-              comercializadora_final: g('comercializadora_final') || null,
-              fecha_activacion_real: fechaAct, estado_contrato: 'activado', responsable,
-            }]);
+            // Un contrato activado el mismo día sobre el mismo suministro es
+            // el mismo contrato: reimportar no puede duplicar una activación.
+            const qc = sb.from('luz_contratos').select('id')
+              .eq('cliente_id', clienteId).eq('fecha_activacion_real', fechaAct);
+            const { data: yaC } = await (cupsId ? qc.eq('cups_id', cupsId) : qc).limit(1);
+            if (!yaC || yaC.length === 0) {
+              await sb.from('luz_contratos').insert([{
+                cliente_id: clienteId, cups_id: cupsId,
+                comercializadora_final: g('comercializadora_final') || null,
+                fecha_activacion_real: fechaAct, estado_contrato: 'activado', responsable,
+              }]);
+            }
             if (cupsId) {
               await sb.from('luz_cups').update({
                 estado_cups: 'activado',
                 ...(g('comercializadora_final') ? { comercializadora_actual: g('comercializadora_final') } : {}),
               }).eq('id', cupsId);
             }
+          }
+
+          // Qué ES la ficha. Va al final a propósito: ya se sabe si la fila
+          // traía suministro, en qué estado y si hubo activación, que son las
+          // señales con las que se deduce cuando la casilla viene vacía.
+          const clasif = clasificacionAGuardar(
+            g('clasificacion'),
+            { activacion: !!fechaAct, estadoCups: estadoCupsFila, tieneCups: !!cups, tieneConsumo: aNumero(g('consumo')) > 0 },
+            caches.clasificacionCliente.get(clienteId)
+          );
+          if (clasif && clasif !== caches.clasificacionCliente.get(clienteId)) {
+            await sb.from('luz_clientes').update({ clasificacion: clasif }).eq('id', clienteId);
+            caches.clasificacionCliente.set(clienteId, clasif);
           }
 
           importadas++;

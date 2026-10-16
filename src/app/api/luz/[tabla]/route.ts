@@ -31,6 +31,8 @@ interface DefTabla {
   columnas: string[];
   filtros: string[];
   buscarEn?: string;
+  /** Otras columnas donde buscar el mismo texto (OR). */
+  buscarTambienEn?: string[];
   orden: { col: string; asc: boolean };
   colFecha?: string;
 }
@@ -39,9 +41,10 @@ const TABLAS: Record<string, DefTabla> = {
   clientes: {
     tabla: 'luz_clientes',
     select: '*',
-    columnas: ['nombre', 'nif', 'tipo_cliente', 'persona_contacto', 'telefono', 'email', 'direccion_fiscal', 'responsable', 'prioridad', 'estado_comercial', 'clasificacion', 'potencial_comercial', 'origen_cliente', 'via_entrada', 'zona', 'observaciones', 'fecha_ultimo_contacto', 'fecha_proxima_accion', 'proxima_accion', 'foto_path', 'seguimiento_activo', 'pausado_hasta', 'motivo_pausa', 'pausado_por', 'pausado_en', 'fijado_para', 'fijado_en'],
-    filtros: ['tipo_cliente', 'responsable', 'prioridad', 'estado_comercial', 'clasificacion', 'via_entrada', 'zona', 'seguimiento_activo', 'fijado_para'],
+    columnas: ['codigo', 'nombre', 'nif', 'tipo_cliente', 'persona_contacto', 'telefono', 'email', 'direccion_fiscal', 'responsable', 'prioridad', 'estado_comercial', 'clasificacion', 'potencial_comercial', 'origen_cliente', 'via_entrada', 'zona', 'observaciones', 'fecha_ultimo_contacto', 'fecha_proxima_accion', 'proxima_accion', 'foto_path', 'seguimiento_activo', 'pausado_hasta', 'motivo_pausa', 'pausado_por', 'pausado_en', 'fijado_para', 'fijado_en'],
+    filtros: ['codigo', 'tipo_cliente', 'responsable', 'prioridad', 'estado_comercial', 'clasificacion', 'via_entrada', 'zona', 'seguimiento_activo', 'fijado_para'],
     buscarEn: 'nombre',
+    buscarTambienEn: ['codigo', 'nif'],
     orden: { col: 'nombre', asc: true },
   },
   cups: {
@@ -521,7 +524,14 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ tabla: stri
     if (v !== null && v !== '') query = query.eq(f, v);
   }
   const buscar = params.get('buscar');
-  if (buscar && def.buscarEn) query = query.ilike(def.buscarEn, `%${buscar}%`);
+  if (buscar && def.buscarEn) {
+    // En clientes se busca también por CÓDIGO y por NIF: teclear «CL-0042» o
+    // el CIF es lo que se hace con el Excel delante, y buscar solo por nombre
+    // obligaba a saber cómo está escrito exactamente.
+    query = def.buscarTambienEn?.length
+      ? query.or([def.buscarEn, ...def.buscarTambienEn].map((c) => `${c}.ilike.%${buscar}%`).join(','))
+      : query.ilike(def.buscarEn, `%${buscar}%`);
+  }
   if (def.colFecha) {
     const desde = params.get('desde');
     const hasta = params.get('hasta');

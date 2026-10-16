@@ -290,6 +290,12 @@ function ClientesLuzContenido() {
   const celda = (clave: string, c: LuzCliente) => {
     const agg = porCliente.get(c.id);
     switch (clave) {
+      case 'codigo':
+        return (
+          <span className="font-mono text-[11px] text-muted whitespace-nowrap">
+            {(c as { codigo?: string | null }).codigo || '—'}
+          </span>
+        );
       case 'prioridad':
         return <BadgePrioridad prioridad={c.prioridad} />;
       case 'nombre':

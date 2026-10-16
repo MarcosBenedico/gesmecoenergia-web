@@ -618,6 +618,9 @@ export default function FichaClienteLuz() {
                     <Badge tono={(cliente.via_entrada || 'captacion') === 'facturas' ? 'verde' : 'ambar'}>
                       {VIA_ENTRADA_LABEL[cliente.via_entrada || 'captacion']}
                     </Badge>
+                    {/* El código va antes que el NIF: es la llave, y es lo que
+                        se dice en voz alta cuando el cliente no ha dado NIF. */}
+                    <span className="text-[11px] font-mono text-muted">{cliente.codigo || '—'}</span>
                     <span className="text-[11px] text-muted">NIF: {cliente.nif || '—'}</span>
                   </div>
                 </div>

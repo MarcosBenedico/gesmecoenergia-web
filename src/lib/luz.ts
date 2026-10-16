@@ -289,6 +289,13 @@ export const TAREAS_ABIERTAS: string[] = ['pendiente', 'en_curso', 'bloqueada'];
 // ── Interfaces ──
 export interface LuzCliente {
   id: string;
+  /**
+   * Código propio (CL-0001), el identificador que ponemos nosotros. Es la
+   * llave: el NIF no sirve porque muchos posibles clientes no lo dan. Lo pone
+   * la base de datos al crear la ficha (supabase_codigo_cliente.sql), así que
+   * es opcional en el tipo pero siempre está en una fila guardada.
+   */
+  codigo?: string | null;
   nombre: string;
   nif: string | null;
   tipo_cliente: string;

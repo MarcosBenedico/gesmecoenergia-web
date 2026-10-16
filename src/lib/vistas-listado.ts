@@ -49,6 +49,9 @@ export interface Columna {
  * nada, y dos personas mirando la misma pantalla dejarían de ver lo mismo.
  */
 export const COLUMNAS_CLIENTE: Columna[] = [
+  // El código va el primero: es la llave con la que se habla de un cliente
+  // cuando no hay NIF, y se busca por él en el Excel y en el gestor.
+  { clave: 'codigo', titulo: 'Código', porDefecto: true, pista: 'El identificador propio (CL-0001)' },
   { clave: 'prioridad', titulo: 'Pr.', porDefecto: true, pista: 'A, B o C' },
   { clave: 'nombre', titulo: 'Cliente', porDefecto: true, fija: true },
   { clave: 'clasificacion', titulo: 'Qué es', porDefecto: true, pista: 'Objetivo, precliente o cliente' },
